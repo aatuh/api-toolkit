@@ -17,6 +17,9 @@ const (
 
 	// System endpoints
 	Version = "/version"
+
+	// Metrics endpoint (Prometheus)
+	Metrics = "/metrics"
 )
 
 // HealthEndpoints groups all health-related endpoints
