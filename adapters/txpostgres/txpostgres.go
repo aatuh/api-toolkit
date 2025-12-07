@@ -1,4 +1,3 @@
-// File: api/api-toolkit/txpostgres/txpostgres.go
 package txpostgres
 
 import (
@@ -26,7 +25,7 @@ type Manager struct {
 	Pool ports.DatabasePool
 }
 
-func New(pool ports.DatabasePool) *Manager { return &Manager{Pool: pool} }
+func New(pool ports.DatabasePool) ports.TxManager { return &Manager{Pool: pool} }
 
 func (m *Manager) WithinTx(
 	ctx context.Context, fn func(ctx context.Context) error,

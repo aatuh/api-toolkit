@@ -7,25 +7,40 @@ import (
 	"strings"
 )
 
+const (
+	contentType     = "Content-Type"
+	applicationJSON = "application/json"
+)
+
 type Middleware struct {
 	RequireJSON bool
 }
 
 func New(require bool) *Middleware { return &Middleware{RequireJSON: require} }
 
+// Middleware implements ports.Middleware by returning the Handler adapter.
+func (m *Middleware) Middleware() func(http.Handler) http.Handler {
+	if m == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler { return m.Handler(next) }
+}
+
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	if !m.RequireJSON {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ct := r.Header.Get("Content-Type")
+		ct := r.Header.Get(contentType)
 		if ct == "" {
-			http.Error(w, "missing content-type", http.StatusUnsupportedMediaType)
-			return
+			ct = applicationJSON
 		}
 		if !isJSON(ct) {
-			http.Error(w, "content-type must be application/json",
-				http.StatusUnsupportedMediaType)
+			http.Error(
+				w,
+				contentType+" must be "+applicationJSON,
+				http.StatusUnsupportedMediaType,
+			)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -44,6 +59,6 @@ func StrictDecoder(r *http.Request) (*json.Decoder, error) {
 
 func isJSON(ct string) bool {
 	ct = strings.ToLower(ct)
-	return strings.Contains(ct, "application/json") ||
+	return strings.Contains(ct, applicationJSON) ||
 		strings.HasSuffix(ct, "+json")
 }

@@ -4,17 +4,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/aatuh/api-toolkit/ports"
 	"github.com/aatuh/envvar"
 )
 
 // Adapter provides environment variable access using the envvar library.
 type Adapter struct{}
 
-// New creates a new envvar adapter.
-func New() *Adapter {
-	return &Adapter{}
-}
+// New creates a new envvar adapter that satisfies ports.EnvVar.
+func New() ports.EnvVar { return &Adapter{} }
 
 // LoadEnvFiles loads environment variables from files.
 // Tries .env then /env/.env by default.
@@ -155,13 +155,26 @@ func (a *Adapter) MustGetFloat64(key string) float64 {
 }
 
 // GetDurationOr returns the value as duration or default if not present.
-func (a *Adapter) GetDurationOr(key string, def int64) int64 {
-	return a.GetInt64Or(key, def)
+func (a *Adapter) GetDurationOr(key string, def time.Duration) time.Duration {
+	v := envvar.Get(key)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return def
+	}
+	return d
 }
 
 // MustGetDuration returns the value as duration or panics if not present.
-func (a *Adapter) MustGetDuration(key string) int64 {
-	return a.MustGetInt64(key)
+func (a *Adapter) MustGetDuration(key string) time.Duration {
+	v := envvar.MustGet(key)
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		panic("environment variable " + key + " is not a valid duration: " + v)
+	}
+	return d
 }
 
 // Bind populates a struct from environment variables.
@@ -204,7 +217,7 @@ func (a *Adapter) DumpRedacted() map[string]string {
 		if strings.Contains(upper, "SECRET") ||
 			strings.Contains(upper, "TOKEN") ||
 			strings.Contains(upper, "PASSWORD") ||
-			strings.HasSuffix(upper, "_KEY") {
+			strings.HasSuffix(upper, "KEY") {
 			out[k] = "***"
 		} else {
 			out[k] = v

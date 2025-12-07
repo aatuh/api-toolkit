@@ -8,11 +8,11 @@ import (
 // Problem represents an RFC 7807 problem+json response body.
 // See: https://datatracker.ietf.org/doc/html/rfc7807
 type Problem struct {
-	Type     string         `json:"type,omitempty"`
-	Title    string         `json:"title,omitempty"`
-	Status   int            `json:"status,omitempty"`
-	Detail   string         `json:"detail,omitempty"`
-	Instance string         `json:"instance,omitempty"`
+	Type     string         `json:"type,omitempty"`     // "https://example.com/validation-error"`
+	Title    string         `json:"title,omitempty"`    // "Bad Request"`
+	Status   int            `json:"status,omitempty"`   // 400
+	Detail   string         `json:"detail,omitempty"`   // "name is required"
+	Instance string         `json:"instance,omitempty"` // "/api/v1/foo/123"
 	Ext      map[string]any `json:"-"`
 }
 

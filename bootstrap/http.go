@@ -3,11 +3,14 @@ package bootstrap
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit/chi"
-	"github.com/aatuh/api-toolkit/docs"
-	"github.com/aatuh/api-toolkit/health"
+	"github.com/aatuh/api-toolkit/adapters/chi"
+	"github.com/aatuh/api-toolkit/endpoints/docs"
+	"github.com/aatuh/api-toolkit/endpoints/health"
+	pprofx "github.com/aatuh/api-toolkit/endpoints/pprof"
+	"github.com/aatuh/api-toolkit/endpoints/version"
 	recoverx "github.com/aatuh/api-toolkit/httpx/recover"
 	"github.com/aatuh/api-toolkit/middleware/cors"
 	jsonmw "github.com/aatuh/api-toolkit/middleware/json"
@@ -27,6 +30,10 @@ func NewDefaultRouter(log ports.Logger) ports.HTTPRouter {
 	var r ports.HTTPRouter = chi.New()
 	var mw ports.HTTPMiddleware = chi.NewMiddleware()
 
+	// Optional rate limit bypass for tests/dev (similar to Clerk skip header).
+	skipHeader := os.Getenv("RATE_LIMIT_SKIP_HEADER")
+	skipEnabled := os.Getenv("RATE_LIMIT_SKIP_ENABLED") == "true"
+
 	// Core middlewares
 	r.Use(mw.RequestID())
 	r.Use(mw.RealIP())
@@ -36,30 +43,80 @@ func NewDefaultRouter(log ports.Logger) ports.HTTPRouter {
 	corsh := cors.New()
 	r.Use(corsh.Handler(cors.DefaultOptions()))
 	r.Use(securemw.New().Middleware())
-	r.Use(rateln.New(rateln.Options{Capacity: 30, RefillRate: 15}).Handler)
-	r.Use(maxbody.New(1 << 20).Handler)
-	r.Use(jsonmw.New(true).Handler)
-	r.Use(timeoutmw.New(5 * time.Second).Handler)
-	r.Use(requestlog.New(log).Handler)
-	r.Use(metricsmw.New(metricsmw.NewPrometheusRecorder(nil, nil)).Handler)
-	r.Use(tracemw.Middleware(tracemw.Options{TrustIncoming: false}))
+	r.Use(rateln.New(rateln.Options{
+		Capacity:    30,
+		RefillRate:  15,
+		SkipEnabled: skipEnabled,
+		SkipHeader:  skipHeader,
+	}).Middleware())
+	r.Use(maxbody.New(1 << 20).Middleware())
+	r.Use(jsonmw.New(true).Middleware())
+	r.Use(timeoutmw.New(5 * time.Second).Middleware())
+	r.Use(requestlog.New(log).Middleware())
+	r.Use(metricsmw.New(metricsmw.NewPrometheusRecorder(nil, nil)).Middleware())
+	r.Use(tracemw.New(tracemw.Options{TrustIncoming: false}).Middleware())
 
 	return r
 }
 
-// MountSystemEndpoints registers health, docs, and metrics endpoints.
-func MountSystemEndpoints(r ports.HTTPRouter, hm *health.Handler, dm *docs.Handler) {
-	hm.RegisterRoutes(r)
-	dm.RegisterRoutes(r)
-	r.Get(specs.Metrics, func(w http.ResponseWriter, r *http.Request) {
-		h := metricsmw.PrometheusHandler()
-		h.ServeHTTP(w, r)
+// SystemEndpoints bundles handlers/config for mounting.
+type SystemEndpoints struct {
+	Health  *health.Handler
+	Docs    *docs.Handler
+	Version *version.Handler
+	Pprof   http.Handler
+	Metrics http.Handler
+}
+
+// MountSystemEndpoints registers health, docs, version, and metrics endpoints.
+func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
+	if se.Health != nil {
+		se.Health.RegisterRoutes(r)
+	}
+	if se.Docs != nil {
+		se.Docs.RegisterRoutes(r)
+	}
+	if se.Version != nil {
+		se.Version.RegisterRoutes(r)
+	}
+	if se.Pprof != nil {
+		pprofx.RegisterRoutes(pprofRouter{
+			router: r,
+			h:      se.Pprof,
+		})
+	}
+	metricsHandler := se.Metrics
+	if metricsHandler == nil {
+		metricsHandler = metricsmw.PrometheusHandler()
+	}
+	if metricsHandler != nil {
+		r.Get(specs.Metrics, func(w http.ResponseWriter, req *http.Request) {
+			metricsHandler.ServeHTTP(w, req)
+		})
+	}
+}
+
+type pprofRouter struct {
+	router interface {
+		Get(pattern string, h http.HandlerFunc)
+	}
+	h http.Handler
+}
+
+func (p pprofRouter) Get(pattern string, _ http.HandlerFunc) {
+	p.router.Get(pattern, func(w http.ResponseWriter, r *http.Request) {
+		p.h.ServeHTTP(w, r)
 	})
 }
 
 // StartServer runs an HTTP server and performs graceful shutdown when the
 // context is canceled.
-func StartServer(ctx context.Context, addr string, handler http.Handler, log ports.Logger) error {
+func StartServer(
+	ctx context.Context,
+	addr string,
+	handler http.Handler,
+	log ports.Logger,
+) error {
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -86,5 +143,18 @@ func StartServer(ctx context.Context, addr string, handler http.Handler, log por
 		return nil
 	case err := <-errCh:
 		return err
+	}
+}
+
+// StartServerOrExit runs the HTTP server and exits the process when it fails.
+func StartServerOrExit(
+	ctx context.Context,
+	addr string,
+	handler http.Handler,
+	log ports.Logger,
+) {
+	if err := StartServer(ctx, addr, handler, log); err != nil {
+		log.Error("server error", "err", err)
+		os.Exit(1)
 	}
 }

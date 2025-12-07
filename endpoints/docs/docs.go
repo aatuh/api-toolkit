@@ -132,106 +132,54 @@ func (m *Manager) ServeInfo(w http.ResponseWriter, r *http.Request) {
 
 // generateDefaultHTML generates a default HTML documentation page.
 func (m *Manager) generateDefaultHTML() string {
-	html := fmt.Sprintf(`<!DOCTYPE html>
+	openAPIPath := m.config.Paths.OpenAPI
+	if openAPIPath == "" {
+		openAPIPath = ports.DefaultDocsPaths().OpenAPI
+	}
+	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>%s</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .header { border-bottom: 2px solid #333; padding-bottom: 20px; }
-        .content { margin-top: 20px; }
-        .endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
-        .method { font-weight: bold; color: #0066cc; }
-        .path { font-family: monospace; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%s</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html, body { margin: 0; padding: 0; background: #fafafa; }
+    #swagger-ui { box-sizing: border-box; }
+    .info-panel { padding: 16px; background: #fff; border-bottom: 1px solid #e5e5e5; }
+    .info-panel h1 { margin: 0 0 8px 0; font-size: 1.5rem; }
+    .info-panel p { margin: 0 0 4px 0; color: #555; }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <h1>%s</h1>
-        <p>%s</p>
-        <p><strong>Version:</strong> %s</p>
-    </div>
-    
-    <div class="content">
-        <h2>Available Endpoints</h2>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/docs</span>
-            <p>This documentation page</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/docs/openapi.json</span>
-            <p>OpenAPI specification in JSON format</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/docs/version</span>
-            <p>API version information</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/docs/info</span>
-            <p>API information and metadata</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/livez</span>
-            <p>Liveness probe endpoint</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/readyz</span>
-            <p>Readiness probe endpoint</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/healthz</span>
-            <p>Health check endpoint</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/health/detailed</span>
-            <p>Detailed health information</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/version</span>
-            <p>Application version information</p>
-        </div>
-        
-        <h2>API Resources</h2>
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/api/v1/foo</span>
-            <p>List foo resources</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">POST</span> <span class="path">/api/v1/foo</span>
-            <p>Create a new foo resource</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">GET</span> <span class="path">/api/v1/foo/{id}</span>
-            <p>Get a specific foo resource</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">PUT</span> <span class="path">/api/v1/foo/{id}</span>
-            <p>Update a foo resource</p>
-        </div>
-        
-        <div class="endpoint">
-            <span class="method">DELETE</span> <span class="path">/api/v1/foo/{id}</span>
-            <p>Delete a foo resource</p>
-        </div>
-    </div>
+  <div class="info-panel">
+    <h1>%s</h1>
+    <p>%s</p>
+    <p><strong>Version:</strong> %s</p>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+  window.onload = function() {
+    const ui = SwaggerUIBundle({
+      url: "%s",
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: "BaseLayout"
+    });
+    window.ui = ui;
+  };
+  </script>
 </body>
-</html>`, m.config.Title, m.config.Title, m.config.Description, m.config.Version)
-
-	return html
+</html>`,
+		m.config.Title,
+		m.config.Title,
+		m.config.Description,
+		m.config.Version,
+		openAPIPath,
+	)
 }
 
 // loadOpenAPIFile attempts to load OpenAPI specification from common locations.

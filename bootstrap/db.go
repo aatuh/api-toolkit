@@ -2,9 +2,10 @@ package bootstrap
 
 import (
 	"context"
+	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit/pgxpool"
+	"github.com/aatuh/api-toolkit/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/ports"
 )
 
@@ -24,4 +25,14 @@ func OpenAndPingDB(ctx context.Context, dsn string, timeout time.Duration) (port
 		return nil, err
 	}
 	return pool, nil
+}
+
+// OpenPoolOrExit opens a DB pool and terminates the process if it fails.
+func OpenPoolOrExit(ctx context.Context, dsn string, timeout time.Duration, log ports.Logger) ports.DatabasePool {
+	pool, err := OpenAndPingDB(ctx, dsn, timeout)
+	if err != nil {
+		log.Error("db connect failed", "err", err)
+		os.Exit(1)
+	}
+	return pool
 }

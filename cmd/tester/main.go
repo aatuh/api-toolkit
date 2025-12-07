@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/envvar"
+	"github.com/aatuh/api-toolkit/adapters/envvar"
 )
 
 var env = envvar.New()
@@ -43,11 +43,11 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		APIHost:        env.GetOr("API_HOST", ""),
-		SkipAPIWait:    env.GetOr("SKIP_API_WAIT", "") != "",
+		SkipAPIWait:    env.GetBoolOr("SKIP_API_WAIT", false),
 		PackagePattern: env.GetOr("PKG", "./..."),
 		TestPattern:    env.GetOr("TEST_PATTERN", ""),
 		Flags:          env.GetOr("FLAGS", ""),
-		FastMode:       env.GetOr("FAST", "") != "",
+		FastMode:       env.GetBoolOr("FAST", false),
 		CacheEnabled:   env.GetBoolOr("TEST_CACHE_ENABLED", true),
 		CacheTTL:       env.GetIntOr("TEST_CACHE_TTL", 3600),
 		CacheDir:       env.GetOr("TEST_CACHE_DIR", ".test-cache"),
@@ -231,13 +231,13 @@ func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config)
 	cacheFile := filepath.Join(cfg.CacheDir, cacheKey)
 
 	if cfg.CacheEnabled && isCacheValid(cacheFile, cfg.CacheTTL) {
-		fmt.Printf("📦 Using cached test results for %s\n", pkg)
+		fmt.Printf("📦 Using cached test results: %s\n", pkg)
 		data, _ := os.ReadFile(cacheFile)
 		os.Stdout.Write(data)
 		return nil
 	}
 
-	fmt.Printf("🧪 Running tests for %s (not cached or cache expired)\n", pkg)
+	fmt.Printf("🧪 Running tests: %s\n", pkg)
 
 	covDir := ".coverage"
 	_ = os.MkdirAll(covDir, 0o755)
@@ -245,6 +245,9 @@ func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config)
 
 	args := []string{"test", "-v", "-failfast", "-covermode=atomic", "-coverprofile=" + covFile}
 	args = append(args, splitFlags(flags)...)
+	if !cfg.CacheEnabled {
+		args = append(args, "-count=1")
+	}
 	if strings.TrimSpace(runPattern) != "" {
 		args = append(args, "-run", runPattern)
 	}
@@ -287,7 +290,7 @@ func main() {
 	// API wait
 	if !cfg.SkipAPIWait {
 		if cfg.APIHost == "" {
-			fatalf("❌ API_HOST environment variable is not set. Please define it in your .env or .env.test file.")
+			fatalf("❌ API_HOST environment variable is not set. Please define it in your env var file.")
 		}
 		// No timeout to match original script behavior (wait indefinitely)
 		if err := waitForAPI(context.Background(), cfg.APIHost); err != nil {
@@ -310,6 +313,9 @@ func main() {
 		fmt.Println("FAST mode: single go test invocation, no race/coverage, no caching")
 		args := []string{"test", "-v", "-failfast"}
 		args = append(args, splitFlags(cfg.Flags)...)
+		if !cfg.CacheEnabled {
+			args = append(args, "-count=1")
+		}
 		if strings.TrimSpace(cfg.TestPattern) != "" {
 			args = append(args, "-run", cfg.TestPattern)
 		}

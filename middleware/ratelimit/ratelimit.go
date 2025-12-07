@@ -15,6 +15,12 @@ type Options struct {
 	RefillRate float64 // tokens per second
 	Key        KeyFn   // how to key buckets
 	RetryAfter time.Duration
+
+	// SkipEnabled toggles honoring the SkipHeader. Useful for tests/dev.
+	SkipEnabled bool
+	// SkipHeader contains the header name that, when present, bypasses limiting.
+	// When empty, no bypass is applied.
+	SkipHeader string
 }
 
 type Middleware struct {
@@ -41,8 +47,24 @@ func New(opts Options) *Middleware {
 	return &Middleware{opts: opts, m: make(map[string]*bucket)}
 }
 
+// Middleware implements ports.Middleware via Handler adapter.
+func (m *Middleware) Middleware() func(http.Handler) http.Handler {
+	if m == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler { return m.Handler(next) }
+}
+
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.opts.SkipEnabled && m.opts.SkipHeader != "" {
+			val := r.Header.Get(m.opts.SkipHeader)
+			if val == "true" {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
 		key := m.opts.Key(r)
 		now := time.Now()
 

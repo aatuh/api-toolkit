@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -36,31 +37,62 @@ type TxManager interface {
 	WithinTx(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
-// Migrator is the app-level contract used by main and CLI.
+// Migrator defines an interface for database migrations.
 type Migrator interface {
 	Up(ctx context.Context, dir string) error
 	Down(ctx context.Context, dir string) error
 	Status(ctx context.Context, dir string) (string, error)
+	Close() error
 }
 
 // EnvVar manages environment variables with typed getters.
 type EnvVar interface {
+	// LoadEnvFiles loads environment variables from specific files.
+	LoadEnvFiles(paths []string) error
+	// Get returns the value and if it exists.
+	Get(key string) (string, bool)
+	// GetOr returns the value or default if not present.
+	GetOr(key, def string) string
 	// MustGet returns the value or panics if not present.
 	MustGet(key string) string
+	// GetBoolOr returns the value as boolean or default if not present.
+	GetBoolOr(key string, def bool) bool
 	// MustGetBool returns the value as a boolean or panics if not present.
 	MustGetBool(key string) bool
+	// GetIntOr returns the value as an integer or default if not present.
+	GetIntOr(key string, def int) int
 	// MustGetInt returns the value as an integer or panics if not present.
 	MustGetInt(key string) int
+	// GetInt64Or returns the value as an int64 or default if not present.
+	GetInt64Or(key string, def int64) int64
 	// MustGetInt64 returns the value as an int64 or panics if not present.
 	MustGetInt64(key string) int64
+	// GetUintOr returns the value as a uint or default if not present.
+	GetUintOr(key string, def uint) uint
 	// MustGetUint returns the value as a uint or panics if not present.
 	MustGetUint(key string) uint
+	// GetUint64Or returns the value as a uint64 or default if not present.
+	GetUint64Or(key string, def uint64) uint64
 	// MustGetUint64 returns the value as a uint64 or panics if not present.
 	MustGetUint64(key string) uint64
+	// GetFloat64Or returns the value as a float64 or default if not present.
+	GetFloat64Or(key string, def float64) float64
 	// MustGetFloat64 returns the value as a float64 or panics if not present.
 	MustGetFloat64(key string) float64
 	// MustGetDuration returns the value as a duration or panics if not present.
 	MustGetDuration(key string) time.Duration
+	// GetDurationOr returns the value as a duration or default if not present.
+	GetDurationOr(key string, def time.Duration) time.Duration
+	// Bind populates a struct from environment variables.
+	Bind(dst any) error
+	// MustBind panics on binding errors.
+	MustBind(dst any)
+	// BindWithPrefix binds with a prefix.
+	BindWithPrefix(dst any, prefix string) error
+	// MustBindWithPrefix panics on binding errors with prefix.
+	MustBindWithPrefix(dst any, prefix string)
+	// DumpRedacted returns environment with secrets redacted.
+	DumpRedacted() map[string]string
 }
 
 // HTTPRouter defines the interface for HTTP routing.
@@ -227,6 +259,50 @@ type HealthCheckConfig struct {
 	ReadinessChecks []string      `json:"readiness_checks"`
 }
 
+// CheckoutSessionRequest describes a hosted checkout request (e.g. Stripe Checkout).
+type CheckoutSessionRequest struct {
+	Amount     int64             // Minor units (cents)
+	Currency   string            // ISO currency, e.g. "eur"
+	PriceID    string            // Provider-specific price ID (preferred)
+	SuccessURL string            // Where to redirect on success
+	CancelURL  string            // Where to redirect on cancellation
+	Metadata   map[string]string // Arbitrary key/value for reconciliation
+	Mode       string            // "payment" | "subscription"
+	Locale     string            // Optional locale code, provider-specific
+}
+
+// CheckoutSession represents a provider-created hosted checkout session.
+type CheckoutSession struct {
+	ID  string
+	URL string
+}
+
+// WebhookEvent is a generic payment provider webhook payload wrapper.
+type WebhookEvent struct {
+	ID        string
+	Type      string
+	CreatedAt time.Time
+	Payload   json.RawMessage
+}
+
+// Price represents a payment provider price.
+type Price struct {
+	ID         string
+	ProductID  string
+	Currency   string
+	UnitAmount int64
+	Nickname   string
+	Metadata   map[string]string
+	Active     bool
+}
+
+// PaymentProvider defines a hosted checkout + webhook contract.
+type PaymentProvider interface {
+	CreateCheckoutSession(ctx context.Context, req CheckoutSessionRequest) (CheckoutSession, error)
+	ParseWebhook(ctx context.Context, payload []byte, sigHeader string) (WebhookEvent, error)
+	ListPrices(ctx context.Context) ([]Price, error)
+}
+
 // HealthCheckRegistry defines the interface for registering health checks.
 type HealthCheckRegistry interface {
 	Register(name string, checker HealthChecker)
@@ -296,7 +372,14 @@ func DefaultDocsPaths() DocsPaths {
 	}
 }
 
-// SecurityHandler defines the interface for security middleware.
-type SecurityHandler interface {
+// VersionInfo describes application build information.
+type VersionInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+}
+
+// Middleware defines the interface for middlewares.
+type Middleware interface {
 	Middleware() func(http.Handler) http.Handler
 }

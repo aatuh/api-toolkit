@@ -1,4 +1,4 @@
-package idgen
+package ulid
 
 import (
 	"crypto/rand"
@@ -10,12 +10,12 @@ import (
 
 type ULIDGen struct{}
 
-func (ULIDGen) New() string {
-	t := time.Now().UTC()
-	return ulid.MustNew(ulid.Timestamp(t), rand.Reader).String()
-}
-
 // NewULIDGen creates a new ULID generator that implements ports.IDGen.
 func NewULIDGen() ports.IDGen {
 	return &ULIDGen{}
+}
+
+func (ULIDGen) New() string {
+	t := time.Now().UTC()
+	return ulid.MustNew(ulid.Timestamp(t), rand.Reader).String()
 }

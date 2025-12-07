@@ -33,10 +33,21 @@ type Options struct {
 }
 
 // Middleware attaches trace/span IDs to request context and sets response header.
-func Middleware(opts Options) func(http.Handler) http.Handler {
-	if opts.SampledFlag != 0x00 && opts.SampledFlag != 0x01 {
-		opts.SampledFlag = 0x01
+type Middleware struct {
+	opts Options
+}
+
+// New constructs a Middleware with sane defaults.
+func New(opts Options) *Middleware {
+	return &Middleware{opts: normalizeOptions(opts)}
+}
+
+// Middleware implements ports.Middleware by producing the handler adapter.
+func (m *Middleware) Middleware() func(http.Handler) http.Handler {
+	if m == nil {
+		return func(next http.Handler) http.Handler { return next }
 	}
+	opts := m.opts
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var traceID string
@@ -64,6 +75,12 @@ func Middleware(opts Options) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// Use preserves the old helper-style API.
+// Deprecated: use New(opts).Middleware() instead.
+func Use(opts Options) func(http.Handler) http.Handler {
+	return New(opts).Middleware()
 }
 
 // GetTraceID returns the hex-encoded 16-byte trace id if present.
@@ -169,4 +186,11 @@ func allZeroHex(s string) bool {
 		}
 	}
 	return true
+}
+
+func normalizeOptions(opts Options) Options {
+	if opts.SampledFlag != 0x00 && opts.SampledFlag != 0x01 {
+		opts.SampledFlag = 0x01
+	}
+	return opts
 }

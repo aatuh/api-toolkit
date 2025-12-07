@@ -30,7 +30,7 @@ type Options struct {
 }
 
 // New builds an Adapter and pings the database.
-func New(opts Options) (*Adapter, error) {
+func New(opts Options) (ports.Migrator, error) {
 	if opts.Log == nil {
 		return nil, fmt.Errorf("logger is required")
 	}

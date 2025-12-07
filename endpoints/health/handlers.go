@@ -20,6 +20,17 @@ func NewHandler(manager ports.HealthManager) *Handler {
 	return &Handler{manager: manager}
 }
 
+// NewDefaultHandler builds a handler with standard checkers.
+func NewDefaultHandler(pool ports.DatabasePool) *Handler {
+	manager := New()
+	manager.RegisterCheckers(
+		NewBasicChecker(),
+		NewDatabaseChecker(pool),
+		NewMemoryChecker(1024),
+	)
+	return NewHandler(manager)
+}
+
 // LivenessHandler handles liveness checks.
 // @Summary Liveness probe
 // @Description Returns the liveness status of the application

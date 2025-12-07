@@ -20,6 +20,13 @@ const (
 
 	// Metrics endpoint (Prometheus)
 	Metrics = "/metrics"
+
+	// Pprof endpoints for runtime profiling.
+	PprofIndex   = "/debug/pprof/"
+	PprofCmdline = "/debug/pprof/cmdline"
+	PprofProfile = "/debug/pprof/profile"
+	PprofSymbol  = "/debug/pprof/symbol"
+	PprofTrace   = "/debug/pprof/trace"
 )
 
 // HealthEndpoints groups all health-related endpoints
@@ -66,4 +73,19 @@ var AllEndpoints = struct {
 	Health: HealthEndpoints,
 	Docs:   DocsEndpoints,
 	System: SystemEndpoints,
+}
+
+// PprofEndpoints groups all profiling endpoints.
+var PprofEndpoints = struct {
+	Index   string
+	Cmdline string
+	Profile string
+	Symbol  string
+	Trace   string
+}{
+	Index:   PprofIndex,
+	Cmdline: PprofCmdline,
+	Profile: PprofProfile,
+	Symbol:  PprofSymbol,
+	Trace:   PprofTrace,
 }

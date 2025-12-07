@@ -7,6 +7,8 @@ import (
 	"github.com/aatuh/api-toolkit/specs"
 )
 
+const defaultDocsCSP = "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self'"
+
 // Handler provides HTTP handlers for documentation endpoints.
 type Handler struct {
 	manager ports.DocsManager
@@ -15,6 +17,11 @@ type Handler struct {
 // NewHandler creates a new docs handler.
 func NewHandler(manager ports.DocsManager) *Handler {
 	return &Handler{manager: manager}
+}
+
+// NewDefaultHandler builds a handler using the default docs manager.
+func NewDefaultHandler() *Handler {
+	return NewHandler(New())
 }
 
 // HTMLHandler handles HTML documentation requests.
@@ -26,6 +33,7 @@ func NewHandler(manager ports.DocsManager) *Handler {
 // @Success 200 {string} string "HTML documentation page"
 // @Router /docs [get]
 func (h *Handler) HTMLHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Security-Policy", defaultDocsCSP)
 	h.manager.ServeHTML(w, r)
 }
 

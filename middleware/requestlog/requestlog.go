@@ -15,6 +15,14 @@ type Middleware struct {
 
 func New(log ports.Logger) *Middleware { return &Middleware{Log: log} }
 
+// Middleware implements ports.Middleware via Handler adapter.
+func (m *Middleware) Middleware() func(http.Handler) http.Handler {
+	if m == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler { return m.Handler(next) }
+}
+
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

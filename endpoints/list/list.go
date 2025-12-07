@@ -1,4 +1,4 @@
-package endpoints
+package list
 
 import (
 	"net/http"
@@ -13,6 +13,7 @@ type ListQuery struct {
 	Offset  int
 	Search  string
 	Filters Filters
+	Sort    []SortField
 	Raw     url.Values
 	missing []string
 }
@@ -42,6 +43,12 @@ func (q ListQuery) Has(key string) bool {
 // Filters describes allowed filter values.
 type Filters map[string][]string
 
+// SortField describes a field and direction used for ordering results.
+type SortField struct {
+	Field string `json:"field"`
+	Desc  bool   `json:"desc"`
+}
+
 // ListQueryConfig configures parsing behaviour for list endpoints.
 type ListQueryConfig struct {
 	DefaultLimit   int
@@ -49,6 +56,13 @@ type ListQueryConfig struct {
 	AllowedFilters []string
 	Required       []string
 	SearchParam    string
+	SortParam      string
+	AllowedSorts   []string
+	DefaultSort    []SortField
+	// FilterParser overrides the default filter parser when set.
+	FilterParser func(values url.Values, cfg ListQueryConfig) Filters
+	// SortParser overrides the default sort parser when set.
+	SortParser func(values url.Values, cfg ListQueryConfig) []SortField
 }
 
 // ParseListQuery parses pagination and filters from the HTTP request according to cfg.
@@ -57,43 +71,19 @@ func ParseListQuery(r *http.Request, cfg ListQueryConfig) ListQuery {
 	limit := clampInt(parseInt(values.Get("limit"), cfg.DefaultLimit), 1, cfg.MaxLimit)
 	offset := parseOffset(values.Get("offset"))
 
-	searchKey := cfg.SearchParam
-	if strings.TrimSpace(searchKey) == "" {
-		searchKey = "search"
-	}
+	searchKey := effectiveSearchKey(cfg)
 	search := strings.TrimSpace(values.Get(searchKey))
 
-	allowed := make(map[string]struct{}, len(cfg.AllowedFilters))
-	for _, f := range cfg.AllowedFilters {
-		if f == "" {
-			continue
-		}
-		allowed[f] = struct{}{}
-	}
-
-	filters := make(Filters)
-	for key, vals := range values {
-		if key == "limit" || key == "offset" || key == searchKey {
-			continue
-		}
-		if name, ok := parseFilterKey(key); ok {
-			if allowFilter(name, allowed) {
-				addFilter(filters, name, vals)
-			}
-			continue
-		}
-		if allowFilter(key, allowed) {
-			addFilter(filters, key, vals)
-		}
-	}
-
+	filters := filtersFromConfig(values, cfg)
 	missing := requiredMissing(filters, cfg.Required)
+	sortFields := sortFromConfig(values, cfg)
 
 	return ListQuery{
 		Limit:   limit,
 		Offset:  offset,
 		Search:  search,
 		Filters: filters,
+		Sort:    sortFields,
 		Raw:     values,
 		missing: missing,
 	}
@@ -107,6 +97,7 @@ type ListMeta struct {
 	Offset  int                 `json:"offset"`
 	Filters map[string][]string `json:"filters,omitempty"`
 	Search  string              `json:"search,omitempty"`
+	Sort    []SortField         `json:"sort,omitempty"`
 }
 
 // ListResponse wraps list results with metadata.
@@ -126,6 +117,9 @@ func NewListResponse[T any](items []T, total int, query ListQuery) ListResponse[
 	}
 	if len(query.Filters) > 0 {
 		meta.Filters = cloneFilters(query.Filters)
+	}
+	if len(query.Sort) > 0 {
+		meta.Sort = cloneSort(query.Sort)
 	}
 	return ListResponse[T]{
 		Data: items,
@@ -175,6 +169,69 @@ func clampInt(n, min, max int) int {
 	return n
 }
 
+func effectiveSearchKey(cfg ListQueryConfig) string {
+	if strings.TrimSpace(cfg.SearchParam) == "" {
+		return "search"
+	}
+	return cfg.SearchParam
+}
+
+func effectiveSortKey(cfg ListQueryConfig) string {
+	if strings.TrimSpace(cfg.SortParam) == "" {
+		return "sort"
+	}
+	return cfg.SortParam
+}
+
+func filtersFromConfig(values url.Values, cfg ListQueryConfig) Filters {
+	if cfg.FilterParser != nil {
+		filters := cfg.FilterParser(values, cfg)
+		if filters == nil {
+			return make(Filters)
+		}
+		return filters
+	}
+	return DefaultFilterParser(values, cfg)
+}
+
+// DefaultFilterParser implements the toolkit's standard query syntax.
+func DefaultFilterParser(values url.Values, cfg ListQueryConfig) Filters {
+	searchKey := effectiveSearchKey(cfg)
+	sortKey := effectiveSortKey(cfg)
+	allowed := buildAllowedSet(cfg.AllowedFilters)
+
+	filters := make(Filters)
+	for key, vals := range values {
+		if key == "limit" || key == "offset" || key == searchKey || key == sortKey {
+			continue
+		}
+		if name, ok := parseFilterKey(key); ok {
+			if allowFilter(name, allowed) {
+				addFilter(filters, name, vals)
+			}
+			continue
+		}
+		if allowFilter(key, allowed) {
+			addFilter(filters, key, vals)
+		}
+	}
+	return filters
+}
+
+func sortFromConfig(values url.Values, cfg ListQueryConfig) []SortField {
+	if cfg.SortParser != nil {
+		return cloneSort(cfg.SortParser(values, cfg))
+	}
+	return DefaultSortParser(values, cfg)
+}
+
+// DefaultSortParser implements the toolkit's comma-delimited sort syntax.
+func DefaultSortParser(values url.Values, cfg ListQueryConfig) []SortField {
+	sortKey := effectiveSortKey(cfg)
+	sortAllowed := buildAllowedSet(cfg.AllowedSorts)
+	return parseSort(values[sortKey], sortAllowed, cfg.DefaultSort)
+}
+
 func parseFilterKey(key string) (string, bool) {
 	if strings.HasPrefix(key, "filter[") && strings.HasSuffix(key, "]") {
 		name := key[len("filter[") : len(key)-1]
@@ -193,6 +250,74 @@ func allowFilter(name string, allowed map[string]struct{}) bool {
 	}
 	_, ok := allowed[name]
 	return ok
+}
+
+func parseSort(values []string, allowed map[string]struct{}, defaults []SortField) []SortField {
+	var out []SortField
+	seen := make(map[string]struct{})
+	for _, raw := range values {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		parts := strings.Split(raw, ",")
+		for _, part := range parts {
+			field, desc, ok := normalizeSort(part)
+			if !ok || !allowFilter(field, allowed) {
+				continue
+			}
+			key := field
+			if desc {
+				key = "-" + key
+			}
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, SortField{Field: field, Desc: desc})
+		}
+	}
+	if len(out) == 0 {
+		return cloneSort(defaults)
+	}
+	return out
+}
+
+func normalizeSort(in string) (field string, desc bool, ok bool) {
+	in = strings.TrimSpace(in)
+	if in == "" {
+		return "", false, false
+	}
+	switch {
+	case strings.HasPrefix(in, "-"):
+		return strings.TrimSpace(in[1:]), true, strings.TrimSpace(in[1:]) != ""
+	case strings.HasPrefix(in, "+"):
+		return strings.TrimSpace(in[1:]), false, strings.TrimSpace(in[1:]) != ""
+	default:
+		return in, false, true
+	}
+}
+
+func cloneSort(in []SortField) []SortField {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]SortField, len(in))
+	copy(out, in)
+	return out
+}
+
+func buildAllowedSet(values []string) map[string]struct{} {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		out[v] = struct{}{}
+	}
+	return out
 }
 
 func addFilter(filters Filters, key string, vals []string) {

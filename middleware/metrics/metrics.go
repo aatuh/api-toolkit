@@ -44,6 +44,14 @@ func (mw *Middleware) HandlerFunc() func(http.Handler) http.Handler {
 	return mw.Handler
 }
 
+// Middleware implements ports.Middleware by returning Handler.
+func (mw *Middleware) Middleware() func(http.Handler) http.Handler {
+	if mw == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return mw.Handler
+}
+
 // PrometheusRecorder implements MetricsRecorder using Prometheus client.
 // This is a minimal adapter; applications can supply their own recorder.
 type PrometheusRecorder struct {
