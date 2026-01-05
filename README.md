@@ -119,8 +119,7 @@ r.Use(metricsmw.New(nil).Middleware())        // nil → Noop metrics
 r.Use(tracemw.New(tracemw.Options{TrustIncoming: false}).Middleware())
 
 // Health and docs
-hm := health.New()
-health.NewHandler(hm).RegisterRoutes(r)
+health.NewBasicHandler().RegisterRoutes(r)
 docs.NewHandler(docs.New()).RegisterRoutes(r)
 ```
 

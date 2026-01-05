@@ -20,9 +20,23 @@ func NewHandler(manager ports.HealthManager) *Handler {
 	return &Handler{manager: manager}
 }
 
+// NewBasicHandler builds a handler with just the basic checker.
+func NewBasicHandler() *Handler {
+	manager := New()
+	manager.RegisterChecker(NewBasicChecker())
+	return NewHandler(manager)
+}
+
 // NewDefaultHandler builds a handler with standard checkers.
 func NewDefaultHandler(pool ports.DatabasePool) *Handler {
-	manager := New()
+	manager := NewWithConfig(ports.HealthCheckConfig{
+		Timeout:         5 * time.Second,
+		CacheDuration:   5 * time.Second,
+		EnableCaching:   true,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic", "database"},
+	})
 	manager.RegisterCheckers(
 		NewBasicChecker(),
 		NewDatabaseChecker(pool),

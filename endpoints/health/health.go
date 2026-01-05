@@ -26,17 +26,22 @@ func New() ports.HealthManager {
 		EnableCaching:   true,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
-		ReadinessChecks: []string{"database", "basic"},
+		ReadinessChecks: []string{"basic"},
 	})
 }
 
-// NewWithConfig creates a new health manager with custom configuration.
-func NewWithConfig(config ports.HealthCheckConfig) ports.HealthManager {
+// NewManagerWithConfig creates a new health manager and returns the concrete type.
+func NewManagerWithConfig(config ports.HealthCheckConfig) *Manager {
 	return &Manager{
 		config:   config,
 		checkers: make(map[string]ports.HealthChecker),
 		cache:    make(map[string]ports.HealthResult),
 	}
+}
+
+// NewWithConfig creates a new health manager with custom configuration.
+func NewWithConfig(config ports.HealthCheckConfig) ports.HealthManager {
+	return NewManagerWithConfig(config)
 }
 
 // RegisterChecker registers a single health checker.
@@ -102,6 +107,56 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 	}
 
 	// Determine overall status
+	var overallStatus ports.HealthStatus
+	if summary.Unhealthy > 0 {
+		overallStatus = ports.HealthStatusUnhealthy
+	} else if summary.Degraded > 0 {
+		overallStatus = ports.HealthStatusDegraded
+	} else if summary.Healthy > 0 {
+		overallStatus = ports.HealthStatusHealthy
+	} else {
+		overallStatus = ports.HealthStatusUnknown
+	}
+
+	return ports.DetailedHealthResponse{
+		Status:    overallStatus,
+		Timestamp: time.Now(),
+		Checks:    checks,
+		Summary:   summary,
+	}
+}
+
+// RefreshAll runs all registered checks and updates the cache.
+func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
+	m.mu.RLock()
+	checkerNames := make([]string, 0, len(m.checkers))
+	for name := range m.checkers {
+		checkerNames = append(checkerNames, name)
+	}
+	m.mu.RUnlock()
+
+	checkCtx, cancel := context.WithTimeout(ctx, m.config.Timeout)
+	defer cancel()
+
+	checks := make(map[string]ports.HealthResult)
+	summary := ports.HealthSummary{Total: len(checkerNames)}
+
+	for _, name := range checkerNames {
+		result := m.performCheckNoCache(checkCtx, name)
+		checks[name] = result
+
+		switch result.Status {
+		case ports.HealthStatusHealthy:
+			summary.Healthy++
+		case ports.HealthStatusUnhealthy:
+			summary.Unhealthy++
+		case ports.HealthStatusDegraded:
+			summary.Degraded++
+		case ports.HealthStatusUnknown:
+			summary.Unknown++
+		}
+	}
+
 	var overallStatus ports.HealthStatus
 	if summary.Unhealthy > 0 {
 		overallStatus = ports.HealthStatusUnhealthy
@@ -218,6 +273,34 @@ func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthRes
 	result.Timestamp = time.Now()
 
 	// Cache result
+	if m.config.EnableCaching {
+		m.cacheMutex.Lock()
+		m.cache[name] = result
+		m.cacheMutex.Unlock()
+	}
+
+	return result
+}
+
+func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.HealthResult {
+	// Get checker
+	m.mu.RLock()
+	checker, exists := m.checkers[name]
+	m.mu.RUnlock()
+
+	if !exists {
+		return ports.HealthResult{
+			Status:    ports.HealthStatusUnknown,
+			Message:   fmt.Sprintf("Checker '%s' not found", name),
+			Timestamp: time.Now(),
+		}
+	}
+
+	start := time.Now()
+	result := checker.Check(ctx)
+	result.Duration = time.Since(start)
+	result.Timestamp = time.Now()
+
 	if m.config.EnableCaching {
 		m.cacheMutex.Lock()
 		m.cache[name] = result
