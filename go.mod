@@ -13,6 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stripe/stripe-go/v79 v79.12.0
 	go.uber.org/zap v1.27.0
+	golang.org/x/text v0.31.0
 )
 
 require (
@@ -34,6 +35,5 @@ require (
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
