@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/ports"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type Middleware struct {
@@ -74,6 +75,9 @@ func clientIP(r *http.Request) string {
 
 func requestID(r *http.Request) string {
 	if v := r.Header.Get("X-Request-ID"); v != "" {
+		return v
+	}
+	if v := middleware.GetReqID(r.Context()); v != "" {
 		return v
 	}
 	return ""
