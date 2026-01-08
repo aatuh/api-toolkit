@@ -1,7 +1,10 @@
 package recover
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"runtime/debug"
 
 	"github.com/aatuh/api-toolkit/httpx"
 )
@@ -13,6 +16,7 @@ func Middleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "panic recovered: %v\n%s\n", rec, debug.Stack())
 					httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
 						Title:  http.StatusText(http.StatusInternalServerError),
 						Detail: "internal server error",

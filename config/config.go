@@ -1,8 +1,6 @@
 package config
 
-import (
-	"github.com/aatuh/api-toolkit/adapters/envvar"
-)
+import "fmt"
 
 type Config struct {
 	Addr           string `env:"API_ADDR"`         // host:port|:port
@@ -19,16 +17,30 @@ type Config struct {
 
 // MustLoadFromEnv loads config or panics if required values are missing.
 func MustLoadFromEnv() Config {
-	adapter := envvar.New()
-	cfg := Config{
-		Addr:                 adapter.GetOr("API_ADDR", ":8000"),
-		DatabaseURL:          adapter.MustGet("DATABASE_URL"),
-		LogLevel:             adapter.GetOr("LOG_LEVEL", "info"),
-		MigrateOnStart:       adapter.GetBoolOr("MIGRATE_ON_START", false),
-		MigrationsDir:        adapter.GetOr("MIGRATIONS_DIR", "-"),
-		Env:                  adapter.GetOr("ENV", "development"),
-		RateLimitSkipEnabled: adapter.GetBoolOr("RATE_LIMIT_SKIP_ENABLED", false),
-		RateLimitSkipHeader:  adapter.GetOr("RATE_LIMIT_SKIP_HEADER", ""),
+	cfg, err := LoadFromEnv(nil)
+	if err != nil {
+		panic(err)
 	}
 	return cfg
+}
+
+// LoadFromEnv loads config from environment using an optional loader.
+func LoadFromEnv(loader *Loader) (Config, error) {
+	if loader == nil {
+		loader = NewLoader()
+	}
+	cfg := Config{
+		Addr:                 loader.String("API_ADDR", ":8000"),
+		DatabaseURL:          loader.Require("DATABASE_URL"),
+		LogLevel:             loader.String("LOG_LEVEL", "info"),
+		MigrateOnStart:       loader.Bool("MIGRATE_ON_START", false),
+		MigrationsDir:        loader.String("MIGRATIONS_DIR", "-"),
+		Env:                  loader.String("ENV", "development"),
+		RateLimitSkipEnabled: loader.Bool("RATE_LIMIT_SKIP_ENABLED", false),
+		RateLimitSkipHeader:  loader.String("RATE_LIMIT_SKIP_HEADER", ""),
+	}
+	if err := loader.Err(); err != nil {
+		return Config{}, fmt.Errorf("config: %w", err)
+	}
+	return cfg, nil
 }

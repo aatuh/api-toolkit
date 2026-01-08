@@ -16,9 +16,10 @@ import (
 
 // Config customizes how the migration runner behaves.
 type Config struct {
-	Embedded fs.FS
-	EnvVar   string
-	Timeout  time.Duration
+	Embedded    fs.FS   // deprecated: use EmbeddedFSs
+	EmbeddedFSs []fs.FS // multiple embedded sources
+	EnvVar      string
+	Timeout     time.Duration
 }
 
 // Run executes the migrate CLI workflow using the provided configuration.
@@ -58,10 +59,13 @@ func Run(cfg Config) {
 	if *dir != "" {
 		dirs = []string{*dir}
 	} else {
-		if cfg.Embedded == nil {
+		embeddedFS = cfg.EmbeddedFSs
+		if len(embeddedFS) == 0 && cfg.Embedded != nil {
+			embeddedFS = []fs.FS{cfg.Embedded}
+		}
+		if len(embeddedFS) == 0 {
 			log.Fatal("embedded migrations FS is required when no directory override is provided")
 		}
-		embeddedFS = []fs.FS{cfg.Embedded}
 	}
 	m, err := bootstrap.NewMigrator(dsn, *table, *lock, *allowD, logzap.NewProduction(), dirs, embeddedFS)
 	if err != nil {

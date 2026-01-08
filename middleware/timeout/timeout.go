@@ -1,6 +1,7 @@
 package timeout
 
 import (
+	"context"
 	"net/http"
 	"time"
 )
@@ -20,5 +21,17 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 }
 
 func (m *Middleware) Handler(next http.Handler) http.Handler {
-	return http.TimeoutHandler(next, m.Timeout, "request timeout")
+	if m == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), m.Timeout)
+		defer func() {
+			cancel()
+			if ctx.Err() == context.DeadlineExceeded {
+				w.WriteHeader(http.StatusGatewayTimeout)
+			}
+		}()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
