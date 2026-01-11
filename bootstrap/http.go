@@ -16,11 +16,11 @@ import (
 	jsonmw "github.com/aatuh/api-toolkit/middleware/json"
 	maxbody "github.com/aatuh/api-toolkit/middleware/maxbody"
 	metricsmw "github.com/aatuh/api-toolkit/middleware/metrics"
+	oteltrace "github.com/aatuh/api-toolkit/middleware/oteltrace"
 	rateln "github.com/aatuh/api-toolkit/middleware/ratelimit"
 	requestlog "github.com/aatuh/api-toolkit/middleware/requestlog"
 	securemw "github.com/aatuh/api-toolkit/middleware/secure"
 	timeoutmw "github.com/aatuh/api-toolkit/middleware/timeout"
-	tracemw "github.com/aatuh/api-toolkit/middleware/trace"
 	"github.com/aatuh/api-toolkit/ports"
 	"github.com/aatuh/api-toolkit/specs"
 )
@@ -37,6 +37,7 @@ func NewDefaultRouter(log ports.Logger) ports.HTTPRouter {
 	// Core middlewares
 	r.Use(mw.RequestID())
 	r.Use(mw.RealIP())
+	r.Use(oteltrace.New(oteltrace.Options{}).Middleware())
 	r.Use(recoverx.Middleware())
 
 	// Standard middlewares
@@ -54,7 +55,6 @@ func NewDefaultRouter(log ports.Logger) ports.HTTPRouter {
 	r.Use(timeoutmw.New(5 * time.Second).Middleware())
 	r.Use(requestlog.New(log).Middleware())
 	r.Use(metricsmw.New(metricsmw.NewPrometheusRecorder(nil, nil)).Middleware())
-	r.Use(tracemw.New(tracemw.Options{TrustIncoming: false}).Middleware())
 
 	return r
 }

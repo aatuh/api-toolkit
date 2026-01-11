@@ -1,7 +1,10 @@
 package logzap
 
 import (
+	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/aatuh/api-toolkit/ports"
 	"go.uber.org/zap"
@@ -15,8 +18,8 @@ func New(z *zap.Logger) ports.Logger { return &ZapLogger{s: z.Sugar()} }
 
 // NewProduction creates a production logger (JSON, no colors).
 func NewProduction() ports.Logger {
-	z, _ := zap.NewProduction()
-	return &ZapLogger{s: z.Sugar()}
+	cfg := zap.NewProductionConfig()
+	return &ZapLogger{s: buildSplitLogger(cfg).Sugar()}
 }
 
 // NewProductionWithLevel creates a production logger with custom level.
@@ -25,8 +28,7 @@ func NewProductionWithLevel(level string) ports.Logger {
 	if lvl, err := parseLevel(level); err == nil {
 		cfg.Level = zap.NewAtomicLevelAt(lvl)
 	}
-	z, _ := cfg.Build()
-	return &ZapLogger{s: z.Sugar()}
+	return &ZapLogger{s: buildSplitLogger(cfg).Sugar()}
 }
 
 // NewDevelopment creates a human-friendly logger for local dev (console, colors).
@@ -36,14 +38,93 @@ func NewDevelopment(level string) ports.Logger {
 	if lvl, err := parseLevel(level); err == nil {
 		cfg.Level = zap.NewAtomicLevelAt(lvl)
 	}
-	z, _ := cfg.Build()
-	return &ZapLogger{s: z.Sugar()}
+	return &ZapLogger{s: buildSplitLogger(cfg).Sugar()}
 }
 
 func (l *ZapLogger) Debug(msg string, kv ...any) { l.s.Debugw(msg, kv...) }
 func (l *ZapLogger) Info(msg string, kv ...any)  { l.s.Infow(msg, kv...) }
 func (l *ZapLogger) Warn(msg string, kv ...any)  { l.s.Warnw(msg, kv...) }
 func (l *ZapLogger) Error(msg string, kv ...any) { l.s.Errorw(msg, kv...) }
+
+func buildSplitLogger(cfg zap.Config) *zap.Logger {
+	encoder := buildEncoder(cfg)
+	core := zapcore.NewTee(
+		zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), lowPriority(cfg)),
+		zapcore.NewCore(encoder, zapcore.AddSync(os.Stderr), highPriority(cfg)),
+	)
+	if cfg.Sampling != nil {
+		var samplerOpts []zapcore.SamplerOption
+		if cfg.Sampling.Hook != nil {
+			samplerOpts = append(samplerOpts, zapcore.SamplerHook(cfg.Sampling.Hook))
+		}
+		core = zapcore.NewSamplerWithOptions(
+			core,
+			time.Second,
+			cfg.Sampling.Initial,
+			cfg.Sampling.Thereafter,
+			samplerOpts...,
+		)
+	}
+	return zap.New(core, buildOptions(cfg)...)
+}
+
+func buildEncoder(cfg zap.Config) zapcore.Encoder {
+	switch strings.ToLower(strings.TrimSpace(cfg.Encoding)) {
+	case "console":
+		return zapcore.NewConsoleEncoder(cfg.EncoderConfig)
+	default:
+		return zapcore.NewJSONEncoder(cfg.EncoderConfig)
+	}
+}
+
+func buildOptions(cfg zap.Config) []zap.Option {
+	errSink := zapcore.AddSync(os.Stderr)
+	if len(cfg.ErrorOutputPaths) > 0 {
+		if sink, _, err := zap.Open(cfg.ErrorOutputPaths...); err == nil {
+			errSink = sink
+		}
+	}
+
+	opts := []zap.Option{zap.ErrorOutput(errSink)}
+	if cfg.Development {
+		opts = append(opts, zap.Development())
+	}
+	if !cfg.DisableCaller {
+		opts = append(opts, zap.AddCaller())
+	}
+	stackLevel := zapcore.ErrorLevel
+	if cfg.Development {
+		stackLevel = zapcore.WarnLevel
+	}
+	if !cfg.DisableStacktrace {
+		opts = append(opts, zap.AddStacktrace(stackLevel))
+	}
+	if len(cfg.InitialFields) > 0 {
+		keys := make([]string, 0, len(cfg.InitialFields))
+		for key := range cfg.InitialFields {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		fields := make([]zap.Field, 0, len(cfg.InitialFields))
+		for _, key := range keys {
+			fields = append(fields, zap.Any(key, cfg.InitialFields[key]))
+		}
+		opts = append(opts, zap.Fields(fields...))
+	}
+	return opts
+}
+
+func lowPriority(cfg zap.Config) zapcore.LevelEnabler {
+	return zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+		return lvl < zapcore.ErrorLevel && cfg.Level.Enabled(lvl)
+	})
+}
+
+func highPriority(cfg zap.Config) zapcore.LevelEnabler {
+	return zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+		return lvl >= zapcore.ErrorLevel && cfg.Level.Enabled(lvl)
+	})
+}
 
 func parseLevel(level string) (zapcore.Level, error) {
 	switch strings.ToLower(strings.TrimSpace(level)) {
