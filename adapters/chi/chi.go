@@ -9,6 +9,8 @@ import (
 )
 
 // ChiRouter wraps chi.Router to implement our interface.
+//
+//revive:disable-next-line:exported
 type ChiRouter struct {
 	*chi.Mux
 }

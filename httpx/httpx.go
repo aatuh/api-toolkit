@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"encoding/json"
 	"net/http"
 )
 
@@ -36,9 +35,6 @@ func WriteProblem(w http.ResponseWriter, status int, p Problem) {
 	}
 	p.Status = status
 
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-
 	// Marshal with extensions by composing a map to preserve standard fields.
 	out := map[string]any{}
 	if p.Type != "" {
@@ -63,7 +59,9 @@ func WriteProblem(w http.ResponseWriter, status int, p Problem) {
 		}
 		out[k] = v
 	}
-	_ = json.NewEncoder(w).Encode(out)
+	if err := writeJSON(w, status, "application/problem+json", out); err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
 }
 
 // WriteSimpleProblem is a convenience for common cases.

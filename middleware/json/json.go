@@ -12,10 +12,12 @@ const (
 	applicationJSON = "application/json"
 )
 
+// Middleware enforces JSON content-type requirements.
 type Middleware struct {
 	RequireJSON bool
 }
 
+// New constructs a JSON middleware with the given requirement.
 func New(require bool) *Middleware { return &Middleware{RequireJSON: require} }
 
 // Middleware implements ports.Middleware by returning the Handler adapter.
@@ -26,6 +28,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return m.Handler(next) }
 }
 
+// Handler wraps the next handler with JSON content checks.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	if !m.RequireJSON {
 		return next

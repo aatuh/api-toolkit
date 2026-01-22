@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	// Register pgx stdlib driver for database/sql usage.
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -67,6 +68,7 @@ var (
 	defaultLock  = int64(913551337114213777)
 )
 
+// New constructs a migration runner using the provided database handle.
 func New(db *sql.DB, opts Options) *Runner {
 	if opts.TableName == "" {
 		opts.TableName = defaultTable
@@ -211,15 +213,19 @@ type appliedRow struct {
 }
 
 func (r *Runner) loadApplied(ctx context.Context) ([]appliedRow, error) {
-	q := fmt.Sprintf(`
-SELECT version, name, checksum, applied_at, exec_ms, success
-FROM %s
-ORDER BY applied_at ASC, version ASC;`, pq(r.Opts.TableName))
+	tableName := pq(r.Opts.TableName)
+	var b strings.Builder
+	b.WriteString("SELECT version, name, checksum, applied_at, exec_ms, success\nFROM ")
+	b.WriteString(tableName)
+	b.WriteString("\nORDER BY applied_at ASC, version ASC;")
+	q := b.String()
 	rows, err := r.DB.QueryContext(ctx, q)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var out []appliedRow
 	for rows.Next() {
 		var a appliedRow
@@ -315,8 +321,12 @@ func (r *Runner) revertOne(ctx context.Context, m *Migration) error {
 		}
 	}
 	// Then delete the "up" record in the same transaction.
-	q := fmt.Sprintf(`DELETE FROM %s WHERE version = $1;`,
-		pq(r.Opts.TableName))
+	tableName := pq(r.Opts.TableName)
+	var b strings.Builder
+	b.WriteString("DELETE FROM ")
+	b.WriteString(tableName)
+	b.WriteString(" WHERE version = $1;")
+	q := b.String()
 	res, err := tx.ExecContext(ctx, q, m.Version)
 	if err != nil {
 		_ = tx.Rollback()
@@ -336,15 +346,19 @@ func (r *Runner) revertOne(ctx context.Context, m *Migration) error {
 func (r *Runner) record(
 	ctx context.Context, m *Migration, execMS int, ok bool,
 ) error {
-	q := fmt.Sprintf(`
-INSERT INTO %s (version, name, checksum, applied_at, exec_ms, success)
+	tableName := pq(r.Opts.TableName)
+	var b strings.Builder
+	b.WriteString("INSERT INTO ")
+	b.WriteString(tableName)
+	b.WriteString(` (version, name, checksum, applied_at, exec_ms, success)
 VALUES ($1, $2, $3, NOW(), $4, $5)
 ON CONFLICT (version) DO UPDATE SET
   name = EXCLUDED.name,
   checksum = EXCLUDED.checksum,
   applied_at = EXCLUDED.applied_at,
   exec_ms = EXCLUDED.exec_ms,
-  success = EXCLUDED.success;`, pq(r.Opts.TableName))
+  success = EXCLUDED.success;`)
+	q := b.String()
 	_, err := r.DB.ExecContext(
 		ctx, q, m.Version, m.Name, m.Checksum, execMS, ok,
 	)

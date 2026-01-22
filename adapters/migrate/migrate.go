@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 
+	// Register pgx stdlib driver for database/sql usage.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/aatuh/api-toolkit/migrator"
@@ -19,6 +20,7 @@ type Adapter struct {
 	runner *migrator.Runner
 }
 
+// Options configures migrator initialization.
 type Options struct {
 	DSN                string
 	Dirs               []string // optional; multiple directories
@@ -58,17 +60,21 @@ func New(opts Options) (ports.Migrator, error) {
 	return &Adapter{log: opts.Log, db: db, runner: r}, nil
 }
 
+// Close releases the underlying database handle.
 func (a *Adapter) Close() error { return a.db.Close() }
 
-func (a *Adapter) Up(ctx context.Context, dir string) error {
+// Up applies migrations.
+func (a *Adapter) Up(ctx context.Context, _ string) error {
 	// dir is ignored; Directory was configured in Options.
 	return a.runner.Up(ctx)
 }
 
-func (a *Adapter) Down(ctx context.Context, dir string) error {
+// Down rolls back migrations.
+func (a *Adapter) Down(ctx context.Context, _ string) error {
 	return a.runner.Down(ctx)
 }
 
-func (a *Adapter) Status(ctx context.Context, dir string) (string, error) {
+// Status returns the current migration status.
+func (a *Adapter) Status(ctx context.Context, _ string) (string, error) {
 	return a.runner.Status(ctx)
 }

@@ -1,3 +1,5 @@
+//revive:disable:exported
+
 package health
 
 import "time"

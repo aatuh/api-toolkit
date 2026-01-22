@@ -1,7 +1,11 @@
 package envvar
 
 import (
+	"encoding"
+	"errors"
+	"fmt"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -19,8 +23,14 @@ func New() ports.EnvVar { return &Adapter{} }
 // LoadEnvFiles loads environment variables from files.
 // Tries .env then /env/.env by default.
 func (a *Adapter) LoadEnvFiles(paths []string) error {
-	envvar.MustLoadEnvVars(paths)
-	return nil
+	return envvar.LoadEnvVars(paths)
+}
+
+// MustLoadEnvFiles panics on errors when loading environment files.
+func (a *Adapter) MustLoadEnvFiles(paths []string) {
+	if err := a.LoadEnvFiles(paths); err != nil {
+		panic(err)
+	}
 }
 
 // Get returns the raw value and presence indicator.
@@ -180,8 +190,7 @@ func (a *Adapter) MustGetDuration(key string) time.Duration {
 // Bind populates a struct from environment variables.
 // This is a simplified implementation that doesn't use struct tags.
 func (a *Adapter) Bind(dst any) error {
-	// TODO: implement struct binding if needed
-	return nil
+	return bindStruct(dst, "")
 }
 
 // MustBind panics on binding errors.
@@ -193,8 +202,7 @@ func (a *Adapter) MustBind(dst any) {
 
 // BindWithPrefix binds with a prefix.
 func (a *Adapter) BindWithPrefix(dst any, prefix string) error {
-	// TODO: implement prefix binding if needed
-	return nil
+	return bindStruct(dst, prefix)
 }
 
 // MustBindWithPrefix panics on binding errors with prefix.
@@ -224,4 +232,144 @@ func (a *Adapter) DumpRedacted() map[string]string {
 		}
 	}
 	return out
+}
+
+var (
+	errBindTarget = errors.New("bind target must be a non-nil pointer to struct")
+)
+
+func bindStruct(dst any, prefix string) error {
+	if dst == nil {
+		return errBindTarget
+	}
+	rv := reflect.ValueOf(dst)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return errBindTarget
+	}
+	rv = rv.Elem()
+	if rv.Kind() != reflect.Struct {
+		return errBindTarget
+	}
+	rt := rv.Type()
+	var errs []string
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		name := strings.TrimSpace(field.Tag.Get("env"))
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = strings.TrimSpace(field.Tag.Get("envvar"))
+		}
+		if name == "" {
+			name = toEnvKey(field.Name)
+		}
+		if prefix != "" {
+			name = prefix + name
+		}
+		raw, ok := os.LookupEnv(name)
+		if !ok {
+			if def := field.Tag.Get("default"); def != "" {
+				raw = def
+				ok = true
+			}
+		}
+		if !ok {
+			continue
+		}
+		if err := setValue(rv.Field(i), raw); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("envvar bind: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func setValue(v reflect.Value, raw string) error {
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		return setValue(v.Elem(), raw)
+	}
+	if v.CanAddr() {
+		if u, ok := v.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return u.UnmarshalText([]byte(raw))
+		}
+	}
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(raw)
+		return nil
+	case reflect.Bool:
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return err
+		}
+		v.SetBool(b)
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if v.Type() == reflect.TypeOf(time.Duration(0)) {
+			d, err := time.ParseDuration(raw)
+			if err != nil {
+				return err
+			}
+			v.SetInt(int64(d))
+			return nil
+		}
+		n, err := strconv.ParseInt(raw, 10, v.Type().Bits())
+		if err != nil {
+			return err
+		}
+		v.SetInt(n)
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(raw, 10, v.Type().Bits())
+		if err != nil {
+			return err
+		}
+		v.SetUint(n)
+		return nil
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(raw, v.Type().Bits())
+		if err != nil {
+			return err
+		}
+		v.SetFloat(f)
+		return nil
+	default:
+		return fmt.Errorf("unsupported kind %s", v.Kind())
+	}
+}
+
+func toEnvKey(name string) string {
+	if name == "" {
+		return ""
+	}
+	var b strings.Builder
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c >= 'A' && c <= 'Z' {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteByte(c)
+			continue
+		}
+		if c >= 'a' && c <= 'z' {
+			b.WriteByte(byte(c - 32))
+			continue
+		}
+		if c >= '0' && c <= '9' {
+			b.WriteByte(c)
+			continue
+		}
+		b.WriteByte('_')
+	}
+	return b.String()
 }

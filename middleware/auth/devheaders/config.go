@@ -16,4 +16,3 @@ func LoadConfig(loader *config.Loader) Config {
 		DefaultLanguage: loader.String("DEV_AUTH_DEFAULT_LANGUAGE", "fi"),
 	}
 }
-

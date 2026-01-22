@@ -14,6 +14,7 @@ import (
 // ZapLogger adapts zap to the shared.Logger interface.
 type ZapLogger struct{ s *zap.SugaredLogger }
 
+// New wraps a zap.Logger as a ports.Logger.
 func New(z *zap.Logger) ports.Logger { return &ZapLogger{s: z.Sugar()} }
 
 // NewProduction creates a production logger (JSON, no colors).
@@ -41,9 +42,16 @@ func NewDevelopment(level string) ports.Logger {
 	return &ZapLogger{s: buildSplitLogger(cfg).Sugar()}
 }
 
+// Debug logs a debug message with structured fields.
 func (l *ZapLogger) Debug(msg string, kv ...any) { l.s.Debugw(msg, kv...) }
-func (l *ZapLogger) Info(msg string, kv ...any)  { l.s.Infow(msg, kv...) }
-func (l *ZapLogger) Warn(msg string, kv ...any)  { l.s.Warnw(msg, kv...) }
+
+// Info logs an info message with structured fields.
+func (l *ZapLogger) Info(msg string, kv ...any) { l.s.Infow(msg, kv...) }
+
+// Warn logs a warning message with structured fields.
+func (l *ZapLogger) Warn(msg string, kv ...any) { l.s.Warnw(msg, kv...) }
+
+// Error logs an error message with structured fields.
 func (l *ZapLogger) Error(msg string, kv ...any) { l.s.Errorw(msg, kv...) }
 
 func buildSplitLogger(cfg zap.Config) *zap.Logger {

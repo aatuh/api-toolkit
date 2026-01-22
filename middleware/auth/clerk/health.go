@@ -34,7 +34,9 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 			if err != nil {
 				return ports.HealthStatusDegraded, fmt.Sprintf("clerk jwks request failed: %v", err), nil
 			}
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
 			if resp.StatusCode != http.StatusOK {
 				return ports.HealthStatusDegraded, fmt.Sprintf("unexpected status %d from clerk jwks", resp.StatusCode), map[string]interface{}{

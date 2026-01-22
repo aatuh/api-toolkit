@@ -8,6 +8,7 @@ type Config struct {
 	SecretKey         string
 	WebhookSecret     string
 	WebhookSkipVerify bool
+	WebhookDevMode    bool
 	FrontendBaseURL   string
 }
 
@@ -21,6 +22,7 @@ func LoadConfig(loader *config.Loader) Config {
 		SecretKey:         loader.String("STRIPE_SECRET_KEY", ""),
 		WebhookSecret:     loader.String("STRIPE_WEBHOOK_SECRET", ""),
 		WebhookSkipVerify: loader.Bool("STRIPE_WEBHOOK_SKIP_VERIFY", false),
+		WebhookDevMode:    loader.Bool("STRIPE_WEBHOOK_DEV_MODE", false),
 		FrontendBaseURL:   loader.String("FRONTEND_BASE_URL", "http://localhost:3000"),
 	}
 }

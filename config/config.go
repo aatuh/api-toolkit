@@ -2,6 +2,7 @@ package config
 
 import "fmt"
 
+// Config captures application configuration loaded from environment variables.
 type Config struct {
 	Addr           string `env:"API_ADDR"`         // host:port|:port
 	DatabaseURL    string `env:"DATABASE_URL"`     // required

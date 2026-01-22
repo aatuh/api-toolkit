@@ -9,6 +9,7 @@ import (
 // SystemClock implements shared.Clock using time.Now().
 type SystemClock struct{}
 
+// Now returns the current UTC time.
 func (SystemClock) Now() time.Time { return time.Now().UTC() }
 
 // NewSystemClock creates a new system clock that implements ports.Clock.

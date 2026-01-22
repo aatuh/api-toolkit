@@ -24,18 +24,21 @@ type Client struct {
 // Option customizes Client behavior.
 type Option func(*Client)
 
+// WithBaseURL overrides the Resend API base URL.
 func WithBaseURL(url string) Option {
 	return func(c *Client) {
 		c.BaseURL = strings.TrimRight(url, "/")
 	}
 }
 
+// WithHTTPClient overrides the HTTP client used for requests.
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Client) {
 		c.HTTPClient = client
 	}
 }
 
+// New constructs a Resend API client.
 func New(apiKey string, opts ...Option) *Client {
 	client := &Client{
 		APIKey:     strings.TrimSpace(apiKey),
@@ -61,6 +64,7 @@ type sendResponse struct {
 	ID string `json:"id"`
 }
 
+// Send sends an email via the Resend API.
 func (c *Client) Send(ctx context.Context, msg email.Message) (string, error) {
 	if c == nil || c.APIKey == "" {
 		return "", fmt.Errorf("missing resend api key")
@@ -93,7 +97,9 @@ func (c *Client) Send(ctx context.Context, msg email.Message) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err

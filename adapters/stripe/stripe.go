@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/httpx/identity"
 	"github.com/aatuh/api-toolkit/ports"
 	stripe "github.com/stripe/stripe-go/v79"
 	"github.com/stripe/stripe-go/v79/client"
@@ -18,6 +21,7 @@ type Provider struct {
 	client        *client.API
 	webhookSecret string
 	skipVerify    bool
+	devMode       bool
 }
 
 // Option customizes Provider behavior.
@@ -27,6 +31,13 @@ type Option func(*Provider)
 func WithSkipVerify(skip bool) Option {
 	return func(p *Provider) {
 		p.skipVerify = skip
+	}
+}
+
+// WithDevMode enables development-only webhook behavior (e.g., skipping verification).
+func WithDevMode(dev bool) Option {
+	return func(p *Provider) {
+		p.devMode = dev
 	}
 }
 
@@ -52,11 +63,26 @@ func (p *Provider) CreateCheckoutSession(ctx context.Context, req ports.Checkout
 		SuccessURL: stripe.String(req.SuccessURL),
 		CancelURL:  stripe.String(req.CancelURL),
 	}
+	params.Context = ctx
 	if req.Locale != "" {
 		params.Locale = stripe.String(req.Locale)
 	}
 	if len(req.Metadata) > 0 {
 		params.Metadata = req.Metadata
+	}
+	if strings.TrimSpace(req.CustomerID) != "" {
+		params.Customer = stripe.String(strings.TrimSpace(req.CustomerID))
+	}
+	if strings.TrimSpace(req.CustomerEmail) != "" {
+		params.CustomerEmail = stripe.String(strings.TrimSpace(req.CustomerEmail))
+	}
+	if strings.TrimSpace(req.ClientReferenceID) != "" {
+		params.ClientReferenceID = stripe.String(strings.TrimSpace(req.ClientReferenceID))
+	}
+	if len(req.SubscriptionMetadata) > 0 && strings.TrimSpace(req.Mode) == string(stripe.CheckoutSessionModeSubscription) {
+		params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{
+			Metadata: req.SubscriptionMetadata,
+		}
 	}
 	params.PaymentMethodTypes = []*string{stripe.String("card")}
 	params.AllowPromotionCodes = stripe.Bool(true)
@@ -92,7 +118,12 @@ func (p *Provider) CreateCheckoutSession(ctx context.Context, req ports.Checkout
 
 // ParseWebhook verifies and parses the Stripe webhook payload.
 func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader string) (ports.WebhookEvent, error) {
-	if p.skipVerify || strings.TrimSpace(p.webhookSecret) == "" {
+	secret := strings.TrimSpace(p.webhookSecret)
+	allowInsecure := p.allowInsecureWebhook(ctx)
+	if secret == "" {
+		if !allowInsecure {
+			return ports.WebhookEvent{}, errors.New("stripe webhook verification required")
+		}
 		var event stripe.Event
 		if err := json.Unmarshal(payload, &event); err != nil {
 			return ports.WebhookEvent{}, err
@@ -104,7 +135,19 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader s
 			Payload:   event.Data.Raw,
 		}, nil
 	}
-	event, err := webhook.ConstructEvent(payload, sigHeader, p.webhookSecret)
+	if p.skipVerify && allowInsecure {
+		var event stripe.Event
+		if err := json.Unmarshal(payload, &event); err != nil {
+			return ports.WebhookEvent{}, err
+		}
+		return ports.WebhookEvent{
+			ID:        event.ID,
+			Type:      string(event.Type),
+			CreatedAt: time.Unix(event.Created, 0),
+			Payload:   event.Data.Raw,
+		}, nil
+	}
+	event, err := webhook.ConstructEvent(payload, sigHeader, secret)
 	if err != nil {
 		return ports.WebhookEvent{}, err
 	}
@@ -114,6 +157,58 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader s
 		CreatedAt: time.Unix(event.Created, 0),
 		Payload:   event.Data.Raw,
 	}, nil
+}
+
+type webhookCtxKey struct{}
+
+type webhookContext struct {
+	allowed bool
+	ip      netip.Addr
+}
+
+// AllowInsecureWebhook marks the request as safe for skipping verification in dev mode.
+// It only enables skipping when the source IP is private or loopback.
+func AllowInsecureWebhook(ctx context.Context, ip netip.Addr) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !isSafeWebhookIP(ip) {
+		return ctx
+	}
+	return context.WithValue(ctx, webhookCtxKey{}, webhookContext{allowed: true, ip: ip})
+}
+
+// AllowInsecureWebhookFromRequest infers source IP from a request and marks the context accordingly.
+func AllowInsecureWebhookFromRequest(ctx context.Context, r *http.Request, resolver identity.Resolver) context.Context {
+	if r == nil {
+		return ctx
+	}
+	ip, ok := resolver.ClientIP(r)
+	if !ok {
+		return ctx
+	}
+	return AllowInsecureWebhook(ctx, ip)
+}
+
+func (p *Provider) allowInsecureWebhook(ctx context.Context) bool {
+	if !p.devMode {
+		return false
+	}
+	if ctx == nil {
+		return false
+	}
+	info, ok := ctx.Value(webhookCtxKey{}).(webhookContext)
+	if !ok || !info.allowed {
+		return false
+	}
+	return isSafeWebhookIP(info.ip)
+}
+
+func isSafeWebhookIP(ip netip.Addr) bool {
+	if !ip.IsValid() {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 // ListPrices fetches active prices from Stripe.

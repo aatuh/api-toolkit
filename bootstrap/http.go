@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aatuh/api-toolkit/adapters/chi"
@@ -11,16 +12,9 @@ import (
 	"github.com/aatuh/api-toolkit/endpoints/health"
 	pprofx "github.com/aatuh/api-toolkit/endpoints/pprof"
 	"github.com/aatuh/api-toolkit/endpoints/version"
-	recoverx "github.com/aatuh/api-toolkit/httpx/recover"
-	"github.com/aatuh/api-toolkit/middleware/cors"
-	jsonmw "github.com/aatuh/api-toolkit/middleware/json"
-	maxbody "github.com/aatuh/api-toolkit/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/httpx/identity"
 	metricsmw "github.com/aatuh/api-toolkit/middleware/metrics"
-	oteltrace "github.com/aatuh/api-toolkit/middleware/oteltrace"
 	rateln "github.com/aatuh/api-toolkit/middleware/ratelimit"
-	requestlog "github.com/aatuh/api-toolkit/middleware/requestlog"
-	securemw "github.com/aatuh/api-toolkit/middleware/secure"
-	timeoutmw "github.com/aatuh/api-toolkit/middleware/timeout"
 	"github.com/aatuh/api-toolkit/ports"
 	"github.com/aatuh/api-toolkit/specs"
 )
@@ -28,34 +22,29 @@ import (
 // NewDefaultRouter constructs a router with a sensible default middleware stack.
 func NewDefaultRouter(log ports.Logger) ports.HTTPRouter {
 	var r ports.HTTPRouter = chi.New()
-	var mw ports.HTTPMiddleware = chi.NewMiddleware()
 
 	// Optional rate limit bypass for tests/dev (similar to Clerk skip header).
 	skipHeader := os.Getenv("RATE_LIMIT_SKIP_HEADER")
 	skipEnabled := os.Getenv("RATE_LIMIT_SKIP_ENABLED") == "true"
 
-	// Core middlewares
-	r.Use(mw.RequestID())
-	r.Use(mw.RealIP())
-	r.Use(oteltrace.New(oteltrace.Options{}).Middleware())
-	r.Use(recoverx.Middleware())
+	resolver := identity.Resolver{HeaderPolicy: identity.HeaderPolicyBoth}
+	if raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES")); raw != "" {
+		if prefixes, err := identity.ParseTrustedProxies(strings.Split(raw, ",")); err == nil {
+			resolver.TrustedProxies = prefixes
+		}
+	}
 
-	// Standard middlewares
-	corsh := cors.New()
-	r.Use(corsh.Handler(cors.DefaultOptions()))
-	r.Use(securemw.New().Middleware())
-	r.Use(rateln.New(rateln.Options{
-		Capacity:    30,
-		RefillRate:  15,
-		SkipEnabled: skipEnabled,
-		SkipHeader:  skipHeader,
-	}).Middleware())
-	r.Use(maxbody.New(1 << 20).Middleware())
-	r.Use(jsonmw.New(true).Middleware())
-	r.Use(timeoutmw.New(5 * time.Second).Middleware())
-	r.Use(requestlog.New(log).Middleware())
-	r.Use(metricsmw.New(metricsmw.NewPrometheusRecorder(nil, nil)).Middleware())
-
+	profile := ProfileStrictAPI(log,
+		WithIdentityResolver(resolver),
+		WithRateLimitOptions(rateln.Options{
+			Capacity:    30,
+			RefillRate:  15,
+			SkipEnabled: skipEnabled,
+			SkipHeader:  skipHeader,
+		}),
+		WithMetricsRecorder(metricsmw.NewPrometheusRecorder(nil, nil)),
+	)
+	profile.Apply(r)
 	return r
 }
 
@@ -117,14 +106,7 @@ func StartServer(
 	handler http.Handler,
 	log ports.Logger,
 ) error {
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
+	srv := HardenedServer(addr, handler)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -143,6 +125,63 @@ func StartServer(
 		return nil
 	case err := <-errCh:
 		return err
+	}
+}
+
+// ServerOption configures an http.Server instance.
+type ServerOption func(*http.Server)
+
+// HardenedServer builds an http.Server with safe defaults and optional overrides.
+func HardenedServer(addr string, handler http.Handler, opts ...ServerOption) *http.Server {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(srv)
+		}
+	}
+	return srv
+}
+
+// WithReadHeaderTimeout overrides ReadHeaderTimeout.
+func WithReadHeaderTimeout(d time.Duration) ServerOption {
+	return func(s *http.Server) {
+		s.ReadHeaderTimeout = d
+	}
+}
+
+// WithReadTimeout overrides ReadTimeout.
+func WithReadTimeout(d time.Duration) ServerOption {
+	return func(s *http.Server) {
+		s.ReadTimeout = d
+	}
+}
+
+// WithWriteTimeout overrides WriteTimeout.
+func WithWriteTimeout(d time.Duration) ServerOption {
+	return func(s *http.Server) {
+		s.WriteTimeout = d
+	}
+}
+
+// WithIdleTimeout overrides IdleTimeout.
+func WithIdleTimeout(d time.Duration) ServerOption {
+	return func(s *http.Server) {
+		s.IdleTimeout = d
+	}
+}
+
+// WithMaxHeaderBytes overrides MaxHeaderBytes.
+func WithMaxHeaderBytes(n int) ServerOption {
+	return func(s *http.Server) {
+		s.MaxHeaderBytes = n
 	}
 }
 

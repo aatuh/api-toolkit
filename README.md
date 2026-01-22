@@ -47,11 +47,13 @@ defaults, and predictable wiring.
   - `middleware/ratelimit`: in-memory token bucket
   - `middleware/metrics`: request counters and durations via MetricsRecorder
   - `middleware/trace`: W3C Trace Context (traceparent) with safe defaults
+  - `middleware/idempotency`: Idempotency-Key support with pluggable store
 
 - HTTP Helpers
-  - `httpx`: RFC‑7807 Problem+JSON helper
+  - `httpx`: RFC‑7807 Problem+JSON + JSON response writer
+  - `httpx/identity`: trusted proxy + client identity resolver
   - `httpx/recover`: panic recovery that emits Problem+JSON
-  - `response_writer`: success JSON encoder
+  - `response_writer`: legacy JSON writer (deprecated)
   - `endpoints/list`: parse limit/offset/search/filter/sort inputs for list endpoints (override parsers via `ListQueryConfig.FilterParser` / `SortParser` when custom syntaxes are needed)
 
 - Health
@@ -61,6 +63,7 @@ defaults, and predictable wiring.
 - Docs
   - `docs`: serves HTML, version, and OpenAPI JSON
   - `docs/handlers`: routes for docs endpoints
+  - `specs`: OpenAPI registry for code‑first workflows
 
 - Database
   - `pgxpool`: adapter for `github.com/jackc/pgx/v5/pgxpool`
@@ -76,6 +79,9 @@ defaults, and predictable wiring.
 - Validation
   - `validation`: adapter for `github.com/go-playground/validator/v10`
 
+- Authorization
+  - `authorization`: BOLA/BOPLA helpers + repository scoping utilities
+
 ## Package map
 
 - `ports` — core interfaces for all boundaries
@@ -83,15 +89,18 @@ defaults, and predictable wiring.
 - `logzap` — logger adapter (returns `ports.Logger`)
 - `chi` — HTTP router adapter (returns `ports.HTTPRouter`)
 - `middleware/*` — cors, secure, json, timeout, maxbody, requestlog,
-  ratelimit, metrics, trace
-- `httpx`, `httpx/recover` — error helpers and panic recovery
-- `response_writer` — success JSON writer
+  ratelimit, metrics, trace, idempotency
+- `httpx`, `httpx/identity`, `httpx/recover` — JSON + error helpers and panic recovery
+- `response_writer` — legacy success JSON writer
 - `health`, `health/handlers` — health manager and routes
 - `docs`, `docs/handlers` — docs manager and routes
 - `pgxpool`, `txpostgres` — database adapters
 - `migrator`, `adapters/migrate` — migrations (closeable `ports.Migrator`)
 - `ulid`, `uuid`, `clock` — utilities behind interfaces
 - `validation` — input validation adapter
+- `authorization` — authorization toolkit helpers
+- `specs` — OpenAPI registry
+- `integrations/*` — optional wrappers for Stripe/Resend/Clerk/Postgres adapters
 
 ## Quickstart (wiring in main)
 
@@ -100,23 +109,10 @@ defaults, and predictable wiring.
 log := logzap.NewProduction()            // ports.Logger
 cfg := config.MustLoadFromEnv()          // uses adapters/envvar under the hood
 
-// Router and core middleware
+// Router and middleware profile
 r := chi.New()                           // ports.HTTPRouter
-mw := chi.NewMiddleware()                // ports.HTTPMiddleware
-r.Use(mw.RequestID())
-r.Use(mw.RealIP())
-r.Use(recoverx.Middleware(log))          // Problem+JSON on panic
-
-// Standard middlewares
-cors := cors.New()
-r.Use(cors.Handler(cors.DefaultOptions()))
-r.Use(securemw.New().Middleware())
-r.Use(jsonmw.New(true).Middleware())
-r.Use(timeoutmw.New(5*time.Second).Middleware())
-r.Use(maxbody.New(1<<20).Middleware())
-r.Use(requestlog.New(log).Middleware())
-r.Use(metricsmw.New(nil).Middleware())        // nil → Noop metrics
-r.Use(tracemw.New(tracemw.Options{TrustIncoming: false}).Middleware())
+profile := bootstrap.ProfileStrictAPI(log)
+profile.Apply(r)
 
 // Health and docs
 health.NewBasicHandler().RegisterRoutes(r)
@@ -130,7 +126,7 @@ docs.NewHandler(docs.New()).RegisterRoutes(r)
 httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Detail: "invalid"})
 
 // Success
-response_writer.WriteJSON(w, http.StatusOK, payload)
+httpx.WriteJSON(w, http.StatusOK, payload)
 ```
 
 ### Validation
@@ -138,7 +134,7 @@ response_writer.WriteJSON(w, http.StatusOK, payload)
 ```go
 v := validation.New()
 if err := v.ValidateStruct(ctx, &dto); err != nil {
-  httpx.WriteProblem(w, 400, httpx.Problem{Detail: err.Error()})
+  httpx.WriteError(w, err)
   return
 }
 ```
@@ -173,7 +169,7 @@ implementation.
 
 - Import toolkit interfaces/adapters, not third‑party libs, in app code.
 - Handlers: decode → validate → call service → encode.
-- Use `httpx` for errors and `response_writer` for successes.
+- Prefer `httpx` for both error and success responses.
 
 ## Version and requirements
 

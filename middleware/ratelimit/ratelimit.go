@@ -1,20 +1,29 @@
 package ratelimit
 
 import (
-	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/httpx/identity"
 )
 
+// KeyFn extracts a key for rate limiting buckets.
 type KeyFn func(*http.Request) string
 
+// Options configures the rate limit middleware.
 type Options struct {
 	Capacity   float64 // tokens
 	RefillRate float64 // tokens per second
 	Key        KeyFn   // how to key buckets
 	RetryAfter time.Duration
+	// ClientIPResolver derives client identity from trusted proxies.
+	ClientIPResolver identity.Resolver
+	// StateTTL evicts buckets that have been idle for this duration.
+	StateTTL time.Duration
+	// CleanupInterval controls how often eviction runs.
+	CleanupInterval time.Duration
 
 	// SkipEnabled toggles honoring the SkipHeader. Useful for tests/dev.
 	SkipEnabled bool
@@ -23,10 +32,12 @@ type Options struct {
 	SkipHeader string
 }
 
+// Middleware enforces in-memory token bucket rate limits.
 type Middleware struct {
-	opts Options
-	mu   sync.Mutex
-	m    map[string]*bucket
+	opts        Options
+	mu          sync.Mutex
+	m           map[string]*bucket
+	lastCleanup time.Time
 }
 
 type bucket struct {
@@ -34,6 +45,7 @@ type bucket struct {
 	lastSeen time.Time
 }
 
+// New constructs a rate limiting middleware with defaults.
 func New(opts Options) *Middleware {
 	if opts.Capacity <= 0 {
 		opts.Capacity = 20
@@ -41,8 +53,23 @@ func New(opts Options) *Middleware {
 	if opts.RefillRate <= 0 {
 		opts.RefillRate = 10
 	}
+	if opts.StateTTL <= 0 {
+		opts.StateTTL = 10 * time.Minute
+	}
+	if opts.CleanupInterval <= 0 {
+		opts.CleanupInterval = opts.StateTTL / 2
+		if opts.CleanupInterval < time.Second {
+			opts.CleanupInterval = time.Second
+		}
+	}
 	if opts.Key == nil {
-		opts.Key = clientIP
+		resolver := opts.ClientIPResolver
+		opts.Key = func(r *http.Request) string {
+			if ip := resolver.ClientIPString(r); ip != "" {
+				return ip
+			}
+			return r.RemoteAddr
+		}
 	}
 	return &Middleware{opts: opts, m: make(map[string]*bucket)}
 }
@@ -55,6 +82,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return m.Handler(next) }
 }
 
+// Handler wraps the next handler with rate limiting logic.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if m.opts.SkipEnabled && m.opts.SkipHeader != "" {
@@ -69,6 +97,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		now := time.Now()
 
 		m.mu.Lock()
+		m.cleanup(now)
 		b := m.m[key]
 		if b == nil {
 			b = &bucket{tokens: m.opts.Capacity, lastSeen: now}
@@ -88,27 +117,32 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				ra = time.Second
 			}
 			w.Header().Set("Retry-After", itoa(int(ra.Seconds())))
-			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+				Title:  http.StatusText(http.StatusTooManyRequests),
+				Detail: "rate limit exceeded",
+			})
 			return
 		}
-		b.tokens -= 1
+		b.tokens--
 		m.mu.Unlock()
 
 		next.ServeHTTP(w, r)
 	})
 }
 
-func clientIP(r *http.Request) string {
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+func (m *Middleware) cleanup(now time.Time) {
+	if m.opts.StateTTL <= 0 || m.opts.CleanupInterval <= 0 {
+		return
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
+	if !m.lastCleanup.IsZero() && now.Sub(m.lastCleanup) < m.opts.CleanupInterval {
+		return
 	}
-	return host
+	for key, b := range m.m {
+		if now.Sub(b.lastSeen) > m.opts.StateTTL {
+			delete(m.m, key)
+		}
+	}
+	m.lastCleanup = now
 }
 
 func itoa(n int) string {

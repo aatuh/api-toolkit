@@ -2,15 +2,19 @@ package validation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/aatuh/api-toolkit/fielderrors"
 	"github.com/aatuh/api-toolkit/ports"
 	"github.com/go-playground/validator/v10"
 )
 
 // ValidationError represents a validation error with field-specific details.
+//
+//revive:disable-next-line:exported
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
@@ -24,7 +28,22 @@ func (e ValidationError) Error() string {
 	return e.Message
 }
 
+// FieldErrors converts the validation error to standard field errors.
+func (e ValidationError) FieldErrors() fielderrors.FieldErrors {
+	if strings.TrimSpace(e.Field) == "" && strings.TrimSpace(e.Message) == "" {
+		return nil
+	}
+	return fielderrors.FieldErrors{
+		{
+			Field:   e.Field,
+			Message: e.Message,
+		},
+	}
+}
+
 // ValidationErrors represents multiple validation errors.
+//
+//revive:disable-next-line:exported
 type ValidationErrors struct {
 	Errors []ValidationError `json:"errors"`
 }
@@ -42,6 +61,21 @@ func (e ValidationErrors) Error() string {
 		msgs = append(msgs, err.Error())
 	}
 	return strings.Join(msgs, "; ")
+}
+
+// FieldErrors converts the validation errors to standard field errors.
+func (e ValidationErrors) FieldErrors() fielderrors.FieldErrors {
+	if len(e.Errors) == 0 {
+		return nil
+	}
+	out := make(fielderrors.FieldErrors, 0, len(e.Errors))
+	for _, err := range e.Errors {
+		out = append(out, fielderrors.FieldError{
+			Field:   err.Field,
+			Message: err.Message,
+		})
+	}
+	return out
 }
 
 // playgroundValidator adapts go-playground/validator to the toolkit interface.
@@ -120,7 +154,8 @@ func convertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if ve, ok := err.(validator.ValidationErrors); ok {
+	var ve validator.ValidationErrors
+	if errors.As(err, &ve) {
 		errs := ValidationErrors{}
 		for _, fe := range ve {
 			msg := buildMessage(fe)

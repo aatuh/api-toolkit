@@ -25,8 +25,10 @@ type Manager struct {
 	Pool ports.DatabasePool
 }
 
+// New constructs a transaction manager over a DatabasePool.
 func New(pool ports.DatabasePool) ports.TxManager { return &Manager{Pool: pool} }
 
+// WithinTx runs fn inside a database transaction.
 func (m *Manager) WithinTx(
 	ctx context.Context, fn func(ctx context.Context) error,
 ) error {
@@ -136,8 +138,10 @@ func (e errRow) Scan(_ ...any) error { return e.err }
 
 // Convenience helpers.
 
+// IsNoRows reports whether err is pgx.ErrNoRows.
 func IsNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
 
+// AsPgError converts err into a pgconn.PgError when possible.
 func AsPgError(err error) (*pgconn.PgError, bool) {
 	var pgErr *pgconn.PgError
 	ok := errors.As(err, &pgErr)

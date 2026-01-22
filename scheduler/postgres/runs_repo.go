@@ -14,10 +14,12 @@ type RunsRepo struct {
 	Pool ports.DatabasePool
 }
 
+// NewRunsRepo creates a runs repository backed by Postgres.
 func NewRunsRepo(pool ports.DatabasePool) *RunsRepo {
 	return &RunsRepo{Pool: pool}
 }
 
+// Record stores a completed job run.
 func (r *RunsRepo) Record(ctx context.Context, jobName string, startedAt, finishedAt time.Time, success bool, errMsg string) error {
 	if r == nil {
 		return nil
@@ -31,6 +33,7 @@ func (r *RunsRepo) Record(ctx context.Context, jobName string, startedAt, finish
 	return err
 }
 
+// LastFinished returns the most recent finished timestamp for a job.
 func (r *RunsRepo) LastFinished(ctx context.Context, jobName string) (time.Time, bool, error) {
 	if r == nil {
 		return time.Time{}, false, nil

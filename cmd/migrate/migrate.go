@@ -71,7 +71,11 @@ func Run(cfg Config) {
 	if err != nil {
 		log.Fatalf("create migrator: %v", err)
 	}
-	defer m.Close()
+	defer func() {
+		if err := m.Close(); err != nil {
+			log.Printf("close migrator: %v", err)
+		}
+	}()
 
 	timeout := cfg.Timeout
 	if timeout == 0 {

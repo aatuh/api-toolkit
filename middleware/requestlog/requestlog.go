@@ -3,18 +3,59 @@ package requestlog
 import (
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/httpx/identity"
 	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/response_writer"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+// Middleware logs structured request summaries.
 type Middleware struct {
-	Log ports.Logger
+	Log  ports.Logger
+	opts Options
 }
 
-func New(log ports.Logger) *Middleware { return &Middleware{Log: log} }
+// Options configures request logging behavior.
+type Options struct {
+	Resolver     identity.Resolver
+	RoutePattern func(*http.Request) string
+}
+
+// Option mutates request log options.
+type Option func(*Options)
+
+// WithResolver sets the trusted proxy resolver.
+func WithResolver(resolver identity.Resolver) Option {
+	return func(o *Options) {
+		o.Resolver = resolver
+	}
+}
+
+// WithRoutePattern sets the route pattern function for logging.
+func WithRoutePattern(fn func(*http.Request) string) Option {
+	return func(o *Options) {
+		o.RoutePattern = fn
+	}
+}
+
+// New constructs a request logging middleware.
+func New(log ports.Logger, opts ...Option) *Middleware {
+	cfg := Options{
+		Resolver: identity.Resolver{
+			HeaderPolicy: identity.HeaderPolicyBoth,
+		},
+		RoutePattern: chiRoutePattern,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return &Middleware{Log: log, opts: cfg}
+}
 
 // Middleware implements ports.Middleware via Handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {
@@ -24,53 +65,36 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return m.Handler(next) }
 }
 
+// Handler wraps the next handler with request logging.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ww := &respWriter{ResponseWriter: w, status: 200}
+		ww := response_writer.Wrap(w)
 		next.ServeHTTP(ww, r)
 
+		route := ""
+		if m.opts.RoutePattern != nil {
+			route = m.opts.RoutePattern(r)
+		}
+		if route == "" {
+			route = "unknown"
+		}
+		ip := m.opts.Resolver.ClientIPString(r)
+		if ip == "" {
+			ip = remoteIP(r.RemoteAddr)
+		}
 		m.Log.Info("http",
 			"method", r.Method,
 			"path", r.URL.Path,
-			"status", ww.status,
-			"bytes", ww.bytes,
+			"route", route,
+			"status", ww.Status(),
+			"bytes", ww.BytesWritten(),
 			"dur_ms", time.Since(start).Milliseconds(),
-			"ip", clientIP(r),
+			"ip", ip,
 			"ua", r.UserAgent(),
 			"rid", requestID(r),
 		)
 	})
-}
-
-type respWriter struct {
-	http.ResponseWriter
-	status int
-	bytes  int
-}
-
-func (w *respWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w *respWriter) Write(b []byte) (int, error) {
-	n, err := w.ResponseWriter.Write(b)
-	w.bytes += n
-	return n, err
-}
-
-func clientIP(r *http.Request) string {
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
 
 func requestID(r *http.Request) string {
@@ -81,4 +105,26 @@ func requestID(r *http.Request) string {
 		return v
 	}
 	return ""
+}
+
+func chiRoutePattern(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	ctx := chi.RouteContext(r.Context())
+	if ctx == nil {
+		return ""
+	}
+	return ctx.RoutePattern()
+}
+
+func remoteIP(remote string) string {
+	if remote == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		return remote
+	}
+	return host
 }

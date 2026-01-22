@@ -8,6 +8,8 @@ import (
 )
 
 // ListQuery captures pagination, search, and filter inputs from a request.
+//
+//revive:disable-next-line:exported
 type ListQuery struct {
 	Limit   int
 	Offset  int
@@ -50,6 +52,8 @@ type SortField struct {
 }
 
 // ListQueryConfig configures parsing behaviour for list endpoints.
+//
+//revive:disable-next-line:exported
 type ListQueryConfig struct {
 	DefaultLimit   int
 	MaxLimit       int
@@ -90,6 +94,8 @@ func ParseListQuery(r *http.Request, cfg ListQueryConfig) ListQuery {
 }
 
 // ListMeta captures pagination metadata for responses.
+//
+//revive:disable-next-line:exported
 type ListMeta struct {
 	Total   int                 `json:"total"`
 	Count   int                 `json:"count"`
@@ -101,6 +107,8 @@ type ListMeta struct {
 }
 
 // ListResponse wraps list results with metadata.
+//
+//revive:disable-next-line:exported
 type ListResponse[T any] struct {
 	Data []T      `json:"data"`
 	Meta ListMeta `json:"meta"`
@@ -159,12 +167,12 @@ func parseOffset(val string) int {
 	return n
 }
 
-func clampInt(n, min, max int) int {
-	if min > 0 && n < min {
-		n = min
+func clampInt(n, minVal, maxVal int) int {
+	if minVal > 0 && n < minVal {
+		n = minVal
 	}
-	if max > 0 && n > max {
-		n = max
+	if maxVal > 0 && n > maxVal {
+		n = maxVal
 	}
 	return n
 }

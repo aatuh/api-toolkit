@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/aatuh/api-toolkit/httpx"
 	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/response_writer"
 )
 
 // Manager implements ports.DocsManager for managing documentation.
@@ -80,54 +80,57 @@ func (m *Manager) GetInfo() ports.DocsInfo {
 }
 
 // ServeHTML serves the HTML documentation.
-func (m *Manager) ServeHTML(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
 	html, err := m.GetHTML()
 	if err != nil {
-		response_writer.WriteJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "Failed to generate documentation",
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			Title:  http.StatusText(http.StatusInternalServerError),
+			Detail: "failed to generate documentation",
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(html))
+	_, _ = w.Write([]byte(html))
 }
 
 // ServeOpenAPI serves the OpenAPI specification.
-func (m *Manager) ServeOpenAPI(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	openapi, err := m.GetOpenAPI()
 	if err != nil {
-		response_writer.WriteJSON(w, http.StatusNotFound, map[string]string{
-			"error": "OpenAPI specification not found",
+		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+			Title:  http.StatusText(http.StatusNotFound),
+			Detail: "openapi specification not found",
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(openapi)
+	_, _ = w.Write(openapi)
 }
 
 // ServeVersion serves the API version.
-func (m *Manager) ServeVersion(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) ServeVersion(w http.ResponseWriter, _ *http.Request) {
 	version, err := m.GetVersion()
 	if err != nil {
-		response_writer.WriteJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "Failed to get version",
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			Title:  http.StatusText(http.StatusInternalServerError),
+			Detail: "failed to get version",
 		})
 		return
 	}
 
-	response_writer.WriteJSON(w, http.StatusOK, map[string]string{
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{
 		"version": version,
 	})
 }
 
 // ServeInfo serves the documentation info.
-func (m *Manager) ServeInfo(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) ServeInfo(w http.ResponseWriter, _ *http.Request) {
 	info := m.GetInfo()
-	response_writer.WriteJSON(w, http.StatusOK, info)
+	httpx.WriteJSON(w, http.StatusOK, info)
 }
 
 // generateDefaultHTML generates a default HTML documentation page.

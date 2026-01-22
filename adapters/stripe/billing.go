@@ -3,7 +3,6 @@ package stripe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -361,7 +360,7 @@ func normalizeStripeError(err error) error {
 	}
 	var stripeErr *stripe.Error
 	if errors.As(err, &stripeErr) && stripeErr.Code == stripe.ErrorCodeResourceMissing {
-		return fmt.Errorf("%w: %v", ports.ErrResourceMissing, err)
+		return errors.Join(ports.ErrResourceMissing, err)
 	}
 	return err
 }

@@ -12,11 +12,13 @@ import (
 // Callers should return a stable slice (copy if needed) if the backing store is mutable.
 type RolesFromContext func(ctx context.Context) []string
 
+// RequireRoleMiddleware enforces a required role for a request.
 type RequireRoleMiddleware struct {
 	role         string
 	rolesFromCtx RolesFromContext
 }
 
+// NewRequireRoleMiddleware constructs a role enforcement middleware.
 func NewRequireRoleMiddleware(role string, rolesFromCtx RolesFromContext) *RequireRoleMiddleware {
 	return &RequireRoleMiddleware{
 		role:         strings.ToLower(strings.TrimSpace(role)),
@@ -24,6 +26,7 @@ func NewRequireRoleMiddleware(role string, rolesFromCtx RolesFromContext) *Requi
 	}
 }
 
+// Handler wraps the next handler with role checks.
 func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		required := m.role
@@ -51,4 +54,3 @@ func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 		})
 	})
 }
-

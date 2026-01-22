@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"runtime"
 	"strings"
@@ -14,15 +15,18 @@ import (
 // BasicChecker implements a basic health check that always returns healthy.
 type BasicChecker struct{}
 
+// NewBasicChecker returns a health checker that always reports healthy.
 func NewBasicChecker() ports.HealthChecker {
 	return &BasicChecker{}
 }
 
+// Name returns the checker name.
 func (c *BasicChecker) Name() string {
 	return "basic"
 }
 
-func (c *BasicChecker) Check(ctx context.Context) ports.HealthResult {
+// Check runs the basic health check.
+func (c *BasicChecker) Check(_ context.Context) ports.HealthResult {
 	return ports.HealthResult{
 		Status:    ports.HealthStatusHealthy,
 		Message:   "Basic health check passed",
@@ -35,14 +39,17 @@ type DatabaseChecker struct {
 	pool ports.DatabasePool
 }
 
+// NewDatabaseChecker returns a database ping health checker.
 func NewDatabaseChecker(pool ports.DatabasePool) ports.HealthChecker {
 	return &DatabaseChecker{pool: pool}
 }
 
+// Name returns the checker name.
 func (c *DatabaseChecker) Name() string {
 	return "database"
 }
 
+// Check runs the database health check.
 func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 	start := time.Now()
 
@@ -86,21 +93,28 @@ type MemoryChecker struct {
 	maxMemoryMB int64
 }
 
+// NewMemoryChecker returns a memory usage health checker.
 func NewMemoryChecker(maxMemoryMB int64) ports.HealthChecker {
 	return &MemoryChecker{maxMemoryMB: maxMemoryMB}
 }
 
+// Name returns the checker name.
 func (c *MemoryChecker) Name() string {
 	return "memory"
 }
 
-func (c *MemoryChecker) Check(ctx context.Context) ports.HealthResult {
+// Check runs the memory usage health check.
+func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
 	// This is a simplified memory check
 	// In a real implementation, you'd use runtime.MemStats
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	memoryMB := int64(m.Alloc / 1024 / 1024)
+	allocMB := m.Alloc / 1024 / 1024
+	memoryMB := int64(allocMB)
+	if allocMB > uint64(math.MaxInt64) {
+		memoryMB = math.MaxInt64
+	}
 
 	status := ports.HealthStatusHealthy
 	message := fmt.Sprintf("Memory usage: %d MB", memoryMB)
@@ -136,6 +150,7 @@ type CustomChecker struct {
 	timeout   time.Duration
 }
 
+// NewCustomChecker returns a checker that calls the provided function.
 func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) ports.HealthChecker {
 	return &CustomChecker{
 		name:      name,
@@ -144,6 +159,7 @@ func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.He
 	}
 }
 
+// NewCustomCheckerWithTimeout returns a checker with a custom timeout.
 func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) ports.HealthChecker {
 	return &CustomChecker{
 		name:      name,
@@ -152,10 +168,12 @@ func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc f
 	}
 }
 
+// Name returns the checker name.
 func (c *CustomChecker) Name() string {
 	return c.name
 }
 
+// Check runs the custom health check.
 func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 	start := time.Now()
 
@@ -181,6 +199,7 @@ type CompositeChecker struct {
 	checkers []ports.HealthChecker
 }
 
+// NewCompositeChecker returns a checker that aggregates other checkers.
 func NewCompositeChecker(name string, checkers ...ports.HealthChecker) ports.HealthChecker {
 	return &CompositeChecker{
 		name:     name,
@@ -188,10 +207,12 @@ func NewCompositeChecker(name string, checkers ...ports.HealthChecker) ports.Hea
 	}
 }
 
+// Name returns the checker name.
 func (c *CompositeChecker) Name() string {
 	return c.name
 }
 
+// Check runs the composite health check.
 func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 	if len(c.checkers) == 0 {
 		return ports.HealthResult{
@@ -273,8 +294,10 @@ type HTTPChecker struct {
 	failureStatus ports.HealthStatus
 }
 
+// HTTPCheckerOption configures HTTPChecker behavior.
 type HTTPCheckerOption func(*HTTPChecker)
 
+// NewHTTPChecker returns a checker that probes an HTTP endpoint.
 func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) ports.HealthChecker {
 	checker := &HTTPChecker{
 		name:          name,
@@ -291,6 +314,7 @@ func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) ports.HealthChe
 	return checker
 }
 
+// WithHTTPMethod sets the HTTP method.
 func WithHTTPMethod(method string) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		method = strings.TrimSpace(method)
@@ -300,6 +324,7 @@ func WithHTTPMethod(method string) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPHeader sets a header to send with the request.
 func WithHTTPHeader(key, value string) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if checker.headers == nil {
@@ -309,6 +334,7 @@ func WithHTTPHeader(key, value string) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPHeaders sets multiple headers to send with the request.
 func WithHTTPHeaders(headers map[string]string) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if len(headers) == 0 {
@@ -323,6 +349,7 @@ func WithHTTPHeaders(headers map[string]string) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPClient sets the HTTP client for the checker.
 func WithHTTPClient(client *http.Client) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if client != nil {
@@ -331,6 +358,7 @@ func WithHTTPClient(client *http.Client) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPTimeout sets the request timeout.
 func WithHTTPTimeout(timeout time.Duration) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if timeout > 0 {
@@ -339,6 +367,7 @@ func WithHTTPTimeout(timeout time.Duration) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPSuccessStatuses defines acceptable status codes.
 func WithHTTPSuccessStatuses(statuses ...int) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if len(statuses) == 0 {
@@ -351,6 +380,7 @@ func WithHTTPSuccessStatuses(statuses ...int) HTTPCheckerOption {
 	}
 }
 
+// WithHTTPFailureStatus sets the health status when the check fails.
 func WithHTTPFailureStatus(status ports.HealthStatus) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if status != "" {
@@ -359,10 +389,12 @@ func WithHTTPFailureStatus(status ports.HealthStatus) HTTPCheckerOption {
 	}
 }
 
+// Name returns the checker name.
 func (c *HTTPChecker) Name() string {
 	return c.name
 }
 
+// Check runs the HTTP health check.
 func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 	if strings.TrimSpace(c.url) == "" {
 		return ports.HealthResult{
@@ -398,7 +430,9 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 			Duration:  duration,
 		}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	_, ok := c.successStatus[resp.StatusCode]
 	if !ok {
@@ -433,8 +467,10 @@ type PaymentProviderChecker struct {
 	failureStatus ports.HealthStatus
 }
 
+// PaymentProviderCheckerOption configures PaymentProviderChecker behavior.
 type PaymentProviderCheckerOption func(*PaymentProviderChecker)
 
+// NewPaymentProviderChecker returns a checker for payment providers.
 func NewPaymentProviderChecker(provider ports.PaymentProvider, opts ...PaymentProviderCheckerOption) ports.HealthChecker {
 	checker := &PaymentProviderChecker{
 		name:          "payments",
@@ -447,6 +483,7 @@ func NewPaymentProviderChecker(provider ports.PaymentProvider, opts ...PaymentPr
 	return checker
 }
 
+// WithPaymentProviderName overrides the checker name.
 func WithPaymentProviderName(name string) PaymentProviderCheckerOption {
 	return func(checker *PaymentProviderChecker) {
 		name = strings.TrimSpace(name)
@@ -456,6 +493,7 @@ func WithPaymentProviderName(name string) PaymentProviderCheckerOption {
 	}
 }
 
+// WithPaymentProviderFailureStatus sets the failure status.
 func WithPaymentProviderFailureStatus(status ports.HealthStatus) PaymentProviderCheckerOption {
 	return func(checker *PaymentProviderChecker) {
 		if status != "" {
@@ -464,10 +502,12 @@ func WithPaymentProviderFailureStatus(status ports.HealthStatus) PaymentProvider
 	}
 }
 
+// Name returns the checker name.
 func (c *PaymentProviderChecker) Name() string {
 	return c.name
 }
 
+// Check runs the payment provider health check.
 func (c *PaymentProviderChecker) Check(ctx context.Context) ports.HealthResult {
 	start := time.Now()
 	if c.provider == nil {

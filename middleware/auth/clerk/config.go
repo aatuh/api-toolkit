@@ -23,4 +23,3 @@ func LoadConfig(loader *config.Loader) Config {
 		SkipHeaderName:      loader.String("CLERK_SKIP_HEADER_NAME", ""),
 	}
 }
-

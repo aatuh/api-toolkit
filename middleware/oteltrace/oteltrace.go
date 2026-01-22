@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/response_writer"
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -63,7 +64,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 		start := time.Now()
-		ww := &respWriter{ResponseWriter: w, status: http.StatusOK}
+		ww := response_writer.Wrap(w)
 		ctx, span := m.tracer.Start(ctx, spanName(r.Method, ""), trace.WithSpanKind(trace.SpanKindServer))
 		defer span.End()
 
@@ -80,11 +81,11 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		span.SetAttributes(
 			attribute.String(attrHTTPMethod, r.Method),
 			attribute.String(attrHTTPRoute, route),
-			attribute.Int(attrHTTPStatusCode, ww.status),
+			attribute.Int(attrHTTPStatusCode, ww.Status()),
 			attribute.Int64(attrHTTPDurationMS, duration.Milliseconds()),
 		)
-		if ww.status >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(ww.status))
+		if ww.Status() >= http.StatusInternalServerError {
+			span.SetStatus(codes.Error, http.StatusText(ww.Status()))
 		}
 	})
 }
@@ -110,14 +111,4 @@ func chiRoutePattern(r *http.Request) string {
 		return ""
 	}
 	return ctx.RoutePattern()
-}
-
-type respWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *respWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
 }

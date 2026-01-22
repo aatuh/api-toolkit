@@ -38,7 +38,9 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 			if err != nil {
 				return ports.HealthStatusDegraded, fmt.Sprintf("resend request failed: %v", err), nil
 			}
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
 			type resendError struct {
 				StatusCode int    `json:"statusCode"`

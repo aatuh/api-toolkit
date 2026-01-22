@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -93,12 +93,15 @@ func showHelp() {
 }
 
 func computeCacheKey(pkg, pattern, flags string) string {
-	h := md5.Sum([]byte(pkg + "|" + pattern + "|" + flags))
-	return hex.EncodeToString(h[:])
+	sum := sha256.Sum256([]byte(pkg + "|" + pattern + "|" + flags))
+	return hex.EncodeToString(sum[:])
 }
 
-func isCacheValid(cacheFile string, ttlSeconds int) bool {
-	st, err := os.Stat(cacheFile)
+func isCacheValid(cacheRoot *os.Root, cacheName string, ttlSeconds int) bool {
+	if cacheRoot == nil {
+		return false
+	}
+	st, err := cacheRoot.Stat(cacheName)
 	if err != nil {
 		return false
 	}
@@ -111,8 +114,9 @@ func sanitizeForFilename(s string) string {
 	return r.Replace(s)
 }
 
-func runCmdStreaming(name string, args ...string) (int, error) {
-	cmd := exec.Command(name, args...)
+func runGoCmdStreaming(args ...string) (int, error) {
+	cmd := exec.Command("go")
+	cmd.Args = append(cmd.Args, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -130,7 +134,8 @@ func runCmdStreaming(name string, args ...string) (int, error) {
 }
 
 func runGoList(pkgsPattern string) ([]string, error) {
-	cmd := exec.Command("go", "list", pkgsPattern)
+	cmd := exec.Command("go", "list")
+	cmd.Args = append(cmd.Args, pkgsPattern)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("go list failed: %w", err)
@@ -185,12 +190,11 @@ func waitForAPI(ctx context.Context, baseURL string) error {
 		resp, err := client.Do(req)
 		if err == nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 				return nil
-			} else {
-				fmt.Printf("API server not ready: %s\n", resp.Status)
 			}
+			fmt.Printf("API server not ready: %s\n", resp.Status)
 		} else {
 			fmt.Printf("Error requesting API health: %v\n", err)
 		}
@@ -228,19 +232,33 @@ func pow(a, b float64) float64 {
 
 func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config) error {
 	cacheKey := computeCacheKey(pkg, runPattern, flags)
-	cacheFile := filepath.Join(cfg.CacheDir, cacheKey)
+	var cacheRoot *os.Root
+	if cfg.CacheEnabled {
+		if err := os.MkdirAll(cfg.CacheDir, 0o750); err == nil {
+			cacheRoot, _ = os.OpenRoot(cfg.CacheDir)
+		}
+	}
+	if cacheRoot != nil {
+		defer func() {
+			_ = cacheRoot.Close()
+		}()
+	}
 
-	if cfg.CacheEnabled && isCacheValid(cacheFile, cfg.CacheTTL) {
+	if cfg.CacheEnabled && cacheRoot != nil && isCacheValid(cacheRoot, cacheKey, cfg.CacheTTL) {
 		fmt.Printf("📦 Using cached test results: %s\n", pkg)
-		data, _ := os.ReadFile(cacheFile)
-		os.Stdout.Write(data)
-		return nil
+		data, err := cacheRoot.ReadFile(cacheKey)
+		if err == nil {
+			if _, err := os.Stdout.Write(data); err != nil {
+				return err
+			}
+			return nil
+		}
 	}
 
 	fmt.Printf("🧪 Running tests: %s\n", pkg)
 
 	covDir := ".coverage"
-	_ = os.MkdirAll(covDir, 0o755)
+	_ = os.MkdirAll(covDir, 0o750)
 	covFile := filepath.Join(covDir, fmt.Sprintf("coverage.%s.out", sanitizeForFilename(pkg)))
 
 	args := []string{"test", "-v", "-failfast", "-covermode=atomic", "-coverprofile=" + covFile}
@@ -253,22 +271,24 @@ func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config)
 	}
 	args = append(args, pkg)
 
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command("go")
+	cmd.Args = append(cmd.Args, args...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	err := cmd.Run()
 
 	// Always print collected output
-	os.Stdout.Write(buf.Bytes())
+	if _, err := os.Stdout.Write(buf.Bytes()); err != nil {
+		return err
+	}
 
 	if err != nil {
 		return err
 	}
 
-	if cfg.CacheEnabled {
-		_ = os.MkdirAll(cfg.CacheDir, 0o755)
-		_ = os.WriteFile(cacheFile, buf.Bytes(), 0o644)
+	if cfg.CacheEnabled && cacheRoot != nil {
+		_ = cacheRoot.WriteFile(cacheKey, buf.Bytes(), 0o600)
 	}
 	return nil
 }
@@ -320,7 +340,7 @@ func main() {
 			args = append(args, "-run", cfg.TestPattern)
 		}
 		args = append(args, pkgs...)
-		code, err := runCmdStreaming("go", args...)
+		code, err := runGoCmdStreaming(args...)
 		if err != nil {
 			os.Exit(code)
 		}
@@ -329,7 +349,7 @@ func main() {
 
 	// Non-FAST: per-package with coverage and caching
 	// Clean old per-package coverage files directory exists already
-	_ = os.MkdirAll(".coverage", 0o755)
+	_ = os.MkdirAll(".coverage", 0o750)
 
 	var exitCode int
 	for _, p := range pkgs {

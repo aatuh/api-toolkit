@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aatuh/api-toolkit/httpx"
 	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/response_writer"
 	"github.com/aatuh/api-toolkit/specs"
 )
 
@@ -69,7 +69,7 @@ func (h *Handler) LivenessHandler(w http.ResponseWriter, r *http.Request) {
 		"message":   result.Message,
 	}
 
-	response_writer.WriteJSON(w, statusCode, response)
+	httpx.WriteJSON(w, statusCode, response)
 }
 
 // ReadinessHandler handles readiness checks.
@@ -96,7 +96,7 @@ func (h *Handler) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 		"message":   result.Message,
 	}
 
-	response_writer.WriteJSON(w, statusCode, response)
+	httpx.WriteJSON(w, statusCode, response)
 }
 
 // HealthHandler handles basic health checks.
@@ -117,7 +117,7 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	response_writer.WriteJSON(w, statusCode, response)
+	httpx.WriteJSON(w, statusCode, response)
 }
 
 // DetailedHealthHandler handles detailed health checks.
@@ -138,7 +138,7 @@ func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) 
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	response_writer.WriteJSON(w, statusCode, response)
+	httpx.WriteJSON(w, statusCode, response)
 }
 
 // RegisterRoutes registers all health endpoints on the given router.
@@ -174,6 +174,8 @@ func (h *Handler) RegisterCustomRoutes(router interface {
 }
 
 // HealthPaths defines custom paths for health endpoints.
+//
+//revive:disable-next-line:exported
 type HealthPaths struct {
 	Liveness       string
 	Readiness      string
@@ -200,8 +202,8 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 			health := h.manager.GetHealth(ctx)
 
 			// Add to context for use by other handlers
-			ctx = context.WithValue(ctx, "health_status", health.Status)
-			ctx = context.WithValue(ctx, "health_timestamp", health.Timestamp)
+			ctx = context.WithValue(ctx, healthStatusKey, health.Status)
+			ctx = context.WithValue(ctx, healthTimestampKey, health.Timestamp)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -209,13 +211,24 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 }
 
 // HealthStatusFromContext extracts health status from request context.
+//
+//revive:disable-next-line:exported
 func HealthStatusFromContext(ctx context.Context) (ports.HealthStatus, bool) {
-	status, ok := ctx.Value("health_status").(ports.HealthStatus)
+	status, ok := ctx.Value(healthStatusKey).(ports.HealthStatus)
 	return status, ok
 }
 
 // HealthTimestampFromContext extracts health timestamp from request context.
+//
+//revive:disable-next-line:exported
 func HealthTimestampFromContext(ctx context.Context) (time.Time, bool) {
-	timestamp, ok := ctx.Value("health_timestamp").(time.Time)
+	timestamp, ok := ctx.Value(healthTimestampKey).(time.Time)
 	return timestamp, ok
 }
+
+type healthContextKey string
+
+const (
+	healthStatusKey    healthContextKey = "health_status"
+	healthTimestampKey healthContextKey = "health_timestamp"
+)

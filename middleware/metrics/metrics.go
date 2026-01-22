@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aatuh/api-toolkit/response_writer"
+	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -13,6 +15,8 @@ import (
 type Labels map[string]string
 
 // MetricsRecorder captures counters and histograms.
+//
+//revive:disable-next-line:exported
 type MetricsRecorder interface {
 	IncCounter(name string, labels Labels)
 	ObserveHistogram(name string, value float64, labels Labels)
@@ -28,7 +32,10 @@ func PrometheusHandler() http.Handler {
 // NoopMetrics is the default. Swap later for Prometheus, etc.
 type NoopMetrics struct{}
 
-func (NoopMetrics) IncCounter(_ string, _ Labels)                  {}
+// IncCounter is a no-op implementation.
+func (NoopMetrics) IncCounter(_ string, _ Labels) {}
+
+// ObserveHistogram is a no-op implementation.
 func (NoopMetrics) ObserveHistogram(_ string, _ float64, _ Labels) {}
 
 // Middleware instruments HTTP traffic using a provided recorder.
@@ -84,6 +91,7 @@ func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) 
 	}
 }
 
+// IncCounter increments the Prometheus counter.
 func (p *PrometheusRecorder) IncCounter(_ string, labels Labels) {
 	if p == nil || p.requests == nil {
 		return
@@ -92,6 +100,7 @@ func (p *PrometheusRecorder) IncCounter(_ string, labels Labels) {
 	p.requests.WithLabelValues(method, route, status).Inc()
 }
 
+// ObserveHistogram records the Prometheus histogram observation.
 func (p *PrometheusRecorder) ObserveHistogram(_ string, value float64, labels Labels) {
 	if p == nil || p.durations == nil {
 		return
@@ -107,14 +116,17 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ww := &respWriter{ResponseWriter: w, status: 200}
+		ww := response_writer.Wrap(w)
 		next.ServeHTTP(ww, r)
 
+		route := chiRoutePattern(r)
+		if route == "" {
+			route = "unknown"
+		}
 		labels := Labels{
 			"method": r.Method,
-			"route":  r.URL.Path,
-			"path":   r.URL.Path,
-			"status": itoa(ww.status),
+			"route":  route,
+			"status": itoa(ww.Status()),
 		}
 		mw.M.IncCounter("http_requests_total", labels)
 		mw.M.ObserveHistogram(
@@ -123,16 +135,6 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 			labels,
 		)
 	})
-}
-
-type respWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *respWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
 }
 
 func itoa(n int) string {
@@ -164,9 +166,6 @@ func sanitizeHTTPLabels(labels Labels) (method, route, status string) {
 	}
 	route = labels["route"]
 	if route == "" {
-		route = labels["path"]
-	}
-	if route == "" {
 		route = "unknown"
 	}
 	status = labels["status"]
@@ -174,4 +173,15 @@ func sanitizeHTTPLabels(labels Labels) (method, route, status string) {
 		status = "0"
 	}
 	return method, route, status
+}
+
+func chiRoutePattern(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	ctx := chi.RouteContext(r.Context())
+	if ctx == nil {
+		return ""
+	}
+	return ctx.RoutePattern()
 }
