@@ -1,12 +1,15 @@
 package ratelimit
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aatuh/api-toolkit/httpx"
 	"github.com/aatuh/api-toolkit/httpx/identity"
+	"github.com/aatuh/api-toolkit/ports"
 )
 
 // KeyFn extracts a key for rate limiting buckets.
@@ -18,6 +21,9 @@ type Options struct {
 	RefillRate float64 // tokens per second
 	Key        KeyFn   // how to key buckets
 	RetryAfter time.Duration
+	Clock      ports.Clock
+	// Limiter overrides the default in-memory limiter with a shared limiter.
+	Limiter ports.RateLimiter
 	// ClientIPResolver derives client identity from trusted proxies.
 	ClientIPResolver identity.Resolver
 	// StateTTL evicts buckets that have been idle for this duration.
@@ -30,6 +36,12 @@ type Options struct {
 	// SkipHeader contains the header name that, when present, bypasses limiting.
 	// When empty, no bypass is applied.
 	SkipHeader string
+	// AllowDangerousDevBypasses enables skip headers only when request comes from trusted proxies.
+	AllowDangerousDevBypasses bool
+	// FailOpen controls whether requests pass through when limiter errors.
+	FailOpen bool
+	// OnError receives limiter errors, when present.
+	OnError func(error)
 }
 
 // Middleware enforces in-memory token bucket rate limits.
@@ -46,21 +58,48 @@ type bucket struct {
 }
 
 // New constructs a rate limiting middleware with defaults.
-func New(opts Options) *Middleware {
-	if opts.Capacity <= 0 {
+func New(opts Options) (*Middleware, error) {
+	if opts.Capacity < 0 {
+		return nil, errors.New("capacity must be non-negative")
+	}
+	if opts.RefillRate < 0 {
+		return nil, errors.New("refill rate must be non-negative")
+	}
+	if opts.StateTTL < 0 {
+		return nil, errors.New("state ttl must be non-negative")
+	}
+	if opts.CleanupInterval < 0 {
+		return nil, errors.New("cleanup interval must be non-negative")
+	}
+	if opts.AllowDangerousDevBypasses {
+		if strings.TrimSpace(opts.SkipHeader) == "" {
+			return nil, errors.New("skip header is required when dangerous bypasses are enabled")
+		}
+		if len(opts.ClientIPResolver.TrustedProxies) == 0 {
+			return nil, errors.New("trusted proxies are required when dangerous bypasses are enabled")
+		}
+	}
+	if opts.Capacity == 0 {
 		opts.Capacity = 20
 	}
-	if opts.RefillRate <= 0 {
+	if opts.RefillRate == 0 {
 		opts.RefillRate = 10
 	}
-	if opts.StateTTL <= 0 {
+	if opts.StateTTL == 0 {
 		opts.StateTTL = 10 * time.Minute
 	}
-	if opts.CleanupInterval <= 0 {
+	if opts.CleanupInterval == 0 {
 		opts.CleanupInterval = opts.StateTTL / 2
 		if opts.CleanupInterval < time.Second {
 			opts.CleanupInterval = time.Second
 		}
+	}
+	if opts.Clock == nil {
+		opts.Clock = ports.SystemClock{}
+	}
+	if opts.ClientIPResolver.HeaderPolicy == identity.HeaderPolicyNone &&
+		len(opts.ClientIPResolver.TrustedProxies) > 0 {
+		opts.ClientIPResolver.HeaderPolicy = identity.HeaderPolicyBoth
 	}
 	if opts.Key == nil {
 		resolver := opts.ClientIPResolver
@@ -71,7 +110,7 @@ func New(opts Options) *Middleware {
 			return r.RemoteAddr
 		}
 	}
-	return &Middleware{opts: opts, m: make(map[string]*bucket)}
+	return &Middleware{opts: opts, m: make(map[string]*bucket)}, nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
@@ -84,17 +123,59 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 
 // Handler wraps the next handler with rate limiting logic.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
+	if m == nil {
+		return next
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if m.opts.SkipEnabled && m.opts.SkipHeader != "" {
-			val := r.Header.Get(m.opts.SkipHeader)
-			if val == "true" {
+		if m.opts.SkipEnabled && m.opts.SkipHeader != "" && m.opts.AllowDangerousDevBypasses {
+			if headerIsTrue(r.Header.Get(m.opts.SkipHeader)) &&
+				len(m.opts.ClientIPResolver.TrustedProxies) > 0 &&
+				m.opts.ClientIPResolver.TrustsRemoteAddr(r.RemoteAddr) {
 				next.ServeHTTP(w, r)
 				return
 			}
 		}
 
 		key := m.opts.Key(r)
-		now := time.Now()
+
+		if limiter := m.opts.Limiter; limiter != nil {
+			allowed, retryAfter, err := limiter.Allow(r.Context(), key)
+			if err != nil {
+				if m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
+				if m.opts.FailOpen {
+					next.ServeHTTP(w, r)
+					return
+				}
+				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+					Title:  http.StatusText(http.StatusServiceUnavailable),
+					Detail: "rate limiter unavailable",
+				})
+				return
+			}
+			if !allowed {
+				ra := retryAfter
+				if ra <= 0 {
+					ra = m.opts.RetryAfter
+				}
+				if ra <= 0 {
+					ra = time.Second
+				}
+				w.Header().Set("Retry-After", itoa(int(ra.Seconds())))
+				httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+					Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
+					Title:  http.StatusText(http.StatusTooManyRequests),
+					Detail: "rate limit exceeded",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		now := m.opts.Clock.Now()
 
 		m.mu.Lock()
 		m.cleanup(now)
@@ -118,6 +199,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			}
 			w.Header().Set("Retry-After", itoa(int(ra.Seconds())))
 			httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 				Title:  http.StatusText(http.StatusTooManyRequests),
 				Detail: "rate limit exceeded",
 			})
@@ -165,4 +247,8 @@ func itoa(n int) string {
 		a[i] = '-'
 	}
 	return string(a[i:])
+}
+
+func headerIsTrue(val string) bool {
+	return strings.TrimSpace(val) == "true"
 }

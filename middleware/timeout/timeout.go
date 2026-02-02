@@ -2,6 +2,7 @@ package timeout
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -11,8 +12,18 @@ type Middleware struct {
 	Timeout time.Duration
 }
 
+// Options configures the timeout middleware.
+type Options struct {
+	Timeout time.Duration
+}
+
 // New constructs a timeout middleware with the given duration.
-func New(d time.Duration) *Middleware { return &Middleware{Timeout: d} }
+func New(opts Options) (*Middleware, error) {
+	if opts.Timeout <= 0 {
+		return nil, errors.New("timeout must be greater than zero")
+	}
+	return &Middleware{Timeout: opts.Timeout}, nil
+}
 
 // Middleware implements ports.Middleware via Handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {

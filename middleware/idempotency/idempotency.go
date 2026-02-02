@@ -30,6 +30,7 @@ type Options struct {
 	TTL                 time.Duration
 	InFlightTTL         time.Duration
 	MaxBodyBytes        int64
+	Clock               ports.Clock
 	ShouldHandle        func(*http.Request) bool
 	ShouldStore         func(status int) bool
 	ResponseHeaderAllow []string
@@ -45,17 +46,29 @@ type Middleware struct {
 }
 
 // New constructs an idempotency middleware.
-func New(opts Options) *Middleware {
+func New(opts Options) (*Middleware, error) {
+	if opts.Store == nil {
+		return nil, errors.New("idempotency store is required")
+	}
+	if opts.TTL < 0 {
+		return nil, errors.New("ttl must be non-negative")
+	}
+	if opts.InFlightTTL < 0 {
+		return nil, errors.New("in-flight ttl must be non-negative")
+	}
+	if opts.MaxBodyBytes < 0 {
+		return nil, errors.New("max body bytes must be non-negative")
+	}
 	if opts.HeaderName == "" {
 		opts.HeaderName = "Idempotency-Key"
 	}
-	if opts.TTL <= 0 {
+	if opts.TTL == 0 {
 		opts.TTL = 24 * time.Hour
 	}
-	if opts.InFlightTTL <= 0 {
+	if opts.InFlightTTL == 0 {
 		opts.InFlightTTL = 2 * time.Minute
 	}
-	if opts.MaxBodyBytes <= 0 {
+	if opts.MaxBodyBytes == 0 {
 		opts.MaxBodyBytes = 1 << 20
 	}
 	if opts.HashFunc == nil {
@@ -74,12 +87,15 @@ func New(opts Options) *Middleware {
 		opts.ShouldHandle = defaultMethodFilter(http.MethodPost, http.MethodPut, http.MethodPatch)
 	}
 	if opts.ShouldStore == nil {
-		opts.ShouldStore = func(_ int) bool { return true }
+		opts.ShouldStore = func(status int) bool { return status > 0 && status < 500 }
 	}
 	if opts.ReplayHeaderName == "" {
 		opts.ReplayHeaderName = "Idempotency-Replayed"
 	}
-	return &Middleware{opts: opts}
+	if opts.Clock == nil {
+		opts.Clock = ports.SystemClock{}
+	}
+	return &Middleware{opts: opts}, nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
@@ -119,6 +135,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		hash, err := m.opts.HashFunc(r, body)
 		if err != nil {
 			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 				Title:  http.StatusText(http.StatusBadRequest),
 				Detail: "invalid idempotent request",
 			})
@@ -136,6 +153,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				return
 			}
 			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 				Title:  http.StatusText(http.StatusServiceUnavailable),
 				Detail: "idempotency store unavailable",
 			})
@@ -154,13 +172,15 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			case ports.IdempotencyStateInFlight:
 				writeInFlight(w, m.opts.InFlightTTL)
 				return
+			case ports.IdempotencyStateUnknown:
+				// Fall through to process as a fresh request.
 			}
 		}
 
 		inFlight := ports.IdempotencyRecord{
 			State:       ports.IdempotencyStateInFlight,
 			RequestHash: hash,
-			CreatedAt:   time.Now(),
+			CreatedAt:   m.opts.Clock.Now(),
 		}
 		reserved, err := m.opts.Store.TryBegin(ctx, key, inFlight, m.opts.InFlightTTL)
 		if err != nil {
@@ -172,6 +192,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				return
 			}
 			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 				Title:  http.StatusText(http.StatusServiceUnavailable),
 				Detail: "idempotency reservation failed",
 			})
@@ -188,6 +209,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					return
 				}
 				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 					Title:  http.StatusText(http.StatusServiceUnavailable),
 					Detail: "idempotency lookup failed",
 				})
@@ -205,6 +227,8 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				case ports.IdempotencyStateInFlight:
 					writeInFlight(w, m.opts.InFlightTTL)
 					return
+				case ports.IdempotencyStateUnknown:
+					// Fall through to process as a fresh request.
 				}
 			}
 			// Fallback to processing if we can't observe a stored record.
@@ -219,7 +243,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			Status:      capture.Status(),
 			Header:      filterHeaders(capture.Header(), m.opts.ResponseHeaderAllow, m.opts.ResponseHeaderDeny),
 			Body:        append([]byte(nil), capture.Body()...),
-			CreatedAt:   time.Now(),
+			CreatedAt:   m.opts.Clock.Now(),
 		}
 		if m.opts.ShouldStore(capture.Status()) {
 			if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil && m.opts.OnError != nil {
@@ -288,12 +312,14 @@ func readBody(r *http.Request, maxBytes int64) ([]byte, error) {
 func writeBodyError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errBodyTooLarge) {
 		httpx.WriteProblem(w, http.StatusRequestEntityTooLarge, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypePayloadTooLarge),
 			Title:  http.StatusText(http.StatusRequestEntityTooLarge),
 			Detail: "request body too large",
 		})
 		return
 	}
 	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid request body",
 	})
@@ -326,6 +352,7 @@ func writeInFlight(w http.ResponseWriter, ttl time.Duration) {
 		w.Header().Set("Retry-After", itoa(int(ttl.Seconds())))
 	}
 	httpx.WriteProblem(w, http.StatusConflict, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeConflict),
 		Title:  http.StatusText(http.StatusConflict),
 		Detail: "idempotency key is already in use",
 	})
@@ -333,6 +360,7 @@ func writeInFlight(w http.ResponseWriter, ttl time.Duration) {
 
 func writeConflict(w http.ResponseWriter) {
 	httpx.WriteProblem(w, http.StatusConflict, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeConflict),
 		Title:  http.StatusText(http.StatusConflict),
 		Detail: "idempotency key reuse with different request",
 	})
@@ -404,6 +432,8 @@ func applyDefaultDeny(h http.Header) http.Header {
 		"Transfer-Encoding",
 		"Upgrade",
 		"Content-Length",
+		"Set-Cookie",
+		"Set-Cookie2",
 	}
 	return applyHeaderDeny(h, defaultDeny)
 }

@@ -1,22 +1,28 @@
 package idempotency
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
-	store "github.com/aatuh/api-toolkit/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/ports"
 )
 
 func TestIdempotencyReplay(t *testing.T) {
-	mem := store.NewMemoryStore()
-	mw := New(Options{
+	mem := newMemoryStore()
+	mw, err := New(Options{
 		Store:        mem,
 		MaxBodyBytes: 1024,
 	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": string(body)})
@@ -51,4 +57,105 @@ func TestIdempotencyReplay(t *testing.T) {
 	if rec3.Code != http.StatusConflict {
 		t.Fatalf("expected conflict on key reuse, got %d", rec3.Code)
 	}
+}
+
+func TestNewRequiresStore(t *testing.T) {
+	if _, err := New(Options{}); err == nil {
+		t.Fatal("expected error for missing store")
+	}
+}
+
+func TestNewDefaultsClock(t *testing.T) {
+	mw, err := New(Options{Store: newMemoryStore()})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	if mw.opts.Clock == nil {
+		t.Fatal("expected default clock")
+	}
+}
+
+type memoryStore struct {
+	mu   sync.Mutex
+	data map[string]memoryEntry
+	now  func() time.Time
+}
+
+type memoryEntry struct {
+	record    ports.IdempotencyRecord
+	expiresAt time.Time
+}
+
+func newMemoryStore() *memoryStore {
+	return &memoryStore{
+		data: make(map[string]memoryEntry),
+		now:  time.Now,
+	}
+}
+
+func (m *memoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+	if m == nil {
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	_ = ctx
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, ok := m.data[key]
+	if !ok {
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	if m.isExpired(entry) {
+		delete(m.data, key)
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	return cloneRecord(entry.record), true, nil
+}
+
+func (m *memoryStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+	if m == nil {
+		return false, nil
+	}
+	_ = ctx
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if entry, ok := m.data[key]; ok && !m.isExpired(entry) {
+		return false, nil
+	}
+	m.data[key] = memoryEntry{
+		record:    cloneRecord(record),
+		expiresAt: m.now().Add(ttl),
+	}
+	return true, nil
+}
+
+func (m *memoryStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	if m == nil {
+		return nil
+	}
+	_ = ctx
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data[key] = memoryEntry{
+		record:    cloneRecord(record),
+		expiresAt: m.now().Add(ttl),
+	}
+	return nil
+}
+
+func (m *memoryStore) isExpired(entry memoryEntry) bool {
+	if entry.expiresAt.IsZero() {
+		return false
+	}
+	return m.now().After(entry.expiresAt)
+}
+
+func cloneRecord(record ports.IdempotencyRecord) ports.IdempotencyRecord {
+	out := record
+	if record.Header != nil {
+		out.Header = record.Header.Clone()
+	}
+	if record.Body != nil {
+		out.Body = append([]byte(nil), record.Body...)
+	}
+	return out
 }

@@ -1,5 +1,7 @@
 package swagstub
 
+import "sync"
+
 // Spec is a minimal stub of github.com/swaggo/swag.Spec used by generated docs.
 // This allows generated swagger documentation to work without importing the full swag package.
 type Spec struct {
@@ -26,7 +28,10 @@ func (s *Spec) InstanceName() string {
 	return s.InfoInstanceName
 }
 
-var registry = make(map[string]*Spec)
+var (
+	registryMu sync.RWMutex
+	registry   = make(map[string]*Spec)
+)
 
 // Register stores the spec under the provided name.
 func Register(name string, spec *Spec) {
@@ -37,16 +42,22 @@ func Register(name string, spec *Spec) {
 	if key == "" {
 		key = spec.InstanceName()
 	}
+	registryMu.Lock()
+	defer registryMu.Unlock()
 	registry[key] = spec
 }
 
 // Get retrieves a spec by name.
 func Get(name string) *Spec {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	return registry[name]
 }
 
 // List returns all registered spec names.
 func List() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	names := make([]string, 0, len(registry))
 	for name := range registry {
 		names = append(names, name)

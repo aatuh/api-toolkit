@@ -1,0 +1,82 @@
+# Security Posture
+
+This project ships secure-by-default middleware, opt-in controls, and
+documentation aligned with OWASP API Security guidance.
+
+## Defaults and Hardening
+
+Core defaults aim to be safe, deterministic, and explicit:
+
+- Problem Details responses (RFC 9457) for consistent errors.
+- Strict JSON content-type enforcement when enabled.
+- Request body limits via `middleware/maxbody`.
+- Query limits via `middleware/querylimits`.
+- Security headers via `middleware/secure`.
+- Trace context validation via `middleware/trace`.
+
+## Bypass and Dev-Only Controls
+
+Some features include explicit bypasses for local development only:
+
+- Rate limit skip header: only honored when `AllowDangerousDevBypasses`
+  is true and the request comes from a trusted proxy.
+- Clerk auth skip header: same proxy restriction.
+- Webhook verification skip in adapters: intended for development only.
+
+Do not enable dev bypasses in production environments.
+
+## Threat Model (Short)
+
+Assume:
+
+- Public endpoints are reachable from untrusted networks.
+- Clients can send malformed or oversized requests.
+- Attackers will probe authentication, authorization, and rate limits.
+
+Goal:
+
+- Fail safe by default and make bypasses explicit and restricted.
+- Bound resource usage (CPU, memory, network) per request.
+- Keep auditability via structured logs and stable errors.
+
+## OWASP Mapping (Resource Consumption)
+
+The toolkit provides concrete controls for resource limits:
+
+- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout`
+- Payload size: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`
+- Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
+- Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
+- Header limits: `httpx.HeaderLimitsBalanced` + server `MaxHeaderBytes`
+
+## Recommended Production Baseline
+
+```go
+log := logzap.NewProduction()
+profile, err := securityprofile.OWASPBaseline(
+	securityprofile.WithAuthCheck(func(r *http.Request) bool {
+		return r.Header.Get("Authorization") != ""
+	}),
+	securityprofile.WithRateLimitOptions(ratelimit.Options{
+		Capacity:   60,
+		RefillRate: 30,
+	}),
+)
+if err != nil { /* handle */ }
+
+r := chi.New()
+profile.Apply(r)
+
+srv := bootstrap.HardenedServer(":8080", r, func(s *http.Server) {
+	httpx.HeaderLimitsBalanced.ApplyServer(s)
+})
+```
+
+## Checklist
+
+- [ ] Enable OWASP baseline limits for timeouts, payload, query, and rate limits
+- [ ] Set MaxHeaderBytes with `httpx.HeaderLimitsBalanced` or stricter
+- [ ] Require authentication by default and deny by default
+- [ ] Avoid dev-only bypass headers in production
+- [ ] Use TLS in production and prefer TLS 1.3
+- [ ] Monitor for rate limiting and validation errors

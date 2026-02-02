@@ -17,8 +17,15 @@ type Middleware struct {
 	RequireJSON bool
 }
 
+// Options configures the JSON middleware.
+type Options struct {
+	RequireJSON bool
+}
+
 // New constructs a JSON middleware with the given requirement.
-func New(require bool) *Middleware { return &Middleware{RequireJSON: require} }
+func New(opts Options) (*Middleware, error) {
+	return &Middleware{RequireJSON: opts.RequireJSON}, nil
+}
 
 // Middleware implements ports.Middleware by returning the Handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {
@@ -30,6 +37,9 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 
 // Handler wraps the next handler with JSON content checks.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
+	if m == nil {
+		return next
+	}
 	if !m.RequireJSON {
 		return next
 	}

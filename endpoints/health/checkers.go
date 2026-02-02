@@ -259,6 +259,13 @@ func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 					messages = append(messages, result.Message)
 				}
 			}
+		case ports.HealthStatusUnknown:
+			if overallStatus == "" || overallStatus == ports.HealthStatusHealthy {
+				overallStatus = ports.HealthStatusUnknown
+				if result.Message != "" {
+					messages = append(messages, result.Message)
+				}
+			}
 		case ports.HealthStatusHealthy:
 			if overallStatus == "" {
 				overallStatus = ports.HealthStatusHealthy

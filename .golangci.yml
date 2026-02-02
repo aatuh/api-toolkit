@@ -1,17 +1,61 @@
-run:
-  timeout: 3m
+version: "2"
 
-linters:
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+  relative-path-mode: gomod
+
+formatters:
   enable:
-    - govet
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/aatuh
+
+linters:
+  default: none
+  enable:
+    # Basic correctness
+    - govet
+    - staticcheck
     - ineffassign
     - unused
-    - staticcheck
-    - revive
-    - gosec
     - errorlint
 
-issues:
-  exclude-use-default: false
+    # Biggest missing bug-catchers
+    - errcheck
+    - nilerr
+    - nilnil
+    - exhaustive
+
+    # Resource leaks
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+
+    # Security / hardening
+    - gosec
+    - bidichk
+
+    # Dev-experience and readability
+    - nolintlint
+    - unconvert
+    - unparam
+    - wastedassign
+    - durationcheck
+    - misspell
+
+    # Server / API issues
+    - noctx
+    - contextcheck
+    - containedctx
+
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+      - legacy

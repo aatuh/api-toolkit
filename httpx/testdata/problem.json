@@ -1,0 +1,7 @@
+{
+  "detail": "invalid input",
+  "error_code": "invalid_input",
+  "hint": "check payload",
+  "status": 400,
+  "title": "Bad Request"
+}

@@ -9,6 +9,7 @@ import (
 func WriteJSON(w http.ResponseWriter, status int, v any) {
 	if err := writeJSON(w, status, "application/json", v); err != nil {
 		WriteProblem(w, http.StatusInternalServerError, Problem{
+			Type:   DefaultTypeURI(TypeInternal),
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to encode response",
 		})

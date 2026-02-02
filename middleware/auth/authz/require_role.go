@@ -28,6 +28,9 @@ func NewRequireRoleMiddleware(role string, rolesFromCtx RolesFromContext) *Requi
 
 // Handler wraps the next handler with role checks.
 func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
+	if m == nil {
+		return next
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		required := m.role
 		if required == "" || m.rolesFromCtx == nil {
@@ -37,6 +40,7 @@ func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 		roles := m.rolesFromCtx(r.Context())
 		if len(roles) == 0 {
 			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 				Title:  http.StatusText(http.StatusForbidden),
 				Detail: "forbidden",
 			})
@@ -49,6 +53,7 @@ func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 			}
 		}
 		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 			Title:  http.StatusText(http.StatusForbidden),
 			Detail: "forbidden",
 		})
