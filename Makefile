@@ -1,14 +1,32 @@
-SHELL := /bin/bash
-
+MODULES := . contrib
 GO ?= go
 
+# Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 GOLANGCI_LINT_VERSION ?= latest
 GOSEC_VERSION ?= latest
 GOVULNCHECK_VERSION ?= latest
 
+# Tools used by local CI steps.
+OUTPUT_DIR ?= .ci-result
+CODEQL ?= codeql
+CODEQL_DB_DIR ?= $(OUTPUT_DIR)/codeql-db
+CODEQL_QUERIES ?= codeql/go-queries
+SCORECARD ?= scorecard
+SCORECARD_REPO ?= github.com/aatuh/api-toolkit
+SYFT ?= syft
+COSIGN ?= cosign
+COSIGN_KEY ?= cosign.key
 
-.PHONY: help test test-race lint gosec vuln tidy fmt tools clean finalize
+# Env vars only used by local CI steps.
+# Create an .env file containing env key-value pairs.
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
+
+.PHONY: help tools api-check fmt lint vuln gosec tidy test test-race fuzz clean finalize codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -20,33 +38,72 @@ help: ## Show help
 		}' $(MAKEFILE_LIST)
 
 tools: ## Install lint/vuln tools
-	@$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	@$(GO) install golang.org/x/exp/cmd/apidiff@latest
+
+# In api-check you can set API_BASE_REF to compare to specific tag (e.g. API_BASE_REF=2.0.0)
+api-check: ## Run API compatibility check.
+	@scripts/apicheck.sh
 
 fmt: ## Run gofmt
-	$(GO) fmt ./...
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) fmt ./...); \
+	done
 
 lint: tools ## Run golangci-lint
-	golangci-lint run ./...
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && golangci-lint run ./...); \
+	done
 
 vuln: tools ## Run govulncheck
-	govulncheck ./...
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && govulncheck ./...); \
+	done
 
 gosec: tools ## Run gosec
-	gosec ./...
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		if [ "$$mod" = "." ]; then \
+			(cd $$mod && gosec -exclude-dir=contrib ./...); \
+		else \
+			(cd $$mod && gosec ./...); \
+		fi; \
+	done
 
 tidy: ## Run go mod tidy
-	$(GO) mod tidy
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) mod tidy); \
+	done
 
 test: ## Run unit tests
-	$(GO) test ./...
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) test ./...); \
+	done
 
 test-race: ## Run unit tests with race detector
-	$(GO) test ./... -race -count=1
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) test ./... -race -count=1); \
+	done
+
+fuzz: ## Run fuzz smoke tests
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) test ./... -run=^$ -fuzz=Fuzz -fuzztime=10s); \
+	done
 
 clean: ## Clean test cache
-	@$(GO) clean -testcache
+	@for mod in $(MODULES); do \
+		echo "==> $$mod"; \
+		(cd $$mod && $(GO) clean -testcache); \
+	done
 
 finalize: ## Run every quality assurance tool
 	$(MAKE) tools
@@ -54,7 +111,48 @@ finalize: ## Run every quality assurance tool
 	$(MAKE) lint
 	$(MAKE) vuln
 	$(MAKE) gosec
+	$(MAKE) api-check
 	$(MAKE) tidy
 	$(MAKE) test
 	$(MAKE) test-race
+	$(MAKE) fuzz
 	$(MAKE) clean
+
+ci-local: ## Run CI steps locally
+	rm -rf "$(OUTPUT_DIR)"
+	$(MAKE) codeql-local
+	$(MAKE) scorecard-local
+	$(MAKE) sbom-local
+
+codeql-local: ## Create a CodeQL DB
+	rm -rf "$(OUTPUT_DIR)/codeql"
+	mkdir -p "$(OUTPUT_DIR)/codeql"
+
+	codeql database create "$(OUTPUT_DIR)/codeql" \
+		--language=go \
+		--source-root=. \
+		--command="make .codeql-local-build"
+
+	codeql database analyze .ci-result/codeql \
+		--download \
+		codeql/go-queries \
+		--format=sarifv2.1.0 \
+		--output=.ci-result/codeql.sarif
+
+	codeql database print-baseline .ci-result/codeql
+
+.codeql-local-build:
+	@$(GO) build ./... &&  cd contrib && @$(GO) build ./...
+
+scorecard-local: ## Run OpenSSF Scorecard locally
+	@test -n "$(GITHUB_AUTH_TOKEN)" || { echo "GITHUB_AUTH_TOKEN is empty"; exit 2; }
+	@test -n "$(SCORECARD_REPO)" || { echo "SCORECARD_REPO is empty"; exit 2; }
+	rm -rf "$(OUTPUT_DIR)/scorecard"
+	mkdir -p "$(OUTPUT_DIR)/scorecard"
+	$(SCORECARD) --repo="$(SCORECARD_REPO)" --format=json > "$(OUTPUT_DIR)/scorecard/scorecard.json"
+
+sbom-local: ## Generate SPDX-JSON SBOMs
+	rm -rf "$(OUTPUT_DIR)/sbom"
+	mkdir -p "$(OUTPUT_DIR)/sbom"
+	"$(SYFT)" dir:. -o spdx-json >"$(OUTPUT_DIR)/sbom/sbom-root.spdx.json"
+	"$(SYFT)" dir:contrib -o spdx-json >"$(OUTPUT_DIR)/sbom/sbom-contrib.spdx.json"

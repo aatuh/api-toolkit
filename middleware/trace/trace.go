@@ -5,7 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/aatuh/api-toolkit/ports"
 )
 
 // W3C Trace Context (traceparent) format:
@@ -14,6 +17,7 @@ import (
 
 const (
 	headerTraceParent = "traceparent"
+	headerTraceState  = "tracestate"
 )
 
 type ctxKey string
@@ -28,8 +32,12 @@ type Options struct {
 	// TrustIncoming strictly validates client-provided traceparent and uses it
 	// if valid. When false, the middleware always generates a fresh trace ID.
 	TrustIncoming bool
-	// SampledFlag defaults to 01 (sampled). Set to 00 to turn off sampling bit.
+	// SampledFlag defaults to 00 (not sampled). Set to 01 to enable sampling bit.
 	SampledFlag byte
+	// TraceIDGen overrides the trace id generator.
+	TraceIDGen ports.IDGen
+	// SpanIDGen overrides the span id generator.
+	SpanIDGen ports.IDGen
 }
 
 // Middleware attaches trace/span IDs to request context and sets response header.
@@ -38,8 +46,8 @@ type Middleware struct {
 }
 
 // New constructs a Middleware with sane defaults.
-func New(opts Options) *Middleware {
-	return &Middleware{opts: normalizeOptions(opts)}
+func New(opts Options) (*Middleware, error) {
+	return &Middleware{opts: normalizeOptions(opts)}, nil
 }
 
 // Middleware implements ports.Middleware by producing the handler adapter.
@@ -52,25 +60,38 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var traceID string
 
+			var traceFlags byte
+			var traceState string
+
 			if opts.TrustIncoming {
 				if tp := r.Header.Get(headerTraceParent); tp != "" {
-					if tid, _, _, ok := parseTraceParent(tp); ok {
+					if tid, _, flags, ok := parseTraceParent(tp); ok {
 						traceID = tid
+						traceFlags = flags
+						traceState = strings.TrimSpace(r.Header.Get(headerTraceState))
 					}
 				}
 			}
 
 			if traceID == "" || !isValidTraceID(traceID) {
-				traceID = newTraceID()
+				traceID = generateTraceID(opts.TraceIDGen)
 			}
 			// Always create a new span id for this server span.
-			spanID := newSpanID()
+			spanID := generateSpanID(opts.SpanIDGen)
 
 			// Put into context
 			r = r.WithContext(withTrace(r.Context(), traceID, spanID))
 
-			// Best-effort echo of traceparent for clients and downstreams
-			w.Header().Set(headerTraceParent, formatTraceParent(traceID, spanID, opts.SampledFlag))
+			flags := opts.SampledFlag
+			if opts.TrustIncoming && traceID != "" {
+				flags = traceFlags
+			}
+
+			// Best-effort echo of trace headers for clients and downstreams.
+			w.Header().Set(headerTraceParent, formatTraceParent(traceID, spanID, flags))
+			if traceState != "" {
+				w.Header().Set(headerTraceState, traceState)
+			}
 
 			next.ServeHTTP(w, r)
 		})
@@ -79,8 +100,12 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 
 // Use preserves the old helper-style API.
 // Deprecated: use New(opts).Middleware() instead.
-func Use(opts Options) func(http.Handler) http.Handler {
-	return New(opts).Middleware()
+func Use(opts Options) (func(http.Handler) http.Handler, error) {
+	mw, err := New(opts)
+	if err != nil {
+		return nil, err
+	}
+	return mw.Middleware(), nil
 }
 
 // GetTraceID returns the hex-encoded 16-byte trace id if present.
@@ -117,19 +142,15 @@ func parseTraceParent(s string) (traceID, parentID string, flags byte, ok bool) 
 	if !isValidTraceID(tid) || !isValidSpanID(pid) || len(fl) != 2 || !isLowerHex(fl) {
 		return "", "", 0, false
 	}
-	if fl == "00" {
-		flags = 0x00
-	} else {
-		flags = 0x01
+	val, err := strconv.ParseUint(fl, 16, 8)
+	if err != nil {
+		return "", "", 0, false
 	}
-	return tid, pid, flags, true
+	return tid, pid, byte(val), true
 }
 
-func formatTraceParent(traceID, spanID string, sampled byte) string {
-	flag := "00"
-	if sampled == 0x01 {
-		flag = "01"
-	}
+func formatTraceParent(traceID, spanID string, flags byte) string {
+	flag := hex.EncodeToString([]byte{flags})
 	return "00-" + traceID + "-" + spanID + "-" + flag
 }
 
@@ -152,6 +173,28 @@ func newSpanID() string { // 8 bytes => 16 hex
 	return hex.EncodeToString(b[:])
 }
 
+func generateTraceID(gen ports.IDGen) string {
+	if gen != nil {
+		if id := normalizeHexID(gen.New()); isValidTraceID(id) {
+			return id
+		}
+	}
+	return newTraceID()
+}
+
+func generateSpanID(gen ports.IDGen) string {
+	if gen != nil {
+		if id := normalizeHexID(gen.New()); isValidSpanID(id) {
+			return id
+		}
+	}
+	return newSpanID()
+}
+
+func normalizeHexID(id string) string {
+	return strings.ToLower(strings.TrimSpace(id))
+}
+
 func allZero(b []byte) bool {
 	for _, v := range b {
 		if v != 0 {
@@ -172,7 +215,7 @@ func isValidSpanID(s string) bool {
 func isLowerHex(s string) bool {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
@@ -192,5 +235,19 @@ func normalizeOptions(opts Options) Options {
 	if opts.SampledFlag != 0x00 && opts.SampledFlag != 0x01 {
 		opts.SampledFlag = 0x01
 	}
+	if opts.TraceIDGen == nil {
+		opts.TraceIDGen = traceIDGen{}
+	}
+	if opts.SpanIDGen == nil {
+		opts.SpanIDGen = spanIDGen{}
+	}
 	return opts
 }
+
+type traceIDGen struct{}
+
+func (traceIDGen) New() string { return newTraceID() }
+
+type spanIDGen struct{}
+
+func (spanIDGen) New() string { return newSpanID() }

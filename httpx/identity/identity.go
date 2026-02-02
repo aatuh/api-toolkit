@@ -61,13 +61,17 @@ func (r Resolver) ClientIP(req *http.Request) (netip.Addr, bool) {
 	remote, remoteOK := parseRemoteAddr(req.RemoteAddr)
 	if r.trustsRemote(remote) {
 		if r.usesForwarded() {
-			if addr, ok := forwardedFor(req.Header.Get("Forwarded")); ok {
-				return addr, true
+			if chain, ok := forwardedForChain(req.Header.Get("Forwarded")); ok {
+				if addr, ok := clientIPFromChain(chain, r.TrustedProxies); ok {
+					return addr, true
+				}
 			}
 		}
 		if r.usesXForwarded() {
-			if addr, ok := xForwardedFor(req.Header.Get("X-Forwarded-For")); ok {
-				return addr, true
+			if chain, ok := xForwardedForChain(req.Header.Get("X-Forwarded-For")); ok {
+				if addr, ok := clientIPFromChain(chain, r.TrustedProxies); ok {
+					return addr, true
+				}
 			}
 		}
 	}
@@ -191,6 +195,11 @@ func (r Resolver) trustsRemoteAddr(remote string) bool {
 	return r.trustsRemote(addr)
 }
 
+// TrustsRemoteAddr reports whether the remote address is within trusted proxies.
+func (r Resolver) TrustsRemoteAddr(remote string) bool {
+	return r.trustsRemoteAddr(remote)
+}
+
 func (r Resolver) usesForwarded() bool {
 	return r.HeaderPolicy&HeaderPolicyForwarded != 0
 }
@@ -220,40 +229,109 @@ func parseRemoteAddr(remote string) (netip.Addr, bool) {
 	return addr, true
 }
 
-type forwarded struct {
-	forAddr netip.Addr
-	forOK   bool
-	proto   string
-	host    string
+func clientIPFromChain(chain []netip.Addr, trusted []netip.Prefix) (netip.Addr, bool) {
+	if len(chain) == 0 {
+		return netip.Addr{}, false
+	}
+	for i := len(chain) - 1; i >= 0; i-- {
+		if !isTrustedAddr(chain[i], trusted) {
+			return chain[i], true
+		}
+	}
+	return chain[0], true
 }
 
-func forwardedFor(header string) (netip.Addr, bool) {
-	f := parseForwarded(header)
-	if f.forOK {
-		return f.forAddr, true
+func isTrustedAddr(addr netip.Addr, trusted []netip.Prefix) bool {
+	if !addr.IsValid() || len(trusted) == 0 {
+		return false
 	}
-	return netip.Addr{}, false
+	for _, p := range trusted {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+func forwardedForChain(header string) ([]netip.Addr, bool) {
+	if header == "" {
+		return nil, false
+	}
+	parts := strings.Split(header, ",")
+	if len(parts) == 0 {
+		return nil, false
+	}
+	out := make([]netip.Addr, 0, len(parts))
+	for _, part := range parts {
+		entry := strings.TrimSpace(part)
+		if entry == "" {
+			return nil, false
+		}
+		params := strings.Split(entry, ";")
+		forVal := ""
+		for _, param := range params {
+			param = strings.TrimSpace(param)
+			if param == "" {
+				continue
+			}
+			key, val, ok := strings.Cut(param, "=")
+			if !ok {
+				return nil, false
+			}
+			key = strings.ToLower(strings.TrimSpace(key))
+			val = strings.TrimSpace(val)
+			val = strings.Trim(val, "\"")
+			if key == "for" {
+				forVal = val
+				break
+			}
+		}
+		if forVal == "" {
+			return nil, false
+		}
+		addr, ok := parseAddrValue(forVal)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, addr)
+	}
+	if len(out) == 0 {
+		return nil, false
+	}
+	return out, true
 }
 
 func forwardedProto(header string) string {
-	return parseForwarded(header).proto
+	params, ok := parseForwardedParams(header)
+	if !ok {
+		return ""
+	}
+	proto := strings.ToLower(params["proto"])
+	return strings.TrimSpace(proto)
 }
 
 func forwardedHost(header string) string {
-	return parseForwarded(header).host
+	params, ok := parseForwardedParams(header)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(params["host"])
 }
 
-func parseForwarded(header string) forwarded {
-	out := forwarded{}
+func parseForwardedParams(header string) (map[string]string, bool) {
 	if header == "" {
-		return out
+		return nil, false
 	}
 	parts := strings.Split(header, ",")
+	if len(parts) == 0 {
+		return nil, false
+	}
 	entry := strings.TrimSpace(parts[0])
 	if entry == "" {
-		return out
+		return nil, false
 	}
 	params := strings.Split(entry, ";")
+	out := make(map[string]string)
 	for _, param := range params {
 		param = strings.TrimSpace(param)
 		if param == "" {
@@ -261,35 +339,42 @@ func parseForwarded(header string) forwarded {
 		}
 		key, val, ok := strings.Cut(param, "=")
 		if !ok {
-			continue
+			return nil, false
 		}
 		key = strings.ToLower(strings.TrimSpace(key))
 		val = strings.TrimSpace(val)
 		val = strings.Trim(val, "\"")
-		switch key {
-		case "for":
-			if addr, ok := parseAddrValue(val); ok {
-				out.forAddr = addr
-				out.forOK = true
-			}
-		case "proto":
-			out.proto = strings.ToLower(val)
-		case "host":
-			out.host = val
+		if key == "" || val == "" {
+			return nil, false
 		}
+		out[key] = val
 	}
-	return out
+	if len(out) == 0 {
+		return nil, false
+	}
+	return out, true
 }
 
-func xForwardedFor(header string) (netip.Addr, bool) {
+func xForwardedForChain(header string) ([]netip.Addr, bool) {
 	if header == "" {
-		return netip.Addr{}, false
+		return nil, false
 	}
 	parts := strings.Split(header, ",")
 	if len(parts) == 0 {
-		return netip.Addr{}, false
+		return nil, false
 	}
-	return parseAddrValue(parts[0])
+	out := make([]netip.Addr, 0, len(parts))
+	for _, part := range parts {
+		addr, ok := parseAddrValue(part)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, addr)
+	}
+	if len(out) == 0 {
+		return nil, false
+	}
+	return out, true
 }
 
 func xForwardedProto(header string) string {

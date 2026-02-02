@@ -1,0 +1,36 @@
+{
+  "detail": "validation failed",
+  "errors": [
+    {
+      "code": "required",
+      "field": "name",
+      "message": "name is required"
+    },
+    {
+      "code": "min",
+      "field": "age",
+      "message": "age must be >= 18"
+    }
+  ],
+  "field_errors": {
+    "age": "age must be >= 18",
+    "name": "name is required"
+  },
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://api-toolkit.dev/problems/validation-error",
+  "validation": {
+    "fields": [
+      {
+        "code": "required",
+        "field": "name",
+        "message": "name is required"
+      },
+      {
+        "code": "min",
+        "field": "age",
+        "message": "age must be >= 18"
+      }
+    ]
+  }
+}

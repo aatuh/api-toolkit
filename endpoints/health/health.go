@@ -220,6 +220,13 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) port
 					messages = append(messages, result.Message)
 				}
 			}
+		case ports.HealthStatusUnknown:
+			if overallStatus == "" || overallStatus == ports.HealthStatusHealthy {
+				overallStatus = ports.HealthStatusUnknown
+				if result.Message != "" {
+					messages = append(messages, result.Message)
+				}
+			}
 		case ports.HealthStatusHealthy:
 			if overallStatus == "" {
 				overallStatus = ports.HealthStatusHealthy

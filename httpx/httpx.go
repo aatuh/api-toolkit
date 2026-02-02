@@ -4,8 +4,9 @@ import (
 	"net/http"
 )
 
-// Problem represents an RFC 7807 problem+json response body.
-// See: https://datatracker.ietf.org/doc/html/rfc7807
+// Problem represents an RFC 9457 problem details response body.
+// RFC 9457 obsoletes RFC 7807.
+// See: https://www.rfc-editor.org/rfc/rfc9457.html
 type Problem struct {
 	Type     string         `json:"type,omitempty"`     // "https://example.com/validation-error"`
 	Title    string         `json:"title,omitempty"`    // "Bad Request"`
@@ -27,8 +28,8 @@ func (p *Problem) With(key string, value any) *Problem {
 	return p
 }
 
-// WriteProblem writes a problem+json response with the provided status code.
-// It merges extension fields after the standard members, per RFC 7807.
+// WriteProblem writes a problem details response with the provided status code.
+// It merges extension fields after the standard members, per RFC 9457.
 func WriteProblem(w http.ResponseWriter, status int, p Problem) {
 	if status <= 0 {
 		status = http.StatusInternalServerError

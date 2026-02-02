@@ -43,6 +43,46 @@ func TestResolverClientIPUntrustedProxy(t *testing.T) {
 	}
 }
 
+func TestResolverClientIPHostileXForwardedFor(t *testing.T) {
+	resolver := Resolver{
+		HeaderPolicy: HeaderPolicyXForwarded,
+		TrustedProxies: []netip.Prefix{
+			netip.MustParsePrefix("203.0.113.0/24"),
+		},
+	}
+	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req.Header.Set("X-Forwarded-For", "unknown, 198.51.100.9")
+
+	ip, ok := resolver.ClientIP(req)
+	if !ok {
+		t.Fatal("expected client IP")
+	}
+	if ip.String() != "203.0.113.10" {
+		t.Fatalf("expected remote IP fallback, got %s", ip.String())
+	}
+}
+
+func TestResolverClientIPForwardedChain(t *testing.T) {
+	resolver := Resolver{
+		HeaderPolicy: HeaderPolicyForwarded,
+		TrustedProxies: []netip.Prefix{
+			netip.MustParsePrefix("203.0.113.0/24"),
+		},
+	}
+	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req.Header.Set("Forwarded", "for=198.51.100.9;proto=https, for=203.0.113.10")
+
+	ip, ok := resolver.ClientIP(req)
+	if !ok {
+		t.Fatal("expected client IP")
+	}
+	if ip.String() != "198.51.100.9" {
+		t.Fatalf("expected forwarded IP, got %s", ip.String())
+	}
+}
+
 func TestResolverSchemeFromForwarded(t *testing.T) {
 	resolver := Resolver{
 		HeaderPolicy: HeaderPolicyXForwarded,

@@ -1,0 +1,66 @@
+# Hexagonal Architecture Mapping
+
+This repository follows hexagonal (ports and adapters) architecture:
+
+- Core defines domain contracts and HTTP primitives.
+- Adapters implement ports for real integrations.
+- Bootstrap wires middleware and adapters into a runnable service.
+
+## Layer Map
+
+Core (stable):
+- `ports`: interfaces for logging, storage, policy engines, etc.
+- `httpx`: HTTP helpers (problem details, responses).
+- `middleware`: request/response middleware with stable defaults.
+- `endpoints`: small HTTP handlers (health, docs, version).
+- `authorization`, `securityprofile`: authz policy and security profiles.
+
+Adapters (contrib):
+- `contrib/adapters/*`: db pools, validators, loggers, id generators, http clients.
+- `contrib/integrations/*`: convenience wrappers around adapters.
+
+Bootstrap:
+- `contrib/bootstrap`: default profiles and hardened server wiring.
+
+Examples:
+- `contrib/examples/*`: runnable recipes and patterns.
+
+## Diagram
+
+```mermaid
+flowchart LR
+  subgraph Core
+    Ports[ports]
+    Httpx[httpx]
+    Middleware[middleware]
+    Endpoints[endpoints]
+  end
+
+  subgraph Adapters
+    DB[adapters/pgxpool]
+    Log[adapters/logzap]
+    Validate[adapters/validation]
+    HTTPClient[adapters/httpclient]
+  end
+
+  Bootstrap[bootstrap.ProfileStrictAPI]
+  App[Your service]
+
+  App --> Ports
+  App --> Middleware
+  App --> Endpoints
+
+  Adapters -->|implement| Ports
+  Bootstrap -->|wires| Adapters
+  Bootstrap -->|wires| Middleware
+  Bootstrap --> App
+```
+
+## Practical Wiring
+
+1. Define ports in core to avoid vendor lock-in.
+2. Pick adapters (contrib) that implement those ports.
+3. Use bootstrap profiles to apply middleware consistently.
+4. Keep business logic in handlers/services, not in adapters.
+
+This keeps the core stable while allowing integrations to change independently.
