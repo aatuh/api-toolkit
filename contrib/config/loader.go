@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/envvar"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Loader reads env vars with defaults and aggregates errors.

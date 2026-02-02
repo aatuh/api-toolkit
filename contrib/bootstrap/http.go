@@ -7,16 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	metricsmw "github.com/aatuh/api-toolkit-contrib/middleware/metrics"
-	"github.com/aatuh/api-toolkit/endpoints/docs"
-	"github.com/aatuh/api-toolkit/endpoints/health"
-	pprofx "github.com/aatuh/api-toolkit/endpoints/pprof"
-	"github.com/aatuh/api-toolkit/endpoints/version"
-	"github.com/aatuh/api-toolkit/httpx/identity"
-	rateln "github.com/aatuh/api-toolkit/middleware/ratelimit"
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/specs"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
+	pprofx "github.com/aatuh/api-toolkit/v2/endpoints/pprof"
+	"github.com/aatuh/api-toolkit/v2/endpoints/version"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	rateln "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 // NewDefaultRouter constructs a router with a sensible default middleware stack.

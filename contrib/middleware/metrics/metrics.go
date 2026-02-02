@@ -8,8 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/response_writer"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 // Labels is a simple key:value map for metric dimensions.

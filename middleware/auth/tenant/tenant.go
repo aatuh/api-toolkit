@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/authorization"
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 var (

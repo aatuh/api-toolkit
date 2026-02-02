@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/fielderrors"
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
 )
 
 func TestWriteProblemGolden(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"github.com/aatuh/envvar/v2"
 	"github.com/aatuh/envvar/v2/loaders"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Adapter provides environment variable access using the envvar library.

@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // ZapLogger adapts zap to the shared.Logger interface.

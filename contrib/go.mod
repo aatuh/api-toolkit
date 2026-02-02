@@ -1,13 +1,13 @@
-module github.com/aatuh/api-toolkit/contrib
+module github.com/aatuh/api-toolkit/contrib/v2
 
 go 1.24.0
 
-replace github.com/aatuh/api-toolkit => ../
+replace github.com/aatuh/api-toolkit/v2 => ../
 
 require (
 	github.com/MicahParks/jwkset v0.11.0
 	github.com/MicahParks/keyfunc/v3 v3.7.0
-	github.com/aatuh/api-toolkit v0.0.0-00010101000000-000000000000
+	github.com/aatuh/api-toolkit/v2 v2.0.0
 	github.com/aatuh/envvar/v2 v2.1.5
 	github.com/cedar-policy/cedar-go v1.4.0
 	github.com/cenkalti/backoff/v5 v5.0.3

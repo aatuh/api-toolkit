@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/email"
+	"github.com/aatuh/api-toolkit/v2/email"
 )
 
 const defaultBaseURL = "https://api.resend.com"

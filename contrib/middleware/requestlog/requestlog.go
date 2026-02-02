@@ -10,10 +10,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/aatuh/api-toolkit/httpx/identity"
-	coretrace "github.com/aatuh/api-toolkit/middleware/trace"
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/response_writer"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	coretrace "github.com/aatuh/api-toolkit/v2/middleware/trace"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 const (

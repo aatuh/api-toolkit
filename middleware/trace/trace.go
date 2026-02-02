@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // W3C Trace Context (traceparent) format:

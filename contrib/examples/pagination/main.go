@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit/httpx"
-	querylimits "github.com/aatuh/api-toolkit/middleware/querylimits"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 )
 
 const (

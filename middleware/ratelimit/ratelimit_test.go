@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 )
 
 func TestNewDefaultsClock(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 // Middleware converts panics into RFC 9457 problem details responses.

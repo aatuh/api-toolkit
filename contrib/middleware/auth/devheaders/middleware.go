@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/httpx"
-	jwtauth "github.com/aatuh/api-toolkit/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Config controls dev header-based auth.

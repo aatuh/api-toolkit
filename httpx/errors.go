@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/fielderrors"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Sentinel errors for common HTTP categories.

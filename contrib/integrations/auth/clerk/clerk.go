@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit-contrib/config"
-	"github.com/aatuh/api-toolkit-contrib/middleware/auth/clerk"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Config aliases the Clerk middleware configuration.

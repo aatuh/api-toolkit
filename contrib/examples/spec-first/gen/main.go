@@ -45,7 +45,7 @@ func main() {
 	buf.WriteString("package main\n\n")
 	buf.WriteString("import (\n")
 	buf.WriteString("\t\"net/http\"\n\n")
-	buf.WriteString("\t\"github.com/aatuh/api-toolkit/ports\"\n")
+	buf.WriteString("\t\"github.com/aatuh/api-toolkit/v2/ports\"\n")
 	buf.WriteString(")\n\n")
 
 	writeRoutes(&buf, ops)

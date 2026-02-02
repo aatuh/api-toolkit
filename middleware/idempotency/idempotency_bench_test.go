@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 type benchStore struct{}

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 // Server implements the generated Handlers interface.

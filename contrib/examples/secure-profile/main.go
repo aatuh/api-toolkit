@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit-contrib/adapters/logzap"
-	"github.com/aatuh/api-toolkit-contrib/bootstrap"
-	oteltrace "github.com/aatuh/api-toolkit-contrib/middleware/oteltrace"
-	"github.com/aatuh/api-toolkit/httpx"
-	securemw "github.com/aatuh/api-toolkit/middleware/secure"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	oteltrace "github.com/aatuh/api-toolkit/contrib/v2/middleware/oteltrace"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	securemw "github.com/aatuh/api-toolkit/v2/middleware/secure"
 )
 
 func main() {

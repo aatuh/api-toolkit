@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/envvar"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
 )
 
 var env = envvar.New()

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 // RolesFromContext returns the roles associated with the current request context.

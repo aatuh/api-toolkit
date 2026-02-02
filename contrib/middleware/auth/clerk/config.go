@@ -3,7 +3,7 @@ package clerk
 import (
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/config"
+	"github.com/aatuh/api-toolkit/contrib/v2/config"
 )
 
 // LoadConfig reads Clerk config from environment.

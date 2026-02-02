@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/specs"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 type stubRouter struct {

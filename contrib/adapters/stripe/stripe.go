@@ -13,8 +13,8 @@ import (
 	"github.com/stripe/stripe-go/v79/client"
 	"github.com/stripe/stripe-go/v79/webhook"
 
-	"github.com/aatuh/api-toolkit/httpx/identity"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Provider implements ports.PaymentProvider using Stripe Checkout + webhooks.

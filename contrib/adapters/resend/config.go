@@ -1,6 +1,6 @@
 package resend
 
-import "github.com/aatuh/api-toolkit-contrib/config"
+import "github.com/aatuh/api-toolkit/contrib/v2/config"
 
 // Config describes Resend email integration.
 type Config struct {

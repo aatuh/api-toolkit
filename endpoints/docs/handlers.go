@@ -3,8 +3,8 @@ package docs
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/specs"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 const defaultDocsCSP = "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self'"

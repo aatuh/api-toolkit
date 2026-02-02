@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/httpx/identity"
-	maxbody "github.com/aatuh/api-toolkit/middleware/maxbody"
-	querylimits "github.com/aatuh/api-toolkit/middleware/querylimits"
-	ratelimit "github.com/aatuh/api-toolkit/middleware/ratelimit"
-	securemw "github.com/aatuh/api-toolkit/middleware/secure"
-	timeoutmw "github.com/aatuh/api-toolkit/middleware/timeout"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	maxbody "github.com/aatuh/api-toolkit/v2/middleware/maxbody"
+	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
+	ratelimit "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
+	securemw "github.com/aatuh/api-toolkit/v2/middleware/secure"
+	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // ErrorWriter allows overriding how security profile errors are written.

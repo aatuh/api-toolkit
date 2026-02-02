@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 const (

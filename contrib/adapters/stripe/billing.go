@@ -8,7 +8,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v79"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // CreateCustomer creates a Stripe customer.

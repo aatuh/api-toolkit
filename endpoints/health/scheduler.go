@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // RefreshManager allows scheduling cached health refreshes.

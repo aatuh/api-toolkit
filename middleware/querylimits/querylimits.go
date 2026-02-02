@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 // ErrorWriter allows overriding how validation errors are written.

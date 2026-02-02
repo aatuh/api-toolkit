@@ -1,9 +1,9 @@
 package devheaders
 
 import (
-	"github.com/aatuh/api-toolkit-contrib/config"
-	"github.com/aatuh/api-toolkit-contrib/middleware/auth/devheaders"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Config aliases the dev headers middleware configuration.

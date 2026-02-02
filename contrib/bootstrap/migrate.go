@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/migrate"
-	"github.com/aatuh/api-toolkit-contrib/config"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate"
+	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // NewMigrator builds a migrator with either directories or embedded FS sources.

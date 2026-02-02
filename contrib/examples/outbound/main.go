@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/httpclient"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient"
 )
 
 func main() {

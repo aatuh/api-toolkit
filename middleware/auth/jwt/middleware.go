@@ -12,9 +12,9 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/httpx/identity"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // Config controls JWT validation.

@@ -9,7 +9,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 func TestProblemForOpenAPIRequestError(t *testing.T) {

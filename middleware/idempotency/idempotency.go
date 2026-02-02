@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/response_writer"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 // KeyFunc extracts an idempotency key from the request.

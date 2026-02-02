@@ -10,10 +10,10 @@ import (
 
 	cedarcore "github.com/cedar-policy/cedar-go"
 
-	cedarad "github.com/aatuh/api-toolkit-contrib/adapters/cedar"
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit/authorization"
-	"github.com/aatuh/api-toolkit/httpx"
+	cedarad "github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 const policyText = `permit (

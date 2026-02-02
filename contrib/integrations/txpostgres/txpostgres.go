@@ -5,8 +5,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // DBer aliases the transaction-aware query interface.

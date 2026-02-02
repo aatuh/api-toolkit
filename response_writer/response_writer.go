@@ -5,7 +5,7 @@ package response_writer
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 // WriteJSON writes a JSON response.

@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit-contrib/adapters/logzap"
-	"github.com/aatuh/api-toolkit-contrib/middleware/auth/clerk"
-	"github.com/aatuh/api-toolkit/authorization"
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func main() {

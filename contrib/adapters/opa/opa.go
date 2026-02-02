@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 const defaultTimeout = 5 * time.Second

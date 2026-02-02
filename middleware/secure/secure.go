@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 )
 
 // Options configures the security header middleware.

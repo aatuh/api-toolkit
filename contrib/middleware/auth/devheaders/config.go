@@ -1,6 +1,6 @@
 package devheaders
 
-import "github.com/aatuh/api-toolkit-contrib/config"
+import "github.com/aatuh/api-toolkit/contrib/v2/config"
 
 // LoadConfig reads dev-auth header config from environment.
 func LoadConfig(loader *config.Loader) Config {

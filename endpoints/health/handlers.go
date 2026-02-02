@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/httpx"
-	"github.com/aatuh/api-toolkit/ports"
-	"github.com/aatuh/api-toolkit/specs"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 // Handler provides HTTP handlers for health endpoints.

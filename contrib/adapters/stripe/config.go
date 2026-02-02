@@ -1,6 +1,6 @@
 package stripe
 
-import "github.com/aatuh/api-toolkit-contrib/config"
+import "github.com/aatuh/api-toolkit/contrib/v2/config"
 
 // Config describes Stripe credentials and URLs.
 type Config struct {

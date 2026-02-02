@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aatuh/api-toolkit-contrib/config"
+	"github.com/aatuh/api-toolkit/contrib/v2/config"
 )
 
 // TraceConfig holds tracing configuration inputs.

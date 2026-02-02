@@ -6,7 +6,7 @@ import (
 
 	cedarcore "github.com/cedar-policy/cedar-go"
 
-	"github.com/aatuh/api-toolkit/ports"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestEvaluateAllows(t *testing.T) {
