@@ -1,9 +1,12 @@
 package trace
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 func TestTracePassThrough(t *testing.T) {
@@ -18,7 +21,7 @@ func TestTracePassThrough(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	req.Header.Set(headerTraceParent, incoming)
 	req.Header.Set(headerTraceState, state)
 	rec := httptest.NewRecorder()
@@ -27,6 +30,9 @@ func TestTracePassThrough(t *testing.T) {
 	gotTraceParent := rec.Header().Get(headerTraceParent)
 	if gotTraceParent == "" {
 		t.Fatal("expected traceparent response header")
+	}
+	if gotTraceID := rec.Header().Get(headerTraceID); gotTraceID == "" {
+		t.Fatal("expected X-Trace-ID response header")
 	}
 	if gotState := rec.Header().Get(headerTraceState); gotState != state {
 		t.Fatalf("tracestate = %q", gotState)
@@ -63,7 +69,7 @@ func TestTraceGeneratesWhenUntrusted(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	req.Header.Set(headerTraceParent, incoming)
 	req.Header.Set(headerTraceState, state)
 	rec := httptest.NewRecorder()
@@ -72,6 +78,9 @@ func TestTraceGeneratesWhenUntrusted(t *testing.T) {
 	gotTraceParent := rec.Header().Get(headerTraceParent)
 	if gotTraceParent == "" {
 		t.Fatal("expected traceparent response header")
+	}
+	if gotTraceID := rec.Header().Get(headerTraceID); gotTraceID == "" {
+		t.Fatal("expected X-Trace-ID response header")
 	}
 	if gotState := rec.Header().Get(headerTraceState); gotState != "" {
 		t.Fatalf("expected tracestate to be empty, got %q", gotState)
@@ -118,13 +127,16 @@ func TestTraceUsesInjectedIDGen(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	got := rec.Header().Get(headerTraceParent)
 	if got == "" {
 		t.Fatal("expected traceparent response header")
+	}
+	if gotTraceID := rec.Header().Get(headerTraceID); gotTraceID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("X-Trace-ID = %q", gotTraceID)
 	}
 	gotTraceID, gotSpanID, _, ok := parseTraceParent(got)
 	if !ok {
@@ -135,5 +147,41 @@ func TestTraceUsesInjectedIDGen(t *testing.T) {
 	}
 	if gotSpanID != "bbbbbbbbbbbbbbbb" {
 		t.Fatalf("span_id = %q", gotSpanID)
+	}
+}
+
+func TestTraceEchoesRequestIDOnProblemResponses(t *testing.T) {
+	traceGen := &staticIDGen{ids: []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+	spanGen := &staticIDGen{ids: []string{"bbbbbbbbbbbbbbbb"}}
+	mw, err := New(Options{
+		TraceIDGen: traceGen,
+		SpanIDGen:  spanGen,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteError(w, httpx.ErrForbidden)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	req.Header.Set("X-Correlation-ID", "corr-123")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+	if got := rec.Header().Get(headerRequestID); got != "corr-123" {
+		t.Fatalf("X-Request-ID = %q", got)
+	}
+	if got := rec.Header().Get(headerTraceID); got != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("X-Trace-ID = %q", got)
+	}
+	if got := rec.Header().Get(headerTraceParent); got == "" {
+		t.Fatal("expected traceparent response header")
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("Content-Type = %q", got)
 	}
 }

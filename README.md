@@ -175,6 +175,11 @@ httpx.WriteJSON(w, http.StatusOK, payload)
 
 Use `httpx.DefaultTypeURI` or `httpx.TypeRegistry` to keep `type` URIs consistent.
 
+Error and trace responses can be correlated via response headers:
+
+- `X-Request-ID` when the request already carries a request or correlation ID
+- `X-Trace-ID` and `traceparent` from `middleware/trace`
+
 ### Validation error schema
 
 Validation errors use a canonical `validation` extension with field errors.
