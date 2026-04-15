@@ -209,7 +209,7 @@ Notes:
 - Use `httptest.Server` and deterministic timeouts.
 - Keep the tests local to the adapter package so failures stay easy to diagnose.
 
-### Ticket E3-T2 - Reject malformed success responses from Resend [ ]
+### Ticket E3-T2 - Reject malformed success responses from Resend [x]
 
 Description: Change the Resend adapter so a `2xx` response that cannot be decoded into a valid success payload returns an error instead of reporting success with an empty message ID.
 
