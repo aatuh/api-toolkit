@@ -227,7 +227,7 @@ Notes:
 
 - cover `contrib/bootstrap/profile.go`, `README.md`, and `docs/security.md`
 
-### Ticket E3-T3 - Audit and fix nil-construction patterns across endpoint handlers [ ]
+### Ticket E3-T3 - Audit and fix nil-construction patterns across endpoint handlers [x]
 
 Description: Review endpoint packages for nil dependency construction paths and make behavior consistent across docs, health, and similar handlers.
 
