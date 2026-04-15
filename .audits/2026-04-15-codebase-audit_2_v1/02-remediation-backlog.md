@@ -72,7 +72,7 @@ Notes:
 - do not leak panic values to clients
 - add unit tests for logger usage and committed-response behavior
 
-### Ticket E2-T2 - Stop unconditional 5xx stack dumping in request logs [ ]
+### Ticket E2-T2 - Stop unconditional 5xx stack dumping in request logs [x]
 
 Description: Change request logging so stack traces are opt-in for handled `5xx` responses, and add tests that prove the default behavior is quieter.
 
