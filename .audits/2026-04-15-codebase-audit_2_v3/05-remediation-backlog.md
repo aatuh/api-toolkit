@@ -327,7 +327,7 @@ Notes:
 - Keep examples executable and minimal.
 - Avoid documenting intended behavior that the code does not enforce.
 
-## Epic E5 - Lock in regression protection and release safety [ ]
+## Epic E5 - Lock in regression protection and release safety [x]
 
 Description: Close the remediation work with repo-level verification, compatibility notes, and regression protection so the fixes stay durable.
 
@@ -350,7 +350,7 @@ Notes:
 - Reuse the existing `Makefile` targets rather than inventing a parallel workflow.
 - Keep test additions proportionate to the risk they cover.
 
-### Ticket E5-T2 - Publish upgrade notes for observable contract changes [ ]
+### Ticket E5-T2 - Publish upgrade notes for observable contract changes [x]
 
 Description: Add changelog or release-note entries covering idempotency retry semantics, scheduler non-overlap behavior, docs endpoint changes, and any configuration cleanup that affects existing consumers.
 
