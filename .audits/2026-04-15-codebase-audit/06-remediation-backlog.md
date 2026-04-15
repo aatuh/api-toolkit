@@ -209,7 +209,7 @@ Notes:
 - cover `middleware/timeout/timeout.go`, `securityprofile/profile.go`, `README.md`, and `docs/security.md`
 - include at least one test that demonstrates the documented contract
 
-### Ticket E3-T2 - Reconcile strict-profile query-limit behavior [ ]
+### Ticket E3-T2 - Reconcile strict-profile query-limit behavior [x]
 
 Description: Either add query-limit enforcement to the strict bootstrap profile or narrow the docs so they no longer claim it is part of the default baseline.
 
