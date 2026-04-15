@@ -21,5 +21,6 @@ Files of interest:
 
 Notes:
 
-- The generator emits `StatusError` types for non-2xx responses.
+- The generator emits `StatusError` types for non-2xx responses, including optional field errors for validation cases.
+- Error responses are documented and returned as `application/problem+json` Problem Details payloads.
 - Response validation is enabled to catch mismatched handler output in dev/test.

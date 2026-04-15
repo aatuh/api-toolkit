@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
@@ -25,7 +26,14 @@ func (s *Server) CreatePet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(payload.Name) == "" {
-		writeError(w, CreatePetBadRequest{Detail: "name is required"})
+		writeError(w, CreatePetBadRequest{
+			Detail: "validation failed",
+			Errors: fielderrors.FieldErrors{{
+				Field:   "name",
+				Code:    "required",
+				Message: "name is required",
+			}},
+		})
 		return
 	}
 	if strings.EqualFold(payload.Name, "duplicate") {
@@ -46,11 +54,18 @@ func writeError(w http.ResponseWriter, err error) {
 	var se StatusError
 	if errors.As(err, &se) {
 		status := se.StatusCode()
-		httpx.WriteProblem(w, status, httpx.Problem{
+		problem := httpx.Problem{
 			Type:   httpx.DefaultTypeForStatus(status),
 			Title:  http.StatusText(status),
 			Detail: se.Error(),
-		})
+		}
+		var fieldProvider fielderrors.Provider
+		if errors.As(err, &fieldProvider) && len(fieldProvider.FieldErrors()) > 0 {
+			problem.Type = httpx.DefaultTypeURI(httpx.TypeValidation)
+			httpx.WriteProblemWithFieldErrors(w, status, problem, fieldProvider.FieldErrors())
+			return
+		}
+		httpx.WriteProblem(w, status, problem)
 		return
 	}
 	httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{

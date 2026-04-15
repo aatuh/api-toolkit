@@ -148,7 +148,7 @@ Notes:
 - cover `endpoints/list/list.go` and `contrib/examples/pagination/main.go`
 - if malformed inputs are rejected, use field-level Problem Details consistently
 
-### Ticket E2-T4 - Align spec-first examples with runtime errors [ ]
+### Ticket E2-T4 - Align spec-first examples with runtime errors [x]
 
 Description: Update the spec-first example and generated assets so documented error schemas match actual runtime RFC 9457 responses.
 

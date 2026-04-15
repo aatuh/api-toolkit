@@ -4,6 +4,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -32,17 +33,32 @@ type StatusError interface {
 	StatusCode() int
 }
 
-type CreatePetBadRequest struct{ Detail string }
+type CreatePetBadRequest struct {
+	Detail string
+	Errors fielderrors.FieldErrors
+}
 
 func (e CreatePetBadRequest) Error() string   { return e.Detail }
 func (e CreatePetBadRequest) StatusCode() int { return http.StatusBadRequest }
 
-type CreatePetConflict struct{ Detail string }
+func (e CreatePetBadRequest) FieldErrors() fielderrors.FieldErrors { return e.Errors }
+
+type CreatePetConflict struct {
+	Detail string
+	Errors fielderrors.FieldErrors
+}
 
 func (e CreatePetConflict) Error() string   { return e.Detail }
 func (e CreatePetConflict) StatusCode() int { return http.StatusConflict }
 
-type ListPetsBadRequest struct{ Detail string }
+func (e CreatePetConflict) FieldErrors() fielderrors.FieldErrors { return e.Errors }
+
+type ListPetsBadRequest struct {
+	Detail string
+	Errors fielderrors.FieldErrors
+}
 
 func (e ListPetsBadRequest) Error() string   { return e.Detail }
 func (e ListPetsBadRequest) StatusCode() int { return http.StatusBadRequest }
+
+func (e ListPetsBadRequest) FieldErrors() fielderrors.FieldErrors { return e.Errors }
