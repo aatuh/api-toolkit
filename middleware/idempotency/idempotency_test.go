@@ -304,6 +304,17 @@ func (m *memoryStore) Save(ctx context.Context, key string, record ports.Idempot
 	return nil
 }
 
+func (m *memoryStore) Release(ctx context.Context, key string) error {
+	if m == nil {
+		return nil
+	}
+	_ = ctx
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, key)
+	return nil
+}
+
 func (s *saveFailStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
 	if s == nil {
 		return nil

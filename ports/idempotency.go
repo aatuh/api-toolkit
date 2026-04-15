@@ -34,3 +34,8 @@ type IdempotencyStore interface {
 	TryBegin(ctx context.Context, key string, record IdempotencyRecord, ttl time.Duration) (bool, error)
 	Save(ctx context.Context, key string, record IdempotencyRecord, ttl time.Duration) error
 }
+
+// IdempotencyReleaser optionally removes an in-flight reservation or stale record.
+type IdempotencyReleaser interface {
+	Release(ctx context.Context, key string) error
+}

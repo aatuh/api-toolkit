@@ -30,7 +30,7 @@ Notes:
 - Assert that failed requests do not leave stale `InFlight` state behind.
 - Cover both immediate retry behavior and replay behavior after successful completion.
 
-### Ticket E1-T2 - Fix idempotency cleanup after failed requests [ ]
+### Ticket E1-T2 - Fix idempotency cleanup after failed requests [x]
 
 Description: Change the idempotency middleware so downstream `5xx`, panic, and persistence failure paths clear or replace `InFlight` reservations instead of blocking retries until TTL expiry.
 
