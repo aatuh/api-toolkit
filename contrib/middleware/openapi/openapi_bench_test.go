@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +19,7 @@ func BenchmarkOpenAPIRequestValidation(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -41,7 +42,7 @@ func BenchmarkOpenAPIResponseValidation(b *testing.B) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()

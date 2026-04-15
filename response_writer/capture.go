@@ -8,6 +8,8 @@ import (
 )
 
 // Capture buffers response headers and body for later replay.
+// It intentionally does not preserve optional http.ResponseWriter interfaces
+// such as Flusher, Hijacker, Pusher, or ReaderFrom.
 type Capture struct {
 	header      http.Header
 	status      int
