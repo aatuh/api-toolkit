@@ -322,7 +322,7 @@ Notes:
 
 - cover `endpoints/docs` and `endpoints/health`
 
-### Ticket E4-T4 - Add list and JSON contract tests [ ]
+### Ticket E4-T4 - Add list and JSON contract tests [x]
 
 Description: Add tests that lock down chosen pagination, filtering, sorting, and JSON content-type behavior.
 
