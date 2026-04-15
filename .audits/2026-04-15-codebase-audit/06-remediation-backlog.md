@@ -359,7 +359,7 @@ Notes:
 - cover `response_writer/capture.go`, `middleware/idempotency`, and `contrib/middleware/openapi`
 - either preserve `Flusher`, `Hijacker`, `Pusher`, and `ReaderFrom`, or document unsupported behavior explicitly
 
-### Ticket E4-T6 - Add scheduler coverage [ ]
+### Ticket E4-T6 - Add scheduler coverage [x]
 
 Description: Add direct tests for scheduler startup, repeated execution, last-run gating, and recorder interactions.
 
