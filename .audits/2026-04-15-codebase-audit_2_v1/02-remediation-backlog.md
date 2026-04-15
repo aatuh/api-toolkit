@@ -53,7 +53,7 @@ Notes:
 
 Description: Route panic and server-error diagnostics through explicit logging policy instead of stderr and blanket stack dumps.
 
-### Ticket E2-T1 - Make panic recovery logger-driven and configurable [ ]
+### Ticket E2-T1 - Make panic recovery logger-driven and configurable [x]
 
 Description: Add a logger-aware recovery constructor with explicit stack policy, keep the current helper for compatibility, and wire the strict bootstrap profile through the new path.
 
