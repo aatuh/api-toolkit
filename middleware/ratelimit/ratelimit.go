@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -163,7 +164,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				if ra <= 0 {
 					ra = time.Second
 				}
-				w.Header().Set("Retry-After", itoa(int(ra.Seconds())))
+				w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
 				httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 					Title:  http.StatusText(http.StatusTooManyRequests),
@@ -197,7 +198,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			if ra <= 0 {
 				ra = time.Second
 			}
-			w.Header().Set("Retry-After", itoa(int(ra.Seconds())))
+			w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
 			httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 				Title:  http.StatusText(http.StatusTooManyRequests),
@@ -247,6 +248,17 @@ func itoa(n int) string {
 		a[i] = '-'
 	}
 	return string(a[i:])
+}
+
+func retryAfterSeconds(d time.Duration) int {
+	if d <= 0 {
+		return 0
+	}
+	seconds := int(math.Ceil(d.Seconds()))
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
 }
 
 func headerIsTrue(val string) bool {
