@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"context"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
@@ -13,7 +14,7 @@ func TestResolverClientIPTrustedProxy(t *testing.T) {
 			netip.MustParsePrefix("203.0.113.0/24"),
 		},
 	}
-	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "http://example.test", nil)
 	req.RemoteAddr = "203.0.113.10:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9, 203.0.113.10")
 
@@ -30,7 +31,7 @@ func TestResolverClientIPUntrustedProxy(t *testing.T) {
 	resolver := Resolver{
 		HeaderPolicy: HeaderPolicyXForwarded,
 	}
-	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "http://example.test", nil)
 	req.RemoteAddr = "203.0.113.10:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9")
 
@@ -50,7 +51,7 @@ func TestResolverClientIPHostileXForwardedFor(t *testing.T) {
 			netip.MustParsePrefix("203.0.113.0/24"),
 		},
 	}
-	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "http://example.test", nil)
 	req.RemoteAddr = "203.0.113.10:1234"
 	req.Header.Set("X-Forwarded-For", "unknown, 198.51.100.9")
 
@@ -70,7 +71,7 @@ func TestResolverClientIPForwardedChain(t *testing.T) {
 			netip.MustParsePrefix("203.0.113.0/24"),
 		},
 	}
-	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "http://example.test", nil)
 	req.RemoteAddr = "203.0.113.10:1234"
 	req.Header.Set("Forwarded", "for=198.51.100.9;proto=https, for=203.0.113.10")
 
@@ -90,7 +91,7 @@ func TestResolverSchemeFromForwarded(t *testing.T) {
 			netip.MustParsePrefix("203.0.113.0/24"),
 		},
 	}
-	req := httptest.NewRequest("GET", "http://example.test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "http://example.test", nil)
 	req.RemoteAddr = "203.0.113.10:1234"
 	req.Header.Set("X-Forwarded-Proto", "https")
 
