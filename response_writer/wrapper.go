@@ -42,6 +42,14 @@ func (w *Writer) BytesWritten() int {
 	return w.bytes
 }
 
+// Committed reports whether headers or body bytes have been written.
+func (w *Writer) Committed() bool {
+	if w == nil {
+		return false
+	}
+	return w.wroteHeader || w.bytes > 0
+}
+
 // Unwrap returns the underlying http.ResponseWriter.
 func (w *Writer) Unwrap() http.ResponseWriter {
 	if w == nil {
