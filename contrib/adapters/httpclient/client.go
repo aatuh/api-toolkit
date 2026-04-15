@@ -104,6 +104,8 @@ func New(opts Options) *Client {
 }
 
 // Do issues the HTTP request with retry behavior when configured.
+// Callers that need SSRF protection must supply an SSRFTransport and redirect
+// policy via Options so target validation is enforced at the transport layer.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	if c == nil || c.client == nil {
 		return nil, errors.New("http client not configured")
@@ -129,6 +131,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if c.retry.maxRetries <= 0 || !c.methodRetryable(req.Method) {
+		// #nosec G704 -- This adapter intentionally executes caller-provided outbound
+		// requests. SSRF protection belongs in the configured transport, e.g.
+		// SSRFTransport for untrusted or user-influenced targets.
 		return c.client.Do(req)
 	}
 
@@ -145,6 +150,8 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 			}
 		}
 
+		// #nosec G704 -- See rationale above: target validation is delegated to the
+		// configured transport and redirect policy for this generic client adapter.
 		resp, err = c.client.Do(req)
 		if !c.shouldRetry(resp, err) {
 			return resp, err
