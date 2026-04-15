@@ -9,6 +9,7 @@ const DefaultTypeBase = "https://api-toolkit.dev/problems"
 const (
 	TypeBadRequest         = "bad-request"
 	TypeValidation         = "validation-error"
+	TypeUnsupportedMedia   = "unsupported-media-type"
 	TypeUnauthorized       = "unauthorized"
 	TypeForbidden          = "forbidden"
 	TypeNotFound           = "not-found"
@@ -42,6 +43,7 @@ func DefaultTypeRegistry() *TypeRegistry {
 	return NewTypeRegistry(DefaultTypeBase,
 		TypeBadRequest,
 		TypeValidation,
+		TypeUnsupportedMedia,
 		TypeUnauthorized,
 		TypeForbidden,
 		TypeNotFound,
