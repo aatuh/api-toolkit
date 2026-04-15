@@ -14,6 +14,7 @@ import (
 	recoverx "github.com/aatuh/api-toolkit/v2/httpx/recover"
 	jsonmw "github.com/aatuh/api-toolkit/v2/middleware/json"
 	maxbody "github.com/aatuh/api-toolkit/v2/middleware/maxbody"
+	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 	rateln "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
 	securemw "github.com/aatuh/api-toolkit/v2/middleware/secure"
 	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
@@ -47,6 +48,8 @@ type profileConfig struct {
 	secureOptions     []securemw.Option
 	timeout           time.Duration
 	maxBodyBytes      int64
+	queryLimits       querylimits.Options
+	enableQueryLimits bool
 	jsonStrict        bool
 	identityResolver  identity.Resolver
 	requestLogOptions []requestlog.Option
@@ -105,6 +108,21 @@ func WithMaxBodyBytes(n int64) ProfileOption {
 	}
 }
 
+// WithQueryLimitsOptions overrides query parameter limits.
+func WithQueryLimitsOptions(opts querylimits.Options) ProfileOption {
+	return func(cfg *profileConfig) {
+		cfg.queryLimits = opts
+		cfg.enableQueryLimits = true
+	}
+}
+
+// WithQueryLimitsDisabled disables query parameter guardrails.
+func WithQueryLimitsDisabled() ProfileOption {
+	return func(cfg *profileConfig) {
+		cfg.enableQueryLimits = false
+	}
+}
+
 // WithJSONStrict toggles strict JSON parsing.
 func WithJSONStrict(strict bool) ProfileOption {
 	return func(cfg *profileConfig) {
@@ -143,11 +161,12 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 			RetryAfter:  time.Second,
 			SkipEnabled: false,
 		},
-		enableRateLimit: true,
-		corsOptions:     cors.DefaultOptions(),
-		timeout:         5 * time.Second,
-		maxBodyBytes:    1 << 20,
-		jsonStrict:      true,
+		enableRateLimit:   true,
+		corsOptions:       cors.DefaultOptions(),
+		timeout:           5 * time.Second,
+		maxBodyBytes:      1 << 20,
+		enableQueryLimits: true,
+		jsonStrict:        true,
 		identityResolver: identity.Resolver{
 			HeaderPolicy: identity.HeaderPolicyBoth,
 		},
@@ -186,6 +205,10 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 	if err != nil {
 		return Profile{}, err
 	}
+	queryMw, err := querylimits.New(cfg.queryLimits)
+	if err != nil {
+		return Profile{}, err
+	}
 	jsonMw, err := jsonmw.New(jsonmw.Options{RequireJSON: cfg.jsonStrict})
 	if err != nil {
 		return Profile{}, err
@@ -220,6 +243,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 	}
 	chain = append(chain,
 		maxBodyMw.Middleware(),
+		queryLimitsMiddleware(cfg.enableQueryLimits, queryMw),
 		jsonMw.Middleware(),
 		timeoutMw.Middleware(),
 		requestLogMw.Middleware(),
@@ -234,12 +258,13 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 // ProfileDev builds a developer-friendly profile with relaxed protections.
 func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 	cfg := profileConfig{
-		log:             log,
-		enableRateLimit: false,
-		corsOptions:     cors.DefaultOptions(),
-		timeout:         30 * time.Second,
-		maxBodyBytes:    4 << 20,
-		jsonStrict:      false,
+		log:               log,
+		enableRateLimit:   false,
+		corsOptions:       cors.DefaultOptions(),
+		timeout:           30 * time.Second,
+		maxBodyBytes:      4 << 20,
+		enableQueryLimits: false,
+		jsonStrict:        false,
 		identityResolver: identity.Resolver{
 			HeaderPolicy: identity.HeaderPolicyBoth,
 		},
@@ -276,6 +301,10 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
+	queryMw, err := querylimits.New(cfg.queryLimits)
+	if err != nil {
+		return Profile{}, err
+	}
 	jsonMw, err := jsonmw.New(jsonmw.Options{RequireJSON: cfg.jsonStrict})
 	if err != nil {
 		return Profile{}, err
@@ -300,6 +329,7 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 		corsh.Handler(cfg.corsOptions),
 		secureMw.Middleware(),
 		maxBodyMw.Middleware(),
+		queryLimitsMiddleware(cfg.enableQueryLimits, queryMw),
 		jsonMw.Middleware(),
 		timeoutMw.Middleware(),
 		requestLogMw.Middleware(),
@@ -333,4 +363,11 @@ func devCSPPolicy(r *http.Request) string {
 			"font-src https://cdn.jsdelivr.net"
 	}
 	return "default-src 'self'; frame-ancestors 'none'"
+}
+
+func queryLimitsMiddleware(enabled bool, mw *querylimits.Middleware) func(http.Handler) http.Handler {
+	if !enabled || mw == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return mw.Middleware()
 }
