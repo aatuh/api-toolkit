@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,18 +31,15 @@ func TestNewHandlerDefaultsNilManager(t *testing.T) {
 	}
 }
 
-func TestOpenAPIHandlerWithNilManagerUsesDefaultManager(t *testing.T) {
+func TestOpenAPIHandlerWithNilManagerReturnsNotFoundWithoutSpec(t *testing.T) {
 	handler := NewHandler(nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.json", nil)
 	handler.OpenAPIHandler(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Fatalf("expected application/json content type, got %q", got)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
 	}
 }
 
@@ -95,6 +94,104 @@ func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
 	}
 }
 
+func TestHTMLHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "Disabled HTML",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  false,
+		EnableJSON:  true,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
+	handler.HTMLHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestOpenAPIHandlerServesJSONFromDiscoveredSpec(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestFile(t, "docs/openapi.json", `{"openapi":"3.0.0","info":{"title":"Docs","version":"1.0.0"}}`)
+
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "JSON spec",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.json", nil)
+	handler.OpenAPIHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected application/json content type, got %q", got)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `"openapi":"3.0.0"`) {
+		t.Fatalf("expected json spec body, got %q", body)
+	}
+}
+
+func TestOpenAPIHandlerReturnsNotFoundWhenJSONDisabled(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestFile(t, "docs/openapi.json", `{"openapi":"3.0.0","info":{"title":"Docs","version":"1.0.0"}}`)
+
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "JSON disabled",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  false,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.json", nil)
+	handler.OpenAPIHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestOpenAPIHandlerServesYAMLWhenEnabled(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestFile(t, "docs/openapi.yaml", "openapi: 3.0.0\ninfo:\n  title: Docs\n  version: 1.0.0\n")
+
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "YAML spec",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  false,
+		EnableYAML:  true,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.yaml", nil)
+	handler.OpenAPIHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/yaml" {
+		t.Fatalf("expected application/yaml content type, got %q", got)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "openapi: 3.0.0") {
+		t.Fatalf("expected yaml spec body, got %q", body)
+	}
+}
+
 func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 	handler := NewHandler(nil)
 	router := &stubRouteRegistrar{}
@@ -114,5 +211,15 @@ func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 		if router.patterns[i] != expected[i] {
 			t.Fatalf("route %d = %q", i, router.patterns[i])
 		}
+	}
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
