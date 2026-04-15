@@ -490,3 +490,40 @@ Notes:
 
 - upgrade the root and `contrib` modules together if required to keep OpenTelemetry versions aligned
 - target at least `go.opentelemetry.io/otel/sdk v1.40.0`
+
+### Ticket E5-T7 - Remove residual root `noctx` request constructors [ ]
+
+Description: Replace the remaining root-module `httptest.NewRequest` calls in tests and benchmarks with `httptest.NewRequestWithContext`.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `httpx/recover/recover_test.go`, `middleware/maxbody/maxbody_test.go`, `middleware/ratelimit/ratelimit_bench_test.go`, `middleware/secure/secure_test.go`, `middleware/json/json_test.go`, and `middleware/auth/authz/require_role_test.go`
+
+### Ticket E5-T8 - Make multi-module QA targets fail fast [ ]
+
+Description: Fix the `Makefile` module loops so a failure in the root module cannot be masked by a later successful contrib pass.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `fmt`, `lint`, `vuln`, `gosec`, `tidy`, `test`, `test-race`, `fuzz`, and `clean`
+- keep the two-module behavior, but propagate non-zero exit codes correctly
