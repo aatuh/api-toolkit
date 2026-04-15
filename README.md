@@ -19,7 +19,7 @@ defaults, and predictable wiring.
 
 ## Modules
 
-- Core: `github.com/aatuh/api-toolkit` (stdlib-only ports, middleware, httpx, endpoints)
+- Core: `github.com/aatuh/api-toolkit` (stable ports, middleware, `httpx`, and endpoints with minimal framework coupling)
 - Contrib: `github.com/aatuh/api-toolkit-contrib` (adapters, integrations, tooling)
 
 ## Documentation
@@ -497,7 +497,7 @@ See `contrib/examples/` for end-to-end wiring samples.
 
 - Supported Go versions: 1.24.x
 - Minimum in `go.mod`: Go 1.24.x.
-- Core is stdlib-only; contrib pins third-party libs (chi, zap, pgx, validator).
+- Core keeps transport and application boundaries stable and lightweight; contrib pins router, logging, database, and validation integrations.
 
 ## Go toolchain behavior
 
