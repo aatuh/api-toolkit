@@ -1,6 +1,7 @@
 package querylimits
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,7 @@ func TestQueryLimitsUsesValidationType(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/?a=1&b=2", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/?a=1&b=2", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

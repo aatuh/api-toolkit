@@ -454,7 +454,7 @@ Notes:
 
 - cover `contrib/cmd/migrate/migrate.go`
 
-### Ticket E5-T5 - Remove remaining root `noctx` test violations [ ]
+### Ticket E5-T5 - Remove remaining root `noctx` test violations [x]
 
 Description: Replace the last root-module `httptest.NewRequest` usages uncovered by the full finalize pass with `httptest.NewRequestWithContext`.
 
