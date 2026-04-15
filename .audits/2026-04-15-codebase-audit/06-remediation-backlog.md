@@ -30,7 +30,7 @@ Notes:
 - cover `contrib/middleware/metrics/metrics.go`, `contrib/bootstrap/profile.go`, and `contrib/bootstrap/http.go`
 - add a regression test that proves repeated initialization no longer panics
 
-### Ticket E1-T2 - Prevent recovery from corrupting committed responses [ ]
+### Ticket E1-T2 - Prevent recovery from corrupting committed responses [x]
 
 Description: Update panic recovery so it does not append a second payload after headers or body bytes have already been written.
 
