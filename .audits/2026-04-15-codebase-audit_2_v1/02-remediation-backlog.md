@@ -91,7 +91,7 @@ Notes:
 - keep request correlation fields intact
 - avoid changing the client-visible HTTP behavior
 
-## Epic E3 - Docs Surface And Boundary Cleanup [ ]
+## Epic E3 - Docs Surface And Boundary Cleanup [x]
 
 Description: Add a stricter documentation mode and reduce internal dependence on the most adapter-shaped legacy compatibility ports without breaking the public API.
 
