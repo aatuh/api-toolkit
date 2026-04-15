@@ -106,7 +106,7 @@ Notes:
 - Call out the prior `409`-until-TTL behavior as historical behavior.
 - Include upgrade notes if any users relied on concurrent scheduler runs.
 
-## Epic E2 - Make docs and OpenAPI behavior truthful [ ]
+## Epic E2 - Make docs and OpenAPI behavior truthful [x]
 
 Description: Ensure docs endpoints, OpenAPI responses, and docs configuration flags behave exactly as the public contract implies.
 
@@ -167,7 +167,7 @@ Notes:
 - Do not silently hardcode `localhost` server entries in production-facing responses.
 - Preserve the existing provider and file-loading paths for real specs.
 
-### Ticket E2-T4 - Add docs contract tests and refresh docs [ ]
+### Ticket E2-T4 - Add docs contract tests and refresh docs [x]
 
 Description: Add tests for disabled docs endpoints and missing-spec behavior, then update README and package docs so the published behavior matches the implementation exactly.
 
