@@ -264,7 +264,7 @@ Notes:
 
 - cover timeout language, query-limit baseline language, and any remaining contract mismatches
 
-## Epic E4 - Expand tests and close open risks [ ]
+## Epic E4 - Expand tests and close open risks [x]
 
 Description: Add direct coverage for under-tested central packages and either prove or dismiss the remaining unresolved risks.
 
@@ -376,3 +376,80 @@ Implementation rules:
 Notes:
 
 - cover `scheduler/scheduler.go` and related helpers
+
+## Epic E5 - Clear remaining finalize blockers [ ]
+
+Description: Resolve the remaining repository-wide lint and static-analysis issues uncovered during `make finalize` so the full quality gate passes cleanly.
+
+### Ticket E5-T1 - Remove remaining `noctx` test violations [ ]
+
+Description: Replace the remaining `httptest.NewRequest` usages in root and contrib test files with `httptest.NewRequestWithContext`.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `middleware/auth/tenant/tenant_test.go`, `contrib/middleware/requestlog/requestlog_test.go`, and `contrib/middleware/requestlog/requestlog_bench_test.go`
+
+### Ticket E5-T2 - Resolve migrator staticcheck findings [ ]
+
+Description: Replace the remaining `WriteString(fmt.Sprintf(...))` patterns in the migrator with direct formatted writes.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `contrib/migrator/migrator.go`
+
+### Ticket E5-T3 - Resolve intentional outbound-call `gosec` findings [ ]
+
+Description: Either harden or explicitly annotate the remaining intentional outbound HTTP call sites so `gosec` no longer flags them as unresolved SSRF issues.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `contrib/adapters/httpclient/client.go`
+- prefer explicit rationale or validation over silent suppression
+
+### Ticket E5-T4 - Resolve migrate command log-injection finding [ ]
+
+Description: Remove or explicitly justify the remaining `gosec` finding in the migrate command’s error path.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `contrib/cmd/migrate/migrate.go`
