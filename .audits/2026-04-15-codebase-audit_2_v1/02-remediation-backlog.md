@@ -30,7 +30,7 @@ Notes:
 - preserve backward compatibility for existing callers of `NewDefaultRouter`
 - add direct unit tests for invalid trusted-proxy handling and explicit-config behavior
 
-### Ticket E1-T2 - Surface graceful shutdown failures and cover lifecycle edges [ ]
+### Ticket E1-T2 - Surface graceful shutdown failures and cover lifecycle edges [x]
 
 Description: Refactor server startup/shutdown control so cancellation-triggered shutdown errors are returned to callers and directly unit tested.
 

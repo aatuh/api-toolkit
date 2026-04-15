@@ -2,10 +2,13 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -14,6 +17,33 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+type stubServerRunner struct {
+	listenErr   error
+	shutdownErr error
+	listenDone  chan struct{}
+	shutdownHit atomic.Bool
+}
+
+func newStubServerRunner() *stubServerRunner {
+	return &stubServerRunner{
+		listenDone: make(chan struct{}),
+	}
+}
+
+func (s *stubServerRunner) ListenAndServe() error {
+	if s.listenErr != nil {
+		return s.listenErr
+	}
+	<-s.listenDone
+	return http.ErrServerClosed
+}
+
+func (s *stubServerRunner) Shutdown(context.Context) error {
+	s.shutdownHit.Store(true)
+	close(s.listenDone)
+	return s.shutdownErr
+}
 
 func TestNewDefaultRouterCanBeConstructedRepeatedly(t *testing.T) {
 	t.Setenv("RATE_LIMIT_SKIP_HEADER", "")
@@ -137,5 +167,69 @@ func TestDefaultRouterConfigFromEnvParsesTrustedProxies(t *testing.T) {
 	}
 	if want := netip.MustParsePrefix("127.0.0.1/32"); cfg.TrustedProxies[0] != want {
 		t.Fatalf("trusted proxy[0] = %v", cfg.TrustedProxies[0])
+	}
+}
+
+func TestRunServerReturnsShutdownError(t *testing.T) {
+	srv := newStubServerRunner()
+	srv.shutdownErr = errors.New("shutdown failed")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runServer(ctx, srv)
+	}()
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err == nil || err.Error() != "shutdown server: shutdown failed" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for runServer")
+	}
+
+	if !srv.shutdownHit.Load() {
+		t.Fatal("expected shutdown to be called")
+	}
+}
+
+func TestRunServerReturnsNilAfterGracefulShutdown(t *testing.T) {
+	srv := newStubServerRunner()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runServer(ctx, srv)
+	}()
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for runServer")
+	}
+
+	if !srv.shutdownHit.Load() {
+		t.Fatal("expected shutdown to be called")
+	}
+}
+
+func TestRunServerReturnsListenError(t *testing.T) {
+	srv := newStubServerRunner()
+	srv.listenErr = errors.New("listen failed")
+
+	err := runServer(context.Background(), srv)
+	if err == nil || err.Error() != "listen failed" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if srv.shutdownHit.Load() {
+		t.Fatal("did not expect shutdown to be called")
 	}
 }
