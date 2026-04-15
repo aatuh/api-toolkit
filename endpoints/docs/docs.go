@@ -1,10 +1,14 @@
 package docs
 
 import (
+	"bytes"
+	"errors"
+	"io/fs"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -14,6 +18,11 @@ import (
 type Manager struct {
 	config   ports.DocsConfig
 	provider ports.DocsProvider
+}
+
+type openAPIDocument struct {
+	content     []byte
+	contentType string
 }
 
 // New creates a new docs manager with default configuration.
@@ -61,6 +70,9 @@ func (m *Manager) RegisterProvider(provider ports.DocsProvider) {
 
 // GetHTML returns the HTML documentation.
 func (m *Manager) GetHTML() (string, error) {
+	if !m.config.EnableHTML {
+		return "", fs.ErrNotExist
+	}
 	if m.provider != nil {
 		return m.provider.GetHTML()
 	}
@@ -72,8 +84,30 @@ func (m *Manager) GetHTML() (string, error) {
 
 // GetOpenAPI returns the OpenAPI specification.
 func (m *Manager) GetOpenAPI() ([]byte, error) {
+	doc, err := m.getOpenAPIDocument()
+	if err != nil {
+		return nil, err
+	}
+	return doc.content, nil
+}
+
+func (m *Manager) getOpenAPIDocument() (openAPIDocument, error) {
+	if !m.config.EnableJSON && !m.config.EnableYAML {
+		return openAPIDocument{}, fs.ErrNotExist
+	}
 	if m.provider != nil {
-		return m.provider.GetOpenAPI()
+		content, err := m.provider.GetOpenAPI()
+		if err != nil {
+			return openAPIDocument{}, err
+		}
+		format, contentType := detectOpenAPIFormat(content)
+		if !m.isFormatEnabled(format) {
+			return openAPIDocument{}, fs.ErrNotExist
+		}
+		return openAPIDocument{
+			content:     content,
+			contentType: contentType,
+		}, nil
 	}
 	return m.loadOpenAPIFile()
 }
@@ -115,6 +149,13 @@ func (m *Manager) HTMLMode() ports.DocsHTMLMode {
 func (m *Manager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
 	html, err := m.GetHTML()
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+				Title:  http.StatusText(http.StatusNotFound),
+				Detail: "documentation not found",
+			})
+			return
+		}
 		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to generate documentation",
@@ -129,18 +170,25 @@ func (m *Manager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
 
 // ServeOpenAPI serves the OpenAPI specification.
 func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
-	openapi, err := m.GetOpenAPI()
+	doc, err := m.getOpenAPIDocument()
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+				Title:  http.StatusText(http.StatusInternalServerError),
+				Detail: "failed to load openapi specification",
+			})
+			return
+		}
 		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
 			Title:  http.StatusText(http.StatusNotFound),
-			Detail: "openapi specification not found",
+			Detail: "openapi specification disabled or not found",
 		})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", doc.contentType)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(openapi)
+	_, _ = w.Write(doc.content)
 }
 
 // ServeVersion serves the API version.
@@ -262,26 +310,48 @@ func (m *Manager) generateStaticHTML() string {
 }
 
 // loadOpenAPIFile attempts to load OpenAPI specification from common locations.
-func (m *Manager) loadOpenAPIFile() ([]byte, error) {
-	candidates := []string{
+func (m *Manager) loadOpenAPIFile() (openAPIDocument, error) {
+	candidates := make([]string, 0, 7)
+	if m.config.EnableJSON {
+		candidates = append(candidates,
 		"./swagger/swagger.json",
 		"./swagger/doc.json",
 		"./swagger/openapi.json",
 		"./docs/openapi.json",
 		"./api-docs.json",
+		)
+	}
+	if m.config.EnableYAML {
+		candidates = append(candidates,
+			"./swagger/swagger.yaml",
+			"./swagger/swagger.yml",
+			"./swagger/openapi.yaml",
+			"./swagger/openapi.yml",
+			"./docs/openapi.yaml",
+			"./docs/openapi.yml",
+			"./api-docs.yaml",
+			"./api-docs.yml",
+		)
 	}
 
 	for _, path := range candidates {
 		if _, err := os.Stat(path); err == nil {
 			content, err := os.ReadFile(filepath.Clean(path))
 			if err == nil {
-				return content, nil
+				_, contentType := detectOpenAPIFormat(content)
+				return openAPIDocument{
+					content:     content,
+					contentType: contentType,
+				}, nil
 			}
 		}
 	}
 
 	// Return a minimal OpenAPI spec if no file is found
-	return m.generateMinimalOpenAPI(), nil
+	return openAPIDocument{
+		content:     m.generateMinimalOpenAPI(),
+		contentType: "application/json",
+	}, nil
 }
 
 // generateMinimalOpenAPI generates a minimal OpenAPI specification.
@@ -384,4 +454,26 @@ func (m *Manager) generateMinimalOpenAPI() []byte {
 }`, m.config.Title, m.config.Description, m.config.Version)
 
 	return []byte(openapi)
+}
+
+func (m *Manager) isFormatEnabled(format string) bool {
+	switch format {
+	case "json":
+		return m.config.EnableJSON
+	case "yaml":
+		return m.config.EnableYAML
+	default:
+		return false
+	}
+}
+
+func detectOpenAPIFormat(content []byte) (string, string) {
+	trimmed := bytes.TrimSpace(content)
+	if len(trimmed) == 0 {
+		return "json", "application/json"
+	}
+	if strings.HasPrefix(string(trimmed[:1]), "{") || strings.HasPrefix(string(trimmed[:1]), "[") {
+		return "json", "application/json"
+	}
+	return "yaml", "application/yaml"
 }
