@@ -68,7 +68,7 @@ Notes:
 - cover `middleware/json/json.go`
 - add tests that reject `text/application/json` and accept `application/json; charset=utf-8` and `application/problem+json`
 
-### Ticket E1-T4 - Fail closed for nil docs handlers [ ]
+### Ticket E1-T4 - Fail closed for nil docs handlers [x]
 
 Description: Make docs handler construction or request handling deterministic when no docs manager is provided.
 

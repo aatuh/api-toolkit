@@ -16,6 +16,9 @@ type Handler struct {
 
 // NewHandler creates a new docs handler.
 func NewHandler(manager ports.DocsManager) *Handler {
+	if manager == nil {
+		manager = New()
+	}
 	return &Handler{manager: manager}
 }
 
