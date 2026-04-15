@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
@@ -20,6 +21,8 @@ const (
 	attrHTTPRoute      = "http.route"
 	attrHTTPStatusCode = "http.status_code"
 	attrHTTPDurationMS = "http.server.duration_ms"
+	headerRequestID    = "X-Request-ID"
+	headerTraceID      = "X-Trace-ID"
 )
 
 // Options configures tracing middleware.
@@ -77,6 +80,17 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		ww := response_writer.Wrap(w)
 		ctx, span := m.tracer.Start(ctx, spanName(r.Method, ""), trace.WithSpanKind(trace.SpanKindServer))
 		defer span.End()
+
+		if ww.Header().Get(headerRequestID) == "" {
+			if requestID := identity.RequestID(r); requestID != "" {
+				ww.Header().Set(headerRequestID, requestID)
+			}
+		}
+		if spanCtx := span.SpanContext(); spanCtx.IsValid() {
+			ww.Header().Set(headerTraceID, spanCtx.TraceID().String())
+		}
+		propagator.Inject(ctx, propagation.HeaderCarrier(ww.Header()))
+		propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(ww.Header()))
 
 		r = r.WithContext(ctx)
 		next.ServeHTTP(ww, r)
