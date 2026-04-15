@@ -91,7 +91,7 @@ Notes:
 
 Description: Define and implement one stable client-visible contract across middleware, helpers, bootstrap defaults, and examples.
 
-### Ticket E2-T1 - Standardize strict JSON error behavior [ ]
+### Ticket E2-T1 - Standardize strict JSON error behavior [x]
 
 Description: Ensure strict JSON mode returns RFC 9457 Problem Details for unsupported media types and only enforces JSON where that policy is intended.
 

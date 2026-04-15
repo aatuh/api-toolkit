@@ -197,6 +197,8 @@ func typeForStatus(reg *TypeRegistry, status int) string {
 	switch status {
 	case http.StatusBadRequest:
 		return reg.URI(TypeBadRequest)
+	case http.StatusUnsupportedMediaType:
+		return reg.URI(TypeUnsupportedMedia)
 	case http.StatusUnauthorized:
 		return reg.URI(TypeUnauthorized)
 	case http.StatusForbidden:
