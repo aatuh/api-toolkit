@@ -417,7 +417,7 @@ Notes:
 
 - cover `contrib/migrator/migrator.go`
 
-### Ticket E5-T3 - Resolve intentional outbound-call `gosec` findings [ ]
+### Ticket E5-T3 - Resolve intentional outbound-call `gosec` findings [x]
 
 Description: Either harden or explicitly annotate the remaining intentional outbound HTTP call sites so `gosec` no longer flags them as unresolved SSRF issues.
 
