@@ -382,6 +382,7 @@ OWASP highlights "Unrestricted Resource Consumption" as a top API risk.
 The toolkit maps mitigations to concrete knobs:
 
 - Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout`.
+- These timeouts are cooperative request context deadlines. For hard wall-clock response limits, also configure server read/write timeouts or use `http.TimeoutHandler` selectively.
 - Payload caps: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`.
 - Header limits: configure `http.Server.MaxHeaderBytes` with presets like `httpx.HeaderLimitsBalanced`.
   Use `httpx.HeaderLimits.Check` to enforce header counts in middleware if needed.

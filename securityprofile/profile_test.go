@@ -1,6 +1,7 @@
 package securityprofile
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,14 +33,14 @@ func TestRouteOverridesMaxBody(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	okReq := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", 64)))
+	okReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/upload", strings.NewReader(strings.Repeat("a", 64)))
 	okRec := httptest.NewRecorder()
 	handler.ServeHTTP(okRec, okReq)
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("expected upload to pass, got %d", okRec.Code)
 	}
 
-	failReq := httptest.NewRequest(http.MethodPost, "/default", strings.NewReader(strings.Repeat("b", 64)))
+	failReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/default", strings.NewReader(strings.Repeat("b", 64)))
 	failRec := httptest.NewRecorder()
 	handler.ServeHTTP(failRec, failReq)
 	if failRec.Code != http.StatusRequestEntityTooLarge {
@@ -72,14 +73,14 @@ func TestRouteOverridesTimeout(t *testing.T) {
 		}
 	}))
 
-	defaultReq := httptest.NewRequest(http.MethodGet, "/default", nil)
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/default", nil)
 	defaultRec := httptest.NewRecorder()
 	handler.ServeHTTP(defaultRec, defaultReq)
 	if defaultRec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("expected default timeout, got %d", defaultRec.Code)
 	}
 
-	slowReq := httptest.NewRequest(http.MethodGet, "/slow", nil)
+	slowReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/slow", nil)
 	slowRec := httptest.NewRecorder()
 	handler.ServeHTTP(slowRec, slowReq)
 	if slowRec.Code != http.StatusOK {
@@ -100,7 +101,7 @@ func TestOWASPBaselineLimits(t *testing.T) {
 	for i := 0; i < 101; i++ {
 		query.Add("k"+strconv.Itoa(i), "1")
 	}
-	queryReq := httptest.NewRequest(http.MethodGet, "/?"+query.Encode(), nil)
+	queryReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/?"+query.Encode(), nil)
 	queryRec := httptest.NewRecorder()
 	handler.ServeHTTP(queryRec, queryReq)
 	if queryRec.Code != http.StatusBadRequest {
@@ -109,7 +110,7 @@ func TestOWASPBaselineLimits(t *testing.T) {
 
 	blocked := 0
 	for i := 0; i < 100; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.RemoteAddr = "203.0.113.1:1234"
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)

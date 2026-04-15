@@ -190,7 +190,7 @@ Notes:
 
 Description: Make default profiles, docs, and examples describe the same actual behavior.
 
-### Ticket E3-T1 - Decide the timeout model [ ]
+### Ticket E3-T1 - Decide the timeout model [x]
 
 Description: Choose whether request timeouts are advisory context deadlines or enforced wall-clock response limits, then implement and document that choice.
 
