@@ -95,7 +95,7 @@ Notes:
 
 Description: Add a stricter documentation mode and reduce internal dependence on the most adapter-shaped legacy compatibility ports without breaking the public API.
 
-### Ticket E3-T1 - Add a strict first-party docs mode [ ]
+### Ticket E3-T1 - Add a strict first-party docs mode [x]
 
 Description: Add a docs HTML/CSP mode that avoids external CDNs and `unsafe-inline`, and test both the default and strict modes.
 

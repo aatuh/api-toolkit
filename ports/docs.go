@@ -2,6 +2,16 @@ package ports
 
 import "net/http"
 
+// DocsHTMLMode controls the HTML presentation mode for the docs surface.
+type DocsHTMLMode string
+
+const (
+	// DocsHTMLModeSwaggerUI renders the Swagger UI convenience page.
+	DocsHTMLModeSwaggerUI DocsHTMLMode = "swagger-ui"
+	// DocsHTMLModeStatic renders a first-party static landing page without third-party assets.
+	DocsHTMLModeStatic DocsHTMLMode = "static"
+)
+
 // DocsProvider defines the interface for providing documentation content.
 type DocsProvider interface {
 	GetHTML() (string, error)
@@ -34,15 +44,16 @@ type DocsManager interface {
 
 // DocsConfig defines configuration for documentation.
 type DocsConfig struct {
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Version     string    `json:"version"`
-	Contact     string    `json:"contact,omitempty"`
-	License     string    `json:"license,omitempty"`
-	Paths       DocsPaths `json:"paths"`
-	EnableHTML  bool      `json:"enable_html"`
-	EnableJSON  bool      `json:"enable_json"`
-	EnableYAML  bool      `json:"enable_yaml"`
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	Version     string       `json:"version"`
+	Contact     string       `json:"contact,omitempty"`
+	License     string       `json:"license,omitempty"`
+	Paths       DocsPaths    `json:"paths"`
+	EnableHTML  bool         `json:"enable_html"`
+	EnableJSON  bool         `json:"enable_json"`
+	EnableYAML  bool         `json:"enable_yaml"`
+	HTMLMode    DocsHTMLMode `json:"html_mode,omitempty"`
 }
 
 // DocsPaths defines the paths for documentation endpoints.
