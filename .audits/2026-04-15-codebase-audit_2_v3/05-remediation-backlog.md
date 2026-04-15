@@ -129,7 +129,7 @@ Notes:
 - Record the decision before changing handlers so package docs and tests follow one clear contract.
 - Treat local-demo convenience as opt-in, not silent production default.
 
-### Ticket E2-T2 - Enforce docs enable flags or remove unsupported config [ ]
+### Ticket E2-T2 - Enforce docs enable flags or remove unsupported config [x]
 
 Description: Implement `EnableHTML`, `EnableJSON`, and `EnableYAML` handling in the docs manager and handlers, or remove those flags from the public surface if they are not intended to be supported.
 
