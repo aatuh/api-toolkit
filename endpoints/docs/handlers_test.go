@@ -4,7 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestNewHandlerDefaultsNilManager(t *testing.T) {
@@ -50,5 +53,35 @@ func TestMiddlewareWithNilManagerUsesDefaultInfo(t *testing.T) {
 	}
 	if got := rec.Header().Get("X-API-Version"); got == "" {
 		t.Fatal("expected X-API-Version header")
+	}
+}
+
+func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Strict Docs",
+		Description: "First-party docs",
+		Version:     "1.2.3",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+		HTMLMode:    ports.DocsHTMLModeStatic,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
+	handler.HTMLHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); got != strictDocsCSP {
+		t.Fatalf("unexpected CSP: %q", got)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "cdn.jsdelivr.net") {
+		t.Fatalf("expected no external CDN assets, got %q", body)
+	}
+	if strings.Contains(body, "<script") {
+		t.Fatalf("expected no script tags, got %q", body)
 	}
 }

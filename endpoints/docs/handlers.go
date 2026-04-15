@@ -8,6 +8,7 @@ import (
 )
 
 const defaultDocsCSP = "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self'"
+const strictDocsCSP = "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; media-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'"
 
 // Handler provides HTTP handlers for documentation endpoints.
 type Handler struct {
@@ -36,7 +37,7 @@ func NewDefaultHandler() *Handler {
 // @Success 200 {string} string "HTML documentation page"
 // @Router /docs [get]
 func (h *Handler) HTMLHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Security-Policy", defaultDocsCSP)
+	w.Header().Set("Content-Security-Policy", docsCSP(h.manager))
 	h.manager.ServeHTML(w, r)
 }
 
@@ -107,4 +108,15 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+type htmlModeProvider interface {
+	HTMLMode() ports.DocsHTMLMode
+}
+
+func docsCSP(manager ports.DocsManager) string {
+	if provider, ok := manager.(htmlModeProvider); ok && provider.HTMLMode() == ports.DocsHTMLModeStatic {
+		return strictDocsCSP
+	}
+	return defaultDocsCSP
 }

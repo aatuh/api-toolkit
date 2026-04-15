@@ -294,6 +294,7 @@ if err != nil { /* handle */ }
 ```
 
 `DocsUI()` allows third-party CDN assets and inline styles for Swagger UI; `WebApp()` is stricter and may block inline scripts until you add nonces/hashes.
+For a first-party docs surface without CDN assets or `unsafe-inline`, use `docs.NewStrict()` or `docs.NewWithConfig(ports.DocsConfig{HTMLMode: ports.DocsHTMLModeStatic})`.
 COOP/COEP/CORP can break cross-origin embeds; enable only when you control embedded resources.
 
 ## Authorization (default deny + policy engines)

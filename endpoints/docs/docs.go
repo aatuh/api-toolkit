@@ -26,11 +26,29 @@ func New() ports.DocsManager {
 		EnableHTML:  true,
 		EnableJSON:  true,
 		EnableYAML:  false,
+		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
+	})
+}
+
+// NewStrict creates a docs manager that avoids third-party assets in HTML mode.
+func NewStrict() ports.DocsManager {
+	return NewWithConfig(ports.DocsConfig{
+		Title:       "API Documentation",
+		Description: "REST API Documentation",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+		EnableYAML:  false,
+		HTMLMode:    ports.DocsHTMLModeStatic,
 	})
 }
 
 // NewWithConfig creates a new docs manager with custom configuration.
 func NewWithConfig(config ports.DocsConfig) ports.DocsManager {
+	if config.HTMLMode == "" {
+		config.HTMLMode = ports.DocsHTMLModeSwaggerUI
+	}
 	return &Manager{
 		config: config,
 	}
@@ -45,6 +63,9 @@ func (m *Manager) RegisterProvider(provider ports.DocsProvider) {
 func (m *Manager) GetHTML() (string, error) {
 	if m.provider != nil {
 		return m.provider.GetHTML()
+	}
+	if m.config.HTMLMode == ports.DocsHTMLModeStatic {
+		return m.generateStaticHTML(), nil
 	}
 	return m.generateDefaultHTML(), nil
 }
@@ -77,6 +98,17 @@ func (m *Manager) GetInfo() ports.DocsInfo {
 		Contact:     m.config.Contact,
 		License:     m.config.License,
 	}
+}
+
+// HTMLMode reports the configured docs HTML rendering mode.
+func (m *Manager) HTMLMode() ports.DocsHTMLMode {
+	if m == nil {
+		return ports.DocsHTMLModeSwaggerUI
+	}
+	if m.config.HTMLMode == "" {
+		return ports.DocsHTMLModeSwaggerUI
+	}
+	return m.config.HTMLMode
 }
 
 // ServeHTML serves the HTML documentation.
@@ -182,6 +214,50 @@ func (m *Manager) generateDefaultHTML() string {
 		m.config.Description,
 		m.config.Version,
 		openAPIPath,
+	)
+}
+
+func (m *Manager) generateStaticHTML() string {
+	openAPIPath := m.config.Paths.OpenAPI
+	if openAPIPath == "" {
+		openAPIPath = ports.DefaultDocsPaths().OpenAPI
+	}
+	infoPath := m.config.Paths.Info
+	if infoPath == "" {
+		infoPath = ports.DefaultDocsPaths().Info
+	}
+	versionPath := m.config.Paths.Version
+	if versionPath == "" {
+		versionPath = ports.DefaultDocsPaths().Version
+	}
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%s</title>
+</head>
+<body>
+  <main>
+    <h1>%s</h1>
+    <p>%s</p>
+    <p>Version: %s</p>
+    <ul>
+      <li><a href="%s">OpenAPI JSON</a></li>
+      <li><a href="%s">Version Info</a></li>
+      <li><a href="%s">API Info</a></li>
+    </ul>
+    <p>This strict docs mode serves only first-party content and avoids third-party assets.</p>
+  </main>
+</body>
+</html>`,
+		m.config.Title,
+		m.config.Title,
+		m.config.Description,
+		m.config.Version,
+		openAPIPath,
+		versionPath,
+		infoPath,
 	)
 }
 
