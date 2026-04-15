@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -135,6 +136,45 @@ func TestExecuteRecordsSuccessAndFailure(t *testing.T) {
 	if runs[0].finishedAt.Before(runs[0].startedAt) || runs[1].finishedAt.Before(runs[1].startedAt) {
 		t.Fatal("expected finishedAt to be on or after startedAt")
 	}
+}
+
+func TestStartDoesNotOverlapSameJobAcrossDuplicateStarts(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var active atomic.Int32
+	started := make(chan struct{}, 2)
+	overlap := make(chan struct{}, 1)
+	release := make(chan struct{})
+
+	runner := New(nil, nil, nil, Job{
+		Name:     "sync",
+		Interval: time.Hour,
+		Run: func(context.Context) error {
+			if active.Add(1) > 1 {
+				select {
+				case overlap <- struct{}{}:
+				default:
+				}
+			}
+			started <- struct{}{}
+			<-release
+			active.Add(-1)
+			return nil
+		},
+	})
+
+	runner.Start(ctx)
+	<-started
+	runner.Start(ctx)
+
+	select {
+	case <-overlap:
+		t.Fatal("expected same job to avoid overlap across duplicate starts")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
 }
 
 func waitForRuns(t *testing.T, runs <-chan struct{}, want int, timeout time.Duration) {
