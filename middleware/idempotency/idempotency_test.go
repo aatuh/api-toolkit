@@ -2,6 +2,7 @@ package idempotency
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -101,10 +102,145 @@ func TestMiddlewareBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
 	assertOptionalInterfaceHeadersFalse(t, rec.Header())
 }
 
+func TestIdempotencyAllowsRetryAfterServerError(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeInternal),
+			Title:  http.StatusText(http.StatusInternalServerError),
+			Detail: strconv.Itoa(calls),
+		})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-500")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-500")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusInternalServerError {
+		t.Fatalf("expected retry to execute handler and return 500, got %d", rec2.Code)
+	}
+	if got := rec2.Body.String(); !strings.Contains(got, `"detail":"2"`) {
+		t.Fatalf("expected second request to execute handler again, got body %q", got)
+	}
+}
+
+func TestIdempotencyAllowsRetryAfterPanic(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			panic("boom")
+		}
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected first request to panic")
+			}
+		}()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+		req.Header.Set("Idempotency-Key", "key-panic")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+	}()
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-panic")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected retry to succeed after panic, got %d", rec2.Code)
+	}
+	if got := rec2.Body.String(); !strings.Contains(got, `"calls":2`) {
+		t.Fatalf("expected second request to execute handler again, got body %q", got)
+	}
+}
+
+func TestIdempotencyAllowsRetryAfterSaveFailure(t *testing.T) {
+	store := &saveFailStore{
+		memoryStore: newMemoryStore(),
+		saveErr:     errors.New("save failed"),
+	}
+
+	var onError []error
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+		OnError: func(err error) {
+			onError = append(onError, err)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-save-fail")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec1.Code)
+	}
+	if len(onError) != 1 || onError[0] == nil || onError[0].Error() != "save failed" {
+		t.Fatalf("expected save failure to be reported, got %#v", onError)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-save-fail")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected retry to succeed after save failure, got %d", rec2.Code)
+	}
+	if got := rec2.Body.String(); !strings.Contains(got, `"calls":2`) {
+		t.Fatalf("expected second request to execute handler again, got body %q", got)
+	}
+}
+
 type memoryStore struct {
 	mu   sync.Mutex
 	data map[string]memoryEntry
 	now  func() time.Time
+}
+
+type saveFailStore struct {
+	*memoryStore
+	saveErr error
 }
 
 type memoryEntry struct {
@@ -166,6 +302,16 @@ func (m *memoryStore) Save(ctx context.Context, key string, record ports.Idempot
 		expiresAt: m.now().Add(ttl),
 	}
 	return nil
+}
+
+func (s *saveFailStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	if s == nil {
+		return nil
+	}
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	return s.memoryStore.Save(ctx, key, record, ttl)
 }
 
 func (m *memoryStore) isExpired(entry memoryEntry) bool {
