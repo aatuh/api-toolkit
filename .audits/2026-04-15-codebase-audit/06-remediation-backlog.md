@@ -11,7 +11,7 @@ Status legend:
 
 Description: Remove the evidence-backed failures that can panic, corrupt responses, or silently accept invalid input in normal toolkit use.
 
-### Ticket E1-T1 - Make default metrics initialization safe [ ]
+### Ticket E1-T1 - Make default metrics initialization safe [x]
 
 Description: Eliminate duplicate Prometheus collector registration panics in default bootstrap and recorder construction paths.
 
