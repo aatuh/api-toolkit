@@ -167,7 +167,7 @@ Notes:
 - cover `contrib/examples/spec-first/openapi.json`, example handlers, and any generated assets
 - keep `validation.fields` and related compatibility extensions in mind
 
-### Ticket E2-T5 - Add response-side correlation support [ ]
+### Ticket E2-T5 - Add response-side correlation support [x]
 
 Description: Decide whether request identifiers should appear in problem responses or headers, then implement that policy consistently.
 

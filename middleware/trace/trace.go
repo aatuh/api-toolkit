@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -18,6 +19,8 @@ import (
 const (
 	headerTraceParent = "traceparent"
 	headerTraceState  = "tracestate"
+	headerTraceID     = "X-Trace-ID"
+	headerRequestID   = "X-Request-ID"
 )
 
 type ctxKey string
@@ -87,7 +90,13 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 				flags = traceFlags
 			}
 
-			// Best-effort echo of trace headers for clients and downstreams.
+			// Best-effort echo of correlation headers for clients and downstreams.
+			if w.Header().Get(headerRequestID) == "" {
+				if requestID := identity.RequestID(r); requestID != "" {
+					w.Header().Set(headerRequestID, requestID)
+				}
+			}
+			w.Header().Set(headerTraceID, traceID)
 			w.Header().Set(headerTraceParent, formatTraceParent(traceID, spanID, flags))
 			if traceState != "" {
 				w.Header().Set(headerTraceState, traceState)
