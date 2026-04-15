@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -140,6 +141,11 @@ type pprofRouter struct {
 	h http.Handler
 }
 
+type serverRunner interface {
+	ListenAndServe() error
+	Shutdown(ctx context.Context) error
+}
+
 func (p pprofRouter) Get(pattern string, _ http.HandlerFunc) {
 	p.router.Get(pattern, func(w http.ResponseWriter, r *http.Request) {
 		p.h.ServeHTTP(w, r)
@@ -157,12 +163,14 @@ func StartServer(
 	if log == nil {
 		log = ports.NopLogger{}
 	}
-	srv := HardenedServer(addr, handler)
+	log.Info("http server starting", "addr", addr)
+	return runServer(ctx, HardenedServer(addr, handler))
+}
 
+func runServer(ctx context.Context, srv serverRunner) error {
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("http server starting", "addr", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)
@@ -172,9 +180,17 @@ func StartServer(
 	case <-ctx.Done():
 		shctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(shctx)
+		if err := srv.Shutdown(shctx); err != nil {
+			return fmt.Errorf("shutdown server: %w", err)
+		}
+		if err, ok := <-errCh; ok {
+			return err
+		}
 		return nil
-	case err := <-errCh:
+	case err, ok := <-errCh:
+		if !ok {
+			return nil
+		}
 		return err
 	}
 }
