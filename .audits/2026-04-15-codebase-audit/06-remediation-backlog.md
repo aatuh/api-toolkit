@@ -377,7 +377,7 @@ Notes:
 
 - cover `scheduler/scheduler.go` and related helpers
 
-## Epic E5 - Clear remaining finalize blockers [ ]
+## Epic E5 - Clear remaining finalize blockers [x]
 
 Description: Resolve the remaining repository-wide lint and static-analysis issues uncovered during `make finalize` so the full quality gate passes cleanly.
 
