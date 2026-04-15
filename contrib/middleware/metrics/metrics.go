@@ -1,11 +1,11 @@
 package metrics
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -96,18 +96,49 @@ func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) 
 	if len(buckets) == 0 {
 		buckets = []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	}
-	paused := promauto.With(reg)
+	requests := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests",
+	}, []string{"method", "route", "status"})
+	durations := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "http_request_duration_seconds",
+		Help:    "HTTP request duration in seconds",
+		Buckets: buckets,
+	}, []string{"method", "route", "status"})
 	return &PrometheusRecorder{
-		requests: paused.NewCounterVec(prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		}, []string{"method", "route", "status"}),
-		durations: paused.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "HTTP request duration in seconds",
-			Buckets: buckets,
-		}, []string{"method", "route", "status"}),
+		requests:  registerOrReuseCounterVec(reg, requests),
+		durations: registerOrReuseHistogramVec(reg, durations),
 	}
+}
+
+func registerOrReuseCounterVec(reg prometheus.Registerer, collector *prometheus.CounterVec) *prometheus.CounterVec {
+	if collector == nil || reg == nil {
+		return collector
+	}
+	if err := reg.Register(collector); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if errors.As(err, &alreadyRegistered) {
+			if existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.CounterVec); ok {
+				return existing
+			}
+		}
+	}
+	return collector
+}
+
+func registerOrReuseHistogramVec(reg prometheus.Registerer, collector *prometheus.HistogramVec) *prometheus.HistogramVec {
+	if collector == nil || reg == nil {
+		return collector
+	}
+	if err := reg.Register(collector); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if errors.As(err, &alreadyRegistered) {
+			if existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.HistogramVec); ok {
+				return existing
+			}
+		}
+	}
+	return collector
 }
 
 // IncCounter increments the Prometheus counter.
