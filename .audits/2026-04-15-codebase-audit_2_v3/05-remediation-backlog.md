@@ -110,7 +110,7 @@ Notes:
 
 Description: Ensure docs endpoints, OpenAPI responses, and docs configuration flags behave exactly as the public contract implies.
 
-### Ticket E2-T1 - Define the missing-spec contract for docs endpoints [ ]
+### Ticket E2-T1 - Define the missing-spec contract for docs endpoints [x]
 
 Description: Choose and document the repository-wide behavior when no authoritative OpenAPI document exists, favoring an explicit error such as `404` or `501` over a synthetic success response unless placeholder mode is made an explicit opt-in.
 

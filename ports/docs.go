@@ -30,6 +30,9 @@ type DocsInfo struct {
 }
 
 // DocsManager defines the interface for managing documentation.
+//
+// Implementations should treat disabled or missing docs surfaces as not found
+// rather than silently fabricating placeholder content.
 type DocsManager interface {
 	RegisterProvider(provider DocsProvider)
 	GetHTML() (string, error)
@@ -43,6 +46,10 @@ type DocsManager interface {
 }
 
 // DocsConfig defines configuration for documentation.
+//
+// EnableHTML controls whether the HTML docs surface is served.
+// EnableJSON and EnableYAML control which OpenAPI formats may be served through
+// the configured OpenAPI path.
 type DocsConfig struct {
 	Title       string       `json:"title"`
 	Description string       `json:"description"`

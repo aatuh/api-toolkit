@@ -43,12 +43,12 @@ func (h *Handler) HTMLHandler(w http.ResponseWriter, r *http.Request) {
 
 // OpenAPIHandler handles OpenAPI specification requests.
 // @Summary OpenAPI Specification
-// @Description Returns the OpenAPI specification in JSON format
+// @Description Returns the configured OpenAPI specification when the docs surface is enabled
 // @Tags docs
 // @Accept json
 // @Produce json
 // @Success 200 {object} map[string]interface{} "OpenAPI specification"
-// @Failure 404 {object} map[string]interface{} "OpenAPI specification not found"
+// @Failure 404 {object} map[string]interface{} "OpenAPI specification disabled or not found"
 // @Router /docs/openapi.json [get]
 func (h *Handler) OpenAPIHandler(w http.ResponseWriter, r *http.Request) {
 	h.manager.ServeOpenAPI(w, r)
