@@ -2,12 +2,15 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
@@ -19,33 +22,73 @@ import (
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
-// NewDefaultRouter constructs a router with a sensible default middleware stack.
-func NewDefaultRouter(log ports.Logger) (ports.HTTPRouter, error) {
-	r := chi.New()
+// DefaultRouterConfig defines the inputs used by NewDefaultRouterWithConfig.
+type DefaultRouterConfig struct {
+	RateLimit      rateln.Options
+	TrustedProxies []netip.Prefix
+	Metrics        metricsmw.MetricsRecorder
+}
 
-	// Optional rate limit bypass for tests/dev (similar to Clerk skip header).
-	skipHeader := os.Getenv("RATE_LIMIT_SKIP_HEADER")
-	skipEnabled := os.Getenv("RATE_LIMIT_SKIP_ENABLED") == "true"
-	allowDevBypass := os.Getenv("RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES") == "true"
-
-	resolver := identity.Resolver{HeaderPolicy: identity.HeaderPolicyBoth}
-	if raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES")); raw != "" {
-		if prefixes, err := identity.ParseTrustedProxies(strings.Split(raw, ",")); err == nil {
-			resolver.TrustedProxies = prefixes
-		}
+// DefaultRouterConfigFromEnv loads router defaults from environment variables.
+func DefaultRouterConfigFromEnv(env ports.EnvVar) (DefaultRouterConfig, error) {
+	if env == nil {
+		env = envvar.New()
 	}
 
-	profile, err := ProfileStrictAPI(log,
-		WithIdentityResolver(resolver),
-		WithRateLimitOptions(rateln.Options{
+	cfg := DefaultRouterConfig{
+		RateLimit: rateln.Options{
 			Capacity:                  30,
 			RefillRate:                15,
-			SkipEnabled:               skipEnabled,
-			SkipHeader:                skipHeader,
-			AllowDangerousDevBypasses: allowDevBypass,
-		}),
-		WithMetricsRecorder(metricsmw.NewPrometheusRecorder(nil, nil)),
-	)
+			SkipHeader:                env.GetOr("RATE_LIMIT_SKIP_HEADER", ""),
+			SkipEnabled:               env.GetBoolOr("RATE_LIMIT_SKIP_ENABLED", false),
+			AllowDangerousDevBypasses: env.GetBoolOr("RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES", false),
+		},
+	}
+
+	if raw := strings.TrimSpace(env.GetOr("TRUSTED_PROXIES", "")); raw != "" {
+		prefixes, err := identity.ParseTrustedProxies(strings.Split(raw, ","))
+		if err != nil {
+			return DefaultRouterConfig{}, fmt.Errorf("parse trusted proxies: %w", err)
+		}
+		cfg.TrustedProxies = prefixes
+	}
+
+	return cfg, nil
+}
+
+// NewDefaultRouter constructs a router with a sensible default middleware stack.
+func NewDefaultRouter(log ports.Logger) (ports.HTTPRouter, error) {
+	cfg, err := DefaultRouterConfigFromEnv(nil)
+	if err != nil {
+		return nil, err
+	}
+	return NewDefaultRouterWithConfig(log, cfg)
+}
+
+// NewDefaultRouterWithConfig constructs a router from explicit configuration.
+func NewDefaultRouterWithConfig(log ports.Logger, cfg DefaultRouterConfig) (ports.HTTPRouter, error) {
+	r := chi.New()
+
+	resolver := identity.Resolver{HeaderPolicy: identity.HeaderPolicyBoth}
+	resolver.TrustedProxies = append(resolver.TrustedProxies, cfg.TrustedProxies...)
+
+	rateLimit := cfg.RateLimit
+	if rateLimit.Capacity == 0 {
+		rateLimit.Capacity = 30
+	}
+	if rateLimit.RefillRate == 0 {
+		rateLimit.RefillRate = 15
+	}
+
+	opts := []ProfileOption{
+		WithIdentityResolver(resolver),
+		WithRateLimitOptions(rateLimit),
+	}
+	if cfg.Metrics != nil {
+		opts = append(opts, WithMetricsRecorder(cfg.Metrics))
+	}
+
+	profile, err := ProfileStrictAPI(log, opts...)
 	if err != nil {
 		return nil, err
 	}
