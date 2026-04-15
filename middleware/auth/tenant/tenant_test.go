@@ -28,7 +28,7 @@ func TestTenantMiddlewareRequiresTenant(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -48,7 +48,7 @@ func TestTenantMiddlewareRequiresTenantForAuthenticatedActor(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req = req.WithContext(authorization.WithActor(req.Context(), authorization.Actor{UserID: "user-1"}))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -72,7 +72,7 @@ func TestTenantMiddlewareMismatch(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req.Header.Set("X-Tenant-ID", "tenant-b")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -100,7 +100,7 @@ func TestTenantMiddlewareSetsScope(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req.Header.Set("X-Tenant-ID", "tenant-a")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -123,7 +123,7 @@ func TestTenantMiddlewareURLParamMismatch(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req.Header.Set("X-Tenant-ID", "tenant-b")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -144,7 +144,7 @@ func TestTenantMiddlewareHeaderMultipleValues(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req.Header.Add("X-Tenant-ID", "tenant-a")
 	req.Header.Add("X-Tenant-ID", "tenant-b")
 	rec := httptest.NewRecorder()

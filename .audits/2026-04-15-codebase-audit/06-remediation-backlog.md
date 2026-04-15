@@ -381,7 +381,7 @@ Notes:
 
 Description: Resolve the remaining repository-wide lint and static-analysis issues uncovered during `make finalize` so the full quality gate passes cleanly.
 
-### Ticket E5-T1 - Remove remaining `noctx` test violations [ ]
+### Ticket E5-T1 - Remove remaining `noctx` test violations [x]
 
 Description: Replace the remaining `httptest.NewRequest` usages in root and contrib test files with `httptest.NewRequestWithContext`.
 

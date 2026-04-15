@@ -1,6 +1,7 @@
 package requestlog
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,7 +40,7 @@ func TestRequestLogRedactionDefaults(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/demo", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/demo", nil)
 	req.Header.Set("Authorization", "Bearer secret")
 	req.Header.Set("Cookie", "a=b")
 	req.Header.Set("X-API-Key", "abc123")
@@ -97,7 +98,7 @@ func TestRequestLogFieldConventions(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/test", nil)
 	req.Header.Set("X-Request-ID", "req-xyz")
 	req = req.WithContext(oteltrace.ContextWithSpanContext(req.Context(), sc))
 	rec := httptest.NewRecorder()
