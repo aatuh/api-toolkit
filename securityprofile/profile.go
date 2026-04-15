@@ -20,6 +20,9 @@ import (
 // ErrorWriter allows overriding how security profile errors are written.
 type ErrorWriter func(http.ResponseWriter, int, httpx.Problem)
 
+// #nosec G101 -- explicit dev-only header label, not a credential or secret.
+const defaultDevBypassHeader = "X-Debug-Auth-Bypass"
+
 type options struct {
 	maxBodyBytes     int64
 	queryLimits      querylimits.Options
@@ -78,7 +81,8 @@ func WithQueryLimitsDisabled() Option {
 	}
 }
 
-// WithTimeout sets a per-request timeout.
+// WithTimeout sets a cooperative per-request context deadline.
+// It does not enforce a wall-clock response cutoff by itself.
 func WithTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.timeout = d
@@ -86,7 +90,7 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
-// WithTimeoutDisabled disables request timeouts.
+// WithTimeoutDisabled disables request context deadlines.
 func WithTimeoutDisabled() Option {
 	return func(o *options) {
 		o.enableTimeout = false
@@ -199,7 +203,7 @@ func New(opts ...Option) (Profile, error) {
 		enableQueryGuard: true,
 		queryLimits:      querylimits.Options{},
 		requireAuth:      true,
-		devBypassHeader:  "X-Debug-Auth-Bypass",
+		devBypassHeader:  defaultDevBypassHeader,
 		resolver: identity.Resolver{
 			HeaderPolicy: identity.HeaderPolicyBoth,
 		},

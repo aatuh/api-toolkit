@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// Middleware applies a per-request context timeout without writing responses.
+// Middleware applies a per-request context deadline without writing responses.
+// Handlers and downstream calls must observe ctx.Done for the timeout to take effect.
 type Middleware struct {
 	Timeout time.Duration
 }
@@ -33,7 +34,8 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return m.Handler(next) }
 }
 
-// Handler wraps the next handler with a context timeout.
+// Handler wraps the next handler with a context deadline.
+// It does not abort writes or synthesize timeout responses.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next

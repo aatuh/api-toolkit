@@ -43,11 +43,14 @@ Goal:
 
 The toolkit provides concrete controls for resource limits:
 
-- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout`
+- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines
 - Payload size: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`
 - Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
 - Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
 - Header limits: `httpx.HeaderLimitsBalanced` + server `MaxHeaderBytes`
+
+`securityprofile.WithTimeout` does not force a timeout response or stop handlers that ignore `ctx.Done()`.
+Use server read/write deadlines or selective wrappers such as `http.TimeoutHandler` when you need a hard wall-clock response limit.
 
 ## Recommended Production Baseline
 
@@ -74,7 +77,7 @@ srv := bootstrap.HardenedServer(":8080", r, func(s *http.Server) {
 
 ## Checklist
 
-- [ ] Enable OWASP baseline limits for timeouts, payload, query, and rate limits
+- [ ] Enable OWASP baseline limits for context deadlines, payload, query, and rate limits
 - [ ] Set MaxHeaderBytes with `httpx.HeaderLimitsBalanced` or stricter
 - [ ] Require authentication by default and deny by default
 - [ ] Avoid dev-only bypass headers in production
