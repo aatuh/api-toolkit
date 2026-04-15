@@ -190,7 +190,7 @@ Notes:
 
 Description: Improve adapter unhappy-path handling and HTTP retry semantics so integrations fail clearly and clients receive accurate backoff guidance.
 
-### Ticket E3-T1 - Add Resend adapter regression tests [ ]
+### Ticket E3-T1 - Add Resend adapter regression tests [x]
 
 Description: Add tests for malformed `2xx` JSON, empty success bodies, upstream non-`2xx` responses, and stalled requests in `contrib/adapters/resend`.
 
