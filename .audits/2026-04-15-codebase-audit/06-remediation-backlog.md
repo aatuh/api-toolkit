@@ -304,7 +304,7 @@ Notes:
 
 - cover `middleware/auth/jwt/middleware.go`
 
-### Ticket E4-T3 - Add endpoint-construction tests [ ]
+### Ticket E4-T3 - Add endpoint-construction tests [x]
 
 Description: Add direct tests for docs and health handler construction, nil dependency behavior, and middleware side effects.
 
