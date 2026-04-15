@@ -5,10 +5,10 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	listx "github.com/aatuh/api-toolkit/v2/endpoints/list"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 )
@@ -57,31 +57,16 @@ func main() {
 }
 
 func listItems(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	limit := defaultLimit
-	if raw := q.Get("limit"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed <= 0 {
-			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
-				Title:  http.StatusText(http.StatusBadRequest),
-				Detail: "invalid limit",
-			})
-			return
-		}
-		limit = parsed
+	query, err := listx.ParseListQuery(r, listx.ListQueryConfig{
+		DefaultLimit: defaultLimit,
+		MaxLimit:     maxLimit,
+	})
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
 	}
-	offset := 0
-	if raw := q.Get("offset"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 {
-			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
-				Title:  http.StatusText(http.StatusBadRequest),
-				Detail: "invalid offset",
-			})
-			return
-		}
-		offset = parsed
-	}
+	limit := query.Limit
+	offset := query.Offset
 	if offset > len(items) {
 		offset = len(items)
 	}

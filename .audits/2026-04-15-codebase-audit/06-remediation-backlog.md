@@ -129,7 +129,7 @@ Notes:
 - cover `middleware/auth/jwt`, `middleware/auth/authz`, and `middleware/auth/tenant`
 - include missing-auth, malformed-auth, authenticated-but-forbidden, and missing-tenant cases
 
-### Ticket E2-T3 - Choose and implement the list-query contract [ ]
+### Ticket E2-T3 - Choose and implement the list-query contract [x]
 
 Description: Decide whether malformed pagination, filters, and sorts are rejected or normalized, then implement that behavior consistently in helpers and examples.
 
