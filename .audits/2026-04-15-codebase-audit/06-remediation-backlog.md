@@ -509,7 +509,7 @@ Notes:
 
 - cover `httpx/recover/recover_test.go`, `middleware/maxbody/maxbody_test.go`, `middleware/ratelimit/ratelimit_bench_test.go`, `middleware/secure/secure_test.go`, `middleware/json/json_test.go`, and `middleware/auth/authz/require_role_test.go`
 
-### Ticket E5-T8 - Make multi-module QA targets fail fast [ ]
+### Ticket E5-T8 - Make multi-module QA targets fail fast [x]
 
 Description: Fix the `Makefile` module loops so a failure in the root module cannot be masked by a later successful contrib pass.
 

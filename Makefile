@@ -48,25 +48,25 @@ api-check: ## Run API compatibility check.
 	@scripts/apicheck.sh
 
 fmt: ## Run gofmt
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) fmt ./...); \
 	done
 
 lint: tools ## Run golangci-lint
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && golangci-lint run ./...); \
 	done
 
 vuln: tools ## Run govulncheck
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && govulncheck ./...); \
 	done
 
 gosec: tools ## Run gosec
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		if [ "$$mod" = "." ]; then \
 			(cd $$mod && gosec -exclude-dir=contrib ./...); \
@@ -76,31 +76,31 @@ gosec: tools ## Run gosec
 	done
 
 tidy: ## Run go mod tidy
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) mod tidy); \
 	done
 
 test: ## Run unit tests
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) test ./...); \
 	done
 
 test-race: ## Run unit tests with race detector
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) test ./... -race -count=1); \
 	done
 
 fuzz: ## Run fuzz smoke tests
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) test ./... -run=^$ -fuzz=Fuzz -fuzztime=10s); \
 	done
 
 clean: ## Clean test cache
-	@for mod in $(MODULES); do \
+	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) clean -testcache); \
 	done
