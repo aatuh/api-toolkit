@@ -85,6 +85,14 @@ func (s *Store) Save(ctx context.Context, key string, record ports.IdempotencyRe
 	return s.client.Set(ctx, s.key(key), payload, ttl).Err()
 }
 
+// Release removes a stored idempotency reservation or record.
+func (s *Store) Release(ctx context.Context, key string) error {
+	if s == nil || s.client == nil {
+		return nil
+	}
+	return s.client.Del(ctx, s.key(key)).Err()
+}
+
 func (s *Store) key(key string) string {
 	return s.prefix + key
 }

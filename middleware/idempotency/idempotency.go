@@ -2,6 +2,7 @@ package idempotency
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -235,6 +236,14 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 
 		capture := response_writer.NewCapture()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
+				panic(recovered)
+			}
+		}()
 		next.ServeHTTP(capture, r)
 
 		record = ports.IdempotencyRecord{
@@ -246,12 +255,44 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			CreatedAt:   m.opts.Clock.Now(),
 		}
 		if m.opts.ShouldStore(capture.Status()) {
-			if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil && m.opts.OnError != nil {
-				m.opts.OnError(err)
+			if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil {
+				if m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
+				if cleanupErr := m.releaseReservation(ctx, key, hash); cleanupErr != nil && m.opts.OnError != nil {
+					m.opts.OnError(cleanupErr)
+				}
 			}
+		} else if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
+			m.opts.OnError(err)
 		}
 		capture.WriteTo(w)
 	})
+}
+
+func (m *Middleware) releaseReservation(ctx context.Context, key, hash string) error {
+	if key == "" || m == nil || m.opts.Store == nil {
+		return nil
+	}
+
+	var errs []error
+	if releaser, ok := m.opts.Store.(ports.IdempotencyReleaser); ok {
+		if err := releaser.Release(ctx, key); err == nil {
+			return nil
+		} else {
+			errs = append(errs, err)
+		}
+	}
+
+	record := ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateUnknown,
+		RequestHash: hash,
+		CreatedAt:   m.opts.Clock.Now(),
+	}
+	if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // DefaultHash returns a stable SHA-256 hash of the method, path, query, content type, and body.

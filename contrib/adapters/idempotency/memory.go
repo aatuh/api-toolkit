@@ -80,6 +80,18 @@ func (m *MemoryStore) Save(ctx context.Context, key string, record ports.Idempot
 	return nil
 }
 
+// Release removes a stored idempotency reservation or record.
+func (m *MemoryStore) Release(ctx context.Context, key string) error {
+	if m == nil {
+		return nil
+	}
+	_ = ctx
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, key)
+	return nil
+}
+
 func (m *MemoryStore) isExpired(entry memoryEntry) bool {
 	if entry.expiresAt.IsZero() {
 		return false
