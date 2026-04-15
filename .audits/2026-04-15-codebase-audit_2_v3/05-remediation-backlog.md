@@ -331,7 +331,7 @@ Notes:
 
 Description: Close the remediation work with repo-level verification, compatibility notes, and regression protection so the fixes stay durable.
 
-### Ticket E5-T1 - Ensure new edge-case coverage is part of normal verification [ ]
+### Ticket E5-T1 - Ensure new edge-case coverage is part of normal verification [x]
 
 Description: Verify that the new regression tests for idempotency, scheduler overlap, docs behavior, Resend, and rate limiting run under the existing repo quality targets and do not rely on one-off commands.
 
