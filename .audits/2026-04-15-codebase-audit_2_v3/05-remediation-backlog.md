@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Restore retry and execution safety [ ]
+## Epic E1 - Restore retry and execution safety [x]
 
 Description: Eliminate the two high-severity runtime defects that can strand idempotency keys or run the same scheduled job concurrently.
 
@@ -87,7 +87,7 @@ Notes:
 - Keep current interval-based skip behavior only where it still makes sense after adding in-flight protection.
 - Default behavior must be non-overlapping.
 
-### Ticket E1-T5 - Document changed retry and scheduling semantics [ ]
+### Ticket E1-T5 - Document changed retry and scheduling semantics [x]
 
 Description: Update package docs and release notes to describe the new idempotency failure behavior and scheduler non-overlap guarantee so downstream users understand the observable behavior changes.
 
