@@ -108,11 +108,14 @@ func (c *Client) Send(ctx context.Context, msg email.Message) (string, error) {
 		return "", fmt.Errorf("resend error: %s", strings.TrimSpace(string(respBody)))
 	}
 	if len(respBody) == 0 {
-		return "", nil
+		return "", fmt.Errorf("resend success response missing body")
 	}
 	var out sendResponse
 	if err := json.Unmarshal(respBody, &out); err != nil {
-		return "", nil
+		return "", fmt.Errorf("decode resend response: %w", err)
+	}
+	if strings.TrimSpace(out.ID) == "" {
+		return "", fmt.Errorf("resend success response missing id")
 	}
 	return out.ID, nil
 }
