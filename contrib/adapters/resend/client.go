@@ -8,11 +8,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v2/email"
 )
 
 const defaultBaseURL = "https://api.resend.com"
+
+const defaultHTTPTimeout = 10 * time.Second
 
 // Client implements email.Sender using the Resend API.
 type Client struct {
@@ -43,7 +46,7 @@ func New(apiKey string, opts ...Option) *Client {
 	client := &Client{
 		APIKey:     strings.TrimSpace(apiKey),
 		BaseURL:    defaultBaseURL,
-		HTTPClient: http.DefaultClient,
+		HTTPClient: &http.Client{Timeout: defaultHTTPTimeout},
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -91,7 +94,7 @@ func (c *Client) Send(ctx context.Context, msg email.Message) (string, error) {
 
 	client := c.HTTPClient
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 	resp, err := client.Do(req)
 	if err != nil {

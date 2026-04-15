@@ -228,7 +228,7 @@ Notes:
 - Preserve current handling for valid success payloads and upstream error bodies.
 - Keep the returned error actionable for callers.
 
-### Ticket E3-T3 - Add bounded default timeout behavior to Resend [ ]
+### Ticket E3-T3 - Add bounded default timeout behavior to Resend [x]
 
 Description: Replace the implicit `http.DefaultClient` fallback with a bounded default client or explicit timeout option so stalled upstream calls cannot hang indefinitely.
 
