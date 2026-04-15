@@ -286,7 +286,7 @@ Notes:
 
 - cover `contrib/bootstrap/profile.go` and `contrib/bootstrap/http.go`
 
-### Ticket E4-T2 - Add JWT trust-boundary tests [ ]
+### Ticket E4-T2 - Add JWT trust-boundary tests [x]
 
 Description: Add direct tests for malformed authorization headers, required claims, trusted-proxy skip behavior, and configuration validation in JWT middleware.
 
