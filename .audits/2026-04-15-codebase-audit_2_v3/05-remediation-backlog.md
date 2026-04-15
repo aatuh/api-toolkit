@@ -148,7 +148,7 @@ Notes:
 - Do not keep half-implemented configuration in exported types.
 - Keep status codes and content-type behavior predictable when an endpoint is disabled.
 
-### Ticket E2-T3 - Remove misleading placeholder spec responses [ ]
+### Ticket E2-T3 - Remove misleading placeholder spec responses [x]
 
 Description: Stop returning a fabricated OpenAPI document with `200 OK` when no real spec is available, or gate placeholder generation behind an explicit local-only configuration path.
 
