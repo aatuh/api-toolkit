@@ -186,7 +186,7 @@ Notes:
 - Cover both HTML and OpenAPI JSON surfaces.
 - Include release notes for any change from placeholder `200` to explicit error responses.
 
-## Epic E3 - Harden outbound adapters and retry headers [ ]
+## Epic E3 - Harden outbound adapters and retry headers [x]
 
 Description: Improve adapter unhappy-path handling and HTTP retry semantics so integrations fail clearly and clients receive accurate backoff guidance.
 
@@ -247,7 +247,7 @@ Notes:
 - Keep caller-supplied clients supported.
 - Reuse existing configuration patterns if the repo already has a preferred HTTP client option style.
 
-### Ticket E3-T4 - Fix Retry-After rounding for distributed rate limits [ ]
+### Ticket E3-T4 - Fix Retry-After rounding for distributed rate limits [x]
 
 Description: Round retry delays up when converting limiter durations into the `Retry-After` header so sub-second retry windows do not become `Retry-After: 0`.
 

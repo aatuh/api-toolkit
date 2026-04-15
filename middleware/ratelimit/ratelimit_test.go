@@ -1,8 +1,12 @@
 package ratelimit
 
 import (
+	"context"
 	"net/netip"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 )
@@ -37,4 +41,42 @@ func TestNewRejectsDangerousBypassWithoutConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestHandlerRoundsSharedLimiterRetryAfterUp(t *testing.T) {
+	mw, err := New(Options{
+		Limiter: fixedLimiter{
+			allowed:    false,
+			retryAfter: 250 * time.Millisecond,
+		},
+		Key: func(*http.Request) string { return "client-1" },
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected request to be rate limited")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "1" {
+		t.Fatalf("expected Retry-After to round up to 1, got %q", got)
+	}
+}
+
+type fixedLimiter struct {
+	allowed    bool
+	retryAfter time.Duration
+	err        error
+}
+
+func (l fixedLimiter) Allow(context.Context, string) (bool, time.Duration, error) {
+	return l.allowed, l.retryAfter, l.err
 }
