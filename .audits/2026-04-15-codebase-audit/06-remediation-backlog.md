@@ -453,3 +453,40 @@ Implementation rules:
 Notes:
 
 - cover `contrib/cmd/migrate/migrate.go`
+
+### Ticket E5-T5 - Remove remaining root `noctx` test violations [ ]
+
+Description: Replace the last root-module `httptest.NewRequest` usages uncovered by the full finalize pass with `httptest.NewRequestWithContext`.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- cover `httpx/identity/identity_test.go` and `middleware/querylimits/querylimits_test.go`
+
+### Ticket E5-T6 - Upgrade vulnerable OpenTelemetry SDK dependencies [ ]
+
+Description: Upgrade the OpenTelemetry SDK and aligned modules to a fixed version so the full repository vulnerability check passes.
+
+Implementation rules:
+
+- implement the ticket in the smallest sensible step
+- run `make finalize` after completing the ticket, or an equivalent quality toolkit if `make finalize` is unavailable
+- ensure the quality check covers testing, formatting, linting, and other relevant validation for the repository
+- create a git commit immediately after the ticket is complete
+- use Conventional Commits style for the commit message
+- update the ticket checkmark from `[ ]` to `[x]` only after the ticket is actually complete
+- update the epic checkmark from `[ ]` to `[x]` only when all child tickets are complete
+
+Notes:
+
+- upgrade the root and `contrib` modules together if required to keep OpenTelemetry versions aligned
+- target at least `go.opentelemetry.io/otel/sdk v1.40.0`
