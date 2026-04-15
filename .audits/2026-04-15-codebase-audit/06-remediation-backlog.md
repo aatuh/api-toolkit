@@ -491,7 +491,7 @@ Notes:
 - upgrade the root and `contrib` modules together if required to keep OpenTelemetry versions aligned
 - target at least `go.opentelemetry.io/otel/sdk v1.40.0`
 
-### Ticket E5-T7 - Remove residual root `noctx` request constructors [ ]
+### Ticket E5-T7 - Remove residual root `noctx` request constructors [x]
 
 Description: Replace the remaining root-module `httptest.NewRequest` calls in tests and benchmarks with `httptest.NewRequestWithContext`.
 
