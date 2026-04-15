@@ -29,6 +29,7 @@ defaults, and predictable wiring.
 - Security posture: `docs/security.md`
 - Security policy: `SECURITY.md`
 - Versioning and stability: `VERSIONING.md`
+- Release notes: `docs/release-notes.md`
 - Panic policy: `PANIC_POLICY.md`
 - Metrics naming + labels policy: `docs/metrics.md`
 - Cookbook: `docs/cookbook.md`
@@ -272,9 +273,15 @@ if err != nil { /* handle */ }
 ## Idempotency
 
 - Use `Idempotency-Key` to store and replay the first non-5xx response by default.
+- Failed attempts (`5xx`, panics, or completed-response persistence failures) release their reservation so the same request can retry immediately with the same key.
 - Replays include `Idempotency-Replayed: true`.
 - `Set-Cookie` is stripped from replayed responses unless explicitly allowed.
 - Use `api-toolkit-contrib/adapters/idempotencyredis` for production storage.
+
+## Scheduler
+
+- `scheduler.Runner` executes each configured job immediately on start and then on its interval.
+- The runner now prevents the same job from overlapping with itself across duplicate `Start` calls or duplicate scheduling of the same job name.
 
 ## Security headers
 

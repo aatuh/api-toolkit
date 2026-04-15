@@ -11,6 +11,9 @@ go run ./examples/<name>
 
 Use the idempotency middleware to guarantee safe retries for POST/PUT/PATCH.
 
+- Successful terminal responses are replayed for the same `Idempotency-Key`.
+- Failed attempts do not leave the key blocked in an in-flight state; the same request can retry immediately with the same key.
+
 - Example: `contrib/examples/idempotency`
 
 ```sh
