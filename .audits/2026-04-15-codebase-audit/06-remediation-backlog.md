@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Fix confirmed runtime defects [ ]
+## Epic E1 - Fix confirmed runtime defects [x]
 
 Description: Remove the evidence-backed failures that can panic, corrupt responses, or silently accept invalid input in normal toolkit use.
 
