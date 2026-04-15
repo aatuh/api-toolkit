@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -28,7 +29,7 @@ func TestIdempotencyReplay(t *testing.T) {
 		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": string(body)})
 	}))
 
-	req1 := httptest.NewRequest(http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
 	req1.Header.Set("Idempotency-Key", "key-1")
 	rec1 := httptest.NewRecorder()
 	handler.ServeHTTP(rec1, req1)
@@ -36,7 +37,7 @@ func TestIdempotencyReplay(t *testing.T) {
 		t.Fatalf("expected 201, got %d", rec1.Code)
 	}
 
-	req2 := httptest.NewRequest(http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
 	req2.Header.Set("Idempotency-Key", "key-1")
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
@@ -50,7 +51,7 @@ func TestIdempotencyReplay(t *testing.T) {
 		t.Fatalf("expected replayed body to match original")
 	}
 
-	req3 := httptest.NewRequest(http.MethodPost, "/charge", strings.NewReader("beta"))
+	req3 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("beta"))
 	req3.Header.Set("Idempotency-Key", "key-1")
 	rec3 := httptest.NewRecorder()
 	handler.ServeHTTP(rec3, req3)
@@ -73,6 +74,31 @@ func TestNewDefaultsClock(t *testing.T) {
 	if mw.opts.Clock == nil {
 		t.Fatal("expected default clock")
 	}
+}
+
+func TestMiddlewareBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setOptionalInterfaceHeaders(w)
+		httpx.WriteJSON(w, http.StatusCreated, map[string]bool{"ok": true})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-interfaces")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	assertOptionalInterfaceHeadersFalse(t, rec.Header())
 }
 
 type memoryStore struct {
@@ -158,4 +184,31 @@ func cloneRecord(record ports.IdempotencyRecord) ports.IdempotencyRecord {
 		out.Body = append([]byte(nil), record.Body...)
 	}
 	return out
+}
+
+func setOptionalInterfaceHeaders(w http.ResponseWriter) {
+	_, flusher := w.(http.Flusher)
+	_, hijacker := w.(http.Hijacker)
+	_, pusher := w.(http.Pusher)
+	_, readerFrom := w.(io.ReaderFrom)
+	w.Header().Set("X-Has-Flusher", strconv.FormatBool(flusher))
+	w.Header().Set("X-Has-Hijacker", strconv.FormatBool(hijacker))
+	w.Header().Set("X-Has-Pusher", strconv.FormatBool(pusher))
+	w.Header().Set("X-Has-ReaderFrom", strconv.FormatBool(readerFrom))
+}
+
+func assertOptionalInterfaceHeadersFalse(t *testing.T, header http.Header) {
+	t.Helper()
+	if got := header.Get("X-Has-Flusher"); got != "false" {
+		t.Fatalf("expected buffered writer without flusher, got %q", got)
+	}
+	if got := header.Get("X-Has-Hijacker"); got != "false" {
+		t.Fatalf("expected buffered writer without hijacker, got %q", got)
+	}
+	if got := header.Get("X-Has-Pusher"); got != "false" {
+		t.Fatalf("expected buffered writer without pusher, got %q", got)
+	}
+	if got := header.Get("X-Has-ReaderFrom"); got != "false" {
+		t.Fatalf("expected buffered writer without readerFrom, got %q", got)
+	}
 }

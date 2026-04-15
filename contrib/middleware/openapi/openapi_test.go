@@ -1,9 +1,12 @@
 package openapi
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -61,7 +64,7 @@ func TestResponseValidation(t *testing.T) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"bad": true})
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -75,6 +78,30 @@ func TestResponseValidation(t *testing.T) {
 	if body["type"] != httpx.DefaultTypeURI(httpx.TypeInternal) {
 		t.Fatalf("expected internal type, got %v", body["type"])
 	}
+}
+
+func TestResponseValidationBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
+	spec := buildPingSpec()
+	mw, err := New(spec, WithResponseValidation(ResponseValidationOptions{
+		Enabled:      true,
+		MaxBodyBytes: 1 << 20,
+	}))
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setOptionalInterfaceHeaders(w)
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	assertOptionalInterfaceHeadersFalse(t, rec.Header())
 }
 
 func buildPingSpec() *openapi3.T {
@@ -101,5 +128,32 @@ func buildPingSpec() *openapi3.T {
 				},
 			}),
 		),
+	}
+}
+
+func setOptionalInterfaceHeaders(w http.ResponseWriter) {
+	_, flusher := w.(http.Flusher)
+	_, hijacker := w.(http.Hijacker)
+	_, pusher := w.(http.Pusher)
+	_, readerFrom := w.(io.ReaderFrom)
+	w.Header().Set("X-Has-Flusher", strconv.FormatBool(flusher))
+	w.Header().Set("X-Has-Hijacker", strconv.FormatBool(hijacker))
+	w.Header().Set("X-Has-Pusher", strconv.FormatBool(pusher))
+	w.Header().Set("X-Has-ReaderFrom", strconv.FormatBool(readerFrom))
+}
+
+func assertOptionalInterfaceHeadersFalse(t *testing.T, header http.Header) {
+	t.Helper()
+	if got := header.Get("X-Has-Flusher"); got != "false" {
+		t.Fatalf("expected buffered writer without flusher, got %q", got)
+	}
+	if got := header.Get("X-Has-Hijacker"); got != "false" {
+		t.Fatalf("expected buffered writer without hijacker, got %q", got)
+	}
+	if got := header.Get("X-Has-Pusher"); got != "false" {
+		t.Fatalf("expected buffered writer without pusher, got %q", got)
+	}
+	if got := header.Get("X-Has-ReaderFrom"); got != "false" {
+		t.Fatalf("expected buffered writer without readerFrom, got %q", got)
 	}
 }

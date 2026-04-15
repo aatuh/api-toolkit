@@ -57,6 +57,8 @@ func WithIgnoreNotFound(ignore bool) Option {
 }
 
 // ResponseValidationOptions configures response validation.
+// When enabled, responses are buffered for validation and do not preserve
+// optional http.ResponseWriter interfaces such as Flusher, Hijacker, or Pusher.
 type ResponseValidationOptions struct {
 	Enabled      bool
 	MaxBodyBytes int64

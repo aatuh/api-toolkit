@@ -59,7 +59,7 @@ func BenchmarkIdempotencyNew(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/charge", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", "bench-key")
 		rec := httptest.NewRecorder()
@@ -69,7 +69,7 @@ func BenchmarkIdempotencyNew(b *testing.B) {
 
 func BenchmarkIdempotencyReplay(b *testing.B) {
 	body := []byte(`{"amount":42}`)
-	sample := httptest.NewRequest(http.MethodPost, "/charge", nil)
+	sample := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", nil)
 	sample.Header.Set("Content-Type", "application/json")
 	hash, err := DefaultHash(sample, body)
 	if err != nil {
@@ -98,7 +98,7 @@ func BenchmarkIdempotencyReplay(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/charge", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", "bench-key")
 		rec := httptest.NewRecorder()

@@ -340,7 +340,7 @@ Notes:
 
 - cover `middleware/json`, `endpoints/list`, and the pagination example
 
-### Ticket E4-T5 - Verify buffering wrapper compatibility [ ]
+### Ticket E4-T5 - Verify buffering wrapper compatibility [x]
 
 Description: Prove or dismiss the risk that idempotency and OpenAPI response capture wrappers break optional `http.ResponseWriter` interfaces, then implement or document the result.
 
