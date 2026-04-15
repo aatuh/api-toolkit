@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
 	listx "github.com/aatuh/api-toolkit/v2/endpoints/list"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
@@ -31,21 +32,14 @@ type listResponse struct {
 }
 
 func main() {
-	r := chi.New()
-	qmw, err := querylimits.New(querylimits.Options{
-		MaxParams:  20,
-		MaxLimit:   maxLimit,
-		LimitParam: "limit",
-	})
+	handler, err := newRouter()
 	if err != nil {
 		log.Fatalf("init query limits: %v", err)
 	}
-	r.Use(qmw.Middleware())
-	r.Get("/items", listItems)
 
 	srv := &http.Server{
 		Addr:              ":8080",
-		Handler:           r,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -54,6 +48,22 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("listen: %v", err)
 	}
+}
+
+func newRouter() (http.Handler, error) {
+	r := chi.New()
+	qmw, err := querylimits.New(querylimits.Options{
+		MaxParams:   20,
+		MaxLimit:    maxLimit,
+		LimitParam:  "limit",
+		ErrorWriter: writePaginationLimitError,
+	})
+	if err != nil {
+		return nil, err
+	}
+	r.Use(qmw.Middleware())
+	r.Get("/items", listItems)
+	return r, nil
 }
 
 func listItems(w http.ResponseWriter, r *http.Request) {
@@ -82,4 +92,23 @@ func listItems(w http.ResponseWriter, r *http.Request) {
 		resp.NextOffset = &next
 	}
 	httpx.WriteJSON(w, http.StatusOK, resp)
+}
+
+func writePaginationLimitError(w http.ResponseWriter, status int, p httpx.Problem) {
+	switch p.Detail {
+	case "invalid pagination limit":
+		httpx.WriteError(w, fielderrors.FieldErrors{{
+			Field:   "limit",
+			Code:    "invalid",
+			Message: "limit must be a positive integer",
+		}})
+	case "pagination limit exceeds maximum":
+		httpx.WriteError(w, fielderrors.FieldErrors{{
+			Field:   "limit",
+			Code:    "max",
+			Message: "limit exceeds maximum",
+		}})
+	default:
+		httpx.WriteProblem(w, status, p)
+	}
 }
