@@ -266,7 +266,7 @@ Notes:
 - Add a regression test for `0 < retryAfter < 1s`.
 - Keep the HTTP header conservative even if internal limiter precision stays sub-second.
 
-## Epic E4 - Align documentation, examples, and extension contracts [ ]
+## Epic E4 - Align documentation, examples, and extension contracts [x]
 
 Description: Remove the remaining low-severity mismatches so docs, examples, and extension points describe the system as it actually behaves.
 
@@ -308,7 +308,7 @@ Notes:
 - Prefer one validation owner for `limit`.
 - Keep the example aligned with recommended toolkit composition.
 
-### Ticket E4-T3 - Refresh examples and package docs after behavior changes [ ]
+### Ticket E4-T3 - Refresh examples and package docs after behavior changes [x]
 
 Description: Update examples, package comments, and user-facing docs so they reflect the corrected idempotency, scheduler, docs/OpenAPI, migrator, and pagination behaviors.
 

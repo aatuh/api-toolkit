@@ -7,6 +7,6 @@
 - `examples/idempotency`: idempotent checkout endpoint using in-memory store
 - `examples/webhook`: webhook receiver with signature verification
 - `examples/file-upload`: multipart file upload with size limits
-- `examples/pagination`: limit/offset pagination with query limits
+- `examples/pagination`: limit/offset pagination with query limits and field-level validation errors
 - `examples/spec-first`: OpenAPI-driven handler skeletons with response validation
 - `examples/outbound`: SSRF-guarded outbound client with retries and breakers

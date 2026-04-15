@@ -55,6 +55,8 @@ go run ./examples/file-upload
 
 Use `querylimits` to bound list queries and return next offsets.
 
+- The example keeps `querylimits` as a coarse guard while returning the same field-level validation shape as `ParseListQuery` for invalid `limit` values.
+
 - Example: `contrib/examples/pagination`
 
 ```sh
