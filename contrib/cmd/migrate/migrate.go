@@ -107,6 +107,6 @@ func Run(cfg Config) {
 		}
 		fmt.Print(status)
 	default:
-		log.Fatalf("unknown command: %s", cmd)
+		log.Fatal("unknown command; expected up, down, or status")
 	}
 }

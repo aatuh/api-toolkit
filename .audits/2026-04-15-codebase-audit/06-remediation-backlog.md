@@ -436,7 +436,7 @@ Notes:
 - cover `contrib/adapters/httpclient/client.go`
 - prefer explicit rationale or validation over silent suppression
 
-### Ticket E5-T4 - Resolve migrate command log-injection finding [ ]
+### Ticket E5-T4 - Resolve migrate command log-injection finding [x]
 
 Description: Remove or explicitly justify the remaining `gosec` finding in the migrate command’s error path.
 
