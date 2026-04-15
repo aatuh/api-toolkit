@@ -268,7 +268,7 @@ Notes:
 
 Description: Add direct coverage for under-tested central packages and either prove or dismiss the remaining unresolved risks.
 
-### Ticket E4-T1 - Add bootstrap composition tests [ ]
+### Ticket E4-T1 - Add bootstrap composition tests [x]
 
 Description: Add direct tests for strict and dev profile construction, middleware composition, and metrics behavior.
 
