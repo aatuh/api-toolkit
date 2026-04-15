@@ -289,7 +289,7 @@ Notes:
 - Prefer the lower-risk path unless there is a strong need for directory overrides.
 - Add or update tests to match the final contract.
 
-### Ticket E4-T2 - Unify pagination example validation behavior [ ]
+### Ticket E4-T2 - Unify pagination example validation behavior [x]
 
 Description: Update the pagination example and any supporting helpers so invalid `limit` inputs produce one coherent client-facing `400` response shape rather than competing validation formats.
 
