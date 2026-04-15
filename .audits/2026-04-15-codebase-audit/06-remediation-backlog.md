@@ -186,7 +186,7 @@ Notes:
 - align request logging, tracing, and error responses
 - keep the label-cardinality policy unchanged for metrics
 
-## Epic E3 - Align hardening defaults and documentation [ ]
+## Epic E3 - Align hardening defaults and documentation [x]
 
 Description: Make default profiles, docs, and examples describe the same actual behavior.
 
