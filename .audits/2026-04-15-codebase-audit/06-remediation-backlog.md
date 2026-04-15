@@ -472,7 +472,7 @@ Notes:
 
 - cover `httpx/identity/identity_test.go` and `middleware/querylimits/querylimits_test.go`
 
-### Ticket E5-T6 - Upgrade vulnerable OpenTelemetry SDK dependencies [ ]
+### Ticket E5-T6 - Upgrade vulnerable OpenTelemetry SDK dependencies [x]
 
 Description: Upgrade the OpenTelemetry SDK and aligned modules to a fixed version so the full repository vulnerability check passes.
 
