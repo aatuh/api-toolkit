@@ -172,17 +172,18 @@ func (r *Runner) Status(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("table: %s\n", r.Opts.TableName))
+	_, _ = fmt.Fprintf(&b, "table: %s\n", r.Opts.TableName)
 	if len(applied) == 0 {
 		b.WriteString("applied: none\n")
 	} else {
 		b.WriteString("applied:\n")
 		for _, a := range applied {
-			b.WriteString(fmt.Sprintf(
+			_, _ = fmt.Fprintf(
+				&b,
 				"  %d %s at %s ok=%t\n",
 				a.Version, a.Name, a.AppliedAt.Format(time.RFC3339),
 				a.Success,
-			))
+			)
 		}
 	}
 	var up []*Migration
@@ -204,7 +205,7 @@ func (r *Runner) Status(ctx context.Context) (string, error) {
 				break
 			}
 		}
-		b.WriteString(fmt.Sprintf("  %s %d %s\n", flag, m.Version, m.Name))
+		_, _ = fmt.Fprintf(&b, "  %s %d %s\n", flag, m.Version, m.Name)
 	}
 	return b.String(), nil
 }

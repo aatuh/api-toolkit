@@ -399,7 +399,7 @@ Notes:
 
 - cover `middleware/auth/tenant/tenant_test.go`, `contrib/middleware/requestlog/requestlog_test.go`, and `contrib/middleware/requestlog/requestlog_bench_test.go`
 
-### Ticket E5-T2 - Resolve migrator staticcheck findings [ ]
+### Ticket E5-T2 - Resolve migrator staticcheck findings [x]
 
 Description: Replace the remaining `WriteString(fmt.Sprintf(...))` patterns in the migrator with direct formatted writes.
 
