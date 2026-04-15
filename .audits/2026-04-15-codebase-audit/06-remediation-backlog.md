@@ -87,7 +87,7 @@ Notes:
 - cover `endpoints/docs/handlers.go`
 - prefer rejecting invalid construction over runtime panic
 
-## Epic E2 - Converge the HTTP contract [ ]
+## Epic E2 - Converge the HTTP contract [x]
 
 Description: Define and implement one stable client-visible contract across middleware, helpers, bootstrap defaults, and examples.
 
