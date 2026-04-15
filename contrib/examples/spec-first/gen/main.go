@@ -45,6 +45,7 @@ func main() {
 	buf.WriteString("package main\n\n")
 	buf.WriteString("import (\n")
 	buf.WriteString("\t\"net/http\"\n\n")
+	buf.WriteString("\t\"github.com/aatuh/api-toolkit/v2/fielderrors\"\n")
 	buf.WriteString("\t\"github.com/aatuh/api-toolkit/v2/ports\"\n")
 	buf.WriteString(")\n\n")
 
@@ -160,9 +161,10 @@ func writeStatusErrors(buf *bytes.Buffer, ops []operation) {
 	for _, op := range ops {
 		for _, status := range op.ErrorStatuses {
 			name := fmt.Sprintf("%s%s", op.Name, statusName(status))
-			fmt.Fprintf(buf, "type %s struct { Detail string }\n", name)
+			fmt.Fprintf(buf, "type %s struct {\n\tDetail string\n\tErrors fielderrors.FieldErrors\n}\n", name)
 			fmt.Fprintf(buf, "func (e %s) Error() string { return e.Detail }\n", name)
 			fmt.Fprintf(buf, "func (e %s) StatusCode() int { return %s }\n\n", name, statusConstant(status))
+			fmt.Fprintf(buf, "func (e %s) FieldErrors() fielderrors.FieldErrors { return e.Errors }\n\n", name)
 		}
 	}
 }

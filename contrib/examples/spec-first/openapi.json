@@ -25,9 +25,9 @@
           "400": {
             "description": "Bad request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -60,9 +60,9 @@
           "400": {
             "description": "Bad request",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -70,9 +70,9 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -109,18 +109,70 @@
           }
         }
       },
-      "Error": {
+      "Problem": {
         "type": "object",
-        "required": [
-          "message"
-        ],
         "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/ValidationErrors"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "field_errors": {
+            "$ref": "#/components/schemas/FieldErrorMap"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
           "message": {
             "type": "string"
           }
+        }
+      },
+      "FieldErrorMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
         }
       }
     }
