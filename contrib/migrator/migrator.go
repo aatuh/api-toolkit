@@ -33,8 +33,8 @@ type Options struct {
 	// it will be appended to MigrationsDirs.
 	MigrationsDir string
 	// MigrationsDirs allows loading migrations from multiple directories.
-	// Directories are processed in order; later files with the same name
-	// override earlier ones before parsing.
+	// Directories are processed in order and duplicate version+direction
+	// pairs are rejected when loading.
 	MigrationsDirs []string
 	// EmbeddedFSs allows loading migrations from multiple embedded
 	// filesystems. Each is expected to contain a "migrations" directory.

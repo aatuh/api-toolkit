@@ -270,7 +270,7 @@ Notes:
 
 Description: Remove the remaining low-severity mismatches so docs, examples, and extension points describe the system as it actually behaves.
 
-### Ticket E4-T1 - Align migrator override docs with runtime behavior [ ]
+### Ticket E4-T1 - Align migrator override docs with runtime behavior [x]
 
 Description: Either implement later-directory override semantics in `contrib/migrator` or update comments and documentation to state clearly that duplicate version-direction pairs are rejected.
 
