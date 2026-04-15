@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Bootstrap Config And Lifecycle Hardening [ ]
+## Epic E1 - Bootstrap Config And Lifecycle Hardening [x]
 
 Description: Make the default router bootstrap path explicit and testable, and surface server shutdown failures instead of hiding them.
 
