@@ -14,8 +14,12 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
+	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 type stubServerRunner struct {
@@ -23,6 +27,14 @@ type stubServerRunner struct {
 	shutdownErr error
 	listenDone  chan struct{}
 	shutdownHit atomic.Bool
+}
+
+type stubRouteRegistrar struct {
+	patterns []string
+}
+
+func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
+	s.patterns = append(s.patterns, pattern)
 }
 
 func newStubServerRunner() *stubServerRunner {
@@ -231,5 +243,37 @@ func TestRunServerReturnsListenError(t *testing.T) {
 	}
 	if srv.shutdownHit.Load() {
 		t.Fatal("did not expect shutdown to be called")
+	}
+}
+
+func TestMountSystemEndpointsToUsesMinimalRegistrar(t *testing.T) {
+	router := &stubRouteRegistrar{}
+
+	MountSystemEndpointsTo(router, SystemEndpoints{
+		Health:  health.NewHandler(nil),
+		Docs:    docs.NewHandler(nil),
+		Version: version.NewHandler(version.Config{}),
+	})
+
+	expected := []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+		specs.HealthDetailed,
+		specs.Docs,
+		specs.DocsOpenAPI,
+		specs.DocsVersion,
+		specs.DocsInfo,
+		specs.Version,
+		specs.Metrics,
+	}
+	if len(router.patterns) != len(expected) {
+		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
+	}
+	for i := range expected {
+		if router.patterns[i] != expected[i] {
+			t.Fatalf("route %d = %q", i, router.patterns[i])
+		}
 	}
 }

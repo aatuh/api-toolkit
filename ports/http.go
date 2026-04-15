@@ -2,6 +2,16 @@ package ports
 
 import "net/http"
 
+// MethodRouteRegistrar defines the minimal route registration surface used by GET-only handlers.
+type MethodRouteRegistrar interface {
+	Get(pattern string, h http.HandlerFunc)
+}
+
+// MiddlewareChain defines the minimal middleware registration surface used by composed profiles.
+type MiddlewareChain interface {
+	Use(middlewares ...func(http.Handler) http.Handler)
+}
+
 // HTTPRouter defines the interface for HTTP routing.
 type HTTPRouter interface {
 	http.Handler

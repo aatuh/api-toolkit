@@ -93,7 +93,7 @@ func NewDefaultRouterWithConfig(log ports.Logger, cfg DefaultRouterConfig) (port
 	if err != nil {
 		return nil, err
 	}
-	profile.Apply(r)
+	profile.ApplyTo(r)
 	return r, nil
 }
 
@@ -108,14 +108,22 @@ type SystemEndpoints struct {
 
 // MountSystemEndpoints registers health, docs, version, and metrics endpoints.
 func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
+	MountSystemEndpointsTo(r, se)
+}
+
+// MountSystemEndpointsTo registers system endpoints on a minimal GET-only surface.
+func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
+	if r == nil {
+		return
+	}
 	if se.Health != nil {
-		se.Health.RegisterRoutes(r)
+		se.Health.RegisterRoutesTo(r)
 	}
 	if se.Docs != nil {
-		se.Docs.RegisterRoutes(r)
+		se.Docs.RegisterRoutesTo(r)
 	}
 	if se.Version != nil {
-		se.Version.RegisterRoutes(r)
+		se.Version.RegisterRoutesTo(r)
 	}
 	if se.Pprof != nil {
 		pprofx.RegisterRoutes(pprofRouter{
@@ -135,10 +143,8 @@ func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
 }
 
 type pprofRouter struct {
-	router interface {
-		Get(pattern string, h http.HandlerFunc)
-	}
-	h http.Handler
+	router ports.MethodRouteRegistrar
+	h      http.Handler
 }
 
 type serverRunner interface {

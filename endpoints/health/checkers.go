@@ -70,13 +70,13 @@ func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 	}
 
 	// Get pool stats for additional details
-	stats := c.pool.Stat()
+	stats := ports.SnapshotDatabaseStats(c.pool.Stat())
 	details := map[string]interface{}{
-		"total_conns":    stats.TotalConns(),
-		"idle_conns":     stats.IdleConns(),
-		"acquired_conns": stats.AcquiredConns(),
-		"max_conns":      stats.MaxConns(),
-		"acquire_count":  stats.AcquireCount(),
+		"total_conns":    stats.TotalConns,
+		"idle_conns":     stats.IdleConns,
+		"acquired_conns": stats.AcquiredConns,
+		"max_conns":      stats.MaxConns,
+		"acquire_count":  stats.AcquireCount,
 	}
 
 	return ports.HealthResult{

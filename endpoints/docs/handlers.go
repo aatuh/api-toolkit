@@ -68,7 +68,18 @@ func (h *Handler) InfoHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RegisterRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }) {
-	// Standard documentation endpoints
+	if router == nil {
+		return
+	}
+	h.RegisterRoutesTo(docsRouteRegistrar{register: router.Get})
+}
+
+// RegisterRoutesTo registers all documentation endpoints on the given registrar.
+func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+	if h == nil || router == nil {
+		return
+	}
+
 	router.Get(specs.Docs, h.HTMLHandler)
 	router.Get(specs.DocsOpenAPI, h.OpenAPIHandler)
 	router.Get(specs.DocsVersion, h.VersionHandler)
@@ -79,6 +90,18 @@ func (h *Handler) RegisterRoutes(router interface {
 func (h *Handler) RegisterCustomRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }, paths ports.DocsPaths) {
+	if router == nil {
+		return
+	}
+	h.RegisterCustomRoutesTo(docsRouteRegistrar{register: router.Get}, paths)
+}
+
+// RegisterCustomRoutesTo registers documentation endpoints with custom paths.
+func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, paths ports.DocsPaths) {
+	if h == nil || router == nil {
+		return
+	}
+
 	if paths.HTML != "" {
 		router.Get(paths.HTML, h.HTMLHandler)
 	}
@@ -119,4 +142,12 @@ func docsCSP(manager ports.DocsManager) string {
 		return strictDocsCSP
 	}
 	return defaultDocsCSP
+}
+
+type docsRouteRegistrar struct {
+	register func(string, http.HandlerFunc)
+}
+
+func (r docsRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
+	r.register(pattern, h)
 }

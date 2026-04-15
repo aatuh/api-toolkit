@@ -8,7 +8,16 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
+
+type stubRouteRegistrar struct {
+	patterns []string
+}
+
+func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
+	s.patterns = append(s.patterns, pattern)
+}
 
 func TestNewHandlerDefaultsNilManager(t *testing.T) {
 	handler := NewHandler(nil)
@@ -83,5 +92,27 @@ func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
 	}
 	if strings.Contains(body, "<script") {
 		t.Fatalf("expected no script tags, got %q", body)
+	}
+}
+
+func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
+	handler := NewHandler(nil)
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterRoutesTo(router)
+
+	expected := []string{
+		specs.Docs,
+		specs.DocsOpenAPI,
+		specs.DocsVersion,
+		specs.DocsInfo,
+	}
+	if len(router.patterns) != len(expected) {
+		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
+	}
+	for i := range expected {
+		if router.patterns[i] != expected[i] {
+			t.Fatalf("route %d = %q", i, router.patterns[i])
+		}
 	}
 }

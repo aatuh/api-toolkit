@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+type stubMiddlewareChain struct {
+	middlewares []func(http.Handler) http.Handler
+}
+
+func (s *stubMiddlewareChain) Use(middlewares ...func(http.Handler) http.Handler) {
+	s.middlewares = append(s.middlewares, middlewares...)
+}
+
 func TestRouteOverridesMaxBody(t *testing.T) {
 	profile, err := New(
 		WithRequireAuth(false),
@@ -120,6 +128,22 @@ func TestOWASPBaselineLimits(t *testing.T) {
 	}
 	if blocked == 0 {
 		t.Fatalf("expected rate limiter to block at least one request")
+	}
+}
+
+func TestProfileApplyToUsesMinimalMiddlewareChain(t *testing.T) {
+	chain := &stubMiddlewareChain{}
+	profile := Profile{
+		Middlewares: []func(http.Handler) http.Handler{
+			func(next http.Handler) http.Handler { return next },
+			func(next http.Handler) http.Handler { return next },
+		},
+	}
+
+	profile.ApplyTo(chain)
+
+	if len(chain.middlewares) != 2 {
+		t.Fatalf("expected 2 middlewares, got %d", len(chain.middlewares))
 	}
 }
 
