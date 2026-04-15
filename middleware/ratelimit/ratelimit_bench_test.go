@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +23,7 @@ func BenchmarkRateLimit(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/bench", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/bench", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()

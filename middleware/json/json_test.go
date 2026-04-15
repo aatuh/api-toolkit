@@ -1,6 +1,7 @@
 package jsonmw
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +14,7 @@ func TestNilMiddlewareHandler(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -30,7 +31,7 @@ func TestHandlerRejectsInvalidJSONContentType(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("payload"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("payload"))
 	req.Header.Set("Content-Type", "text/application/json")
 	handler.ServeHTTP(rec, req)
 
@@ -58,7 +59,7 @@ func TestHandlerAcceptsValidJSONContentTypes(t *testing.T) {
 	for _, contentType := range tests {
 		t.Run(contentType, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
 			req.Header.Set("Content-Type", contentType)
 			handler.ServeHTTP(rec, req)
 
@@ -89,7 +90,7 @@ func TestHandlerSkipsJSONEnforcementForBodylessRequests(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(tc.method, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, "/", nil)
 			req.Header.Set("Content-Type", "text/plain")
 			handler.ServeHTTP(rec, req)
 

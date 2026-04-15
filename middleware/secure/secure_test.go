@@ -1,6 +1,7 @@
 package secure
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -143,7 +144,7 @@ func runSecureHeaders(t *testing.T, opts ...Option) http.Header {
 	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := httptest.NewRequest(http.MethodGet, "https://example.com", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec.Header()

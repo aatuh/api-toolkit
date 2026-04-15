@@ -1,6 +1,7 @@
 package recover
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +14,7 @@ func TestMiddlewareWritesProblemWhenNothingCommitted(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusInternalServerError {
@@ -34,7 +35,7 @@ func TestMiddlewareDoesNotAppendProblemAfterPartialWrite(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {

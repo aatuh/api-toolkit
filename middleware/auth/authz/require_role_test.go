@@ -13,7 +13,7 @@ func TestRequireRoleReturnsUnauthorizedWithoutAuthenticatedActor(t *testing.T) {
 	mw := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return nil })
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)
@@ -27,7 +27,7 @@ func TestRequireRoleReturnsForbiddenForAuthenticatedActorWithoutRole(t *testing.
 	mw := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return nil })
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	req = req.WithContext(authorization.WithActor(req.Context(), authorization.Actor{UserID: "user-1"}))
 	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
