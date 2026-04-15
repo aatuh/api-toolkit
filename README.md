@@ -226,6 +226,8 @@ defer m.Close()
 if err := m.Up("."); err != nil { /* handle */ }
 ```
 
+When loading from multiple migration sources, duplicate version+direction pairs are rejected instead of being overridden silently.
+
 ## Database adapters
 
 Database adapters live in the contrib module.
