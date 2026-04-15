@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +21,7 @@ func TestOpenAPIHandlerWithNilManagerUsesDefaultManager(t *testing.T) {
 	handler := NewHandler(nil)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/docs/openapi.json", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.json", nil)
 	handler.OpenAPIHandler(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -36,7 +37,7 @@ func TestMiddlewareWithNilManagerUsesDefaultInfo(t *testing.T) {
 	middleware := handler.Middleware()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)

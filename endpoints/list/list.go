@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/aatuh/api-toolkit/v2/fielderrors"
 )
 
 // ListQuery captures pagination, search, and filter inputs from a request.
@@ -70,19 +72,32 @@ type ListQueryConfig struct {
 }
 
 // ParseListQuery parses pagination and filters from the HTTP request according to cfg.
-func ParseListQuery(r *http.Request, cfg ListQueryConfig) ListQuery {
+func ParseListQuery(r *http.Request, cfg ListQueryConfig) (ListQuery, error) {
 	values := r.URL.Query()
-	limit := clampInt(parseInt(values.Get("limit"), cfg.DefaultLimit), 1, cfg.MaxLimit)
-	offset := parseOffset(values.Get("offset"))
+	limit, limitErrs := parseLimit(values.Get("limit"), cfg.DefaultLimit, cfg.MaxLimit)
+	offset, offsetErrs := parseOffset(values.Get("offset"))
 
 	searchKey := effectiveSearchKey(cfg)
 	search := strings.TrimSpace(values.Get(searchKey))
 
-	filters := filtersFromConfig(values, cfg)
+	filters, filterErrs := filtersFromConfig(values, cfg)
 	missing := requiredMissing(filters, cfg.Required)
-	sortFields := sortFromConfig(values, cfg)
+	sortFields, sortErrs := sortFromConfig(values, cfg)
 
-	return ListQuery{
+	var errs fielderrors.FieldErrors
+	errs = append(errs, limitErrs...)
+	errs = append(errs, offsetErrs...)
+	errs = append(errs, filterErrs...)
+	errs = append(errs, sortErrs...)
+	for _, key := range missing {
+		errs = append(errs, fielderrors.FieldError{
+			Field:   "filter." + key,
+			Code:    "required",
+			Message: key + " is required",
+		})
+	}
+
+	query := ListQuery{
 		Limit:   limit,
 		Offset:  offset,
 		Search:  search,
@@ -91,6 +106,10 @@ func ParseListQuery(r *http.Request, cfg ListQueryConfig) ListQuery {
 		Raw:     values,
 		missing: missing,
 	}
+	if len(errs) > 0 {
+		return query, errs
+	}
+	return query, nil
 }
 
 // ListMeta captures pagination metadata for responses.
@@ -145,31 +164,46 @@ func cloneFilters(in Filters) map[string][]string {
 	return out
 }
 
-func parseInt(val string, def int) int {
+func parseLimit(val string, def, max int) (int, fielderrors.FieldErrors) {
 	if strings.TrimSpace(val) == "" {
-		return def
+		return clampLimit(def, max), nil
 	}
 	n, err := strconv.Atoi(val)
-	if err != nil {
-		return def
+	if err != nil || n <= 0 {
+		return clampLimit(def, max), fielderrors.FieldErrors{{
+			Field:   "limit",
+			Code:    "invalid",
+			Message: "limit must be a positive integer",
+		}}
 	}
-	return n
+	if max > 0 && n > max {
+		return clampLimit(def, max), fielderrors.FieldErrors{{
+			Field:   "limit",
+			Code:    "max",
+			Message: "limit exceeds maximum",
+		}}
+	}
+	return clampLimit(n, max), nil
 }
 
-func parseOffset(val string) int {
+func parseOffset(val string) (int, fielderrors.FieldErrors) {
 	if strings.TrimSpace(val) == "" {
-		return 0
+		return 0, nil
 	}
 	n, err := strconv.Atoi(val)
 	if err != nil || n < 0 {
-		return 0
+		return 0, fielderrors.FieldErrors{{
+			Field:   "offset",
+			Code:    "invalid",
+			Message: "offset must be a non-negative integer",
+		}}
 	}
-	return n
+	return n, nil
 }
 
-func clampInt(n, minVal, maxVal int) int {
-	if minVal > 0 && n < minVal {
-		n = minVal
+func clampLimit(n, maxVal int) int {
+	if n < 1 {
+		n = 1
 	}
 	if maxVal > 0 && n > maxVal {
 		n = maxVal
@@ -191,50 +225,63 @@ func effectiveSortKey(cfg ListQueryConfig) string {
 	return cfg.SortParam
 }
 
-func filtersFromConfig(values url.Values, cfg ListQueryConfig) Filters {
+func filtersFromConfig(values url.Values, cfg ListQueryConfig) (Filters, fielderrors.FieldErrors) {
 	if cfg.FilterParser != nil {
 		filters := cfg.FilterParser(values, cfg)
 		if filters == nil {
-			return make(Filters)
+			return make(Filters), nil
 		}
-		return filters
+		return filters, nil
 	}
 	return DefaultFilterParser(values, cfg)
 }
 
 // DefaultFilterParser implements the toolkit's standard query syntax.
-func DefaultFilterParser(values url.Values, cfg ListQueryConfig) Filters {
+func DefaultFilterParser(values url.Values, cfg ListQueryConfig) (Filters, fielderrors.FieldErrors) {
 	searchKey := effectiveSearchKey(cfg)
 	sortKey := effectiveSortKey(cfg)
 	allowed := buildAllowedSet(cfg.AllowedFilters)
 
 	filters := make(Filters)
+	var errs fielderrors.FieldErrors
 	for key, vals := range values {
 		if key == "limit" || key == "offset" || key == searchKey || key == sortKey {
 			continue
 		}
 		if name, ok := parseFilterKey(key); ok {
-			if allowFilter(name, allowed) {
-				addFilter(filters, name, vals)
+			if !allowFilter(name, allowed) {
+				errs = append(errs, fielderrors.FieldError{
+					Field:   "filter." + name,
+					Code:    "unsupported",
+					Message: name + " is not a supported filter",
+				})
+				continue
 			}
+			addFilter(filters, name, vals)
 			continue
 		}
-		if allowFilter(key, allowed) {
-			addFilter(filters, key, vals)
+		if !allowFilter(key, allowed) {
+			errs = append(errs, fielderrors.FieldError{
+				Field:   "filter." + key,
+				Code:    "unsupported",
+				Message: key + " is not a supported filter",
+			})
+			continue
 		}
+		addFilter(filters, key, vals)
 	}
-	return filters
+	return filters, errs
 }
 
-func sortFromConfig(values url.Values, cfg ListQueryConfig) []SortField {
+func sortFromConfig(values url.Values, cfg ListQueryConfig) ([]SortField, fielderrors.FieldErrors) {
 	if cfg.SortParser != nil {
-		return cloneSort(cfg.SortParser(values, cfg))
+		return cloneSort(cfg.SortParser(values, cfg)), nil
 	}
 	return DefaultSortParser(values, cfg)
 }
 
 // DefaultSortParser implements the toolkit's comma-delimited sort syntax.
-func DefaultSortParser(values url.Values, cfg ListQueryConfig) []SortField {
+func DefaultSortParser(values url.Values, cfg ListQueryConfig) ([]SortField, fielderrors.FieldErrors) {
 	sortKey := effectiveSortKey(cfg)
 	sortAllowed := buildAllowedSet(cfg.AllowedSorts)
 	return parseSort(values[sortKey], sortAllowed, cfg.DefaultSort)
@@ -260,9 +307,10 @@ func allowFilter(name string, allowed map[string]struct{}) bool {
 	return ok
 }
 
-func parseSort(values []string, allowed map[string]struct{}, defaults []SortField) []SortField {
+func parseSort(values []string, allowed map[string]struct{}, defaults []SortField) ([]SortField, fielderrors.FieldErrors) {
 	var out []SortField
 	seen := make(map[string]struct{})
+	var errs fielderrors.FieldErrors
 	for _, raw := range values {
 		if strings.TrimSpace(raw) == "" {
 			continue
@@ -270,7 +318,20 @@ func parseSort(values []string, allowed map[string]struct{}, defaults []SortFiel
 		parts := strings.Split(raw, ",")
 		for _, part := range parts {
 			field, desc, ok := normalizeSort(part)
-			if !ok || !allowFilter(field, allowed) {
+			if !ok {
+				errs = append(errs, fielderrors.FieldError{
+					Field:   "sort",
+					Code:    "invalid",
+					Message: "sort contains an invalid value",
+				})
+				continue
+			}
+			if !allowFilter(field, allowed) {
+				errs = append(errs, fielderrors.FieldError{
+					Field:   "sort",
+					Code:    "unsupported",
+					Message: field + " is not a supported sort field",
+				})
 				continue
 			}
 			key := field
@@ -285,9 +346,9 @@ func parseSort(values []string, allowed map[string]struct{}, defaults []SortFiel
 		}
 	}
 	if len(out) == 0 {
-		return cloneSort(defaults)
+		return cloneSort(defaults), errs
 	}
-	return out
+	return out, errs
 }
 
 func normalizeSort(in string) (field string, desc bool, ok bool) {
