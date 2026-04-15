@@ -229,7 +229,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 	chain := []func(http.Handler) http.Handler{
 		mw.RequestID(),
 		traceMw.Middleware(),
-		recoverx.Middleware(),
+		recoverx.New(recoverx.WithLogger(cfg.log)),
 		corsh.Handler(cfg.corsOptions),
 		secureMw.Middleware(),
 	}
@@ -325,7 +325,7 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 	chain := []func(http.Handler) http.Handler{
 		mw.RequestID(),
 		traceMw.Middleware(),
-		recoverx.Middleware(),
+		recoverx.New(recoverx.WithLogger(cfg.log)),
 		corsh.Handler(cfg.corsOptions),
 		secureMw.Middleware(),
 		maxBodyMw.Middleware(),

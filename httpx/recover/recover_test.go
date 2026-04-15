@@ -6,7 +6,23 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+type captureLogger struct {
+	msg string
+	kv  []any
+}
+
+func (l *captureLogger) Debug(string, ...any) {}
+func (l *captureLogger) Info(string, ...any)  {}
+func (l *captureLogger) Warn(string, ...any)  {}
+
+func (l *captureLogger) Error(msg string, kv ...any) {
+	l.msg = msg
+	l.kv = append([]any(nil), kv...)
+}
 
 func TestMiddlewareWritesProblemWhenNothingCommitted(t *testing.T) {
 	handler := Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -48,3 +64,69 @@ func TestMiddlewareDoesNotAppendProblemAfterPartialWrite(t *testing.T) {
 		t.Fatalf("expected no appended problem body, got %q", rec.Body.String())
 	}
 }
+
+func TestNewLogsPanicsToProvidedLogger(t *testing.T) {
+	log := &captureLogger{}
+	handler := New(WithLogger(log))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if log.msg != "panic recovered" {
+		t.Fatalf("unexpected log message: %q", log.msg)
+	}
+	fields := kvToMap(log.kv)
+	if fields["panic"] != "boom" {
+		t.Fatalf("panic field = %v", fields["panic"])
+	}
+	if _, ok := fields["stack"]; !ok {
+		t.Fatal("expected stack field")
+	}
+}
+
+func TestNewCanDisableStackLogging(t *testing.T) {
+	log := &captureLogger{}
+	handler := New(WithLogger(log), WithStackLogging(false))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	fields := kvToMap(log.kv)
+	if _, ok := fields["stack"]; ok {
+		t.Fatal("did not expect stack field")
+	}
+}
+
+func TestMiddlewareRemainsCompatibleWithoutLogger(t *testing.T) {
+	handler := Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func kvToMap(kv []any) map[string]any {
+	out := make(map[string]any)
+	for i := 0; i+1 < len(kv); i += 2 {
+		key, ok := kv[i].(string)
+		if !ok || key == "" {
+			continue
+		}
+		out[key] = kv[i+1]
+	}
+	return out
+}
+
+var _ ports.Logger = (*captureLogger)(nil)
