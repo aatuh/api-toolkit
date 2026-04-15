@@ -246,7 +246,7 @@ Notes:
 - start with `endpoints/health`
 - prefer constructor-time validation over deferred panic
 
-### Ticket E3-T4 - Correct documentation drift [ ]
+### Ticket E3-T4 - Correct documentation drift [x]
 
 Description: Update README, security docs, and examples so they only describe verified behavior and do not overstate baseline guarantees or module expectations.
 
