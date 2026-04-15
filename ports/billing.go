@@ -150,11 +150,54 @@ type Invoice struct {
 	PaidAt           *time.Time
 }
 
+// BillingPortalFlowType describes customer portal deep-link flow types.
+type BillingPortalFlowType string
+
+const (
+	// BillingPortalFlowTypeSubscriptionUpdateConfirm opens a confirmation flow for a specific plan update.
+	BillingPortalFlowTypeSubscriptionUpdateConfirm BillingPortalFlowType = "subscription_update_confirm"
+)
+
+// BillingPortalFlowAfterCompletionType describes behavior once a deep-link flow completes.
+type BillingPortalFlowAfterCompletionType string
+
+const (
+	// BillingPortalFlowAfterCompletionTypeRedirect redirects customer to provided URL after completion.
+	BillingPortalFlowAfterCompletionTypeRedirect BillingPortalFlowAfterCompletionType = "redirect"
+)
+
+// BillingPortalFlowAfterCompletion configures the post-flow behavior.
+type BillingPortalFlowAfterCompletion struct {
+	Type              BillingPortalFlowAfterCompletionType
+	RedirectReturnURL string
+}
+
+// BillingPortalFlowSubscriptionUpdateConfirmItem describes one item update inside confirm flow.
+type BillingPortalFlowSubscriptionUpdateConfirmItem struct {
+	SubscriptionItemID string
+	PriceID            string
+	Quantity           int64
+}
+
+// BillingPortalFlowSubscriptionUpdateConfirm configures a targeted subscription update confirmation.
+type BillingPortalFlowSubscriptionUpdateConfirm struct {
+	SubscriptionID string
+	Items          []BillingPortalFlowSubscriptionUpdateConfirmItem
+}
+
+// BillingPortalFlowData configures a deep-link flow in billing portal session creation.
+type BillingPortalFlowData struct {
+	Type                      BillingPortalFlowType
+	AfterCompletion           *BillingPortalFlowAfterCompletion
+	SubscriptionUpdateConfirm *BillingPortalFlowSubscriptionUpdateConfirm
+}
+
 // BillingPortalSessionInput describes a customer portal session request.
 type BillingPortalSessionInput struct {
 	CustomerID string
 	ReturnURL  string
 	Locale     string
+	Flow       *BillingPortalFlowData
 }
 
 // BillingPortalSession represents a customer portal session.

@@ -348,11 +348,113 @@ func (p *Provider) CreateBillingPortalSession(ctx context.Context, in ports.Bill
 	if strings.TrimSpace(in.Locale) != "" {
 		params.Locale = stripe.String(strings.TrimSpace(in.Locale))
 	}
+	params.FlowData = billingPortalFlowDataParams(in.Flow)
 	session, err := p.client.BillingPortalSessions.New(params)
 	if err != nil {
 		return ports.BillingPortalSession{}, normalizeStripeError(err)
 	}
 	return ports.BillingPortalSession{ID: session.ID, URL: session.URL}, nil
+}
+
+// GetSubscriptionPrimaryItemID returns the first subscription item's id for plan-change deep links.
+func (p *Provider) GetSubscriptionPrimaryItemID(ctx context.Context, subscriptionID string) (string, error) {
+	subscriptionID = strings.TrimSpace(subscriptionID)
+	if subscriptionID == "" {
+		return "", errors.New("subscription id required")
+	}
+
+	params := &stripe.SubscriptionParams{}
+	params.Context = ctx
+	subscription, err := p.client.Subscriptions.Get(subscriptionID, params)
+	if err != nil {
+		return "", normalizeStripeError(err)
+	}
+	if subscription == nil || subscription.Items == nil || len(subscription.Items.Data) == 0 {
+		return "", errors.New("subscription has no items")
+	}
+
+	itemID := strings.TrimSpace(subscription.Items.Data[0].ID)
+	if itemID == "" {
+		return "", errors.New("subscription item id missing")
+	}
+	return itemID, nil
+}
+
+func billingPortalFlowDataParams(flow *ports.BillingPortalFlowData) *stripe.BillingPortalSessionFlowDataParams {
+	if flow == nil {
+		return nil
+	}
+
+	out := &stripe.BillingPortalSessionFlowDataParams{}
+	hasData := false
+
+	if flowType := strings.TrimSpace(string(flow.Type)); flowType != "" {
+		out.Type = stripe.String(flowType)
+		hasData = true
+	}
+
+	if flow.AfterCompletion != nil {
+		afterCompletion := &stripe.BillingPortalSessionFlowDataAfterCompletionParams{}
+		hasAfterCompletion := false
+
+		if completionType := strings.TrimSpace(string(flow.AfterCompletion.Type)); completionType != "" {
+			afterCompletion.Type = stripe.String(completionType)
+			hasAfterCompletion = true
+		}
+		if redirectURL := strings.TrimSpace(flow.AfterCompletion.RedirectReturnURL); redirectURL != "" {
+			afterCompletion.Redirect = &stripe.BillingPortalSessionFlowDataAfterCompletionRedirectParams{
+				ReturnURL: stripe.String(redirectURL),
+			}
+			hasAfterCompletion = true
+		}
+
+		if hasAfterCompletion {
+			out.AfterCompletion = afterCompletion
+			hasData = true
+		}
+	}
+
+	if flow.SubscriptionUpdateConfirm != nil {
+		confirm := &stripe.BillingPortalSessionFlowDataSubscriptionUpdateConfirmParams{}
+		hasConfirm := false
+
+		if subscriptionID := strings.TrimSpace(flow.SubscriptionUpdateConfirm.SubscriptionID); subscriptionID != "" {
+			confirm.Subscription = stripe.String(subscriptionID)
+			hasConfirm = true
+		}
+
+		for _, item := range flow.SubscriptionUpdateConfirm.Items {
+			itemParams := &stripe.BillingPortalSessionFlowDataSubscriptionUpdateConfirmItemParams{}
+			hasItem := false
+
+			if itemID := strings.TrimSpace(item.SubscriptionItemID); itemID != "" {
+				itemParams.ID = stripe.String(itemID)
+				hasItem = true
+			}
+			if priceID := strings.TrimSpace(item.PriceID); priceID != "" {
+				itemParams.Price = stripe.String(priceID)
+				hasItem = true
+			}
+			if item.Quantity > 0 {
+				itemParams.Quantity = stripe.Int64(item.Quantity)
+				hasItem = true
+			}
+			if hasItem {
+				confirm.Items = append(confirm.Items, itemParams)
+				hasConfirm = true
+			}
+		}
+
+		if hasConfirm {
+			out.SubscriptionUpdateConfirm = confirm
+			hasData = true
+		}
+	}
+
+	if !hasData {
+		return nil
+	}
+	return out
 }
 
 func normalizeStripeError(err error) error {
