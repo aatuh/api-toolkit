@@ -56,6 +56,7 @@ type Options struct {
 	RoutePattern       func(*http.Request) string
 	LogRequestHeaders  bool
 	LogResponseHeaders bool
+	Log5xxStacks       bool
 	RedactHeaders      []string
 	Clock              ports.Clock
 }
@@ -102,6 +103,13 @@ func WithRedactedHeaders(headers ...string) Option {
 func WithClock(clock ports.Clock) Option {
 	return func(o *Options) {
 		o.Clock = clock
+	}
+}
+
+// With5xxStackLogging controls whether handled 5xx responses include a stack trace.
+func With5xxStackLogging(enabled bool) Option {
+	return func(o *Options) {
+		o.Log5xxStacks = enabled
 	}
 }
 
@@ -184,7 +192,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			fields = append(fields, FieldResponseHeaders, m.redactor.Redact(ww.Header()))
 		}
 		if status >= http.StatusInternalServerError {
-			fields = append(fields, FieldStack, string(debug.Stack()))
+			if m.opts.Log5xxStacks {
+				fields = append(fields, FieldStack, string(debug.Stack()))
+			}
 			m.Log.Error("http", fields...)
 			return
 		}

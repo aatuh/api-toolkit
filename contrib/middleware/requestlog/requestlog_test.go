@@ -10,15 +10,26 @@ import (
 )
 
 type captureLogger struct {
-	msg string
-	kv  []any
+	level string
+	msg   string
+	kv    []any
 }
 
 func (l *captureLogger) Debug(string, ...any) {}
-func (l *captureLogger) Warn(string, ...any)  {}
-func (l *captureLogger) Error(string, ...any) {}
+func (l *captureLogger) Warn(msg string, kv ...any) {
+	l.level = "warn"
+	l.msg = msg
+	l.kv = append([]any(nil), kv...)
+}
+
+func (l *captureLogger) Error(msg string, kv ...any) {
+	l.level = "error"
+	l.msg = msg
+	l.kv = append([]any(nil), kv...)
+}
 
 func (l *captureLogger) Info(msg string, kv ...any) {
+	l.level = "info"
 	l.msg = msg
 	l.kv = append([]any(nil), kv...)
 }
@@ -132,6 +143,54 @@ func TestRequestLogDefaultsClock(t *testing.T) {
 	}
 	if mw.clock == nil {
 		t.Fatal("expected default clock")
+	}
+}
+
+func TestRequestLogDoesNotAttachStackForHandled5xxByDefault(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(log, WithRoutePattern(func(*http.Request) string { return "/boom" }))
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/boom", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if log.level != "error" {
+		t.Fatalf("level = %q", log.level)
+	}
+	fields := kvToMap(log.kv)
+	if _, ok := fields[FieldStack]; ok {
+		t.Fatal("did not expect stack field")
+	}
+}
+
+func TestRequestLogCanAttachStackForHandled5xxWhenEnabled(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(log,
+		WithRoutePattern(func(*http.Request) string { return "/boom" }),
+		With5xxStackLogging(true),
+	)
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/boom", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	fields := kvToMap(log.kv)
+	if _, ok := fields[FieldStack]; !ok {
+		t.Fatal("expected stack field")
 	}
 }
 
