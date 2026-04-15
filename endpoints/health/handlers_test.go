@@ -8,7 +8,16 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
+
+type stubRouteRegistrar struct {
+	patterns []string
+}
+
+func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
+	s.patterns = append(s.patterns, pattern)
+}
 
 func TestNewHandlerDefaultsNilManager(t *testing.T) {
 	handler := NewHandler(nil)
@@ -81,5 +90,28 @@ func TestNewDefaultHandlerWithNilPoolSkipsDatabaseCheck(t *testing.T) {
 	}
 	if body.Status != ports.HealthStatusHealthy {
 		t.Fatalf("expected healthy readiness status, got %q", body.Status)
+	}
+}
+
+func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
+	handler := NewHandler(nil)
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterRoutesTo(router)
+
+	expected := []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+		specs.HealthDetailed,
+	}
+	if len(router.patterns) != len(expected) {
+		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
+	}
+	for i := range expected {
+		if router.patterns[i] != expected[i] {
+			t.Fatalf("route %d = %q", i, router.patterns[i])
+		}
 	}
 }

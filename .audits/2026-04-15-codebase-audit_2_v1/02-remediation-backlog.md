@@ -114,7 +114,7 @@ Notes:
 - keep the convenience Swagger UI default for existing callers
 - make the stricter mode usable without third-party assets
 
-### Ticket E3-T2 - Add compatibility-safe inward-facing routing and db-stats helpers [ ]
+### Ticket E3-T2 - Add compatibility-safe inward-facing routing and db-stats helpers [x]
 
 Description: Introduce additive helper abstractions that let internal code use smaller routing and DB-stats surfaces while preserving existing exported compatibility types.
 

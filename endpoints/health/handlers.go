@@ -153,12 +153,21 @@ func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) RegisterRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }) {
-	// Standard Kubernetes-style endpoints
+	if router == nil {
+		return
+	}
+	h.RegisterRoutesTo(healthRouteRegistrar{register: router.Get})
+}
+
+// RegisterRoutesTo registers all health endpoints on the given registrar.
+func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+	if h == nil || router == nil {
+		return
+	}
+
 	router.Get(specs.Livez, h.LivenessHandler)
 	router.Get(specs.Readyz, h.ReadinessHandler)
 	router.Get(specs.Healthz, h.HealthHandler)
-
-	// Additional endpoints
 	router.Get(specs.Health, h.HealthHandler)
 	router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
 }
@@ -167,6 +176,18 @@ func (h *Handler) RegisterRoutes(router interface {
 func (h *Handler) RegisterCustomRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }, paths HealthPaths) {
+	if router == nil {
+		return
+	}
+	h.RegisterCustomRoutesTo(healthRouteRegistrar{register: router.Get}, paths)
+}
+
+// RegisterCustomRoutesTo registers health endpoints with custom paths.
+func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, paths HealthPaths) {
+	if h == nil || router == nil {
+		return
+	}
+
 	if paths.Liveness != "" {
 		router.Get(paths.Liveness, h.LivenessHandler)
 	}
@@ -240,3 +261,11 @@ const (
 	healthStatusKey    healthContextKey = "health_status"
 	healthTimestampKey healthContextKey = "health_timestamp"
 )
+
+type healthRouteRegistrar struct {
+	register func(string, http.HandlerFunc)
+}
+
+func (r healthRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
+	r.register(pattern, h)
+}

@@ -12,6 +12,14 @@ import (
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
+type stubMiddlewareChain struct {
+	middlewares []func(http.Handler) http.Handler
+}
+
+func (s *stubMiddlewareChain) Use(middlewares ...func(http.Handler) http.Handler) {
+	s.middlewares = append(s.middlewares, middlewares...)
+}
+
 func TestProfileStrictAPIEnforcesQueryLimitsByDefault(t *testing.T) {
 	profile, err := ProfileStrictAPI(
 		ports.NopLogger{},
@@ -106,6 +114,22 @@ func TestProfileStrictAPICanBeConstructedRepeatedlyWithDefaultMetrics(t *testing
 		if len(profile.Middlewares) == 0 {
 			t.Fatalf("expected middleware stack on iteration %d", i)
 		}
+	}
+}
+
+func TestProfileApplyToUsesMinimalMiddlewareChain(t *testing.T) {
+	chain := &stubMiddlewareChain{}
+	profile := Profile{
+		Middlewares: []func(http.Handler) http.Handler{
+			func(next http.Handler) http.Handler { return next },
+			func(next http.Handler) http.Handler { return next },
+		},
+	}
+
+	profile.ApplyTo(chain)
+
+	if len(chain.middlewares) != 2 {
+		t.Fatalf("expected 2 middlewares, got %d", len(chain.middlewares))
 	}
 }
 

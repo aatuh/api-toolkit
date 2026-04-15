@@ -30,6 +30,11 @@ type Profile struct {
 
 // Apply attaches the profile middlewares to the router.
 func (p Profile) Apply(r ports.HTTPRouter) {
+	p.ApplyTo(r)
+}
+
+// ApplyTo attaches the profile middlewares to a minimal middleware chain.
+func (p Profile) ApplyTo(r ports.MiddlewareChain) {
 	if r == nil {
 		return
 	}

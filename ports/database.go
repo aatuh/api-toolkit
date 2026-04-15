@@ -62,3 +62,37 @@ type DatabaseStats interface {
 	NewConnsCount() int64
 	TotalConns() int32
 }
+
+// DatabasePoolSnapshot captures database pool stats as plain values.
+type DatabasePoolSnapshot struct {
+	AcquireCount         int64
+	AcquireDuration      time.Duration
+	AcquiredConns        int32
+	CanceledAcquireCount int64
+	ConstructingConns    int32
+	EmptyAcquireCount    int64
+	IdleConns            int32
+	MaxConns             int32
+	NewConnsCount        int64
+	TotalConns           int32
+}
+
+// SnapshotDatabaseStats copies database stats into a value snapshot.
+func SnapshotDatabaseStats(stats DatabaseStats) DatabasePoolSnapshot {
+	if stats == nil {
+		return DatabasePoolSnapshot{}
+	}
+
+	return DatabasePoolSnapshot{
+		AcquireCount:         stats.AcquireCount(),
+		AcquireDuration:      stats.AcquireDuration(),
+		AcquiredConns:        stats.AcquiredConns(),
+		CanceledAcquireCount: stats.CanceledAcquireCount(),
+		ConstructingConns:    stats.ConstructingConns(),
+		EmptyAcquireCount:    stats.EmptyAcquireCount(),
+		IdleConns:            stats.IdleConns(),
+		MaxConns:             stats.MaxConns(),
+		NewConnsCount:        stats.NewConnsCount(),
+		TotalConns:           stats.TotalConns(),
+	}
+}

@@ -36,7 +36,18 @@ func NewHandler(cfg Config) *Handler {
 func (h *Handler) RegisterRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }) {
+	if router == nil {
+		return
+	}
+	h.RegisterRoutesTo(versionRouteRegistrar{register: router.Get})
+}
+
+// RegisterRoutesTo mounts the handler on a minimal route registrar.
+func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 	if h == nil {
+		return
+	}
+	if router == nil {
 		return
 	}
 	router.Get(h.path, h.Handler())
@@ -50,4 +61,12 @@ func (h *Handler) Handler() http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(info)
 	}
+}
+
+type versionRouteRegistrar struct {
+	register func(string, http.HandlerFunc)
+}
+
+func (r versionRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
+	r.register(pattern, h)
 }
