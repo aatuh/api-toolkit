@@ -49,7 +49,7 @@ Notes:
 - Prefer an explicit terminal failure path over passive TTL cleanup.
 - Preserve current replay behavior for successful terminal responses.
 
-### Ticket E1-T3 - Add scheduler overlap regression tests [ ]
+### Ticket E1-T3 - Add scheduler overlap regression tests [x]
 
 Description: Add a blocking-job test in `scheduler` proving the runner does not start a second execution of the same job while the first execution is still running.
 
