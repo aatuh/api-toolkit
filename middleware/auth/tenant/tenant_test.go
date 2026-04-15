@@ -32,6 +32,27 @@ func TestTenantMiddlewareRequiresTenant(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized, got %d", rec.Code)
+	}
+}
+
+func TestTenantMiddlewareRequiresTenantForAuthenticatedActor(t *testing.T) {
+	mw, err := New(Options{
+		HeaderName: "X-Tenant-ID",
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(authorization.WithActor(req.Context(), authorization.Actor{UserID: "user-1"}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected forbidden, got %d", rec.Code)
 	}
