@@ -1,6 +1,10 @@
 package jwt
 
-import "context"
+import (
+	"context"
+
+	"github.com/aatuh/api-toolkit/v2/authorization"
+)
 
 type ctxKey string
 
@@ -18,7 +22,11 @@ type Subject struct {
 
 // WithSubject stores an authenticated subject in context.
 func WithSubject(ctx context.Context, subj Subject) context.Context {
-	return context.WithValue(ctx, subjectCtxKey, subj)
+	ctx = context.WithValue(ctx, subjectCtxKey, subj)
+	if subj.UserID != "" {
+		ctx = authorization.WithActor(ctx, authorization.Actor{UserID: subj.UserID})
+	}
+	return ctx
 }
 
 // SubjectFromContext returns the subject if present.

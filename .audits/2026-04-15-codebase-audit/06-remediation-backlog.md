@@ -110,7 +110,7 @@ Notes:
 - align `middleware/json` with the RFC 9457 guarantees described in `README.md`
 - document the method and body policy explicitly
 
-### Ticket E2-T2 - Standardize auth status semantics [ ]
+### Ticket E2-T2 - Standardize auth status semantics [x]
 
 Description: Define and implement a consistent `401` versus `403` policy across JWT, role, and tenant middleware.
 

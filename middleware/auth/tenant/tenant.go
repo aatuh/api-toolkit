@@ -156,7 +156,21 @@ func (m *Middleware) onError(w http.ResponseWriter, r *http.Request, err error) 
 	detail := "tenant scope invalid"
 	switch {
 	case errors.Is(err, errTenantMissing):
-		detail = "tenant scope required"
+		if isAuthenticatedRequest(r) {
+			detail = "tenant scope required"
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+				Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
+				Title:  http.StatusText(http.StatusForbidden),
+				Detail: detail,
+			})
+			return
+		}
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
+			Title:  http.StatusText(http.StatusUnauthorized),
+			Detail: "authentication required",
+		})
+		return
 	case errors.Is(err, errTenantMismatch):
 		detail = "tenant scope mismatch"
 	case errors.Is(err, errTenantHeaderInvalid):
@@ -169,6 +183,14 @@ func (m *Middleware) onError(w http.ResponseWriter, r *http.Request, err error) 
 		Title:  http.StatusText(http.StatusForbidden),
 		Detail: detail,
 	})
+}
+
+func isAuthenticatedRequest(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	_, ok := authorization.ActorFromContext(r.Context())
+	return ok
 }
 
 func tenantFromHeader(r *http.Request, headerName string) (string, error) {

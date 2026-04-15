@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
@@ -39,11 +40,7 @@ func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 		}
 		roles := m.rolesFromCtx(r.Context())
 		if len(roles) == 0 {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
-				Title:  http.StatusText(http.StatusForbidden),
-				Detail: "forbidden",
-			})
+			writeRoleProblem(w, authStatus(r.Context()))
 			return
 		}
 		for _, role := range roles {
@@ -52,10 +49,30 @@ func (m *RequireRoleMiddleware) Handler(next http.Handler) http.Handler {
 				return
 			}
 		}
+		writeRoleProblem(w, http.StatusForbidden)
+	})
+}
+
+func authStatus(ctx context.Context) int {
+	if _, ok := authorization.ActorFromContext(ctx); ok {
+		return http.StatusForbidden
+	}
+	return http.StatusUnauthorized
+}
+
+func writeRoleProblem(w http.ResponseWriter, status int) {
+	switch status {
+	case http.StatusUnauthorized:
+		httpx.WriteProblem(w, status, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
+			Title:  http.StatusText(status),
+			Detail: "authentication required",
+		})
+	default:
 		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 			Title:  http.StatusText(http.StatusForbidden),
 			Detail: "forbidden",
 		})
-	})
+	}
 }
