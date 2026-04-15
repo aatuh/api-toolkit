@@ -3,6 +3,7 @@ package jsonmw
 import (
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"strings"
 )
@@ -71,7 +72,10 @@ func StrictDecoder(r *http.Request) (*json.Decoder, error) {
 }
 
 func isJSON(ct string) bool {
-	ct = strings.ToLower(ct)
-	return strings.Contains(ct, applicationJSON) ||
-		strings.HasSuffix(ct, "+json")
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return false
+	}
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	return mediaType == applicationJSON || strings.HasSuffix(mediaType, "+json")
 }

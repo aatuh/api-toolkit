@@ -49,7 +49,7 @@ Notes:
 - cover `httpx/recover/recover.go`
 - add tests for panic-before-write and panic-after-partial-write
 
-### Ticket E1-T3 - Fix JSON media-type validation [ ]
+### Ticket E1-T3 - Fix JSON media-type validation [x]
 
 Description: Replace substring-based JSON media-type acceptance with exact parsing and valid `+json` handling.
 
