@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Runner struct {
 	log      Logger
 	rec      Recorder
 	lastRuns LastRunProvider
+	mu       sync.Mutex
+	inFlight map[string]bool
 }
 
 // Logger is a minimal interface for logging.
@@ -38,7 +41,13 @@ type LastRunProvider interface {
 
 // New creates a Runner.
 func New(log Logger, rec Recorder, last LastRunProvider, jobs ...Job) *Runner {
-	return &Runner{jobs: jobs, log: log, rec: rec, lastRuns: last}
+	return &Runner{
+		jobs:     jobs,
+		log:      log,
+		rec:      rec,
+		lastRuns: last,
+		inFlight: make(map[string]bool),
+	}
 }
 
 // Start launches all jobs in separate goroutines.
@@ -77,6 +86,10 @@ func (r *Runner) maybeRun(ctx context.Context, job Job) {
 			}
 		}
 	}
+	if !r.beginRun(job.Name) {
+		return
+	}
+	defer r.finishRun(job.Name)
 	r.execute(ctx, job)
 }
 
@@ -103,4 +116,29 @@ func errMsg(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func (r *Runner) beginRun(jobName string) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inFlight == nil {
+		r.inFlight = make(map[string]bool)
+	}
+	if r.inFlight[jobName] {
+		return false
+	}
+	r.inFlight[jobName] = true
+	return true
+}
+
+func (r *Runner) finishRun(jobName string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.inFlight, jobName)
 }

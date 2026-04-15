@@ -68,7 +68,7 @@ Notes:
 - Use explicit synchronization instead of sleeps wherever possible.
 - Verify sequential execution rather than approximate timing.
 
-### Ticket E1-T4 - Prevent same-job overlap in scheduler.Runner [ ]
+### Ticket E1-T4 - Prevent same-job overlap in scheduler.Runner [x]
 
 Description: Add per-job in-flight protection or execution leasing so a scheduled job cannot overlap with itself unless overlap is later made an explicit opt-in behavior.
 
