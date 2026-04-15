@@ -49,7 +49,7 @@ Notes:
 - keep the public API compatibility check green
 - prefer injected test doubles over timing-sensitive network tests
 
-## Epic E2 - Logging And Observability Hardening [ ]
+## Epic E2 - Logging And Observability Hardening [x]
 
 Description: Route panic and server-error diagnostics through explicit logging policy instead of stderr and blanket stack dumps.
 
