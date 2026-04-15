@@ -111,9 +111,9 @@ func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
 	runtime.ReadMemStats(&m)
 
 	allocMB := m.Alloc / 1024 / 1024
-	memoryMB := int64(allocMB)
-	if allocMB > uint64(math.MaxInt64) {
-		memoryMB = math.MaxInt64
+	memoryMB := int64(math.MaxInt64)
+	if allocMB <= uint64(math.MaxInt64) {
+		memoryMB = int64(allocMB)
 	}
 
 	status := ports.HealthStatusHealthy
@@ -414,6 +414,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	// #nosec G704 -- the health checker only probes explicit application-configured URLs.
 	req, err := http.NewRequestWithContext(checkCtx, c.method, c.url, nil)
 	if err != nil {
 		return ports.HealthResult{
@@ -427,6 +428,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 	}
 
 	start := time.Now()
+	// #nosec G704 -- outbound health checks intentionally call configured dependency endpoints.
 	resp, err := c.client.Do(req)
 	duration := time.Since(start)
 	if err != nil {
