@@ -209,7 +209,7 @@ Notes:
 - keep the current non-overlap guarantee intact
 - favor simple runner state over distributed coordination inside the scheduler package
 
-### Ticket E3-T3 - Add lifecycle regression tests for panic and duplicate-start paths [ ]
+### Ticket E3-T3 - Add lifecycle regression tests for panic and duplicate-start paths [x]
 
 Description: Add focused tests proving that panics are contained and that repeated start calls do not create duplicate schedules or surprising run frequency changes.
 

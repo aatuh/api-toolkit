@@ -279,6 +279,75 @@ func TestStartIsIdempotentPerJob(t *testing.T) {
 	waitForRuns(t, runs, 1, 2*interval)
 }
 
+func TestStartContinuesSchedulingAfterJobPanic(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	var runs atomic.Int32
+	completed := make(chan struct{}, 1)
+	runner := New(nil, nil, nil, Job{
+		Name:     "panic-once",
+		Interval: 40 * time.Millisecond,
+		Run: func(context.Context) error {
+			if runs.Add(1) == 1 {
+				panic("boom")
+			}
+			select {
+			case completed <- struct{}{}:
+			default:
+			}
+			return nil
+		},
+	})
+
+	runner.Start(ctx)
+
+	select {
+	case <-completed:
+	case <-ctx.Done():
+		t.Fatal("expected scheduler to continue after panic and run job again")
+	}
+}
+
+func TestStartSkipsDuplicateNamedJobsInSameRunner(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runs := make(chan string, 4)
+	runner := New(nil, nil, nil,
+		Job{
+			Name:     "sync",
+			Interval: time.Hour,
+			Run: func(context.Context) error {
+				runs <- "first"
+				return nil
+			},
+		},
+		Job{
+			Name:     "sync",
+			Interval: time.Hour,
+			Run: func(context.Context) error {
+				runs <- "second"
+				return nil
+			},
+		},
+	)
+
+	runner.Start(ctx)
+
+	select {
+	case <-runs:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for first named job run")
+	}
+
+	select {
+	case name := <-runs:
+		t.Fatalf("expected duplicate named job to be skipped, got extra run from %q", name)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func waitForRuns(t *testing.T, runs <-chan struct{}, want int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.After(timeout)
