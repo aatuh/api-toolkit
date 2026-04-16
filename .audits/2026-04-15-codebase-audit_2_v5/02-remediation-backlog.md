@@ -129,7 +129,7 @@ Notes:
 - keep header redaction and trace fields intact
 - prefer one clear error record over multiple partial signals
 
-### Ticket E2-T3 - Implement panic-safe HTTP metrics [ ]
+### Ticket E2-T3 - Implement panic-safe HTTP metrics [x]
 
 Description: Update `contrib/middleware/metrics` and the default bootstrap ordering so panicking requests still increment counters and record durations with the final visible status.
 
