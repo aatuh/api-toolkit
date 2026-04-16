@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -21,6 +22,16 @@ type captureErrorLogger struct {
 	kv  []any
 }
 
+type logEntry struct {
+	level string
+	msg   string
+	kv    []any
+}
+
+type captureEntriesLogger struct {
+	entries []logEntry
+}
+
 func (l *captureErrorLogger) Debug(string, ...any) {}
 func (l *captureErrorLogger) Info(string, ...any)  {}
 func (l *captureErrorLogger) Warn(string, ...any)  {}
@@ -28,6 +39,35 @@ func (l *captureErrorLogger) Warn(string, ...any)  {}
 func (l *captureErrorLogger) Error(msg string, kv ...any) {
 	l.msg = msg
 	l.kv = append([]any(nil), kv...)
+}
+
+func (l *captureEntriesLogger) Debug(msg string, kv ...any) {
+	l.entries = append(l.entries, logEntry{level: "debug", msg: msg, kv: append([]any(nil), kv...)})
+}
+
+func (l *captureEntriesLogger) Info(msg string, kv ...any) {
+	l.entries = append(l.entries, logEntry{level: "info", msg: msg, kv: append([]any(nil), kv...)})
+}
+
+func (l *captureEntriesLogger) Warn(msg string, kv ...any) {
+	l.entries = append(l.entries, logEntry{level: "warn", msg: msg, kv: append([]any(nil), kv...)})
+}
+
+func (l *captureEntriesLogger) Error(msg string, kv ...any) {
+	l.entries = append(l.entries, logEntry{level: "error", msg: msg, kv: append([]any(nil), kv...)})
+}
+
+type captureMetricsRecorder struct {
+	counterCalls []metricsmw.Labels
+	histCalls    []metricsmw.Labels
+}
+
+func (r *captureMetricsRecorder) IncCounter(_ string, labels metricsmw.Labels) {
+	r.counterCalls = append(r.counterCalls, cloneMetricLabels(labels))
+}
+
+func (r *captureMetricsRecorder) ObserveHistogram(_ string, _ float64, labels metricsmw.Labels) {
+	r.histCalls = append(r.histCalls, cloneMetricLabels(labels))
 }
 
 func (s *stubMiddlewareChain) Use(middlewares ...func(http.Handler) http.Handler) {
@@ -180,6 +220,63 @@ func TestProfileStrictAPILogsRecoveredPanicsWithStack(t *testing.T) {
 	}
 }
 
+func TestProfileStrictAPIPanicBeforeCommitEmitsAccessLogAndMetrics(t *testing.T) {
+	log := &captureEntriesLogger{}
+	metrics := &captureMetricsRecorder{}
+	profile, err := ProfileStrictAPI(
+		log,
+		WithMetricsRecorder(metrics),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapBootstrapProfile(profile, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	assertSingleAccessLog(t, log.entries, http.StatusInternalServerError)
+	assertSingleMetricsObservation(t, metrics, "500")
+}
+
+func TestProfileStrictAPIPartialWritePanicEmitsAccessLogAndMetrics(t *testing.T) {
+	log := &captureEntriesLogger{}
+	metrics := &captureMetricsRecorder{}
+	profile, err := ProfileStrictAPI(
+		log,
+		WithMetricsRecorder(metrics),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapBootstrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("partial:"))
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
+	defer func() {
+		if got := recover(); got != http.ErrAbortHandler {
+			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
+		}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected recorder status 200, got %d", rec.Code)
+		}
+		assertSingleAccessLog(t, log.entries, http.StatusOK)
+		assertSingleMetricsObservation(t, metrics, "200")
+	}()
+	handler.ServeHTTP(rec, req)
+}
+
 func wrapBootstrapProfile(profile Profile, next http.Handler) http.Handler {
 	handler := next
 	for i := len(profile.Middlewares) - 1; i >= 0; i-- {
@@ -201,3 +298,51 @@ func kvToMap(kv []any) map[string]any {
 }
 
 var _ ports.Logger = (*captureErrorLogger)(nil)
+var _ ports.Logger = (*captureEntriesLogger)(nil)
+
+func assertSingleAccessLog(t *testing.T, entries []logEntry, wantStatus int) {
+	t.Helper()
+	var access []logEntry
+	for _, entry := range entries {
+		if entry.msg == "http" {
+			access = append(access, entry)
+		}
+	}
+	if len(access) != 1 {
+		t.Fatalf("expected 1 access log entry, got %d", len(access))
+	}
+	if access[0].level != "error" {
+		t.Fatalf("access log level = %q", access[0].level)
+	}
+	fields := kvToMap(access[0].kv)
+	if fields[requestlog.FieldPanicRecovered] != true {
+		t.Fatalf("panic_recovered = %v", fields[requestlog.FieldPanicRecovered])
+	}
+	if fields[requestlog.FieldStatus] != wantStatus {
+		t.Fatalf("status = %v", fields[requestlog.FieldStatus])
+	}
+}
+
+func assertSingleMetricsObservation(t *testing.T, recorder *captureMetricsRecorder, wantStatus string) {
+	t.Helper()
+	if len(recorder.counterCalls) != 1 {
+		t.Fatalf("expected 1 counter call, got %d", len(recorder.counterCalls))
+	}
+	if len(recorder.histCalls) != 1 {
+		t.Fatalf("expected 1 histogram call, got %d", len(recorder.histCalls))
+	}
+	if recorder.counterCalls[0]["status"] != wantStatus {
+		t.Fatalf("counter status = %q", recorder.counterCalls[0]["status"])
+	}
+	if recorder.histCalls[0]["status"] != wantStatus {
+		t.Fatalf("histogram status = %q", recorder.histCalls[0]["status"])
+	}
+}
+
+func cloneMetricLabels(labels metricsmw.Labels) metricsmw.Labels {
+	out := make(metricsmw.Labels, len(labels))
+	for key, value := range labels {
+		out[key] = value
+	}
+	return out
+}
