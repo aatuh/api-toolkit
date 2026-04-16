@@ -350,7 +350,7 @@ Notes:
 - some methods already normalize Stripe errors and some do not
 - keep public behavior consistent across checkout, billing, and retrieval helpers
 
-### Ticket E5-T3 - Add direct tests for telemetry and config edge behavior [ ]
+### Ticket E5-T3 - Add direct tests for telemetry and config edge behavior [x]
 
 Description: Add focused tests for `contrib/telemetry` and any remaining config edge paths so runtime setup behavior is explicitly verified.
 
