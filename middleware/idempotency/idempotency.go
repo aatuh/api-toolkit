@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/response_writer"
@@ -297,12 +298,29 @@ func (m *Middleware) releaseReservation(ctx context.Context, key, hash string) e
 	return errors.Join(errs...)
 }
 
-// DefaultHash returns a stable SHA-256 hash of the method, path, query, content type, and body.
+// DefaultHash returns a stable SHA-256 hash of caller scope, method, path,
+// query, content type, and body. Authenticated actor and tenant context are
+// included when present.
 func DefaultHash(r *http.Request, body []byte) (string, error) {
 	if r == nil {
 		return "", errors.New("request is nil")
 	}
+	var actorID string
+	var tenantID string
+	if actor, ok := authorization.ActorFromContext(r.Context()); ok {
+		actorID = actor.UserID
+	}
+	if scope, ok := authorization.ScopeFromContext(r.Context()); ok {
+		tenantID = scope.TenantID
+		if actorID == "" {
+			actorID = scope.UserID
+		}
+	}
 	h := sha256.New()
+	_, _ = io.WriteString(h, actorID)
+	h.Write([]byte{0})
+	_, _ = io.WriteString(h, tenantID)
+	h.Write([]byte{0})
 	_, _ = io.WriteString(h, strings.ToUpper(r.Method))
 	h.Write([]byte{0})
 	_, _ = io.WriteString(h, r.URL.Path)

@@ -110,7 +110,7 @@ Notes:
 - preserve current successful replay behavior unless the contract decision requires a change
 - cover `Save` failure, retry behavior, and client-visible status/body outcomes
 
-### Ticket E2-T3 - Scope idempotency keys to caller context by default [ ]
+### Ticket E2-T3 - Scope idempotency keys to caller context by default [x]
 
 Description: Reduce replay leakage risk by including subject or tenant context in the default idempotency keying strategy, or require explicit caller scoping in authenticated examples and docs.
 
