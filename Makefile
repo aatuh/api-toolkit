@@ -3,9 +3,10 @@ GO ?= go
 
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
-GOLANGCI_LINT_VERSION ?= latest
-GOSEC_VERSION ?= latest
-GOVULNCHECK_VERSION ?= latest
+GOLANGCI_LINT_VERSION ?= v2.11.4
+GOSEC_VERSION ?= v2.25.0
+GOVULNCHECK_VERSION ?= v1.2.0
+APIDIFF_VERSION ?= v0.0.0-20260410095643-746e56fc9e2f
 
 # Tools used by local CI steps.
 OUTPUT_DIR ?= .ci-result
@@ -41,7 +42,7 @@ tools: ## Install lint/vuln tools
 	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-	@$(GO) install golang.org/x/exp/cmd/apidiff@latest
+	@$(GO) install golang.org/x/exp/cmd/apidiff@$(APIDIFF_VERSION)
 
 # In api-check you can set API_BASE_REF to compare to specific tag (e.g. API_BASE_REF=2.0.0)
 api-check: ## Run API compatibility check.
