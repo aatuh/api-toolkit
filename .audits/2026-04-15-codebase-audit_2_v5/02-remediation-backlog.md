@@ -171,7 +171,7 @@ Notes:
 
 Description: Make the repository’s strict-profile and strict-mode promises match actual runtime behavior for JSON enforcement and browser-facing defaults.
 
-### Ticket E3-T1 - Require explicit JSON content types in strict mode [ ]
+### Ticket E3-T1 - Require explicit JSON content types in strict mode [x]
 
 Description: Update `middleware/json` so body-bearing `POST`, `PUT`, and `PATCH` requests in strict mode fail when `Content-Type` is missing or non-JSON.
 
