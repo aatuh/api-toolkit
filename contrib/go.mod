@@ -9,6 +9,7 @@ require (
 	github.com/MicahParks/keyfunc/v3 v3.7.0
 	github.com/aatuh/api-toolkit/v2 v2.0.0
 	github.com/aatuh/envvar/v2 v2.1.5
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/cedar-policy/cedar-go v1.4.0
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/getkin/kin-openapi v0.133.0
@@ -63,6 +64,7 @@ require (
 	github.com/prometheus/common v0.67.3 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect

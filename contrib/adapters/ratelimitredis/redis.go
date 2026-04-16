@@ -66,7 +66,7 @@ if ttl > 0 then
   redis.call("EXPIRE", KEYS[1], ttl)
 end
 
-return {allowed, retry_after}
+return {allowed, tostring(retry_after)}
 `)
 
 // New constructs a Redis-backed limiter.
