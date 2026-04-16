@@ -3,6 +3,7 @@ package metrics
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
@@ -176,24 +177,37 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := mw.Clock.Now()
 		ww := response_writer.Wrap(w)
+		defer func() {
+			rec := recover()
+			status := ww.Status()
+			if rec != nil && !ww.Committed() {
+				status = http.StatusInternalServerError
+			}
+			mw.observeRequest(r, start, status)
+			if rec != nil {
+				panic(rec)
+			}
+		}()
 		next.ServeHTTP(ww, r)
-
-		route := chiRoutePattern(r)
-		if route == "" {
-			route = "unknown"
-		}
-		labels := Labels{
-			"method": r.Method,
-			"route":  route,
-			"status": itoa(ww.Status()),
-		}
-		mw.M.IncCounter("http_requests_total", labels)
-		mw.M.ObserveHistogram(
-			"http_request_duration_seconds",
-			mw.Clock.Now().Sub(start).Seconds(),
-			labels,
-		)
 	})
+}
+
+func (mw *Middleware) observeRequest(r *http.Request, start time.Time, status int) {
+	route := chiRoutePattern(r)
+	if route == "" {
+		route = "unknown"
+	}
+	labels := Labels{
+		"method": r.Method,
+		"route":  route,
+		"status": itoa(status),
+	}
+	mw.M.IncCounter("http_requests_total", labels)
+	mw.M.ObserveHistogram(
+		"http_request_duration_seconds",
+		mw.Clock.Now().Sub(start).Seconds(),
+		labels,
+	)
 }
 
 func itoa(n int) string {
