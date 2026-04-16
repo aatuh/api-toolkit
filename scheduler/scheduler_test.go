@@ -250,6 +250,35 @@ func TestStartDoesNotOverlapSameJobAcrossDuplicateStarts(t *testing.T) {
 	close(release)
 }
 
+func TestStartIsIdempotentPerJob(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const interval = 80 * time.Millisecond
+	runs := make(chan struct{}, 4)
+	runner := New(nil, nil, nil, Job{
+		Name:     "sync",
+		Interval: interval,
+		Run: func(context.Context) error {
+			runs <- struct{}{}
+			return nil
+		},
+	})
+
+	runner.Start(ctx)
+	waitForRuns(t, runs, 1, 100*time.Millisecond)
+
+	runner.Start(ctx)
+
+	select {
+	case <-runs:
+		t.Fatal("expected duplicate Start not to trigger another immediate run")
+	case <-time.After(interval / 3):
+	}
+
+	waitForRuns(t, runs, 1, 2*interval)
+}
+
 func waitForRuns(t *testing.T, runs <-chan struct{}, want int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.After(timeout)

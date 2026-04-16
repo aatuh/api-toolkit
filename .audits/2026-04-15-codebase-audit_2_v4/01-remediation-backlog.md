@@ -190,7 +190,7 @@ Notes:
 - keep the failure visible to operators
 - do not silently swallow panic information
 
-### Ticket E3-T2 - Make duplicate Start behavior idempotent [ ]
+### Ticket E3-T2 - Make duplicate Start behavior idempotent [x]
 
 Description: Prevent repeated `Runner.Start` calls from creating multiple ticker loops for the same job set unless that behavior is made an explicit opt-in.
 
