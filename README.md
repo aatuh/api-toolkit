@@ -287,7 +287,9 @@ if err != nil { /* handle */ }
 ## Scheduler
 
 - `scheduler.Runner` executes each configured job immediately on start and then on its interval.
-- The runner now prevents the same job from overlapping with itself across duplicate `Start` calls or duplicate scheduling of the same job name.
+- Panics inside scheduled jobs are recovered, logged, and recorded as failed runs; the runner keeps future intervals alive instead of crashing the process.
+- The runner keeps at most one active schedule per job name, so duplicate `Start` calls or duplicate named jobs do not multiply execution cadence.
+- Non-overlap is enforced per job name: while one run is in flight, later ticks for that same named job are skipped.
 
 ## Security headers
 
