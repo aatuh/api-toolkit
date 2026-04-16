@@ -32,6 +32,7 @@ type Options struct {
 	TTL                 time.Duration
 	InFlightTTL         time.Duration
 	MaxBodyBytes        int64
+	MaxResponseBytes    int64
 	Clock               ports.Clock
 	ShouldHandle        func(*http.Request) bool
 	ShouldStore         func(status int) bool
@@ -61,6 +62,9 @@ func New(opts Options) (*Middleware, error) {
 	if opts.MaxBodyBytes < 0 {
 		return nil, errors.New("max body bytes must be non-negative")
 	}
+	if opts.MaxResponseBytes < 0 {
+		return nil, errors.New("max response bytes must be non-negative")
+	}
 	if opts.HeaderName == "" {
 		opts.HeaderName = "Idempotency-Key"
 	}
@@ -72,6 +76,9 @@ func New(opts Options) (*Middleware, error) {
 	}
 	if opts.MaxBodyBytes == 0 {
 		opts.MaxBodyBytes = 1 << 20
+	}
+	if opts.MaxResponseBytes == 0 {
+		opts.MaxResponseBytes = 1 << 20
 	}
 	if opts.HashFunc == nil {
 		opts.HashFunc = DefaultHash
@@ -236,7 +243,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			// Fallback to processing if we can't observe a stored record.
 		}
 
-		capture := response_writer.NewCapture()
+		capture := response_writer.NewLimitedCapture(m.opts.MaxResponseBytes)
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
@@ -246,6 +253,13 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			}
 		}()
 		next.ServeHTTP(capture, r)
+		if capture.Overflowed() {
+			if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
+				m.opts.OnError(err)
+			}
+			writeResponseTooLarge(w)
+			return
+		}
 
 		record = ports.IdempotencyRecord{
 			State:       ports.IdempotencyStateCompleted,
@@ -391,6 +405,14 @@ func writePersistenceFailure(w http.ResponseWriter) {
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "idempotency response persistence failed",
+	})
+}
+
+func writeResponseTooLarge(w http.ResponseWriter) {
+	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+		Title:  http.StatusText(http.StatusServiceUnavailable),
+		Detail: "idempotent response exceeds replay buffer limit",
 	})
 }
 

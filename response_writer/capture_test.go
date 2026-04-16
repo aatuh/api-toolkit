@@ -22,3 +22,21 @@ func TestCaptureDoesNotExposeOptionalResponseWriterInterfaces(t *testing.T) {
 		t.Fatal("capture should not implement io.ReaderFrom")
 	}
 }
+
+func TestLimitedCaptureMarksOverflowWithoutGrowingBuffer(t *testing.T) {
+	capture := NewLimitedCapture(4)
+
+	n, err := capture.Write([]byte("abcdef"))
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if n != 6 {
+		t.Fatalf("expected full write count, got %d", n)
+	}
+	if !capture.Overflowed() {
+		t.Fatal("expected capture to report overflow")
+	}
+	if got := string(capture.Body()); got != "abcd" {
+		t.Fatalf("expected body to stop at limit, got %q", got)
+	}
+}

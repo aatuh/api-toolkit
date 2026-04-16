@@ -129,7 +129,7 @@ Notes:
 - keep unauthenticated use cases simple
 - make the secure path the obvious documented path for real APIs
 
-### Ticket E2-T4 - Add response buffering guardrails to idempotent handlers [ ]
+### Ticket E2-T4 - Add response buffering guardrails to idempotent handlers [x]
 
 Description: Prevent the middleware from acting as an unbounded response buffer by adding explicit size limits, streaming exclusions, or both.
 
