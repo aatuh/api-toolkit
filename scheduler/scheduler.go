@@ -17,12 +17,13 @@ type Job struct {
 
 // Runner executes jobs on a ticker until ctx is cancelled.
 type Runner struct {
-	jobs     []Job
-	log      Logger
-	rec      Recorder
-	lastRuns LastRunProvider
-	mu       sync.Mutex
-	inFlight map[string]bool
+	jobs      []Job
+	log       Logger
+	rec       Recorder
+	lastRuns  LastRunProvider
+	mu        sync.Mutex
+	inFlight  map[string]bool
+	scheduled map[string]bool
 }
 
 // Logger is a minimal interface for logging.
@@ -44,22 +45,30 @@ type LastRunProvider interface {
 // New creates a Runner.
 func New(log Logger, rec Recorder, last LastRunProvider, jobs ...Job) *Runner {
 	return &Runner{
-		jobs:     jobs,
-		log:      log,
-		rec:      rec,
-		lastRuns: last,
-		inFlight: make(map[string]bool),
+		jobs:      jobs,
+		log:       log,
+		rec:       rec,
+		lastRuns:  last,
+		inFlight:  make(map[string]bool),
+		scheduled: make(map[string]bool),
 	}
 }
 
 // Start launches all jobs in separate goroutines.
 func (r *Runner) Start(ctx context.Context) {
-	for _, job := range r.jobs {
+	for i, job := range r.jobs {
 		j := job
 		if j.Interval <= 0 || j.Run == nil {
 			continue
 		}
-		go r.runJob(ctx, j)
+		key := scheduleKey(i, j)
+		if !r.beginSchedule(key) {
+			continue
+		}
+		go func() {
+			defer r.finishSchedule(key)
+			r.runJob(ctx, j)
+		}()
 	}
 }
 
@@ -152,6 +161,22 @@ func (r *Runner) beginRun(jobName string) bool {
 	return true
 }
 
+func (r *Runner) beginSchedule(jobKey string) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.scheduled == nil {
+		r.scheduled = make(map[string]bool)
+	}
+	if r.scheduled[jobKey] {
+		return false
+	}
+	r.scheduled[jobKey] = true
+	return true
+}
+
 func (r *Runner) finishRun(jobName string) {
 	if r == nil {
 		return
@@ -159,4 +184,20 @@ func (r *Runner) finishRun(jobName string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.inFlight, jobName)
+}
+
+func (r *Runner) finishSchedule(jobKey string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.scheduled, jobKey)
+}
+
+func scheduleKey(index int, job Job) string {
+	if job.Name != "" {
+		return "job:" + job.Name
+	}
+	return fmt.Sprintf("job#%d", index)
 }
