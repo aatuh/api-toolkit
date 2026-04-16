@@ -247,7 +247,7 @@ Notes:
 - remove claims that are not directly verified by tests
 - call out any changed behavior for downstream users
 
-## Epic E4 - Raise change safety around stateful contrib adapters [ ]
+## Epic E4 - Raise change safety around stateful contrib adapters [x]
 
 Description: Add direct coverage for the highest-risk stateful adapter packages so correctness claims are backed by tests at the persistence and integration boundaries.
 
@@ -289,7 +289,7 @@ Notes:
 - start with the adapters most likely to affect production state or lifecycle
 - do not overfit tests to one concrete backend if a small contract-level test is enough
 
-### Ticket E4-T3 - Document the high-risk adapter coverage policy [ ]
+### Ticket E4-T3 - Document the high-risk adapter coverage policy [x]
 
 Description: Record which adapter categories require direct tests before new features or refactors are accepted so the same coverage gap does not reopen later.
 

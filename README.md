@@ -534,6 +534,14 @@ See `contrib/examples/` for end-to-end wiring samples.
 - To reproduce the repository quality gate locally, run `GOTOOLCHAIN=local make finalize`.
 - If you override the `*_VERSION` Make variables, your local results may differ from CI and audited baseline runs.
 
+### Adapter coverage policy
+
+- Any adapter that persists or coordinates external state needs direct package tests, not only indirect coverage through examples or middleware.
+- This includes Redis- and database-backed adapters, scheduler run stores, transaction/pool wrappers, and provider adapters that translate third-party responses or errors.
+- Time- and state-sensitive adapter behavior must cover success, failure, and boundary cases such as TTL expiry, retry delay calculation, duplicate protection, serialization, and no-row/not-found paths.
+- Wrapper-only integration packages may rely on underlying adapter tests when they add no new logic; once they add defaults, translation, or lifecycle behavior, they need their own direct tests too.
+- Changes to these adapter categories should not be merged until direct tests exist in the touched package and `GOTOOLCHAIN=local make finalize` is green.
+
 ## Verify releases
 
 Release SBOM signatures are published via Sigstore/cosign; verification steps
