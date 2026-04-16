@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -31,6 +32,7 @@ const (
 	FieldRequestHeaders  = "req_headers"
 	FieldResponseHeaders = "resp_headers"
 	FieldStack           = "stack"
+	FieldPanicRecovered  = "panic_recovered"
 )
 
 const redactedValue = "[redacted]"
@@ -159,54 +161,76 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := m.clock.Now()
 		ww := response_writer.Wrap(w)
-		next.ServeHTTP(ww, r)
-
-		route := ""
-		if m.opts.RoutePattern != nil {
-			route = m.opts.RoutePattern(r)
-		}
-		if route == "" {
-			route = "unknown"
-		}
-		ip := m.opts.Resolver.ClientIPString(r)
-		if ip == "" {
-			ip = remoteIP(r.RemoteAddr)
-		}
-		traceID, spanID := traceIDs(r)
-		status := ww.Status()
-		fields := make([]any, 0, 28)
-		fields = append(fields,
-			FieldMethod, r.Method,
-			FieldPath, r.URL.Path,
-			FieldRoute, route,
-			FieldStatus, status,
-			FieldBytes, ww.BytesWritten(),
-			FieldLatencyMS, m.clock.Now().Sub(start).Milliseconds(),
-			FieldClientIP, ip,
-			FieldUserAgent, r.UserAgent(),
-			FieldRequestID, requestID(r),
-			FieldTraceID, traceID,
-			FieldSpanID, spanID,
-		)
-		if m.opts.LogRequestHeaders {
-			fields = append(fields, FieldRequestHeaders, m.redactor.Redact(r.Header))
-		}
-		if m.opts.LogResponseHeaders {
-			fields = append(fields, FieldResponseHeaders, m.redactor.Redact(ww.Header()))
-		}
-		if status >= http.StatusInternalServerError {
-			if m.opts.Log5xxStacks {
-				fields = append(fields, FieldStack, string(debug.Stack()))
+		defer func() {
+			rec := recover()
+			status := ww.Status()
+			if rec != nil && !ww.Committed() {
+				status = http.StatusInternalServerError
 			}
-			m.Log.Error("http", fields...)
-			return
-		}
-		if status >= http.StatusBadRequest {
-			m.Log.Warn("http", fields...)
-			return
-		}
-		m.Log.Info("http", fields...)
+			m.logRequest(r, ww, start, status, rec)
+			if rec != nil {
+				panic(rec)
+			}
+		}()
+		next.ServeHTTP(ww, r)
 	})
+}
+
+func (m *Middleware) logRequest(r *http.Request, ww *response_writer.Writer, start time.Time, status int, panicValue any) {
+	route := ""
+	if m.opts.RoutePattern != nil {
+		route = m.opts.RoutePattern(r)
+	}
+	if route == "" {
+		route = "unknown"
+	}
+	ip := m.opts.Resolver.ClientIPString(r)
+	if ip == "" {
+		ip = remoteIP(r.RemoteAddr)
+	}
+	traceID, spanID := traceIDs(r)
+	fields := make([]any, 0, 30)
+	fields = append(fields,
+		FieldMethod, r.Method,
+		FieldPath, r.URL.Path,
+		FieldRoute, route,
+		FieldStatus, status,
+		FieldBytes, ww.BytesWritten(),
+		FieldLatencyMS, m.clock.Now().Sub(start).Milliseconds(),
+		FieldClientIP, ip,
+		FieldUserAgent, r.UserAgent(),
+		FieldRequestID, requestID(r),
+		FieldTraceID, traceID,
+		FieldSpanID, spanID,
+	)
+	if panicValue != nil {
+		fields = append(fields, FieldPanicRecovered, true)
+	}
+	if m.opts.LogRequestHeaders {
+		fields = append(fields, FieldRequestHeaders, m.redactor.Redact(r.Header))
+	}
+	if m.opts.LogResponseHeaders {
+		fields = append(fields, FieldResponseHeaders, m.redactor.Redact(ww.Header()))
+	}
+	if panicValue != nil {
+		if status >= http.StatusInternalServerError && m.opts.Log5xxStacks {
+			fields = append(fields, FieldStack, string(debug.Stack()))
+		}
+		m.Log.Error("http", fields...)
+		return
+	}
+	if status >= http.StatusInternalServerError {
+		if m.opts.Log5xxStacks {
+			fields = append(fields, FieldStack, string(debug.Stack()))
+		}
+		m.Log.Error("http", fields...)
+		return
+	}
+	if status >= http.StatusBadRequest {
+		m.Log.Warn("http", fields...)
+		return
+	}
+	m.Log.Info("http", fields...)
 }
 
 func requestID(r *http.Request) string {
