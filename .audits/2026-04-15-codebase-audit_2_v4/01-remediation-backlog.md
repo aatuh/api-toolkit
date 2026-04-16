@@ -30,7 +30,7 @@ Notes:
 - start with the current `gofmt`, `noctx`, and test-file `gosec` failures
 - do not weaken the lint rules just to make the gate pass
 
-### Ticket E1-T2 - Reconcile toolchain-sensitive quality behavior [ ]
+### Ticket E1-T2 - Reconcile toolchain-sensitive quality behavior [x]
 
 Description: Confirm which Go and tool versions the repository expects for local quality checks, and tighten the documentation or tooling so audit results stay reproducible across machines.
 

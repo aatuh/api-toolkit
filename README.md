@@ -517,6 +517,17 @@ See `contrib/examples/` for end-to-end wiring samples.
 - We intentionally do not set a `toolchain` directive to avoid auto-downloads.
 - If you enable toolchain auto-downloads, set `GOTOOLCHAIN=local` for locked-down or offline environments.
 
+## Local quality tooling
+
+- CI and reproducible local verification both target Go `1.24.x`.
+- `make tools` installs pinned QA tool versions:
+  - `golangci-lint v2.11.4`
+  - `gosec v2.25.0`
+  - `govulncheck v1.2.0`
+  - `apidiff v0.0.0-20260410095643-746e56fc9e2f`
+- To reproduce the repository quality gate locally, run `GOTOOLCHAIN=local make finalize`.
+- If you override the `*_VERSION` Make variables, your local results may differ from CI and audited baseline runs.
+
 ## Verify releases
 
 Release SBOM signatures are published via Sigstore/cosign; verification steps

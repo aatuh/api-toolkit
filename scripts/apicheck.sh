@@ -5,7 +5,7 @@
 set -euo pipefail
 
 if ! command -v apidiff >/dev/null 2>&1; then
-  echo "apidiff not found. Install with: go install golang.org/x/exp/cmd/apidiff@latest" >&2
+  echo "apidiff not found. Install with: make tools" >&2
   exit 1
 fi
 
