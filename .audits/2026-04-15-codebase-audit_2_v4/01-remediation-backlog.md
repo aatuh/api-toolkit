@@ -251,7 +251,7 @@ Notes:
 
 Description: Add direct coverage for the highest-risk stateful adapter packages so correctness claims are backed by tests at the persistence and integration boundaries.
 
-### Ticket E4-T1 - Add direct tests for Redis-backed idempotency and rate limiting [ ]
+### Ticket E4-T1 - Add direct tests for Redis-backed idempotency and rate limiting [x]
 
 Description: Cover `contrib/adapters/idempotencyredis` and `contrib/adapters/ratelimitredis` with direct tests for serialization, TTL behavior, and retry-delay semantics.
 
