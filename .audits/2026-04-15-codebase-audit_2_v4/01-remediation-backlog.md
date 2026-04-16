@@ -68,7 +68,7 @@ Notes:
 - keep the note short and factual
 - record the exact commands used for verification
 
-## Epic E2 - Harden idempotency from best-effort to safe-by-default [ ]
+## Epic E2 - Harden idempotency from best-effort to safe-by-default [x]
 
 Description: Close the remaining correctness and security gaps in idempotency handling so replay behavior is explicit, bounded, and safe for authenticated multi-tenant APIs.
 
@@ -148,7 +148,7 @@ Notes:
 - do not break existing replay for normal JSON responses
 - make streaming and upgrade limitations explicit
 
-### Ticket E2-T5 - Expand idempotency regression coverage [ ]
+### Ticket E2-T5 - Expand idempotency regression coverage [x]
 
 Description: Add tests for caller scoping, save-failure behavior, replay headers, large responses, and any newly introduced exclusion or size-limit rules.
 
