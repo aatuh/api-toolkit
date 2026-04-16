@@ -181,6 +181,12 @@ Error and trace responses can be correlated via response headers:
 - `X-Request-ID` when the request already carries a request or correlation ID
 - `X-Trace-ID` and `traceparent` from `middleware/trace`
 
+## Panic recovery
+
+- `httpx/recover` logs recovered handler panics.
+- If the response is still uncommitted, it returns a `500` Problem Details response.
+- If headers or body bytes have already been committed, it aborts the request instead of preserving a misleading partial success response.
+
 ### Validation error schema
 
 Validation errors use a canonical `validation` extension with field errors.
