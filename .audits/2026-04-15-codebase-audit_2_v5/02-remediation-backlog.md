@@ -49,7 +49,7 @@ Notes:
 - keep panic values out of client responses
 - keep operator-visible failure signals intact
 
-### Ticket E1-T3 - Add recovery regression coverage [ ]
+### Ticket E1-T3 - Add recovery regression coverage [x]
 
 Description: Add focused tests for panic-before-write, panic-after-header, panic-after-body, and default bootstrap stack behavior.
 

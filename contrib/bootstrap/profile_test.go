@@ -16,6 +16,20 @@ type stubMiddlewareChain struct {
 	middlewares []func(http.Handler) http.Handler
 }
 
+type captureErrorLogger struct {
+	msg string
+	kv  []any
+}
+
+func (l *captureErrorLogger) Debug(string, ...any) {}
+func (l *captureErrorLogger) Info(string, ...any)  {}
+func (l *captureErrorLogger) Warn(string, ...any)  {}
+
+func (l *captureErrorLogger) Error(msg string, kv ...any) {
+	l.msg = msg
+	l.kv = append([]any(nil), kv...)
+}
+
 func (s *stubMiddlewareChain) Use(middlewares ...func(http.Handler) http.Handler) {
 	s.middlewares = append(s.middlewares, middlewares...)
 }
@@ -133,6 +147,39 @@ func TestProfileApplyToUsesMinimalMiddlewareChain(t *testing.T) {
 	}
 }
 
+func TestProfileStrictAPILogsRecoveredPanicsWithStack(t *testing.T) {
+	log := &captureErrorLogger{}
+	profile, err := ProfileStrictAPI(
+		log,
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapBootstrapProfile(profile, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	if log.msg != "panic recovered" {
+		t.Fatalf("unexpected log message %q", log.msg)
+	}
+	fields := kvToMap(log.kv)
+	if fields["panic"] != "boom" {
+		t.Fatalf("panic field = %v", fields["panic"])
+	}
+	if _, ok := fields["stack"]; !ok {
+		t.Fatal("expected stack field")
+	}
+}
+
 func wrapBootstrapProfile(profile Profile, next http.Handler) http.Handler {
 	handler := next
 	for i := len(profile.Middlewares) - 1; i >= 0; i-- {
@@ -140,3 +187,17 @@ func wrapBootstrapProfile(profile Profile, next http.Handler) http.Handler {
 	}
 	return handler
 }
+
+func kvToMap(kv []any) map[string]any {
+	out := make(map[string]any)
+	for i := 0; i+1 < len(kv); i += 2 {
+		key, ok := kv[i].(string)
+		if !ok || key == "" {
+			continue
+		}
+		out[key] = kv[i+1]
+	}
+	return out
+}
+
+var _ ports.Logger = (*captureErrorLogger)(nil)
