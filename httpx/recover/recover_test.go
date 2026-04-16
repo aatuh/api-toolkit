@@ -52,21 +52,19 @@ func TestMiddlewareAbortsAfterPartialWrite(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
-	defer func() {
-		got := recover()
-		if got != http.ErrAbortHandler {
-			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
-		}
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected committed status to remain 200 in recorder, got %d", rec.Code)
-		}
-		if rec.Body.String() != "partial:" {
-			t.Fatalf("expected partial response to remain unchanged in recorder, got %q", rec.Body.String())
-		}
-		if strings.Contains(rec.Body.String(), "internal server error") {
-			t.Fatalf("expected no appended problem body, got %q", rec.Body.String())
-		}
-	}()
+	defer assertAbortPanic(t, rec, http.StatusOK, "partial:")()
+	handler.ServeHTTP(rec, req)
+}
+
+func TestMiddlewareAbortsAfterCommittedHeader(t *testing.T) {
+	handler := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	defer assertAbortPanic(t, rec, http.StatusNoContent, "")()
 	handler.ServeHTTP(rec, req)
 }
 
@@ -135,3 +133,22 @@ func kvToMap(kv []any) map[string]any {
 }
 
 var _ ports.Logger = (*captureLogger)(nil)
+
+func assertAbortPanic(t *testing.T, rec *httptest.ResponseRecorder, wantCode int, wantBody string) func() {
+	t.Helper()
+	return func() {
+		got := recover()
+		if got != http.ErrAbortHandler {
+			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
+		}
+		if rec.Code != wantCode {
+			t.Fatalf("expected committed status %d in recorder, got %d", wantCode, rec.Code)
+		}
+		if rec.Body.String() != wantBody {
+			t.Fatalf("expected recorder body %q, got %q", wantBody, rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), "internal server error") {
+			t.Fatalf("expected no appended problem body, got %q", rec.Body.String())
+		}
+	}
+}
