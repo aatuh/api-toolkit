@@ -30,7 +30,7 @@ Notes:
 - the current behavior preserves a partial `200 OK` response
 - prefer a contract that fails the request instead of preserving misleading success
 
-### Ticket E1-T2 - Implement the new recovery behavior [ ]
+### Ticket E1-T2 - Implement the new recovery behavior [x]
 
 Description: Update `httpx/recover` so panics after partial writes no longer leave clients with a truncated success response.
 
