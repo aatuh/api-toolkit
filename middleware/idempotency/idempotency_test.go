@@ -173,8 +173,9 @@ func TestNewDefaultsClock(t *testing.T) {
 func TestMiddlewareBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
 	mem := newMemoryStore()
 	mw, err := New(Options{
-		Store:        mem,
-		MaxBodyBytes: 1024,
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 1024,
 	})
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
@@ -193,6 +194,51 @@ func TestMiddlewareBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
 		t.Fatalf("expected 201, got %d", rec.Code)
 	}
 	assertOptionalInterfaceHeadersFalse(t, rec.Header())
+}
+
+func TestIdempotencyFailsClosedWhenResponseExceedsBufferLimit(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": "abcdef"})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-response-limit")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for oversized buffered response, got %d", rec1.Code)
+	}
+	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"idempotent response exceeds replay buffer limit"`) {
+		t.Fatalf("expected buffer limit problem detail, got body %q", got)
+	}
+	if _, found, err := mem.Get(context.Background(), "key-response-limit"); err != nil {
+		t.Fatalf("store get after oversized response: %v", err)
+	} else if found {
+		t.Fatal("expected oversized response path to release reservation")
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-response-limit")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected retry to fail closed again while response exceeds limit, got %d", rec2.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected oversized response request to execute handler again on retry, got %d calls", calls)
+	}
 }
 
 func TestIdempotencyAllowsRetryAfterServerError(t *testing.T) {

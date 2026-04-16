@@ -15,6 +15,8 @@ type Capture struct {
 	status      int
 	wroteHeader bool
 	body        bytes.Buffer
+	maxBytes    int64
+	overflowed  bool
 }
 
 // NewCapture creates a new buffered response writer.
@@ -23,6 +25,13 @@ func NewCapture() *Capture {
 		header: make(http.Header),
 		status: http.StatusOK,
 	}
+}
+
+// NewLimitedCapture creates a buffered response writer with a maximum stored body size.
+func NewLimitedCapture(maxBytes int64) *Capture {
+	c := NewCapture()
+	c.maxBytes = maxBytes
+	return c
 }
 
 // Header returns the buffered header map.
@@ -41,6 +50,21 @@ func (c *Capture) Write(b []byte) (int, error) {
 	if !c.wroteHeader {
 		c.WriteHeader(http.StatusOK)
 	}
+	if c.maxBytes > 0 {
+		if c.overflowed {
+			return len(b), nil
+		}
+		remaining := c.maxBytes - int64(c.body.Len())
+		if remaining <= 0 {
+			c.overflowed = true
+			return len(b), nil
+		}
+		if int64(len(b)) > remaining {
+			_, _ = c.body.Write(b[:int(remaining)])
+			c.overflowed = true
+			return len(b), nil
+		}
+	}
 	return c.body.Write(b)
 }
 
@@ -57,6 +81,11 @@ func (c *Capture) BytesWritten() int {
 // Body returns a copy of the buffered body.
 func (c *Capture) Body() []byte {
 	return c.body.Bytes()
+}
+
+// Overflowed reports whether buffered writes exceeded the configured maximum body size.
+func (c *Capture) Overflowed() bool {
+	return c.overflowed
 }
 
 // WriteTo writes the buffered response to the provided ResponseWriter.
