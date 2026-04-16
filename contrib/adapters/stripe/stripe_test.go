@@ -1,0 +1,306 @@
+package stripe
+
+import (
+	"context"
+	"errors"
+	"net/netip"
+	"testing"
+	"time"
+
+	stripeapi "github.com/stripe/stripe-go/v79"
+	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
+)
+
+func TestParseWebhookRequiresVerificationWhenBypassIsNotAllowed(t *testing.T) {
+	payload := testWebhookPayload()
+
+	tests := []struct {
+		name string
+		p    *Provider
+		ctx  context.Context
+	}{
+		{
+			name: "missing secret uses secure default",
+			p:    New("sk_test", ""),
+			ctx:  context.Background(),
+		},
+		{
+			name: "public ip is not allowed in dev mode",
+			p:    New("sk_test", "", WithDevMode(true)),
+			ctx:  AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10")),
+		},
+		{
+			name: "skip verify still requires safe dev context",
+			p:    New("sk_test", "whsec_test", WithSkipVerify(true), WithDevMode(true)),
+			ctx:  context.Background(),
+		},
+		{
+			name: "skip verify rejects public ip even in dev mode",
+			p:    New("sk_test", "whsec_test", WithSkipVerify(true), WithDevMode(true)),
+			ctx:  AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10")),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tc.p.ParseWebhook(tc.ctx, payload, "invalid")
+			if err == nil {
+				t.Fatal("expected verification error")
+			}
+			if !errors.Is(err, stripewebhook.ErrInvalidHeader) && err.Error() != "stripe webhook verification required" {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestParseWebhookAllowsUnsignedPayloadFromSafeDevContext(t *testing.T) {
+	t.Parallel()
+
+	p := New("sk_test", "", WithDevMode(true))
+	ctx := AllowInsecureWebhook(context.Background(), netip.MustParseAddr("127.0.0.1"))
+
+	got, err := p.ParseWebhook(ctx, testWebhookPayload(), "")
+	if err != nil {
+		t.Fatalf("ParseWebhook() error = %v", err)
+	}
+
+	assertWebhookEvent(t, got)
+}
+
+func TestParseWebhookAllowsSkipVerifyOnlyInSafeDevContext(t *testing.T) {
+	t.Parallel()
+
+	p := New("sk_test", "whsec_test", WithSkipVerify(true), WithDevMode(true))
+	ctx := AllowInsecureWebhook(context.Background(), netip.MustParseAddr("10.0.0.10"))
+
+	got, err := p.ParseWebhook(ctx, testWebhookPayload(), "invalid")
+	if err != nil {
+		t.Fatalf("ParseWebhook() error = %v", err)
+	}
+
+	assertWebhookEvent(t, got)
+}
+
+func TestParseWebhookVerifiesSignedPayload(t *testing.T) {
+	t.Parallel()
+
+	payload := testWebhookPayload()
+	secret := "whsec_test"
+	signed := stripewebhook.GenerateTestSignedPayload(&stripewebhook.UnsignedPayload{
+		Payload:   payload,
+		Secret:    secret,
+		Timestamp: time.Now(),
+	})
+
+	p := New("sk_test", secret)
+	got, err := p.ParseWebhook(context.Background(), signed.Payload, signed.Header)
+	if err != nil {
+		t.Fatalf("ParseWebhook() error = %v", err)
+	}
+
+	assertWebhookEvent(t, got)
+}
+
+func TestBillingValidationGuards(t *testing.T) {
+	t.Parallel()
+
+	p := New("sk_test", "")
+	tests := []struct {
+		name string
+		run  func() error
+		want string
+	}{
+		{
+			name: "checkout session requires price or amount currency",
+			run: func() error {
+				_, err := p.CreateCheckoutSession(context.Background(), ports.CheckoutSessionRequest{})
+				return err
+			},
+			want: "price id or amount+currency required",
+		},
+		{
+			name: "customer default payment method requires ids",
+			run: func() error {
+				return p.SetCustomerDefaultPaymentMethod(context.Background(), " ", "")
+			},
+			want: "customer id and payment method required",
+		},
+		{
+			name: "retrieve payment method requires id",
+			run: func() error {
+				_, err := p.RetrievePaymentMethod(context.Background(), "")
+				return err
+			},
+			want: "payment method id required",
+		},
+		{
+			name: "invoice requires customer id",
+			run: func() error {
+				_, err := p.CreateInvoice(context.Background(), ports.InvoiceInput{})
+				return err
+			},
+			want: "customer id required",
+		},
+		{
+			name: "billing portal session requires customer id",
+			run: func() error {
+				_, err := p.CreateBillingPortalSession(context.Background(), ports.BillingPortalSessionInput{})
+				return err
+			},
+			want: "customer id required",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.run()
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if err.Error() != tc.want {
+				t.Fatalf("error = %q, want %q", err.Error(), tc.want)
+			}
+		})
+	}
+}
+
+func TestBillingPortalFlowDataParams(t *testing.T) {
+	t.Parallel()
+
+	flow := &ports.BillingPortalFlowData{
+		Type: ports.BillingPortalFlowTypeSubscriptionUpdateConfirm,
+		AfterCompletion: &ports.BillingPortalFlowAfterCompletion{
+			Type:              ports.BillingPortalFlowAfterCompletionTypeRedirect,
+			RedirectReturnURL: "https://example.com/account",
+		},
+		SubscriptionUpdateConfirm: &ports.BillingPortalFlowSubscriptionUpdateConfirm{
+			SubscriptionID: "sub_123",
+			Items: []ports.BillingPortalFlowSubscriptionUpdateConfirmItem{
+				{
+					SubscriptionItemID: "si_123",
+					PriceID:            "price_123",
+					Quantity:           2,
+				},
+				{},
+			},
+		},
+	}
+
+	got := billingPortalFlowDataParams(flow)
+	if got == nil {
+		t.Fatal("expected flow params")
+	}
+	if got.Type == nil || *got.Type != string(ports.BillingPortalFlowTypeSubscriptionUpdateConfirm) {
+		t.Fatalf("flow type = %v", got.Type)
+	}
+	if got.AfterCompletion == nil || got.AfterCompletion.Type == nil || *got.AfterCompletion.Type != string(ports.BillingPortalFlowAfterCompletionTypeRedirect) {
+		t.Fatalf("after completion type = %+v", got.AfterCompletion)
+	}
+	if got.AfterCompletion.Redirect == nil || got.AfterCompletion.Redirect.ReturnURL == nil || *got.AfterCompletion.Redirect.ReturnURL != "https://example.com/account" {
+		t.Fatalf("after completion redirect = %+v", got.AfterCompletion.Redirect)
+	}
+	if got.SubscriptionUpdateConfirm == nil || got.SubscriptionUpdateConfirm.Subscription == nil || *got.SubscriptionUpdateConfirm.Subscription != "sub_123" {
+		t.Fatalf("subscription update confirm = %+v", got.SubscriptionUpdateConfirm)
+	}
+	if len(got.SubscriptionUpdateConfirm.Items) != 1 {
+		t.Fatalf("items len = %d, want 1", len(got.SubscriptionUpdateConfirm.Items))
+	}
+
+	item := got.SubscriptionUpdateConfirm.Items[0]
+	if item.ID == nil || *item.ID != "si_123" {
+		t.Fatalf("item id = %v", item.ID)
+	}
+	if item.Price == nil || *item.Price != "price_123" {
+		t.Fatalf("item price = %v", item.Price)
+	}
+	if item.Quantity == nil || *item.Quantity != 2 {
+		t.Fatalf("item quantity = %v", item.Quantity)
+	}
+}
+
+func TestBillingPortalFlowDataParamsReturnsNilForEmptyFlow(t *testing.T) {
+	t.Parallel()
+
+	if got := billingPortalFlowDataParams(&ports.BillingPortalFlowData{}); got != nil {
+		t.Fatalf("expected nil flow params, got %+v", got)
+	}
+}
+
+func TestInvoiceFromStripe(t *testing.T) {
+	t.Parallel()
+
+	got := invoiceFromStripe(&stripeapi.Invoice{
+		ID:               "in_123",
+		Status:           stripeapi.InvoiceStatusOpen,
+		Currency:         stripeapi.CurrencyUSD,
+		AmountDue:        0,
+		Total:            1250,
+		AmountPaid:       500,
+		HostedInvoiceURL: "https://billing.example/in_123",
+		Created:          1710000000,
+		DueDate:          1710003600,
+		StatusTransitions: &stripeapi.InvoiceStatusTransitions{
+			FinalizedAt: 1710001800,
+			PaidAt:      1710005400,
+		},
+	})
+
+	if got.ID != "in_123" {
+		t.Fatalf("invoice id = %q", got.ID)
+	}
+	if got.Status != string(stripeapi.InvoiceStatusOpen) {
+		t.Fatalf("status = %q", got.Status)
+	}
+	if got.Currency != "USD" {
+		t.Fatalf("currency = %q", got.Currency)
+	}
+	if got.AmountDue != 1250 {
+		t.Fatalf("amount due = %d", got.AmountDue)
+	}
+	if got.AmountPaid != 500 {
+		t.Fatalf("amount paid = %d", got.AmountPaid)
+	}
+	if got.HostedInvoiceURL != "https://billing.example/in_123" {
+		t.Fatalf("hosted invoice url = %q", got.HostedInvoiceURL)
+	}
+	if !got.CreatedAt.Equal(time.Unix(1710000000, 0)) {
+		t.Fatalf("created at = %s", got.CreatedAt)
+	}
+	if got.DueDate == nil || !got.DueDate.Equal(time.Unix(1710003600, 0)) {
+		t.Fatalf("due date = %v", got.DueDate)
+	}
+	if got.FinalizedAt == nil || !got.FinalizedAt.Equal(time.Unix(1710001800, 0)) {
+		t.Fatalf("finalized at = %v", got.FinalizedAt)
+	}
+	if got.PaidAt == nil || !got.PaidAt.Equal(time.Unix(1710005400, 0)) {
+		t.Fatalf("paid at = %v", got.PaidAt)
+	}
+}
+
+func assertWebhookEvent(t *testing.T, got ports.WebhookEvent) {
+	t.Helper()
+
+	if got.ID != "evt_123" {
+		t.Fatalf("event id = %q", got.ID)
+	}
+	if got.Type != "checkout.session.completed" {
+		t.Fatalf("event type = %q", got.Type)
+	}
+	if !got.CreatedAt.Equal(time.Unix(1710000000, 0)) {
+		t.Fatalf("created at = %s", got.CreatedAt)
+	}
+	if string(got.Payload) != `{"id":"cs_test_123"}` {
+		t.Fatalf("payload = %s", string(got.Payload))
+	}
+}
+
+func testWebhookPayload() []byte {
+	return []byte(`{"id":"evt_123","type":"checkout.session.completed","api_version":"` + stripeapi.APIVersion + `","created":1710000000,"data":{"object":{"id":"cs_test_123"}}}`)
+}
