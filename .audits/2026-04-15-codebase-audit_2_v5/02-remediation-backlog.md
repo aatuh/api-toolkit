@@ -247,7 +247,7 @@ Notes:
 - avoid silent behavior changes for existing consumers
 - include upgrade guidance in release notes if needed
 
-## Epic E4 - Fail fast on invalid runtime configuration [ ]
+## Epic E4 - Fail fast on invalid runtime configuration [x]
 
 Description: Make startup configuration parsing consistent so malformed bool and int values do not silently revert to defaults.
 
@@ -289,7 +289,7 @@ Notes:
 - keep tests local to config and loader packages
 - assert both returned errors and resulting field values
 
-### Ticket E4-T3 - Align config examples and startup helpers with fail-fast behavior [ ]
+### Ticket E4-T3 - Align config examples and startup helpers with fail-fast behavior [x]
 
 Description: Update config-facing docs, examples, and any helper wrappers so they describe and rely on explicit startup failure for invalid configuration.
 

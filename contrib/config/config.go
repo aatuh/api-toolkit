@@ -17,7 +17,8 @@ type Config struct {
 	RateLimitAllowDangerousDevBypasses bool   `env:"RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES"` // true|false
 }
 
-// MustLoadFromEnv loads config or panics if required values are missing.
+// MustLoadFromEnv loads config or panics if required values are missing or
+// present values are invalid.
 func MustLoadFromEnv() Config {
 	cfg, err := LoadFromEnv(nil)
 	if err != nil {
@@ -26,7 +27,9 @@ func MustLoadFromEnv() Config {
 	return cfg
 }
 
-// LoadFromEnv loads config from environment using an optional loader.
+// LoadFromEnv loads config from environment using an optional loader and
+// returns an error when required values are missing or present values are
+// invalid.
 func LoadFromEnv(loader *Loader) (Config, error) {
 	if loader == nil {
 		loader = NewLoader()
