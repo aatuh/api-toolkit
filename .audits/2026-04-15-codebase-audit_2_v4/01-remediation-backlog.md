@@ -167,7 +167,7 @@ Notes:
 - keep the tests local to `middleware/idempotency`
 - prefer behavior-level assertions over implementation-detail checks
 
-## Epic E3 - Make scheduler lifecycle failures non-fatal and deterministic [ ]
+## Epic E3 - Make scheduler lifecycle failures non-fatal and deterministic [x]
 
 Description: Remove the remaining scheduler lifecycle hazards so background jobs cannot crash the process or multiply execution schedules through repeated startup calls.
 
@@ -228,7 +228,7 @@ Notes:
 - use synchronization instead of timing-heavy sleeps where possible
 - test both operator-visible signals and execution behavior
 
-### Ticket E3-T4 - Refresh scheduler docs and examples [ ]
+### Ticket E3-T4 - Refresh scheduler docs and examples [x]
 
 Description: Update package docs and release notes so the scheduler contract covers non-overlap, panic handling, and duplicate-start behavior truthfully.
 
