@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Fix panic failure semantics in the default HTTP stack [ ]
+## Epic E1 - Fix panic failure semantics in the default HTTP stack [x]
 
 Description: Ensure panics are surfaced as failed requests instead of leaking partial success responses through the default recovery and bootstrap path.
 
@@ -68,7 +68,7 @@ Notes:
 - replace the current test that blesses partial success on panic
 - assert client-visible behavior, not only internal logging
 
-### Ticket E1-T4 - Update panic-handling documentation [ ]
+### Ticket E1-T4 - Update panic-handling documentation [x]
 
 Description: Refresh package docs and any examples so the published recovery contract matches the implemented behavior.
 
