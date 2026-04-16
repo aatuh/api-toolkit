@@ -167,6 +167,10 @@ func ratioFromArg(arg string, fallback float64) float64 {
 }
 
 func hasScheme(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+	if !strings.Contains(endpoint, "://") {
+		return false
+	}
 	u, err := url.Parse(endpoint)
 	return err == nil && u.Scheme != ""
 }
