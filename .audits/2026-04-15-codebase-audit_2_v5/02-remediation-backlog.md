@@ -190,7 +190,7 @@ Notes:
 - keep bodyless write requests working as intended
 - preserve support for `application/*+json`
 
-### Ticket E3-T2 - Expand JSON middleware coverage and docs [ ]
+### Ticket E3-T2 - Expand JSON middleware coverage and docs [x]
 
 Description: Add tests for missing `Content-Type` cases and update security documentation so the published strict-mode contract is exact.
 

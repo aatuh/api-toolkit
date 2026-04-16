@@ -8,7 +8,8 @@ documentation aligned with OWASP API Security guidance.
 Core defaults aim to be safe, deterministic, and explicit:
 
 - Problem Details responses (RFC 9457) for consistent errors.
-- Strict JSON content-type enforcement when enabled.
+- Strict JSON content-type enforcement when enabled, including rejection of
+  body-bearing write requests that omit `Content-Type`.
 - Request body limits via `middleware/maxbody`.
 - Query limits via `middleware/querylimits`.
 - Security headers via `middleware/secure`.
