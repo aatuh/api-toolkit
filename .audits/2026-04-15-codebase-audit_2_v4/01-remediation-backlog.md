@@ -171,7 +171,7 @@ Notes:
 
 Description: Remove the remaining scheduler lifecycle hazards so background jobs cannot crash the process or multiply execution schedules through repeated startup calls.
 
-### Ticket E3-T1 - Contain scheduled-job panics and surface them through logging/recording [ ]
+### Ticket E3-T1 - Contain scheduled-job panics and surface them through logging/recording [x]
 
 Description: Add panic recovery around job execution so one broken job cannot terminate the host process, while still recording failure details clearly.
 
