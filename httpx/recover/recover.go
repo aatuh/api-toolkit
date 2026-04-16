@@ -77,13 +77,16 @@ func New(opts ...Option) func(http.Handler) http.Handler {
 			ww := response_writer.Wrap(w)
 			defer func() {
 				if rec := recover(); rec != nil {
+					if rec == http.ErrAbortHandler {
+						panic(http.ErrAbortHandler)
+					}
 					fields := []any{"panic", fmt.Sprint(rec)}
 					if cfg.logStack {
 						fields = append(fields, "stack", string(debug.Stack()))
 					}
 					cfg.log.Error("panic recovered", fields...)
 					if ww.Committed() {
-						return
+						panic(http.ErrAbortHandler)
 					}
 					httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
 						Type:   httpx.DefaultTypeURI(httpx.TypeInternal),

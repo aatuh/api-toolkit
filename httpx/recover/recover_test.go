@@ -44,7 +44,7 @@ func TestMiddlewareWritesProblemWhenNothingCommitted(t *testing.T) {
 	}
 }
 
-func TestMiddlewareDoesNotAppendProblemAfterPartialWrite(t *testing.T) {
+func TestMiddlewareAbortsAfterPartialWrite(t *testing.T) {
 	handler := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("partial:"))
 		panic("boom")
@@ -52,17 +52,22 @@ func TestMiddlewareDoesNotAppendProblemAfterPartialWrite(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	defer func() {
+		got := recover()
+		if got != http.ErrAbortHandler {
+			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
+		}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected committed status to remain 200 in recorder, got %d", rec.Code)
+		}
+		if rec.Body.String() != "partial:" {
+			t.Fatalf("expected partial response to remain unchanged in recorder, got %q", rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), "internal server error") {
+			t.Fatalf("expected no appended problem body, got %q", rec.Body.String())
+		}
+	}()
 	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected committed status to remain 200, got %d", rec.Code)
-	}
-	if rec.Body.String() != "partial:" {
-		t.Fatalf("expected partial response to remain unchanged, got %q", rec.Body.String())
-	}
-	if strings.Contains(rec.Body.String(), "internal server error") {
-		t.Fatalf("expected no appended problem body, got %q", rec.Body.String())
-	}
 }
 
 func TestNewLogsPanicsToProvidedLogger(t *testing.T) {
