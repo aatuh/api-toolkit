@@ -251,6 +251,10 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 		queryLimitsMiddleware(cfg.enableQueryLimits, queryMw),
 		jsonMw.Middleware(),
 		timeoutMw.Middleware(),
+		// Request logging and metrics stay inside recovery. Their implementations
+		// are expected to emit from defer on panic paths so uncommitted panics can
+		// still be observed as 500s and committed panics can be observed before
+		// recovery aborts the request.
 		requestLogMw.Middleware(),
 		metricsMw.Middleware(),
 	)

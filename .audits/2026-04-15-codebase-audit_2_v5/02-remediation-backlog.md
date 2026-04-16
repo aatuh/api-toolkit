@@ -91,7 +91,7 @@ Notes:
 
 Description: Make sure the default HTTP profile still emits request logs and request metrics when handlers panic.
 
-### Ticket E2-T1 - Choose the panic-safe middleware emission strategy [ ]
+### Ticket E2-T1 - Choose the panic-safe middleware emission strategy [x]
 
 Description: Decide whether request logging and metrics should move outside recovery, emit through `defer`, or use another explicit pattern that preserves observability on panic paths.
 

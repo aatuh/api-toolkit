@@ -149,6 +149,9 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 }
 
 // Handler wraps the next handler with request logging.
+// It is intended to emit exactly one request log entry on both normal and panic
+// paths. For panic paths, it should infer the final visible status before
+// re-panicking so outer recovery can still produce the response contract.
 func (m *Middleware) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next

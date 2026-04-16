@@ -160,6 +160,9 @@ func (p *PrometheusRecorder) ObserveHistogram(_ string, value float64, labels La
 }
 
 // Handler wraps the next handler to record counters and duration.
+// It is intended to emit exactly one observation on both normal and panic
+// paths. For panic paths, it should infer the final visible status before
+// re-panicking so outer recovery can still produce the response contract.
 func (mw *Middleware) Handler(next http.Handler) http.Handler {
 	if mw == nil {
 		return next
