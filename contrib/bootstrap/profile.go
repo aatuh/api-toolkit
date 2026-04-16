@@ -167,7 +167,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 			SkipEnabled: false,
 		},
 		enableRateLimit:   true,
-		corsOptions:       cors.DefaultOptions(),
+		corsOptions:       ports.CORSOptions{},
 		timeout:           5 * time.Second,
 		maxBodyBytes:      1 << 20,
 		enableQueryLimits: true,
