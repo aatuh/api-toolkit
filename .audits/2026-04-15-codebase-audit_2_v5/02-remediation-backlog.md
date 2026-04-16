@@ -270,7 +270,7 @@ Notes:
 - preserve default behavior for missing env vars
 - only invalid present values should fail the load
 
-### Ticket E4-T2 - Add config loader regression tests [ ]
+### Ticket E4-T2 - Add config loader regression tests [x]
 
 Description: Add focused tests for malformed bool, int, and duration env values and for mixed valid plus invalid startup configurations.
 
