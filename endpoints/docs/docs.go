@@ -3,8 +3,8 @@ package docs
 import (
 	"bytes"
 	"errors"
-	"io/fs"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -314,11 +314,11 @@ func (m *Manager) loadOpenAPIFile() (openAPIDocument, error) {
 	candidates := make([]string, 0, 7)
 	if m.config.EnableJSON {
 		candidates = append(candidates,
-		"./swagger/swagger.json",
-		"./swagger/doc.json",
-		"./swagger/openapi.json",
-		"./docs/openapi.json",
-		"./api-docs.json",
+			"./swagger/swagger.json",
+			"./swagger/doc.json",
+			"./swagger/openapi.json",
+			"./docs/openapi.json",
+			"./api-docs.json",
 		)
 	}
 	if m.config.EnableYAML {
