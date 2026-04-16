@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Restore a trustworthy quality baseline [ ]
+## Epic E1 - Restore a trustworthy quality baseline [x]
 
 Description: Get the repository back to a reproducible green quality gate so later remediation work can rely on one verified baseline instead of conflicting audit claims.
 
@@ -49,7 +49,7 @@ Notes:
 - prefer explicit toolchain expectations over audit-time assumptions
 - keep CI and local workflow aligned
 
-### Ticket E1-T3 - Record the verified post-fix baseline [ ]
+### Ticket E1-T3 - Record the verified post-fix baseline [x]
 
 Description: After the gate is green again, update the audit notes or release notes so later reviews can distinguish verified repo state from stale local audit artifacts.
 
