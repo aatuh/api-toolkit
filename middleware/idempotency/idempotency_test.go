@@ -62,6 +62,84 @@ func TestIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplaysResponseAtExactBufferLimit(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("four"))
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-limit-exact")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed at exact limit, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-limit-exact")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay at exact limit, got %d", rec2.Code)
+	}
+	if rec2.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("expected replay header at exact limit")
+	}
+	if rec2.Body.String() != "four" {
+		t.Fatalf("expected exact-limit replay body, got %q", rec2.Body.String())
+	}
+}
+
+func TestIdempotencyUsesCustomReplayHeaderName(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 1024,
+		ReplayHeaderName: "X-Idempotent-Replay",
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": "alpha"})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-custom-replay-header")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-custom-replay-header")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay to succeed, got %d", rec2.Code)
+	}
+	if rec2.Header().Get("X-Idempotent-Replay") != "true" {
+		t.Fatalf("expected custom replay header to be set")
+	}
+	if rec2.Header().Get("Idempotency-Replayed") != "" {
+		t.Fatalf("expected default replay header to remain unset")
+	}
+}
+
 func TestIdempotencyRejectsReplayAcrossDifferentActors(t *testing.T) {
 	mem := newMemoryStore()
 	mw, err := New(Options{
@@ -157,6 +235,15 @@ func TestIdempotencyRejectsReplayAcrossDifferentTenants(t *testing.T) {
 func TestNewRequiresStore(t *testing.T) {
 	if _, err := New(Options{}); err == nil {
 		t.Fatal("expected error for missing store")
+	}
+}
+
+func TestNewRejectsNegativeMaxResponseBytes(t *testing.T) {
+	if _, err := New(Options{
+		Store:            newMemoryStore(),
+		MaxResponseBytes: -1,
+	}); err == nil {
+		t.Fatal("expected error for negative max response bytes")
 	}
 }
 
