@@ -91,7 +91,7 @@ Notes:
 - choose explicitly between fail-closed behavior and documented best-effort semantics
 - keep the docs and examples aligned with the final decision
 
-### Ticket E2-T2 - Implement the chosen save-failure behavior in middleware [ ]
+### Ticket E2-T2 - Implement the chosen save-failure behavior in middleware [x]
 
 Description: Update `middleware/idempotency` so its runtime behavior matches the chosen persistence-failure contract instead of silently returning a misleading success response.
 

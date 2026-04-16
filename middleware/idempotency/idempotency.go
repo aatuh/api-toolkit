@@ -262,6 +262,8 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				if cleanupErr := m.releaseReservation(ctx, key, hash); cleanupErr != nil && m.opts.OnError != nil {
 					m.opts.OnError(cleanupErr)
 				}
+				writePersistenceFailure(w)
+				return
 			}
 		} else if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
 			m.opts.OnError(err)
@@ -363,6 +365,14 @@ func writeBodyError(w http.ResponseWriter, err error) {
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid request body",
+	})
+}
+
+func writePersistenceFailure(w http.ResponseWriter) {
+	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+		Title:  http.StatusText(http.StatusServiceUnavailable),
+		Detail: "idempotency response persistence failed",
 	})
 }
 

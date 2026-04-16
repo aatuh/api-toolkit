@@ -185,10 +185,11 @@ func TestIdempotencyAllowsRetryAfterPanic(t *testing.T) {
 	}
 }
 
-func TestIdempotencyAllowsRetryAfterSaveFailure(t *testing.T) {
+func TestIdempotencyReturnsServiceUnavailableWhenSaveFails(t *testing.T) {
 	store := &saveFailStore{
-		memoryStore: newMemoryStore(),
-		saveErr:     errors.New("save failed"),
+		memoryStore:       newMemoryStore(),
+		saveErr:           errors.New("save failed"),
+		remainingFailures: 1,
 	}
 
 	var onError []error
@@ -213,22 +214,77 @@ func TestIdempotencyAllowsRetryAfterSaveFailure(t *testing.T) {
 	req1.Header.Set("Idempotency-Key", "key-save-fail")
 	rec1 := httptest.NewRecorder()
 	handler.ServeHTTP(rec1, req1)
-	if rec1.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", rec1.Code)
+	if rec1.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec1.Code)
 	}
 	if len(onError) != 1 || onError[0] == nil || onError[0].Error() != "save failed" {
 		t.Fatalf("expected save failure to be reported, got %#v", onError)
 	}
+	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"idempotency response persistence failed"`) {
+		t.Fatalf("expected persistence failure problem detail, got body %q", got)
+	}
+
+	_, found, err := store.Get(context.Background(), "key-save-fail")
+	if err != nil {
+		t.Fatalf("store get after save failure: %v", err)
+	}
+	if found {
+		t.Fatal("expected failed completion save to release reservation")
+	}
+}
+
+func TestIdempotencyAllowsRetryAfterTransientSaveFailure(t *testing.T) {
+	store := &saveFailStore{
+		memoryStore:       newMemoryStore(),
+		saveErr:           errors.New("save failed"),
+		remainingFailures: 1,
+	}
+
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-transient-save-fail")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected first response to fail closed with 503, got %d", rec1.Code)
+	}
 
 	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
-	req2.Header.Set("Idempotency-Key", "key-save-fail")
+	req2.Header.Set("Idempotency-Key", "key-transient-save-fail")
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusCreated {
-		t.Fatalf("expected retry to succeed after save failure, got %d", rec2.Code)
+		t.Fatalf("expected retry to succeed after transient save failure, got %d", rec2.Code)
 	}
 	if got := rec2.Body.String(); !strings.Contains(got, `"calls":2`) {
-		t.Fatalf("expected second request to execute handler again, got body %q", got)
+		t.Fatalf("expected retry to execute handler again, got body %q", got)
+	}
+
+	req3 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req3.Header.Set("Idempotency-Key", "key-transient-save-fail")
+	rec3 := httptest.NewRecorder()
+	handler.ServeHTTP(rec3, req3)
+	if rec3.Code != http.StatusCreated {
+		t.Fatalf("expected stored retry response to replay, got %d", rec3.Code)
+	}
+	if rec3.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("expected replay header on stored retry response")
+	}
+	if rec3.Body.String() != rec2.Body.String() {
+		t.Fatalf("expected replayed body to match stored retry response")
 	}
 }
 
@@ -240,7 +296,9 @@ type memoryStore struct {
 
 type saveFailStore struct {
 	*memoryStore
-	saveErr error
+	mu                sync.Mutex
+	saveErr           error
+	remainingFailures int
 }
 
 type memoryEntry struct {
@@ -319,7 +377,10 @@ func (s *saveFailStore) Save(ctx context.Context, key string, record ports.Idemp
 	if s == nil {
 		return nil
 	}
-	if s.saveErr != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.remainingFailures > 0 {
+		s.remainingFailures--
 		return s.saveErr
 	}
 	return s.memoryStore.Save(ctx, key, record, ttl)
