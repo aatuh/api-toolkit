@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,12 +38,30 @@ func (l *Loader) String(key, def string) string {
 
 // Bool reads a bool env var with a default.
 func (l *Loader) Bool(key string, def bool) bool {
-	return l.env.GetBoolOr(key, def)
+	val, ok := l.raw(key)
+	if !ok {
+		return def
+	}
+	parsed, err := strconv.ParseBool(val)
+	if err != nil {
+		l.errs = append(l.errs, fmt.Errorf("invalid bool for %s: %s", key, val))
+		return def
+	}
+	return parsed
 }
 
 // Int reads an int env var with a default.
 func (l *Loader) Int(key string, def int) int {
-	return l.env.GetIntOr(key, def)
+	val, ok := l.raw(key)
+	if !ok {
+		return def
+	}
+	parsed, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		l.errs = append(l.errs, fmt.Errorf("invalid int for %s: %s", key, val))
+		return def
+	}
+	return int(parsed)
 }
 
 // Duration reads a duration env var with a default.
@@ -62,6 +81,17 @@ func (l *Loader) Duration(key string, def time.Duration) time.Duration {
 // CSV reads a comma-separated env var into a slice.
 func (l *Loader) CSV(key string) []string {
 	return SplitCSV(l.env.GetOr(key, ""))
+}
+
+func (l *Loader) raw(key string) (string, bool) {
+	if l == nil || l.env == nil {
+		return "", false
+	}
+	val, ok := l.env.Get(key)
+	if !ok {
+		return "", false
+	}
+	return strings.TrimSpace(val), true
 }
 
 // Err returns aggregated errors, if any.
