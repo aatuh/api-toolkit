@@ -312,7 +312,7 @@ Notes:
 
 Description: Add direct coverage and edge-case hardening around the payment, telemetry, and runtime-config contrib packages that currently rely too much on indirect confidence.
 
-### Ticket E5-T1 - Add direct Stripe webhook and billing tests [ ]
+### Ticket E5-T1 - Add direct Stripe webhook and billing tests [x]
 
 Description: Add direct tests for `contrib/adapters/stripe` covering webhook verification, dev bypass conditions, secure defaults, and core billing request translation.
 
