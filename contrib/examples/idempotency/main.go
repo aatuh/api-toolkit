@@ -49,6 +49,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("init idempotency middleware: %v", err)
 	}
+	// This example is unauthenticated. In authenticated APIs, apply auth and
+	// tenant middleware before idempotency so the default request hash includes
+	// caller scope.
 	router.Use(idem.Middleware())
 
 	validator := validation.New()

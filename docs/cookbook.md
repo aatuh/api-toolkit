@@ -12,6 +12,7 @@ go run ./examples/<name>
 Use the idempotency middleware to guarantee safe retries for POST/PUT/PATCH.
 
 - Successful terminal responses are replayed for the same `Idempotency-Key`.
+- The default request hash includes authenticated actor and tenant scope when present, so authenticated stacks should apply auth and tenant middleware before idempotency.
 - If the downstream handler succeeds but the replay record cannot be persisted, the client receives `503 Service Unavailable` instead of an ambiguous success response.
 - Failed attempts do not leave the key blocked in an in-flight state; the same request can retry immediately with the same key.
 

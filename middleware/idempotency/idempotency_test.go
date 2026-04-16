@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -58,6 +59,98 @@ func TestIdempotencyReplay(t *testing.T) {
 	handler.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusConflict {
 		t.Fatalf("expected conflict on key reuse, got %d", rec3.Code)
+	}
+}
+
+func TestIdempotencyRejectsReplayAcrossDifferentActors(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(
+		authorization.WithActor(context.Background(), authorization.Actor{UserID: "user-1"}),
+		http.MethodPost,
+		"/charge",
+		strings.NewReader("alpha"),
+	)
+	req1.Header.Set("Idempotency-Key", "actor-key")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(
+		authorization.WithActor(context.Background(), authorization.Actor{UserID: "user-2"}),
+		http.MethodPost,
+		"/charge",
+		strings.NewReader("alpha"),
+	)
+	req2.Header.Set("Idempotency-Key", "actor-key")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusConflict {
+		t.Fatalf("expected actor-scoped conflict, got %d", rec2.Code)
+	}
+	if calls != 1 {
+		t.Fatalf("expected conflicting actor request not to execute handler, got %d calls", calls)
+	}
+}
+
+func TestIdempotencyRejectsReplayAcrossDifferentTenants(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(
+		authorization.WithScope(context.Background(), authorization.Scope{TenantID: "tenant-a"}),
+		http.MethodPost,
+		"/charge",
+		strings.NewReader("alpha"),
+	)
+	req1.Header.Set("Idempotency-Key", "tenant-key")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(
+		authorization.WithScope(context.Background(), authorization.Scope{TenantID: "tenant-b"}),
+		http.MethodPost,
+		"/charge",
+		strings.NewReader("alpha"),
+	)
+	req2.Header.Set("Idempotency-Key", "tenant-key")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusConflict {
+		t.Fatalf("expected tenant-scoped conflict, got %d", rec2.Code)
+	}
+	if calls != 1 {
+		t.Fatalf("expected conflicting tenant request not to execute handler, got %d calls", calls)
 	}
 }
 
