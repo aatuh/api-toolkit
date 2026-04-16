@@ -8,6 +8,7 @@
 - Idempotency middleware now caps buffered replay bodies at `1 MiB` by default and returns `503 Service Unavailable` when a handled response exceeds the replay buffer limit.
 - `scheduler.Runner` now recovers scheduled-job panics, logs and records them as failed runs, and keeps future intervals alive instead of letting one bad job crash the process.
 - `scheduler.Runner` now prevents the same job name from overlapping with itself across duplicate `Start` calls or duplicate scheduling of the same job.
+- `bootstrap.ProfileStrictAPI` no longer enables wildcard CORS by default; browser-facing cross-origin access now requires an explicit `WithCORSOptions(...)` allowlist.
 - Docs endpoints now return `404` when the HTML docs surface is disabled or when no authoritative OpenAPI document is available.
 - `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` now control which discovered OpenAPI formats may be served on the configured docs path.
 - Multi-source migrator loading now documents its actual contract: duplicate version+direction pairs are rejected.
@@ -21,5 +22,6 @@
 - If a route can stream, hijack, upgrade, or return large bodies, exclude it with `ShouldHandle` or raise `MaxResponseBytes`; otherwise oversized handled responses now fail closed with `503 Service Unavailable`.
 - If a scheduled job panic previously terminated the process, that failure is now contained and surfaced through scheduler logging and run recording instead.
 - If application code called `scheduler.Runner.Start` more than once or reused the same job name across duplicate schedules, those executions no longer overlap. Validate any workload that previously relied on concurrent execution of the same named job.
+- If browser clients previously relied on `ProfileStrictAPI` to emit `Access-Control-Allow-Origin: *`, they must now set an explicit allowlist with `WithCORSOptions(...)` during bootstrap.
 - Docs handlers no longer return a synthetic OpenAPI document when no authoritative spec exists. Expect `404` for disabled docs surfaces and for missing OpenAPI files unless a real document is configured.
 - `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` now control which discovered OpenAPI formats can be served. Verify custom docs paths and any YAML-based docs setup during upgrade.

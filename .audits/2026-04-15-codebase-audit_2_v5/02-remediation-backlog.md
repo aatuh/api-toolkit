@@ -167,7 +167,7 @@ Notes:
 - test the default strict profile, not only isolated middleware
 - assert emitted behavior rather than internal call order
 
-## Epic E3 - Tighten request-hardening defaults [ ]
+## Epic E3 - Tighten request-hardening defaults [x]
 
 Description: Make the repository’s strict-profile and strict-mode promises match actual runtime behavior for JSON enforcement and browser-facing defaults.
 
@@ -228,7 +228,7 @@ Notes:
 - prefer explicit caller choice over permissive hidden defaults
 - consider compatibility impact for current examples and consumers
 
-### Ticket E3-T4 - Add strict-profile browser-surface tests and migration notes [ ]
+### Ticket E3-T4 - Add strict-profile browser-surface tests and migration notes [x]
 
 Description: Add tests covering strict-profile CORS behavior and document any compatibility-sensitive changes for downstream users.
 
