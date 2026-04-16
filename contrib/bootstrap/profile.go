@@ -235,7 +235,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 		mw.RequestID(),
 		traceMw.Middleware(),
 		recoverx.New(recoverx.WithLogger(cfg.log)),
-		corsh.Handler(cfg.corsOptions),
+		corsMiddleware(corsh, cfg.corsOptions),
 		secureMw.Middleware(),
 	}
 	if cfg.enableRateLimit {
@@ -335,7 +335,7 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 		mw.RequestID(),
 		traceMw.Middleware(),
 		recoverx.New(recoverx.WithLogger(cfg.log)),
-		corsh.Handler(cfg.corsOptions),
+		corsMiddleware(corsh, cfg.corsOptions),
 		secureMw.Middleware(),
 		maxBodyMw.Middleware(),
 		queryLimitsMiddleware(cfg.enableQueryLimits, queryMw),
@@ -379,4 +379,11 @@ func queryLimitsMiddleware(enabled bool, mw *querylimits.Middleware) func(http.H
 		return func(next http.Handler) http.Handler { return next }
 	}
 	return mw.Middleware()
+}
+
+func corsMiddleware(handler ports.CORSHandler, opts ports.CORSOptions) func(http.Handler) http.Handler {
+	if handler == nil || len(opts.AllowedOrigins) == 0 {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return handler.Handler(opts)
 }

@@ -277,6 +277,58 @@ func TestProfileStrictAPIPartialWritePanicEmitsAccessLogAndMetrics(t *testing.T)
 	handler.ServeHTTP(rec, req)
 }
 
+func TestProfileStrictAPIDoesNotAllowCrossOriginByDefault(t *testing.T) {
+	profile, err := ProfileStrictAPI(
+		ports.NopLogger{},
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapBootstrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cors", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected no ACAO header, got %q", got)
+	}
+}
+
+func TestProfileStrictAPIAppliesExplicitCORSAllowlist(t *testing.T) {
+	profile, err := ProfileStrictAPI(
+		ports.NopLogger{},
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+		WithCORSOptions(ports.CORSOptions{
+			AllowedOrigins: []string{"https://app.example.com"},
+			AllowedMethods: []string{http.MethodGet, http.MethodOptions},
+			AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+			MaxAge:         300,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapBootstrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cors", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("expected explicit ACAO header, got %q", got)
+	}
+}
+
 func wrapBootstrapProfile(profile Profile, next http.Handler) http.Handler {
 	handler := next
 	for i := len(profile.Middlewares) - 1; i >= 0; i-- {
