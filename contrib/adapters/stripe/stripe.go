@@ -112,7 +112,7 @@ func (p *Provider) CreateCheckoutSession(ctx context.Context, req ports.Checkout
 
 	session, err := p.client.CheckoutSessions.New(params)
 	if err != nil {
-		return ports.CheckoutSession{}, err
+		return ports.CheckoutSession{}, normalizeStripeError(err)
 	}
 	return ports.CheckoutSession{ID: session.ID, URL: session.URL}, nil
 }
@@ -236,7 +236,7 @@ func (p *Provider) ListPrices(ctx context.Context) ([]ports.Price, error) {
 		})
 	}
 	if err := iter.Err(); err != nil {
-		return nil, err
+		return nil, normalizeStripeError(err)
 	}
 	return out, nil
 }

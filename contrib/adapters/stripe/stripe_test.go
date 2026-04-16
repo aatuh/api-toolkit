@@ -1,6 +1,7 @@
 package stripe
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/netip"
@@ -8,6 +9,8 @@ import (
 	"time"
 
 	stripeapi "github.com/stripe/stripe-go/v79"
+	"github.com/stripe/stripe-go/v79/client"
+	"github.com/stripe/stripe-go/v79/form"
 	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -171,6 +174,82 @@ func TestBillingValidationGuards(t *testing.T) {
 	}
 }
 
+func TestProviderNormalizesStripeResourceMissingErrors(t *testing.T) {
+	t.Parallel()
+
+	p := newProviderWithBackendError(&stripeapi.Error{
+		Code: stripeapi.ErrorCodeResourceMissing,
+		Msg:  "resource missing",
+	})
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "create checkout session",
+			run: func() error {
+				_, err := p.CreateCheckoutSession(context.Background(), ports.CheckoutSessionRequest{
+					PriceID:    "price_123",
+					SuccessURL: "https://example.com/success",
+					CancelURL:  "https://example.com/cancel",
+				})
+				return err
+			},
+		},
+		{
+			name: "list prices",
+			run: func() error {
+				_, err := p.ListPrices(context.Background())
+				return err
+			},
+		},
+		{
+			name: "set customer default payment method",
+			run: func() error {
+				return p.SetCustomerDefaultPaymentMethod(context.Background(), "cus_123", "pm_123")
+			},
+		},
+		{
+			name: "retrieve payment method",
+			run: func() error {
+				_, err := p.RetrievePaymentMethod(context.Background(), "pm_123")
+				return err
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.run()
+			if !errors.Is(err, ports.ErrResourceMissing) {
+				t.Fatalf("expected ports.ErrResourceMissing, got %v", err)
+			}
+
+			var stripeErr *stripeapi.Error
+			if !errors.As(err, &stripeErr) {
+				t.Fatalf("expected wrapped stripe error, got %T", err)
+			}
+		})
+	}
+}
+
+func TestNormalizeStripeErrorLeavesNonMissingErrorsUntouched(t *testing.T) {
+	t.Parallel()
+
+	err := &stripeapi.Error{
+		Code: stripeapi.ErrorCodeCardDeclined,
+		Msg:  "card declined",
+	}
+
+	got := normalizeStripeError(err)
+	if got != err {
+		t.Fatalf("expected original error, got %v", got)
+	}
+}
+
 func TestBillingPortalFlowDataParams(t *testing.T) {
 	t.Parallel()
 
@@ -304,3 +383,36 @@ func assertWebhookEvent(t *testing.T, got ports.WebhookEvent) {
 func testWebhookPayload() []byte {
 	return []byte(`{"id":"evt_123","type":"checkout.session.completed","api_version":"` + stripeapi.APIVersion + `","created":1710000000,"data":{"object":{"id":"cs_test_123"}}}`)
 }
+
+func newProviderWithBackendError(err error) *Provider {
+	c := &client.API{}
+	backend := &stubStripeBackend{err: err}
+	c.Init("sk_test", &stripeapi.Backends{
+		API:     backend,
+		Connect: backend,
+		Uploads: backend,
+	})
+	return &Provider{client: c}
+}
+
+type stubStripeBackend struct {
+	err error
+}
+
+func (b *stubStripeBackend) Call(method, path, key string, params stripeapi.ParamsContainer, v stripeapi.LastResponseSetter) error {
+	return b.err
+}
+
+func (b *stubStripeBackend) CallStreaming(method, path, key string, params stripeapi.ParamsContainer, v stripeapi.StreamingLastResponseSetter) error {
+	return b.err
+}
+
+func (b *stubStripeBackend) CallRaw(method, path, key string, body *form.Values, params *stripeapi.Params, v stripeapi.LastResponseSetter) error {
+	return b.err
+}
+
+func (b *stubStripeBackend) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripeapi.Params, v stripeapi.LastResponseSetter) error {
+	return b.err
+}
+
+func (b *stubStripeBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {}

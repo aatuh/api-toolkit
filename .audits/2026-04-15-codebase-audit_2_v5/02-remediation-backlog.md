@@ -331,7 +331,7 @@ Notes:
 - cover both signed and skipped verification paths
 - assert the exact conditions under which dev bypass is allowed
 
-### Ticket E5-T2 - Normalize Stripe adapter error behavior [ ]
+### Ticket E5-T2 - Normalize Stripe adapter error behavior [x]
 
 Description: Audit the Stripe billing helpers so all externally returned provider errors follow one explicit normalization strategy.
 

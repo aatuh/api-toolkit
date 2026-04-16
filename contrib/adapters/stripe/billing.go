@@ -155,7 +155,7 @@ func (p *Provider) SetCustomerDefaultPaymentMethod(ctx context.Context, customer
 		DefaultPaymentMethod: stripe.String(paymentMethodID),
 	}
 	_, err := p.client.Customers.Update(customerID, params)
-	return err
+	return normalizeStripeError(err)
 }
 
 // RetrievePaymentMethod fetches a stored payment method details.
@@ -168,7 +168,7 @@ func (p *Provider) RetrievePaymentMethod(ctx context.Context, paymentMethodID st
 	params.Context = ctx
 	pm, err := p.client.PaymentMethods.Get(paymentMethodID, params)
 	if err != nil {
-		return ports.PaymentMethod{}, err
+		return ports.PaymentMethod{}, normalizeStripeError(err)
 	}
 	out := ports.PaymentMethod{ID: pm.ID}
 	if pm.Card != nil {
