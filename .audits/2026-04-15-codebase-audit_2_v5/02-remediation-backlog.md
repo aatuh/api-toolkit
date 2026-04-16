@@ -110,7 +110,7 @@ Notes:
 - avoid duplicating request logs or double-counting metrics
 - keep the normal non-panic path simple
 
-### Ticket E2-T2 - Implement panic-safe request logging [ ]
+### Ticket E2-T2 - Implement panic-safe request logging [x]
 
 Description: Update `contrib/middleware/requestlog` and the default bootstrap ordering so panicking requests still generate one useful access log entry.
 

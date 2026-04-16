@@ -194,6 +194,37 @@ func TestRequestLogCanAttachStackForHandled5xxWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestRequestLogEmitsErrorForRecoveredPanicBeforeCommit(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(log, WithRoutePattern(func(*http.Request) string { return "/panic" }))
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/panic", nil)
+	defer func() {
+		if got := recover(); got != "boom" {
+			t.Fatalf("expected panic boom, got %v", got)
+		}
+		if log.level != "error" {
+			t.Fatalf("level = %q", log.level)
+		}
+		fields := kvToMap(log.kv)
+		if fields[FieldStatus] != http.StatusInternalServerError {
+			t.Fatalf("status = %v", fields[FieldStatus])
+		}
+		if fields[FieldPanicRecovered] != true {
+			t.Fatalf("panic_recovered = %v", fields[FieldPanicRecovered])
+		}
+	}()
+	handler.ServeHTTP(rec, req)
+}
+
 func kvToMap(kv []any) map[string]any {
 	out := make(map[string]any)
 	for i := 0; i+1 < len(kv); i += 2 {
