@@ -72,7 +72,7 @@ Notes:
 
 Description: Close the remaining correctness and security gaps in idempotency handling so replay behavior is explicit, bounded, and safe for authenticated multi-tenant APIs.
 
-### Ticket E2-T1 - Define the completion-persistence failure contract [ ]
+### Ticket E2-T1 - Define the completion-persistence failure contract [x]
 
 Description: Decide how the middleware should behave when the downstream handler succeeds but the completed idempotency record cannot be persisted.
 
