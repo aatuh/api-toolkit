@@ -46,14 +46,18 @@ func (stderrLogger) Error(msg string, kv ...any) {
 	}
 }
 
-// Middleware converts panics into RFC 9457 problem details responses.
-// It intentionally does not leak panic values to clients.
+// Middleware converts panics into RFC 9457 problem details responses when the
+// response is still uncommitted. If the handler already committed headers or
+// body bytes, the middleware logs the panic and aborts the request rather than
+// preserving a misleading partial success response.
 func Middleware() func(http.Handler) http.Handler {
 	return New()
 }
 
-// New converts panics into RFC 9457 problem details responses and logs them
-// through a configurable logger.
+// New converts uncommitted panics into RFC 9457 problem details responses and
+// logs them through a configurable logger. Once a response has been committed,
+// recovery logs the panic and aborts the request instead of returning a partial
+// success response.
 func New(opts ...Option) func(http.Handler) http.Handler {
 	cfg := config{
 		log:      stderrLogger{},
