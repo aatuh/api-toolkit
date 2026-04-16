@@ -1,6 +1,7 @@
 package recover
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -77,7 +78,7 @@ func New(opts ...Option) func(http.Handler) http.Handler {
 			ww := response_writer.Wrap(w)
 			defer func() {
 				if rec := recover(); rec != nil {
-					if rec == http.ErrAbortHandler {
+					if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 						panic(http.ErrAbortHandler)
 					}
 					fields := []any{"panic", fmt.Sprint(rec)}

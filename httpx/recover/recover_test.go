@@ -2,6 +2,7 @@ package recover
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -138,7 +139,8 @@ func assertAbortPanic(t *testing.T, rec *httptest.ResponseRecorder, wantCode int
 	t.Helper()
 	return func() {
 		got := recover()
-		if got != http.ErrAbortHandler {
+		err, ok := got.(error)
+		if !ok || !errors.Is(err, http.ErrAbortHandler) {
 			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
 		}
 		if rec.Code != wantCode {

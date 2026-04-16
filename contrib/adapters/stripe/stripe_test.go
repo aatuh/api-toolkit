@@ -22,27 +22,31 @@ func TestParseWebhookRequiresVerificationWhenBypassIsNotAllowed(t *testing.T) {
 	tests := []struct {
 		name string
 		p    *Provider
-		ctx  context.Context
+		ctx  func() context.Context
 	}{
 		{
 			name: "missing secret uses secure default",
 			p:    New("sk_test", ""),
-			ctx:  context.Background(),
+			ctx:  context.Background,
 		},
 		{
 			name: "public ip is not allowed in dev mode",
 			p:    New("sk_test", "", WithDevMode(true)),
-			ctx:  AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10")),
+			ctx: func() context.Context {
+				return AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10"))
+			},
 		},
 		{
 			name: "skip verify still requires safe dev context",
 			p:    New("sk_test", "whsec_test", WithSkipVerify(true), WithDevMode(true)),
-			ctx:  context.Background(),
+			ctx:  context.Background,
 		},
 		{
 			name: "skip verify rejects public ip even in dev mode",
 			p:    New("sk_test", "whsec_test", WithSkipVerify(true), WithDevMode(true)),
-			ctx:  AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10")),
+			ctx: func() context.Context {
+				return AllowInsecureWebhook(context.Background(), netip.MustParseAddr("203.0.113.10"))
+			},
 		},
 	}
 
@@ -50,7 +54,7 @@ func TestParseWebhookRequiresVerificationWhenBypassIsNotAllowed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := tc.p.ParseWebhook(tc.ctx, payload, "invalid")
+			_, err := tc.p.ParseWebhook(tc.ctx(), payload, "invalid")
 			if err == nil {
 				t.Fatal("expected verification error")
 			}
@@ -245,7 +249,7 @@ func TestNormalizeStripeErrorLeavesNonMissingErrorsUntouched(t *testing.T) {
 	}
 
 	got := normalizeStripeError(err)
-	if got != err {
+	if !errors.Is(got, err) {
 		t.Fatalf("expected original error, got %v", got)
 	}
 }
