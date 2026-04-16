@@ -251,7 +251,7 @@ Notes:
 
 Description: Make startup configuration parsing consistent so malformed bool and int values do not silently revert to defaults.
 
-### Ticket E4-T1 - Add parse-error aggregation for bool and int env vars [ ]
+### Ticket E4-T1 - Add parse-error aggregation for bool and int env vars [x]
 
 Description: Extend `contrib/config.Loader` so bool and int reads record invalid input errors the same way duration parsing already does.
 
