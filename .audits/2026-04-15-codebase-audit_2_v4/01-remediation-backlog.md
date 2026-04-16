@@ -270,7 +270,7 @@ Notes:
 - prefer deterministic tests over broad end-to-end fixtures
 - cover edge values, not just happy paths
 
-### Ticket E4-T2 - Add direct tests for scheduler and database-facing adapters [ ]
+### Ticket E4-T2 - Add direct tests for scheduler and database-facing adapters [x]
 
 Description: Add focused coverage for packages such as `contrib/scheduler/postgres`, `contrib/adapters/pgxpool`, and other stateful wrappers that currently rely mostly on indirect confidence.
 
