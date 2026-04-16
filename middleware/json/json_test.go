@@ -43,6 +43,27 @@ func TestHandlerRejectsInvalidJSONContentType(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsMissingContentTypeForBodyBearingWriteRequests(t *testing.T) {
+	mw, err := New(Options{RequireJSON: true})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("payload"))
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected 415, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("expected problem content type, got %q", got)
+	}
+}
+
 func TestHandlerAcceptsValidJSONContentTypes(t *testing.T) {
 	mw, err := New(Options{RequireJSON: true})
 	if err != nil {
