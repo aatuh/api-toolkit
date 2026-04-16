@@ -209,7 +209,7 @@ Notes:
 - docs should describe actual behavior, not intention
 - keep examples aligned with strict profile usage
 
-### Ticket E3-T3 - Replace wildcard CORS in the strict profile [ ]
+### Ticket E3-T3 - Replace wildcard CORS in the strict profile [x]
 
 Description: Change `ProfileStrictAPI` so production-style composition does not silently inherit `AllowedOrigins: ["*"]`.
 
