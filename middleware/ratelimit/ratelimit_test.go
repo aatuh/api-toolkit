@@ -2,9 +2,9 @@ package ratelimit
 
 import (
 	"context"
-	"net/netip"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -60,7 +60,7 @@ func TestHandlerRoundsSharedLimiterRetryAfterUp(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTooManyRequests {
