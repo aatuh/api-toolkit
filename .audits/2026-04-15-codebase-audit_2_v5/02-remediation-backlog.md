@@ -308,7 +308,7 @@ Notes:
 - keep the docs focused on operator outcomes
 - do not leave stale examples that imply silent fallback is acceptable
 
-## Epic E5 - Raise confidence in security-sensitive contrib packages [ ]
+## Epic E5 - Raise confidence in security-sensitive contrib packages [x]
 
 Description: Add direct coverage and edge-case hardening around the payment, telemetry, and runtime-config contrib packages that currently rely too much on indirect confidence.
 
@@ -369,7 +369,7 @@ Notes:
 - prefer behavior-level assertions over transport or SDK implementation details
 - cover insecure endpoint and timeout configuration branches where present
 
-### Ticket E5-T4 - Publish a verified post-remediation baseline [ ]
+### Ticket E5-T4 - Publish a verified post-remediation baseline [x]
 
 Description: After the backlog is complete, rerun the repository quality gate and record the resulting verified state in a fresh audit note.
 

@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -265,7 +266,9 @@ func TestProfileStrictAPIPartialWritePanicEmitsAccessLogAndMetrics(t *testing.T)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
 	defer func() {
-		if got := recover(); got != http.ErrAbortHandler {
+		got := recover()
+		err, ok := got.(error)
+		if !ok || !errors.Is(err, http.ErrAbortHandler) {
 			t.Fatalf("expected panic %v, got %v", http.ErrAbortHandler, got)
 		}
 		if rec.Code != http.StatusOK {
