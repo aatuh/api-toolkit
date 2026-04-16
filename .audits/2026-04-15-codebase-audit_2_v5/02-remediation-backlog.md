@@ -87,7 +87,7 @@ Notes:
 - document both safety and operator expectations
 - keep the wording concrete and behavior-based
 
-## Epic E2 - Restore observability for panicking requests [ ]
+## Epic E2 - Restore observability for panicking requests [x]
 
 Description: Make sure the default HTTP profile still emits request logs and request metrics when handlers panic.
 
@@ -148,7 +148,7 @@ Notes:
 - preserve existing label policy
 - avoid counting a single request more than once
 
-### Ticket E2-T4 - Add observability regression tests [ ]
+### Ticket E2-T4 - Add observability regression tests [x]
 
 Description: Add tests that prove panicking requests still emit one access log and one metrics observation in the default profile.
 
