@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -98,10 +100,26 @@ func (r *Runner) execute(ctx context.Context, job Job) {
 	if r.log != nil {
 		r.log.Info("scheduled job start", "job", job.Name, "start", start.String())
 	}
-	err := job.Run(ctx)
+	var (
+		err        error
+		panicStack string
+	)
+	func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				err = fmt.Errorf("panic: %v", recovered)
+				panicStack = string(debug.Stack())
+			}
+		}()
+		err = job.Run(ctx)
+	}()
 	end := time.Now()
 	if err != nil && r.log != nil {
-		r.log.Error("scheduled job failed", "job", job.Name, "error", err.Error())
+		if panicStack != "" {
+			r.log.Error("scheduled job panicked", "job", job.Name, "error", err.Error(), "stack", panicStack)
+		} else {
+			r.log.Error("scheduled job failed", "job", job.Name, "error", err.Error())
+		}
 	}
 	if err == nil && r.log != nil {
 		r.log.Info("scheduled job complete", "job", job.Name, "elapsed_ms", end.Sub(start).Milliseconds())

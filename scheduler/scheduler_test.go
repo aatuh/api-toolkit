@@ -27,6 +27,29 @@ type recordedRun struct {
 	finishedAt time.Time
 }
 
+type loggedEntry struct {
+	msg  string
+	args []any
+}
+
+type testLogger struct {
+	mu     sync.Mutex
+	infos  []loggedEntry
+	errors []loggedEntry
+}
+
+func (l *testLogger) Info(msg string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.infos = append(l.infos, loggedEntry{msg: msg, args: append([]any(nil), args...)})
+}
+
+func (l *testLogger) Error(msg string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.errors = append(l.errors, loggedEntry{msg: msg, args: append([]any(nil), args...)})
+}
+
 func TestStartRunsJobImmediatelyAndRepeatedly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -135,6 +158,56 @@ func TestExecuteRecordsSuccessAndFailure(t *testing.T) {
 	}
 	if runs[0].finishedAt.Before(runs[0].startedAt) || runs[1].finishedAt.Before(runs[1].startedAt) {
 		t.Fatal("expected finishedAt to be on or after startedAt")
+	}
+}
+
+func TestExecuteRecoversPanicsAndRecordsFailure(t *testing.T) {
+	var (
+		mu   sync.Mutex
+		runs []recordedRun
+	)
+	rec := RecorderFunc(func(_ context.Context, jobName string, startedAt, finishedAt time.Time, success bool, errMsg string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		runs = append(runs, recordedRun{
+			jobName:    jobName,
+			success:    success,
+			errMsg:     errMsg,
+			startedAt:  startedAt,
+			finishedAt: finishedAt,
+		})
+		return nil
+	})
+	log := &testLogger{}
+	runner := New(log, rec, nil)
+
+	runner.execute(context.Background(), Job{
+		Name:     "panic",
+		Interval: time.Minute,
+		Run: func(context.Context) error {
+			panic("boom")
+		},
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 recorded run, got %d", len(runs))
+	}
+	if runs[0].success {
+		t.Fatalf("expected panic run to be recorded as failure: %+v", runs[0])
+	}
+	if runs[0].errMsg != "panic: boom" {
+		t.Fatalf("expected panic error message to be recorded, got %q", runs[0].errMsg)
+	}
+	if len(log.errors) != 1 {
+		t.Fatalf("expected one error log, got %d", len(log.errors))
+	}
+	if log.errors[0].msg != "scheduled job panicked" {
+		t.Fatalf("expected panic log message, got %q", log.errors[0].msg)
+	}
+	if len(log.errors[0].args) < 6 {
+		t.Fatalf("expected panic log args including stack, got %#v", log.errors[0].args)
 	}
 }
 
