@@ -3,6 +3,7 @@ package txpostgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -20,6 +21,8 @@ type DBer interface {
 type txKeyType struct{}
 
 var txKey txKeyType
+
+const rollbackCleanupTimeout = 5 * time.Second
 
 // Manager implements ports.TxManager using a pgx-like pool.
 type Manager struct {
@@ -43,7 +46,13 @@ func (m *Manager) WithinTx(
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		rollbackCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx), rollbackCleanupTimeout,
+		)
+		defer cancel()
+		_ = tx.Rollback(rollbackCtx)
+	}()
 
 	txCtx := context.WithValue(ctx, txKey, tx)
 	if err := fn(txCtx); err != nil {

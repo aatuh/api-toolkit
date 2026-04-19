@@ -91,7 +91,7 @@ Notes:
 
 Description: Make transaction cleanup and migration state tracking safe under timeout, cancellation, and ambiguous commit outcomes.
 
-### Ticket E2-T1 - Make transaction rollback cleanup robust [ ]
+### Ticket E2-T1 - Make transaction rollback cleanup robust [x]
 
 Description: Change `txpostgres.WithinTx` so deferred rollback uses a short-lived non-cancelable cleanup context instead of the caller's canceled context.
 
