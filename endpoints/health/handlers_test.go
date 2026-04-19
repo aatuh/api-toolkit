@@ -157,3 +157,29 @@ func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 		t.Fatalf("expected 404, got %d", rec.Code)
 	}
 }
+
+func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  false,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterCustomRoutesTo(router, HealthPaths{
+		Liveness:       "/live",
+		Readiness:      "/ready",
+		Health:         "/health",
+		DetailedHealth: "/health/detailed",
+	})
+
+	for _, pattern := range router.patterns {
+		if pattern == "/health/detailed" {
+			t.Fatal("did not expect custom detailed route when detailed health is disabled")
+		}
+	}
+}
