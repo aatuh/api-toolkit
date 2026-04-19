@@ -129,7 +129,7 @@ Notes:
 - Prefer deterministic fakes over slow database-backed tests for this behavior.
 - Affected areas: `contrib/adapters/txpostgres/*_test.go`.
 
-### Ticket E2-T3 - Introduce explicit handling for ambiguous migration commits [ ]
+### Ticket E2-T3 - Introduce explicit handling for ambiguous migration commits [x]
 
 Description: Redesign migrator commit-failure handling so a failed `Commit` is not automatically treated as a definite non-commit, and persist enough state to avoid blind re-application.
 

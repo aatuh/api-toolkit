@@ -21,10 +21,12 @@ import (
 
 // Runner executes SQL migrations transactionally and records state.
 type Runner struct {
-	DB         *sql.DB
-	Opts       Options
-	migrations []*Migration
-	loaded     bool
+	DB              *sql.DB
+	Opts            Options
+	migrations      []*Migration
+	loaded          bool
+	beginTxHook     func(context.Context, *sql.TxOptions) (migrationTx, error)
+	execContextHook func(context.Context, string, ...any) (sql.Result, error)
 }
 
 // Options configures the runner.
@@ -58,6 +60,12 @@ type Migration struct {
 	Checksum string
 }
 
+type migrationTx interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	Commit() error
+	Rollback() error
+}
+
 // ChecksumMismatchError reports that a migration's recorded checksum
 // does not match the on-disk migration contents.
 type ChecksumMismatchError struct {
@@ -74,14 +82,40 @@ func (e *ChecksumMismatchError) Error() string {
 	)
 }
 
+// UncertainMigrationError reports that a migration may have committed even
+// though the runner could not confirm that outcome cleanly.
+type UncertainMigrationError struct {
+	Version   int64
+	Name      string
+	TableName string
+	Err       error
+}
+
+func (e *UncertainMigrationError) Error() string {
+	tableName := e.TableName
+	if tableName == "" {
+		tableName = defaultTable
+	}
+	return fmt.Sprintf(
+		"migration %d (%s) outcome is uncertain: inspect database state and reconcile %s before retrying: %v",
+		e.Version, e.Name, tableName, e.Err,
+	)
+}
+
+func (e *UncertainMigrationError) Unwrap() error { return e.Err }
+
 var (
 	// Accept 8-digit (YYYYMMDD) or 14-digit (YYYYMMDDHHMMSS) version
 	// prefixes for migration filenames.
 	fileRe = regexp.MustCompile(
 		`^(\d{8,14})_([a-zA-Z0-9_\-]+)\.(up|down)\.sql$`,
 	)
-	defaultTable = "schema_migrations"
-	defaultLock  = int64(913551337114213777)
+	defaultTable            = "schema_migrations"
+	defaultLock             = int64(913551337114213777)
+	migrationStateApplied   = "applied"
+	migrationStateFailed    = "failed"
+	migrationStateStarted   = "started"
+	migrationStateUncertain = "uncertain"
 )
 
 // New constructs a migration runner using the provided database handle.
@@ -180,9 +214,9 @@ func (r *Runner) Status(ctx context.Context) (string, error) {
 		for _, a := range applied {
 			_, _ = fmt.Fprintf(
 				&b,
-				"  %d %s at %s ok=%t\n",
+				"  %d %s at %s ok=%t state=%s\n",
 				a.Version, a.Name, a.AppliedAt.Format(time.RFC3339),
-				a.Success,
+				a.Success, a.State,
 			)
 		}
 	}
@@ -220,9 +254,44 @@ CREATE TABLE IF NOT EXISTS %s (
   checksum TEXT NOT NULL,
   applied_at TIMESTAMPTZ NOT NULL,
   exec_ms INTEGER NOT NULL,
-  success BOOLEAN NOT NULL
-);`, pq(r.Opts.TableName))
-	_, err := r.DB.ExecContext(ctx, q)
+  success BOOLEAN NOT NULL,
+  state TEXT NOT NULL DEFAULT '%s'
+);`, pq(r.Opts.TableName), migrationStateApplied)
+	if _, err := r.execContext(ctx, q); err != nil {
+		return err
+	}
+
+	addStateColumn := fmt.Sprintf(
+		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS state TEXT;`,
+		pq(r.Opts.TableName),
+	)
+	if _, err := r.execContext(ctx, addStateColumn); err != nil {
+		return err
+	}
+
+	backfillState := fmt.Sprintf(
+		`UPDATE %s
+SET state = CASE WHEN success THEN '%s' ELSE '%s' END
+WHERE state IS NULL OR state = '';`,
+		pq(r.Opts.TableName), migrationStateApplied, migrationStateFailed,
+	)
+	if _, err := r.execContext(ctx, backfillState); err != nil {
+		return err
+	}
+
+	setStateDefault := fmt.Sprintf(
+		`ALTER TABLE %s ALTER COLUMN state SET DEFAULT '%s';`,
+		pq(r.Opts.TableName), migrationStateApplied,
+	)
+	if _, err := r.execContext(ctx, setStateDefault); err != nil {
+		return err
+	}
+
+	setStateNotNull := fmt.Sprintf(
+		`ALTER TABLE %s ALTER COLUMN state SET NOT NULL;`,
+		pq(r.Opts.TableName),
+	)
+	_, err := r.execContext(ctx, setStateNotNull)
 	return err
 }
 
@@ -233,12 +302,13 @@ type appliedRow struct {
 	AppliedAt time.Time
 	ExecMS    int
 	Success   bool
+	State     string
 }
 
 func (r *Runner) loadApplied(ctx context.Context) ([]appliedRow, error) {
 	tableName := pq(r.Opts.TableName)
 	var b strings.Builder
-	b.WriteString("SELECT version, name, checksum, applied_at, exec_ms, success\nFROM ")
+	b.WriteString("SELECT version, name, checksum, applied_at, exec_ms, success, state\nFROM ")
 	b.WriteString(tableName)
 	b.WriteString("\nORDER BY applied_at ASC, version ASC;")
 	q := b.String()
@@ -254,7 +324,7 @@ func (r *Runner) loadApplied(ctx context.Context) ([]appliedRow, error) {
 		var a appliedRow
 		if err := rows.Scan(
 			&a.Version, &a.Name, &a.Checksum, &a.AppliedAt,
-			&a.ExecMS, &a.Success,
+			&a.ExecMS, &a.Success, &a.State,
 		); err != nil {
 			return nil, err
 		}
@@ -273,7 +343,7 @@ func (r *Runner) loadAppliedSuccess(
 	}
 	var ok []appliedRow
 	for _, a := range all {
-		if a.Success {
+		if a.State == migrationStateApplied {
 			ok = append(ok, a)
 		}
 	}
@@ -313,28 +383,50 @@ func (r *Runner) pendingUp(applied []appliedRow) ([]*Migration, error) {
 
 func (r *Runner) applyOne(ctx context.Context, m *Migration) error {
 	r.log("applying %d %s", m.Version, m.Name)
-	tx, err := r.DB.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := r.beginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
+	}
+	if err := r.recordState(ctx, m, 0, false, migrationStateStarted); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("record migration %d start: %w", m.Version, err)
 	}
 	start := time.Now()
 	_, err = tx.ExecContext(ctx, m.SQL)
 	execMS := int(time.Since(start).Milliseconds())
 	if err != nil {
 		_ = tx.Rollback()
-		_ = r.record(ctx, m, execMS, false)
+		_ = r.recordState(ctx, m, execMS, false, migrationStateFailed)
 		return fmt.Errorf("migration %d failed: %w", m.Version, err)
 	}
 	if err := tx.Commit(); err != nil {
-		_ = r.record(ctx, m, execMS, false)
-		return err
+		return r.reportUncertainMigration(
+			ctx,
+			m,
+			execMS,
+			fmt.Errorf(
+				"commit acknowledgment failed after executing migration SQL: %w",
+				err,
+			),
+		)
 	}
-	return r.record(ctx, m, execMS, true)
+	if err := r.recordState(ctx, m, execMS, true, migrationStateApplied); err != nil {
+		return r.reportUncertainMigration(
+			ctx,
+			m,
+			execMS,
+			fmt.Errorf(
+				"migration committed but applied state could not be recorded: %w",
+				err,
+			),
+		)
+	}
+	return nil
 }
 
 func (r *Runner) revertOne(ctx context.Context, m *Migration) error {
 	r.log("reverting %d %s", m.Version, m.Name)
-	tx, err := r.DB.BeginTx(ctx, &sql.TxOptions{})
+	tx, err := r.beginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
@@ -368,24 +460,25 @@ func (r *Runner) revertOne(ctx context.Context, m *Migration) error {
 	return tx.Commit()
 }
 
-func (r *Runner) record(
-	ctx context.Context, m *Migration, execMS int, ok bool,
+func (r *Runner) recordState(
+	ctx context.Context, m *Migration, execMS int, ok bool, state string,
 ) error {
 	tableName := pq(r.Opts.TableName)
 	var b strings.Builder
 	b.WriteString("INSERT INTO ")
 	b.WriteString(tableName)
-	b.WriteString(` (version, name, checksum, applied_at, exec_ms, success)
-VALUES ($1, $2, $3, NOW(), $4, $5)
+	b.WriteString(` (version, name, checksum, applied_at, exec_ms, success, state)
+VALUES ($1, $2, $3, NOW(), $4, $5, $6)
 ON CONFLICT (version) DO UPDATE SET
   name = EXCLUDED.name,
   checksum = EXCLUDED.checksum,
   applied_at = EXCLUDED.applied_at,
   exec_ms = EXCLUDED.exec_ms,
-  success = EXCLUDED.success;`)
+  success = EXCLUDED.success,
+  state = EXCLUDED.state;`)
 	q := b.String()
-	_, err := r.DB.ExecContext(
-		ctx, q, m.Version, m.Name, m.Checksum, execMS, ok,
+	_, err := r.execContext(
+		ctx, q, m.Version, m.Name, m.Checksum, execMS, ok, state,
 	)
 	return err
 }
@@ -395,7 +488,7 @@ func (r *Runner) withLock(
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	if _, err := r.DB.ExecContext(
+	if _, err := r.execContext(
 		ctx, `SELECT pg_advisory_lock($1);`, r.Opts.LockKey,
 	); err != nil {
 		return err
@@ -403,7 +496,7 @@ func (r *Runner) withLock(
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_, _ = r.DB.ExecContext(
+		_, _ = r.execContext(
 			unlockCtx,
 			`SELECT pg_advisory_unlock($1);`, r.Opts.LockKey,
 		)
@@ -539,6 +632,47 @@ func (r *Runner) log(format string, args ...any) {
 	if r.Opts.Logger != nil {
 		r.Opts.Logger(format, args...)
 	}
+}
+
+func (r *Runner) beginTx(
+	ctx context.Context, opts *sql.TxOptions,
+) (migrationTx, error) {
+	if r.beginTxHook != nil {
+		return r.beginTxHook(ctx, opts)
+	}
+	return r.DB.BeginTx(ctx, opts)
+}
+
+func (r *Runner) execContext(
+	ctx context.Context, query string, args ...any,
+) (sql.Result, error) {
+	if r.execContextHook != nil {
+		return r.execContextHook(ctx, query, args...)
+	}
+	return r.DB.ExecContext(ctx, query, args...)
+}
+
+func (r *Runner) reportUncertainMigration(
+	ctx context.Context, m *Migration, execMS int, err error,
+) error {
+	uncertainErr := &UncertainMigrationError{
+		Version:   m.Version,
+		Name:      m.Name,
+		TableName: r.Opts.TableName,
+		Err:       err,
+	}
+	if recordErr := r.recordState(
+		ctx, m, execMS, false, migrationStateUncertain,
+	); recordErr != nil {
+		return errors.Join(
+			uncertainErr,
+			fmt.Errorf(
+				"record migration %d uncertain state: %w",
+				m.Version, recordErr,
+			),
+		)
+	}
+	return uncertainErr
 }
 
 func checksum(s string) string {
