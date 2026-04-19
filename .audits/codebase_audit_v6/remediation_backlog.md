@@ -327,7 +327,7 @@ Notes:
 - Treat this as the guardrail that prevents future drift after the refactor lands.
 - Affected areas: auth middleware test suites.
 
-## Epic E5 - Raise coverage on exported contrib edges [ ]
+## Epic E5 - Raise coverage on exported contrib edges [x]
 
 Description: Add targeted tests around public contrib adapters, wrappers, and command entrypoints so repo boundary changes are safer.
 
@@ -369,7 +369,7 @@ Notes:
 - Prefer behavior tests over coverage-only assertions.
 - Affected areas: `contrib/adapters/logzap`, `uuid`, `ulid`, `validation`.
 
-### Ticket E5-T3 - Add smoke tests for integrations and command packages [ ]
+### Ticket E5-T3 - Add smoke tests for integrations and command packages [x]
 
 Description: Add low-cost smoke tests or constructor tests for exported `integrations/*` and `cmd/*` packages so public wiring entrypoints do not drift untested.
 
