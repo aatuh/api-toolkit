@@ -569,18 +569,12 @@ func (r *Runner) loadMigrations() error {
 	for _, d := range uniqDirs {
 		roots = append(roots, os.DirFS(d))
 	}
-	// Always include embedded FS (if provided) after explicit dirs.
-	// Use "." so callers can embed files at the package root.
-	// If a project prefers a subdir, they can still embed with
-	// that structure; "." works for both cases when combined
-	// with fs.Sub.
-	base := "."
 	for _, efs := range r.Opts.EmbeddedFSs {
-		sub, err := fs.Sub(efs, base)
+		root, err := embeddedRoot(efs)
 		if err != nil {
-			return fmt.Errorf("embed sub: %w", err)
+			return err
 		}
-		roots = append(roots, sub)
+		roots = append(roots, root)
 	}
 	if len(roots) == 0 {
 		return errors.New("no migrations source provided")
@@ -653,6 +647,28 @@ func parseFileName(name string) (Migration, bool) {
 		Dir:     m[3],
 		File:    name,
 	}, true
+}
+
+func embeddedRoot(efs fs.FS) (fs.FS, error) {
+	if efs == nil {
+		return nil, errors.New("embedded fs is nil")
+	}
+	info, err := fs.Stat(efs, "migrations")
+	switch {
+	case err == nil && info.IsDir():
+		sub, subErr := fs.Sub(efs, "migrations")
+		if subErr != nil {
+			return nil, fmt.Errorf("embed sub migrations: %w", subErr)
+		}
+		return sub, nil
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		return nil, fmt.Errorf("stat embedded migrations dir: %w", err)
+	}
+	sub, err := fs.Sub(efs, ".")
+	if err != nil {
+		return nil, fmt.Errorf("embed sub root: %w", err)
+	}
+	return sub, nil
 }
 
 func (r *Runner) find(version int64, dir string) *Migration {

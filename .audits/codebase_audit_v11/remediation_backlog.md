@@ -1,13 +1,13 @@
 # Remediation Backlog
 
 ## Epic 1: Runtime Contract Corrections
-Status: pending
+Status: in_progress
 
-- [ ] Ticket 1: Restore embedded migration loading for `embed.FS` sources.
+- [x] Ticket 1: Restore embedded migration loading for `embed.FS` sources.
   Scope: `contrib/migrator`
   Why: current `EmbeddedFSs` handling skips the documented `migrations/` layout and silently loads no embedded migrations.
   Quality gate: `go test ./contrib/migrator`
-  Commit: pending
+  Commit: completed in the ticket commit
 
 - [ ] Ticket 2: Make custom health checkers fail closed instead of panicking on nil functions.
   Scope: `endpoints/health`

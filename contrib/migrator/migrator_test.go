@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestPendingUpChecksumMismatch(t *testing.T) {
@@ -62,6 +64,54 @@ func TestLoadMigrationsRejectsDuplicateVersionDirectionAcrossDirectories(t *test
 	}
 	if !strings.Contains(err.Error(), "duplicate migration") {
 		t.Fatalf("expected duplicate migration error, got %v", err)
+	}
+}
+
+func TestLoadMigrationsReadsEmbeddedFSMigrationsDir(t *testing.T) {
+	r := &Runner{
+		Opts: Options{
+			EmbeddedFSs: []fs.FS{
+				fstest.MapFS{
+					"migrations/20240101000000_init.up.sql":   &fstest.MapFile{Data: []byte("create table widgets(id bigint);")},
+					"migrations/20240101000000_init.down.sql": &fstest.MapFile{Data: []byte("drop table widgets;")},
+				},
+			},
+		},
+	}
+
+	if err := r.loadMigrations(); err != nil {
+		t.Fatalf("loadMigrations() error = %v", err)
+	}
+	if got := len(r.migrations); got != 2 {
+		t.Fatalf("loaded migrations = %d, want 2", got)
+	}
+	if up := r.find(20240101000000, "up"); up == nil {
+		t.Fatal("expected embedded up migration to load from migrations/ directory")
+	}
+	if down := r.find(20240101000000, "down"); down == nil {
+		t.Fatal("expected embedded down migration to load from migrations/ directory")
+	}
+}
+
+func TestLoadMigrationsReadsEmbeddedFSRootFilesWhenNoMigrationsDir(t *testing.T) {
+	r := &Runner{
+		Opts: Options{
+			EmbeddedFSs: []fs.FS{
+				fstest.MapFS{
+					"20240101000000_init.up.sql": &fstest.MapFile{Data: []byte("create table widgets(id bigint);")},
+				},
+			},
+		},
+	}
+
+	if err := r.loadMigrations(); err != nil {
+		t.Fatalf("loadMigrations() error = %v", err)
+	}
+	if got := len(r.migrations); got != 1 {
+		t.Fatalf("loaded migrations = %d, want 1", got)
+	}
+	if up := r.find(20240101000000, "up"); up == nil {
+		t.Fatal("expected embedded root migration to load")
 	}
 }
 
