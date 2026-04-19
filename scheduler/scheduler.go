@@ -33,6 +33,10 @@ type Logger interface {
 }
 
 // Recorder persists job runs.
+//
+// Persistence errors are observability failures. Runner implementations should
+// surface them, but a failed write must not retroactively change the outcome of
+// a job function that already ran to completion.
 type Recorder interface {
 	Record(ctx context.Context, jobName string, startedAt, finishedAt time.Time, success bool, errMsg string) error
 }

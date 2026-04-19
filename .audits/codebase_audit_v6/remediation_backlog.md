@@ -190,7 +190,7 @@ Notes:
 
 Description: Make scheduler run-recording failures visible so operators can trust job history and startup decisions.
 
-### Ticket E3-T1 - Define scheduler recorder failure policy [ ]
+### Ticket E3-T1 - Define scheduler recorder failure policy [x]
 
 Description: Choose and document the intended behavior when `Recorder.Record` fails, including logging, callback hooks, and whether failures should affect scheduler control flow.
 
