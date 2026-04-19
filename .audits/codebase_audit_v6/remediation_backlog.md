@@ -30,7 +30,7 @@ Notes:
 - Touch the minimal doc set needed to define the contract before deeper code changes land.
 - Affected areas: `ports/health.go`, `docs/*`, `README.md`.
 
-### Ticket E1-T2 - Enforce detailed health gating [ ]
+### Ticket E1-T2 - Enforce detailed health gating [x]
 
 Description: Change health route registration and handler behavior so `EnableDetailed` is actually enforced and detailed dependency output is not exposed when the flag is disabled.
 
