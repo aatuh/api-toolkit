@@ -210,9 +210,12 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 	if err != nil {
 		return Profile{}, err
 	}
-	queryMw, err := querylimits.New(cfg.queryLimits)
-	if err != nil {
-		return Profile{}, err
+	var queryMw *querylimits.Middleware
+	if cfg.enableQueryLimits {
+		queryMw, err = querylimits.New(cfg.queryLimits)
+		if err != nil {
+			return Profile{}, err
+		}
 	}
 	jsonMw, err := jsonmw.New(jsonmw.Options{RequireJSON: cfg.jsonStrict})
 	if err != nil {
@@ -310,9 +313,12 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
-	queryMw, err := querylimits.New(cfg.queryLimits)
-	if err != nil {
-		return Profile{}, err
+	var queryMw *querylimits.Middleware
+	if cfg.enableQueryLimits {
+		queryMw, err = querylimits.New(cfg.queryLimits)
+		if err != nil {
+			return Profile{}, err
+		}
 	}
 	jsonMw, err := jsonmw.New(jsonmw.Options{RequireJSON: cfg.jsonStrict})
 	if err != nil {

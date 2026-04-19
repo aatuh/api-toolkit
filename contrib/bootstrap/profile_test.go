@@ -11,6 +11,7 @@ import (
 
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
+	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -133,6 +134,18 @@ func TestProfileStrictAPICanDisableQueryLimits(t *testing.T) {
 	}
 }
 
+func TestProfileStrictAPIDisabledQueryLimitsSkipValidation(t *testing.T) {
+	_, err := ProfileStrictAPI(
+		ports.NopLogger{},
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+		WithQueryLimitsOptions(querylimits.Options{MaxParams: -1}),
+		WithQueryLimitsDisabled(),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+}
+
 func TestProfileDevDoesNotEnforceQueryLimitsByDefault(t *testing.T) {
 	profile, err := ProfileDev(
 		ports.NopLogger{},
@@ -157,6 +170,18 @@ func TestProfileDevDoesNotEnforceQueryLimitsByDefault(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestProfileDevDisabledQueryLimitsSkipValidation(t *testing.T) {
+	_, err := ProfileDev(
+		ports.NopLogger{},
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+		WithQueryLimitsOptions(querylimits.Options{MaxParams: -1}),
+		WithQueryLimitsDisabled(),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
 	}
 }
 
