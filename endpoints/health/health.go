@@ -94,6 +94,7 @@ func (m *Manager) GetHealth(ctx context.Context) ports.HealthResponse {
 
 // GetDetailedHealth performs detailed health checks.
 func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthResponse {
+	ctx = normalizeContext(ctx)
 	m.mu.RLock()
 	checkerNames := make([]string, 0, len(m.checkers))
 	for name := range m.checkers {
@@ -145,6 +146,7 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 
 // RefreshAll runs all registered checks and updates the cache.
 func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
+	ctx = normalizeContext(ctx)
 	m.mu.RLock()
 	checkerNames := make([]string, 0, len(m.checkers))
 	for name := range m.checkers {
@@ -195,6 +197,7 @@ func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
 
 // performChecks performs multiple health checks.
 func (m *Manager) performChecks(ctx context.Context, checkerNames []string) ports.HealthResult {
+	ctx = normalizeContext(ctx)
 	if len(checkerNames) == 0 {
 		return ports.HealthResult{
 			Status:    ports.HealthStatusUnhealthy,
@@ -261,6 +264,13 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) port
 		Message:   message,
 		Timestamp: time.Now(),
 	}
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 // performCheck performs a single health check with caching.
