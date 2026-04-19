@@ -64,3 +64,19 @@ flowchart LR
 4. Keep business logic in handlers/services, not in adapters.
 
 This keeps the core stable while allowing integrations to change independently.
+
+## Operational Safety Contracts
+
+- Health handlers treat probe configuration as part of the contract: liveness
+  and readiness should reflect configured checkers, and detailed dependency
+  output should only be exposed when `EnableDetailed` is explicitly enabled.
+- `contrib/adapters/txpostgres` keeps transactional cleanup inside the adapter
+  boundary: application code gets the caller context for work and commit, while
+  deferred rollback uses a short-lived cleanup context so cancellation does not
+  strand open transactions.
+- `contrib/migrator` treats commit-acknowledgement failures as uncertain state
+  instead of as a safe retry path. That state is persisted and must be
+  reconciled before the runner continues with later migrations.
+- `scheduler.Runner` separates job execution outcome from recorder persistence
+  outcome. Recorder write failures are surfaced for operators through logging
+  and hooks, but they do not retroactively change a completed job result.

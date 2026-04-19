@@ -174,7 +174,9 @@ behaviors:
 - Detailed health output is an operator-focused surface because it can include
   dependency-level status and check details.
 - `ports.HealthCheckConfig.EnableDetailed` is the switch that controls whether
-  HTTP packages should expose detailed health responses.
+  HTTP packages should expose detailed health responses at all.
+- Missing checker registrations or invalid probe wiring should fail closed and
+  surface as unhealthy state rather than as synthetic success.
 - When `EnableCaching` is true, checker results may be reused across health
   endpoints until `CacheDuration` expires.
 
@@ -248,6 +250,10 @@ if err := m.Up("."); err != nil { /* handle */ }
 
 When loading from multiple migration sources, duplicate version+direction pairs are rejected instead of being overridden silently.
 
+If migration SQL executes but transaction commit acknowledgement is ambiguous,
+the runner records the migration as `uncertain` and stops future runs until an
+operator reconciles the database state and the migration record.
+
 ## Database adapters
 
 Database adapters live in the contrib module.
@@ -257,6 +263,11 @@ pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 if err != nil { /* handle */ }
 tx := txpostgres.New(pool)
 ```
+
+`txpostgres.WithinTx` uses the caller context for acquire, begin, and commit,
+but deferred rollback cleanup switches to a short-lived context without caller
+cancellation so timed-out or canceled requests still attempt to release the
+transaction cleanly.
 
 ## Metrics integration
 
@@ -310,7 +321,7 @@ if err != nil { /* handle */ }
 - Panics inside scheduled jobs are recovered, logged, and recorded as failed runs; the runner keeps future intervals alive instead of crashing the process.
 - The runner keeps at most one active schedule per job name, so duplicate `Start` calls or duplicate named jobs do not multiply execution cadence.
 - Non-overlap is enforced per job name: while one run is in flight, later ticks for that same named job are skipped.
-- Recorder persistence failures are operational signals, not scheduler control-flow failures: surface them through logging or a callback hook, but do not treat them as a reason to rerun the job immediately or stop future intervals after the job function has already finished.
+- Recorder persistence failures are operational signals, not scheduler control-flow failures: surface them through logging or `SetRecorderFailureHandler`, but do not treat them as a reason to rerun the job immediately or stop future intervals after the job function has already finished.
 
 ## Security headers
 
