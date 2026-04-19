@@ -159,6 +159,9 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 		if attempt == c.retry.maxRetries {
 			return resp, err
 		}
+		if !requestReplayable(req) {
+			return resp, err
+		}
 		delay := retryDelay(resp, c.retry, bo, time.Since(start))
 		if delay == backoff.Stop {
 			return resp, err
@@ -172,6 +175,13 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 		}
 	}
 	return resp, err
+}
+
+func requestReplayable(req *http.Request) bool {
+	if req == nil || req.Body == nil {
+		return true
+	}
+	return req.GetBody != nil
 }
 
 func normalizeRetry(opts RetryOptions) retryConfig {
