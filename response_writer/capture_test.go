@@ -40,3 +40,28 @@ func TestLimitedCaptureMarksOverflowWithoutGrowingBuffer(t *testing.T) {
 		t.Fatalf("expected body to stop at limit, got %q", got)
 	}
 }
+
+func TestCaptureIgnoresRepeatedFinalWriteHeader(t *testing.T) {
+	capture := NewCapture()
+
+	capture.WriteHeader(http.StatusAccepted)
+	capture.WriteHeader(http.StatusInternalServerError)
+
+	if got := capture.Status(); got != http.StatusAccepted {
+		t.Fatalf("status = %d", got)
+	}
+}
+
+func TestCaptureBodyReturnsImmutableCopy(t *testing.T) {
+	capture := NewCapture()
+	if _, err := capture.Write([]byte("abc")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	body := capture.Body()
+	body[0] = 'z'
+
+	if got := string(capture.Body()); got != "abc" {
+		t.Fatalf("capture body changed to %q", got)
+	}
+}

@@ -5,7 +5,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Restore response semantics [ ]
+## Epic E1 - Restore response semantics [x]
 
 Description: Fix the shared response primitives so recovery, logging, metrics, idempotency replay, and OpenAPI response validation all observe the same visible response contract.
 
@@ -18,7 +18,7 @@ Acceptance:
 - Run targeted tests for `response_writer`, `httpx/recover`, `contrib/middleware/requestlog`, and `contrib/middleware/metrics`.
 - Commit after the ticket is complete.
 
-### Ticket E1-T2 - Fix `response_writer.Capture` replay semantics [ ]
+### Ticket E1-T2 - Fix `response_writer.Capture` replay semantics [x]
 
 Description: Preserve first final status semantics in buffered captures and return immutable body snapshots.
 
