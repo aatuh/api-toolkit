@@ -289,7 +289,7 @@ Notes:
 - Avoid mixing semantic changes with the extraction step.
 - Affected areas: `middleware/auth/jwt/*`.
 
-### Ticket E4-T3 - Migrate Clerk middleware to shared primitives [ ]
+### Ticket E4-T3 - Migrate Clerk middleware to shared primitives [x]
 
 Description: Refactor `contrib/middleware/auth/clerk` to use the same shared auth and JWKS helpers while preserving Clerk-specific configuration and behavior.
 
