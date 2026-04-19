@@ -20,18 +20,28 @@ var (
 // LoadCSV populates the country code map from a CSV reader with ISO 3166 data.
 // The CSV must have headers and at least columns "name" and "alpha-2".
 func LoadCSV(r io.Reader) error {
+	nextCodes, nextCountries, err := parseCSV(r)
+	if err != nil {
+		return err
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
+	codeSet = nextCodes
+	countryMap = nextCountries
+	loaded = true
+	return nil
+}
 
-	codeSet = make(map[string]struct{})
-	countryMap = make(map[string]string)
-
+func parseCSV(r io.Reader) (map[string]struct{}, map[string]string, error) {
 	cr := csv.NewReader(r)
 	records, err := cr.ReadAll()
 	if err != nil {
-		loaded = false
-		return err
+		return nil, nil, err
 	}
+
+	codes := make(map[string]struct{})
+	countries := make(map[string]string)
 	for i, row := range records {
 		if i == 0 || len(row) < 2 {
 			continue
@@ -41,13 +51,12 @@ func LoadCSV(r io.Reader) error {
 		if code == "" {
 			continue
 		}
-		codeSet[code] = struct{}{}
+		codes[code] = struct{}{}
 		if name != "" {
-			countryMap[code] = name
+			countries[code] = name
 		}
 	}
-	loaded = true
-	return nil
+	return codes, countries, nil
 }
 
 // MustLoadCSV loads CSV data or panics. Intended for wiring during startup.
