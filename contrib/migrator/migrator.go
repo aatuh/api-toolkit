@@ -104,6 +104,26 @@ func (e *UncertainMigrationError) Error() string {
 
 func (e *UncertainMigrationError) Unwrap() error { return e.Err }
 
+// UnresolvedMigrationStateError reports that a prior migration run ended in a
+// state that must be reconciled manually before the runner can continue.
+type UnresolvedMigrationStateError struct {
+	Version   int64
+	Name      string
+	State     string
+	TableName string
+}
+
+func (e *UnresolvedMigrationStateError) Error() string {
+	tableName := e.TableName
+	if tableName == "" {
+		tableName = defaultTable
+	}
+	return fmt.Sprintf(
+		"migration %d (%s) is recorded as %s in %s: inspect the database state and update the migration record before retrying",
+		e.Version, e.Name, e.State, tableName,
+	)
+}
+
 var (
 	// Accept 8-digit (YYYYMMDD) or 14-digit (YYYYMMDDHHMMSS) version
 	// prefixes for migration filenames.
@@ -353,7 +373,23 @@ func (r *Runner) loadAppliedSuccess(
 func (r *Runner) pendingUp(applied []appliedRow) ([]*Migration, error) {
 	appliedSet := map[int64]appliedRow{}
 	for _, a := range applied {
-		if a.Success {
+		state := a.State
+		if state == "" {
+			if a.Success {
+				state = migrationStateApplied
+			} else {
+				state = migrationStateFailed
+			}
+		}
+		if isUnresolvedMigrationState(state) {
+			return nil, &UnresolvedMigrationStateError{
+				Version:   a.Version,
+				Name:      a.Name,
+				State:     state,
+				TableName: r.Opts.TableName,
+			}
+		}
+		if state == migrationStateApplied {
 			appliedSet[a.Version] = a
 		}
 	}
@@ -673,6 +709,10 @@ func (r *Runner) reportUncertainMigration(
 		)
 	}
 	return uncertainErr
+}
+
+func isUnresolvedMigrationState(state string) bool {
+	return state == migrationStateStarted || state == migrationStateUncertain
 }
 
 func checksum(s string) string {

@@ -27,6 +27,7 @@ func TestPendingUpChecksumMismatch(t *testing.T) {
 			Name:     "init",
 			Checksum: "actual",
 			Success:  true,
+			State:    migrationStateApplied,
 		},
 	}
 	_, err := r.pendingUp(applied)
@@ -61,6 +62,79 @@ func TestLoadMigrationsRejectsDuplicateVersionDirectionAcrossDirectories(t *test
 	}
 	if !strings.Contains(err.Error(), "duplicate migration") {
 		t.Fatalf("expected duplicate migration error, got %v", err)
+	}
+}
+
+func TestPendingUpBlocksUnresolvedMigrationStates(t *testing.T) {
+	r := &Runner{
+		Opts: Options{TableName: "migration_runs"},
+		migrations: []*Migration{
+			{
+				Version:  20240101000000,
+				Name:     "init",
+				Dir:      "up",
+				Checksum: "expected",
+			},
+		},
+	}
+	tests := []struct {
+		name  string
+		state string
+	}{
+		{name: "started", state: migrationStateStarted},
+		{name: "uncertain", state: migrationStateUncertain},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			applied := []appliedRow{
+				{
+					Version:  20240101000000,
+					Name:     "init",
+					Checksum: "expected",
+					State:    tt.state,
+				},
+			}
+
+			_, err := r.pendingUp(applied)
+			var unresolved *UnresolvedMigrationStateError
+			if !errors.As(err, &unresolved) {
+				t.Fatalf("expected UnresolvedMigrationStateError, got %T", err)
+			}
+			if unresolved.State != tt.state {
+				t.Fatalf("unresolved state = %q, want %q", unresolved.State, tt.state)
+			}
+		})
+	}
+}
+
+func TestPendingUpKeepsFailedMigrationsPending(t *testing.T) {
+	r := &Runner{
+		migrations: []*Migration{
+			{
+				Version:  20240101000000,
+				Name:     "init",
+				Dir:      "up",
+				Checksum: "expected",
+			},
+		},
+	}
+	applied := []appliedRow{
+		{
+			Version:  20240101000000,
+			Name:     "init",
+			Checksum: "expected",
+			Success:  false,
+			State:    migrationStateFailed,
+		},
+	}
+
+	pending, err := r.pendingUp(applied)
+	if err != nil {
+		t.Fatalf("pendingUp() error = %v", err)
+	}
+	if len(pending) != 1 || pending[0].Version != 20240101000000 {
+		t.Fatalf("pendingUp() = %#v, want version 20240101000000 pending", pending)
 	}
 }
 
