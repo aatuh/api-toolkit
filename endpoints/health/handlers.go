@@ -15,6 +15,10 @@ type Handler struct {
 	manager ports.HealthManager
 }
 
+type detailedHealthManager interface {
+	DetailedHealthEnabled() bool
+}
+
 // NewHandler creates a new health handler.
 func NewHandler(manager ports.HealthManager) *Handler {
 	if manager == nil {
@@ -138,6 +142,11 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 503 {object} DetailedHealthResponse "Application is unhealthy"
 // @Router /health/detailed [get]
 func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
+	if !h.detailedHealthEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+
 	ctx := r.Context()
 	response := h.manager.GetDetailedHealth(ctx)
 
@@ -169,7 +178,9 @@ func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 	router.Get(specs.Readyz, h.ReadinessHandler)
 	router.Get(specs.Healthz, h.HealthHandler)
 	router.Get(specs.Health, h.HealthHandler)
-	router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
+	if h.detailedHealthEnabled() {
+		router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
+	}
 }
 
 // RegisterCustomRoutes registers health endpoints with custom paths.
@@ -197,7 +208,7 @@ func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, path
 	if paths.Health != "" {
 		router.Get(paths.Health, h.HealthHandler)
 	}
-	if paths.DetailedHealth != "" {
+	if paths.DetailedHealth != "" && h.detailedHealthEnabled() {
 		router.Get(paths.DetailedHealth, h.DetailedHealthHandler)
 	}
 }
@@ -268,4 +279,15 @@ type healthRouteRegistrar struct {
 
 func (r healthRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
 	r.register(pattern, h)
+}
+
+func (h *Handler) detailedHealthEnabled() bool {
+	if h == nil {
+		return false
+	}
+	mgr, ok := h.manager.(detailedHealthManager)
+	if !ok {
+		return true
+	}
+	return mgr.DetailedHealthEnabled()
 }

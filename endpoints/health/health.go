@@ -44,6 +44,15 @@ func NewWithConfig(config ports.HealthCheckConfig) ports.HealthManager {
 	return NewManagerWithConfig(config)
 }
 
+// DetailedHealthEnabled reports whether HTTP handlers should expose detailed
+// health output for this manager.
+func (m *Manager) DetailedHealthEnabled() bool {
+	if m == nil {
+		return false
+	}
+	return m.config.EnableDetailed
+}
+
 // RegisterChecker registers a single health checker.
 func (m *Manager) RegisterChecker(checker ports.HealthChecker) {
 	m.mu.Lock()

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/specs"
@@ -113,5 +114,46 @@ func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 		if router.patterns[i] != expected[i] {
 			t.Fatalf("route %d = %q", i, router.patterns[i])
 		}
+	}
+}
+
+func TestRegisterRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  false,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterRoutesTo(router)
+
+	for _, pattern := range router.patterns {
+		if pattern == specs.HealthDetailed {
+			t.Fatalf("did not expect %q route when detailed health is disabled", specs.HealthDetailed)
+		}
+	}
+}
+
+func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  false,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.HealthDetailed, nil)
+	handler.DetailedHealthHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
 	}
 }
