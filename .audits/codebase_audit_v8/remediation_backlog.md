@@ -48,7 +48,7 @@ Notes:
 
 - cover `README.md`, `docs/release-notes.md`, and `middleware/idempotency/doc.go`
 
-## Epic E2 - Align health endpoint contracts [ ]
+## Epic E2 - Align health endpoint contracts [x]
 
 Description: Make the health endpoint surface internally consistent across helpers, handlers, and published default routes.
 
@@ -70,7 +70,7 @@ Notes:
 
 - cover `endpoints/health/handlers.go` and `endpoints/health/handlers_test.go`
 
-### Ticket E2-T2 - Align DefaultHealthPaths with published defaults [ ]
+### Ticket E2-T2 - Align DefaultHealthPaths with published defaults [x]
 
 Description: Use the canonical `specs` endpoint constants for health helper defaults and add regression tests so the custom-route helper matches the published route surface.
 
