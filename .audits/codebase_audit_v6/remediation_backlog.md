@@ -209,7 +209,7 @@ Notes:
 - The preferred outcome is visibility without turning the scheduler into a fragile single point of failure.
 - Affected areas: `scheduler/scheduler.go`, docs.
 
-### Ticket E3-T2 - Implement recorder failure observability [ ]
+### Ticket E3-T2 - Implement recorder failure observability [x]
 
 Description: Add structured logging and, if needed, a configurable hook so recorder write failures are surfaced with job name, timing, and persistence error context.
 
