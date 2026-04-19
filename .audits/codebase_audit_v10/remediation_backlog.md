@@ -9,11 +9,11 @@ Status: in progress
   Quality gate: `go test ./contrib/adapters/httpclient`
   Commit: next commit will record this change
 
-- [ ] Ticket 2: Disable detailed health exposure by default unless explicitly enabled.
+- [x] Ticket 2: Disable detailed health exposure by default unless explicitly enabled.
   Scope: `endpoints/health`, docs/tests that lock the contract
   Why: current defaults contradict the documented operator-only health posture.
   Quality gate: `go test ./endpoints/health`
-  Commit: pending
+  Commit: next commit will record this change
 
 - [ ] Ticket 3: Make OpenAPI response capture preserve the first final status code.
   Scope: `contrib/middleware/openapi`
