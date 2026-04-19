@@ -310,6 +310,7 @@ if err != nil { /* handle */ }
 - Panics inside scheduled jobs are recovered, logged, and recorded as failed runs; the runner keeps future intervals alive instead of crashing the process.
 - The runner keeps at most one active schedule per job name, so duplicate `Start` calls or duplicate named jobs do not multiply execution cadence.
 - Non-overlap is enforced per job name: while one run is in flight, later ticks for that same named job are skipped.
+- Recorder persistence failures are operational signals, not scheduler control-flow failures: surface them through logging or a callback hook, but do not treat them as a reason to rerun the job immediately or stop future intervals after the job function has already finished.
 
 ## Security headers
 
