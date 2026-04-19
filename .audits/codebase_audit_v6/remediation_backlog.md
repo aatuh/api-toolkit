@@ -251,7 +251,7 @@ Notes:
 
 Description: Remove security-sensitive duplication between generic JWT and Clerk middleware while preserving the public behavior that downstream services depend on.
 
-### Ticket E4-T1 - Extract shared internal auth primitives [ ]
+### Ticket E4-T1 - Extract shared internal auth primitives [x]
 
 Description: Create an internal shared package for bearer parsing, algorithm normalization, required claim validation, and trusted-proxy skip-header handling.
 
