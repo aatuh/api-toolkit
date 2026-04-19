@@ -181,6 +181,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			case ports.IdempotencyStateInFlight:
 				writeInFlight(w, m.opts.InFlightTTL)
 				return
+			case ports.IdempotencyStateAmbiguous:
+				writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
+				return
 			case ports.IdempotencyStateUnknown:
 				// Fall through to process as a fresh request.
 			}
@@ -236,6 +239,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				case ports.IdempotencyStateInFlight:
 					writeInFlight(w, m.opts.InFlightTTL)
 					return
+				case ports.IdempotencyStateAmbiguous:
+					writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
+					return
 				case ports.IdempotencyStateUnknown:
 					// Fall through to process as a fresh request.
 				}
@@ -254,10 +260,12 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(capture, r)
 		if capture.Overflowed() {
-			if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
+			if err := m.markAmbiguous(ctx, key, hash); err != nil && m.opts.OnError != nil {
 				m.opts.OnError(err)
 			}
-			writeResponseTooLarge(w)
+			writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(ports.IdempotencyRecord{
+				CreatedAt: m.opts.Clock.Now(),
+			}, m.opts.TTL, m.opts.Clock))
 			return
 		}
 
@@ -274,10 +282,14 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				if m.opts.OnError != nil {
 					m.opts.OnError(err)
 				}
-				if cleanupErr := m.releaseReservation(ctx, key, hash); cleanupErr != nil && m.opts.OnError != nil {
-					m.opts.OnError(cleanupErr)
+				if markErr := m.markAmbiguous(ctx, key, hash); markErr != nil {
+					if m.opts.OnError != nil {
+						m.opts.OnError(markErr)
+					}
 				}
-				writePersistenceFailure(w)
+				writeAmbiguousPersistenceFailure(w, ambiguousRetryAfter(ports.IdempotencyRecord{
+					CreatedAt: m.opts.Clock.Now(),
+				}, m.opts.TTL, m.opts.Clock))
 				return
 			}
 		} else if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
@@ -310,6 +322,18 @@ func (m *Middleware) releaseReservation(ctx context.Context, key, hash string) e
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+func (m *Middleware) markAmbiguous(ctx context.Context, key, hash string) error {
+	if key == "" || m == nil || m.opts.Store == nil {
+		return nil
+	}
+	record := ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateAmbiguous,
+		RequestHash: hash,
+		CreatedAt:   m.opts.Clock.Now(),
+	}
+	return m.opts.Store.Save(ctx, key, record, m.opts.TTL)
 }
 
 // DefaultHash returns a stable SHA-256 hash of caller scope, method, path,
@@ -400,20 +424,48 @@ func writeBodyError(w http.ResponseWriter, err error) {
 	})
 }
 
-func writePersistenceFailure(w http.ResponseWriter) {
+func writeAmbiguous(w http.ResponseWriter, ttl time.Duration) {
+	setRetryAfter(w, ttl)
 	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
-		Detail: "idempotency response persistence failed",
+		Detail: "idempotency outcome is ambiguous; previous attempt may have completed",
 	})
 }
 
-func writeResponseTooLarge(w http.ResponseWriter) {
+func writeAmbiguousPersistenceFailure(w http.ResponseWriter, ttl time.Duration) {
+	setRetryAfter(w, ttl)
 	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
-		Detail: "idempotent response exceeds replay buffer limit",
+		Detail: "previous idempotent attempt may have completed, but its response could not be persisted",
 	})
+}
+
+func writeAmbiguousResponseTooLarge(w http.ResponseWriter, ttl time.Duration) {
+	setRetryAfter(w, ttl)
+	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+		Title:  http.StatusText(http.StatusServiceUnavailable),
+		Detail: "previous idempotent attempt may have completed, but its response exceeded the replay buffer limit",
+	})
+}
+
+func ambiguousRetryAfter(record ports.IdempotencyRecord, ttl time.Duration, clock ports.Clock) time.Duration {
+	if ttl <= 0 || record.CreatedAt.IsZero() || clock == nil {
+		return 0
+	}
+	remaining := ttl - clock.Now().Sub(record.CreatedAt)
+	if remaining <= 0 {
+		return 0
+	}
+	return remaining
+}
+
+func setRetryAfter(w http.ResponseWriter, ttl time.Duration) {
+	if ttl > 0 {
+		w.Header().Set("Retry-After", itoa(int(ttl.Seconds())))
+	}
 }
 
 func writeReplay(w http.ResponseWriter, key string, record ports.IdempotencyRecord, replayHeader string) {

@@ -16,6 +16,9 @@ const (
 	IdempotencyStateInFlight
 	// IdempotencyStateCompleted indicates a request has a stored response.
 	IdempotencyStateCompleted
+	// IdempotencyStateAmbiguous indicates a request may have completed, but its
+	// replay-safe response state could not be persisted.
+	IdempotencyStateAmbiguous
 )
 
 // IdempotencyRecord captures request/response material for idempotent retries.
