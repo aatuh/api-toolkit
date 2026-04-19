@@ -34,6 +34,38 @@ func TestLoadCSVKeepsExistingDataOnParseError(t *testing.T) {
 	}
 }
 
+func TestLoadCSVUsesNamedColumnsFromHeader(t *testing.T) {
+	restore := snapshotState()
+	t.Cleanup(func() {
+		restoreState(restore)
+	})
+
+	input := "ignored,alpha-2,name\nrow-1,FI,Finland\nrow-2,SE,Sweden\n"
+	if err := LoadCSV(strings.NewReader(input)); err != nil {
+		t.Fatalf("LoadCSV reordered header input: %v", err)
+	}
+
+	if !IsValid("FI") || !IsValid("SE") {
+		t.Fatal("expected reordered header input to populate both country codes")
+	}
+
+	finland, ok := EnglishName("FI")
+	if !ok {
+		t.Fatal("expected Finland to be available after reordered header input")
+	}
+	if finland != "Finland" {
+		t.Fatalf("expected Finland, got %q", finland)
+	}
+
+	sweden, ok := EnglishName("SE")
+	if !ok {
+		t.Fatal("expected Sweden to be available after reordered header input")
+	}
+	if sweden != "Sweden" {
+		t.Fatalf("expected Sweden, got %q", sweden)
+	}
+}
+
 type stateSnapshot struct {
 	codes     map[string]struct{}
 	countries map[string]string
