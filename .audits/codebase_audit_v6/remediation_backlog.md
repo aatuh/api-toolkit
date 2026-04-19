@@ -350,7 +350,7 @@ Notes:
 - Start with public surfaces whose behavior is small enough to test cheaply.
 - Affected areas: `contrib/adapters/txpostgres`, `contrib/adapters/chi`, `contrib/middleware/cors`.
 
-### Ticket E5-T2 - Add tests for simple exported adapters with no coverage [ ]
+### Ticket E5-T2 - Add tests for simple exported adapters with no coverage [x]
 
 Description: Add lightweight but meaningful tests for packages such as `logzap`, `uuid`, `ulid`, and `validation` so they have direct compatibility checks.
 
