@@ -20,7 +20,7 @@ type Manager struct {
 
 // New creates a new health manager with default configuration.
 func New() ports.HealthManager {
-	return NewWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -28,6 +28,8 @@ func New() ports.HealthManager {
 		LivenessChecks:  []string{"basic"},
 		ReadinessChecks: []string{"basic"},
 	})
+	manager.RegisterChecker(NewBasicChecker())
+	return manager
 }
 
 // NewManagerWithConfig creates a new health manager and returns the concrete type.
@@ -55,6 +57,9 @@ func (m *Manager) DetailedHealthEnabled() bool {
 
 // RegisterChecker registers a single health checker.
 func (m *Manager) RegisterChecker(checker ports.HealthChecker) {
+	if checker == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.checkers[checker.Name()] = checker
@@ -189,8 +194,8 @@ func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
 func (m *Manager) performChecks(ctx context.Context, checkerNames []string) ports.HealthResult {
 	if len(checkerNames) == 0 {
 		return ports.HealthResult{
-			Status:    ports.HealthStatusHealthy,
-			Message:   "No checks configured",
+			Status:    ports.HealthStatusUnhealthy,
+			Message:   "health check configuration is invalid: no checks configured",
 			Timestamp: time.Now(),
 		}
 	}
@@ -276,8 +281,8 @@ func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthRes
 
 	if !exists {
 		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
-			Message:   fmt.Sprintf("Checker '%s' not found", name),
+			Status:    ports.HealthStatusUnhealthy,
+			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
 			Timestamp: time.Now(),
 		}
 	}
@@ -306,8 +311,8 @@ func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.He
 
 	if !exists {
 		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
-			Message:   fmt.Sprintf("Checker '%s' not found", name),
+			Status:    ports.HealthStatusUnhealthy,
+			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
 			Timestamp: time.Now(),
 		}
 	}
