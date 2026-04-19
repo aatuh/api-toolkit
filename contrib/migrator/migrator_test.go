@@ -1,6 +1,8 @@
 package migrator
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -62,6 +64,101 @@ func TestLoadMigrationsRejectsDuplicateVersionDirectionAcrossDirectories(t *test
 	}
 }
 
+func TestApplyOneReturnsUncertainErrorWhenCommitAckFails(t *testing.T) {
+	commitErr := errors.New("commit lost")
+	tx := &fakeMigrationTx{commitErr: commitErr}
+	var recorded []recordStateCall
+	r := &Runner{
+		Opts: Options{TableName: "migration_runs"},
+		beginTxHook: func(context.Context, *sql.TxOptions) (migrationTx, error) {
+			return tx, nil
+		},
+		execContextHook: func(
+			_ context.Context, _ string, args ...any,
+		) (sql.Result, error) {
+			call := extractRecordStateCall(t, args...)
+			recorded = append(recorded, call)
+			return fakeSQLResult(1), nil
+		},
+	}
+	m := &Migration{
+		Version:  20240101000000,
+		Name:     "init",
+		SQL:      "create table widgets(id bigint);",
+		Checksum: "abc123",
+	}
+
+	err := r.applyOne(context.Background(), m)
+	var uncertain *UncertainMigrationError
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("expected UncertainMigrationError, got %T", err)
+	}
+	if !errors.Is(err, commitErr) {
+		t.Fatalf("expected wrapped commit error, got %v", err)
+	}
+	if tx.commitCount != 1 {
+		t.Fatalf("Commit() calls = %d, want 1", tx.commitCount)
+	}
+	if len(recorded) != 2 {
+		t.Fatalf("recordState() calls = %d, want 2", len(recorded))
+	}
+	assertRecordStateCall(t, recorded[0], migrationStateStarted, false)
+	assertRecordStateCall(t, recorded[1], migrationStateUncertain, false)
+}
+
+func TestApplyOneReturnsUncertainErrorWhenAppliedStateCannotBeRecorded(t *testing.T) {
+	recordErr := errors.New("write failed")
+	tx := &fakeMigrationTx{}
+	var recorded []recordStateCall
+	r := &Runner{
+		Opts: Options{TableName: "migration_runs"},
+		beginTxHook: func(context.Context, *sql.TxOptions) (migrationTx, error) {
+			return tx, nil
+		},
+		execContextHook: func(
+			_ context.Context, _ string, args ...any,
+		) (sql.Result, error) {
+			call := recordStateCall{
+				version:  args[0].(int64),
+				name:     args[1].(string),
+				checksum: args[2].(string),
+				execMS:   args[3].(int),
+				success:  args[4].(bool),
+				state:    args[5].(string),
+			}
+			recorded = append(recorded, call)
+			if call.state == migrationStateApplied {
+				return fakeSQLResult(0), recordErr
+			}
+			return fakeSQLResult(1), nil
+		},
+	}
+	m := &Migration{
+		Version:  20240101000000,
+		Name:     "init",
+		SQL:      "create table widgets(id bigint);",
+		Checksum: "abc123",
+	}
+
+	err := r.applyOne(context.Background(), m)
+	var uncertain *UncertainMigrationError
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("expected UncertainMigrationError, got %T", err)
+	}
+	if !errors.Is(err, recordErr) {
+		t.Fatalf("expected wrapped record error, got %v", err)
+	}
+	if tx.commitCount != 1 {
+		t.Fatalf("Commit() calls = %d, want 1", tx.commitCount)
+	}
+	if len(recorded) != 3 {
+		t.Fatalf("recordState() calls = %d, want 3", len(recorded))
+	}
+	assertRecordStateCall(t, recorded[0], migrationStateStarted, false)
+	assertRecordStateCall(t, recorded[1], migrationStateApplied, true)
+	assertRecordStateCall(t, recorded[2], migrationStateUncertain, false)
+}
+
 func writeMigrationFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -69,3 +166,74 @@ func writeMigrationFile(t *testing.T, dir, name, content string) {
 		t.Fatalf("write migration file: %v", err)
 	}
 }
+
+func extractRecordStateCall(t *testing.T, args ...any) recordStateCall {
+	t.Helper()
+	return recordStateCall{
+		version:  args[0].(int64),
+		name:     args[1].(string),
+		checksum: args[2].(string),
+		execMS:   args[3].(int),
+		success:  args[4].(bool),
+		state:    args[5].(string),
+	}
+}
+
+func assertRecordStateCall(
+	t *testing.T, call recordStateCall, wantState string, wantSuccess bool,
+) {
+	t.Helper()
+	if call.state != wantState {
+		t.Fatalf("recorded state = %q, want %q", call.state, wantState)
+	}
+	if call.success != wantSuccess {
+		t.Fatalf("recorded success = %t, want %t", call.success, wantSuccess)
+	}
+	if call.version != 20240101000000 {
+		t.Fatalf("recorded version = %d, want 20240101000000", call.version)
+	}
+	if call.name != "init" {
+		t.Fatalf("recorded name = %q, want init", call.name)
+	}
+	if call.checksum != "abc123" {
+		t.Fatalf("recorded checksum = %q, want abc123", call.checksum)
+	}
+}
+
+type recordStateCall struct {
+	version  int64
+	name     string
+	checksum string
+	execMS   int
+	success  bool
+	state    string
+}
+
+type fakeMigrationTx struct {
+	execSQL       []string
+	commitCount   int
+	rollbackCount int
+	commitErr     error
+}
+
+func (t *fakeMigrationTx) ExecContext(
+	_ context.Context, query string, _ ...any,
+) (sql.Result, error) {
+	t.execSQL = append(t.execSQL, query)
+	return fakeSQLResult(1), nil
+}
+
+func (t *fakeMigrationTx) Commit() error {
+	t.commitCount++
+	return t.commitErr
+}
+
+func (t *fakeMigrationTx) Rollback() error {
+	t.rollbackCount++
+	return nil
+}
+
+type fakeSQLResult int64
+
+func (r fakeSQLResult) LastInsertId() (int64, error) { return 0, nil }
+func (r fakeSQLResult) RowsAffected() (int64, error) { return int64(r), nil }
