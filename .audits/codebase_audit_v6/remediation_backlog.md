@@ -110,7 +110,7 @@ Notes:
 - Keep commit and rollback semantics explicit and easy to read.
 - Affected areas: `contrib/adapters/txpostgres/txpostgres.go`.
 
-### Ticket E2-T2 - Add cancellation and timeout tests for transaction cleanup [ ]
+### Ticket E2-T2 - Add cancellation and timeout tests for transaction cleanup [x]
 
 Description: Add focused tests that simulate canceled and timed-out contexts so rollback behavior is verified rather than assumed.
 
