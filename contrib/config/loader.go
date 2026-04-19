@@ -24,8 +24,11 @@ func NewLoader() *Loader {
 
 // Require returns the env var or records an error if missing.
 func (l *Loader) Require(key string) string {
-	val := strings.TrimSpace(l.env.GetOr(key, ""))
+	val := strings.TrimSpace(l.ensureEnv().GetOr(key, ""))
 	if val == "" {
+		if l == nil {
+			return val
+		}
 		l.errs = append(l.errs, fmt.Errorf("missing env %s", key))
 	}
 	return val
@@ -33,7 +36,7 @@ func (l *Loader) Require(key string) string {
 
 // String reads a string env var with a default.
 func (l *Loader) String(key, def string) string {
-	return l.env.GetOr(key, def)
+	return l.ensureEnv().GetOr(key, def)
 }
 
 // Bool reads a bool env var with a default.
@@ -66,12 +69,15 @@ func (l *Loader) Int(key string, def int) int {
 
 // Duration reads a duration env var with a default.
 func (l *Loader) Duration(key string, def time.Duration) time.Duration {
-	val := strings.TrimSpace(l.env.GetOr(key, ""))
+	val := strings.TrimSpace(l.ensureEnv().GetOr(key, ""))
 	if val == "" {
 		return def
 	}
 	dur, err := time.ParseDuration(val)
 	if err != nil {
+		if l == nil {
+			return def
+		}
 		l.errs = append(l.errs, fmt.Errorf("invalid duration for %s: %s", key, val))
 		return def
 	}
@@ -80,14 +86,11 @@ func (l *Loader) Duration(key string, def time.Duration) time.Duration {
 
 // CSV reads a comma-separated env var into a slice.
 func (l *Loader) CSV(key string) []string {
-	return SplitCSV(l.env.GetOr(key, ""))
+	return SplitCSV(l.ensureEnv().GetOr(key, ""))
 }
 
 func (l *Loader) raw(key string) (string, bool) {
-	if l == nil || l.env == nil {
-		return "", false
-	}
-	val, ok := l.env.Get(key)
+	val, ok := l.ensureEnv().Get(key)
 	if !ok {
 		return "", false
 	}
@@ -96,8 +99,21 @@ func (l *Loader) raw(key string) (string, bool) {
 
 // Err returns aggregated errors, if any.
 func (l *Loader) Err() error {
+	if l == nil {
+		return nil
+	}
 	if len(l.errs) == 0 {
 		return nil
 	}
 	return errors.Join(l.errs...)
+}
+
+func (l *Loader) ensureEnv() ports.EnvVar {
+	if l == nil {
+		return envvar.New()
+	}
+	if l.env == nil {
+		l.env = envvar.New()
+	}
+	return l.env
 }

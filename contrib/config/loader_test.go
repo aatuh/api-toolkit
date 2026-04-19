@@ -75,6 +75,39 @@ func TestLoadFromEnvReturnsErrorForInvalidStartupBool(t *testing.T) {
 	assertErrorContains(t, err, "invalid bool for MIGRATE_ON_START: not-a-bool")
 }
 
+func TestZeroValueLoaderUsesDefaultEnvAdapter(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://db.example/internal")
+	t.Setenv("CSV_KEY", "alpha,beta")
+	t.Setenv("DURATION_KEY", "30s")
+
+	var loader Loader
+
+	if got := loader.String("DATABASE_URL", ""); got != "postgres://db.example/internal" {
+		t.Fatalf("string = %q", got)
+	}
+	if got := loader.Require("DATABASE_URL"); got != "postgres://db.example/internal" {
+		t.Fatalf("require = %q", got)
+	}
+	if got := loader.Duration("DURATION_KEY", time.Second); got != 30*time.Second {
+		t.Fatalf("duration = %s", got)
+	}
+	if got := loader.CSV("CSV_KEY"); len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
+		t.Fatalf("csv = %#v", got)
+	}
+	if err := loader.Err(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestZeroValueLoaderRecordsMissingRequiredEnv(t *testing.T) {
+	var loader Loader
+
+	if got := loader.Require("MISSING_ENV"); got != "" {
+		t.Fatalf("require = %q", got)
+	}
+	assertErrorContains(t, loader.Err(), "missing env MISSING_ENV")
+}
+
 func assertErrorContains(t *testing.T, err error, want string) {
 	t.Helper()
 	if err == nil {

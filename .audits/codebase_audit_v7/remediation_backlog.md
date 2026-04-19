@@ -40,11 +40,11 @@ Acceptance:
 - Run targeted tests for `endpoints/docs`.
 - Commit after the ticket is complete.
 
-## Epic E3 - Make config loading defensive [ ]
+## Epic E3 - Make config loading defensive [x]
 
 Description: Remove avoidable panics from the exported env loader helper.
 
-### Ticket E3-T1 - Make `contrib/config.Loader` zero-value safe [ ]
+### Ticket E3-T1 - Make `contrib/config.Loader` zero-value safe [x]
 
 Description: Lazily initialize the env adapter so exported loader methods behave consistently for zero values.
 
