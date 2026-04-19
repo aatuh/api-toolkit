@@ -69,6 +69,16 @@ type HealthSummary struct {
 }
 
 // HealthCheckConfig defines configuration for health checks.
+//
+// Contract:
+//   - Timeout bounds a single liveness, readiness, or detailed health pass.
+//   - CacheDuration controls how long individual checker results may be reused
+//     when EnableCaching is true.
+//   - EnableDetailed controls whether HTTP packages should expose detailed
+//     health output that includes per-check dependency information.
+//   - LivenessChecks and ReadinessChecks should name at least one checker each;
+//     empty probe lists are invalid configuration and should not be reported as
+//     healthy.
 type HealthCheckConfig struct {
 	Timeout         time.Duration `json:"timeout"`
 	CacheDuration   time.Duration `json:"cache_duration"`

@@ -164,6 +164,20 @@ health.NewBasicHandler().RegisterRoutes(r)
 docs.NewHandler(docs.New()).RegisterRoutes(r)
 ```
 
+## Health endpoint contract
+
+The health package exposes separate liveness, readiness, and detailed health
+behaviors:
+
+- Liveness and readiness are expected to reflect configured checker state and
+  should not silently report healthy when no probe checks are configured.
+- Detailed health output is an operator-focused surface because it can include
+  dependency-level status and check details.
+- `ports.HealthCheckConfig.EnableDetailed` is the switch that controls whether
+  HTTP packages should expose detailed health responses.
+- When `EnableCaching` is true, checker results may be reused across health
+  endpoints until `CacheDuration` expires.
+
 ## Problem Details (RFC 9457) and success responses
 
 ```go
