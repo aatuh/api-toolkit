@@ -41,6 +41,15 @@ func (c *Capture) Header() http.Header {
 
 // WriteHeader records the status code without writing.
 func (c *Capture) WriteHeader(code int) {
+	if c == nil {
+		return
+	}
+	if isInformational(code) {
+		return
+	}
+	if c.wroteHeader {
+		return
+	}
 	c.status = code
 	c.wroteHeader = true
 }
@@ -80,7 +89,12 @@ func (c *Capture) BytesWritten() int {
 
 // Body returns a copy of the buffered body.
 func (c *Capture) Body() []byte {
-	return c.body.Bytes()
+	if c == nil || c.body.Len() == 0 {
+		return nil
+	}
+	out := make([]byte, c.body.Len())
+	copy(out, c.body.Bytes())
+	return out
 }
 
 // Overflowed reports whether buffered writes exceeded the configured maximum body size.
