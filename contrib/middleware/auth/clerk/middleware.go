@@ -14,6 +14,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/middleware/auth/shared"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -92,14 +93,14 @@ func NewMiddleware(ctx context.Context, cfg Config, log ports.Logger) (*Middlewa
 	mw.claimReq = normalizeClaimRequirements(cfg.RequiredClaims)
 
 	if cfg.AllowDangerousDevBypasses && cfg.SkipHeaderEnabled {
-		prefixes, err := identity.ParseTrustedProxies(cfg.SkipTrustedProxies)
+		resolver, err := shared.ParseSkipTrustedProxies(cfg.SkipTrustedProxies)
 		if err != nil {
+			if err.Error() == "skip header requires trusted proxies" {
+				return nil, fmt.Errorf("clerk skip header requires trusted proxies")
+			}
 			return nil, fmt.Errorf("clerk skip trusted proxies: %w", err)
 		}
-		if len(prefixes) == 0 {
-			return nil, fmt.Errorf("clerk skip header requires trusted proxies")
-		}
-		mw.skipResolver = identity.Resolver{TrustedProxies: prefixes}
+		mw.skipResolver = resolver
 	}
 	jwksCtx, cancel := context.WithCancel(ctx)
 	mw.cancel = cancel
@@ -204,34 +205,14 @@ func (m *Middleware) subjectFromToken(tokenStr string) (Subject, error) {
 	if m.jwks == nil {
 		return Subject{}, errors.New("jwks not configured")
 	}
-	claims := jwt.MapClaims{}
-	opts := []jwt.ParserOption{
-		jwt.WithAudience(m.cfg.Audience),
-		jwt.WithIssuer(m.cfg.Issuer),
-		jwt.WithLeeway(m.cfg.AllowedClockSkew),
-	}
-	if len(m.allowedAlgs) > 0 {
-		opts = append(opts, jwt.WithValidMethods(m.allowedAlgs))
-	}
-	if m.claimReq.requireExpiration {
-		opts = append(opts, jwt.WithExpirationRequired())
-	}
-	if m.claimReq.requireIssuedAt {
-		opts = append(opts, jwt.WithIssuedAt())
-	}
-	token, err := jwt.ParseWithClaims(
-		tokenStr,
-		claims,
-		m.jwks.Keyfunc,
-		opts...,
-	)
+	claims, err := shared.ParseTokenClaims(tokenStr, m.jwks.Keyfunc, shared.TokenParserConfig{
+		Audience:          m.cfg.Audience,
+		Issuer:            m.cfg.Issuer,
+		AllowedClockSkew:  m.cfg.AllowedClockSkew,
+		AllowedAlgorithms: m.allowedAlgs,
+		Requirements:      m.claimReq.shared(),
+	})
 	if err != nil {
-		return Subject{}, fmt.Errorf("token parse: %w", err)
-	}
-	if !token.Valid {
-		return Subject{}, errors.New("token invalid")
-	}
-	if err := validateRequiredClaims(claims, m.claimReq); err != nil {
 		return Subject{}, err
 	}
 
@@ -253,48 +234,15 @@ func tokenFromRequest(r *http.Request) (string, bool, error) {
 }
 
 func parseBearerToken(header string) (string, bool, error) {
-	if header == "" {
-		return "", false, nil
-	}
-	if strings.Contains(header, ",") {
-		return "", true, errors.New("authorization header contains multiple values")
-	}
-	if header != strings.TrimSpace(header) {
-		return "", true, errors.New("authorization header has leading/trailing whitespace")
-	}
-	const prefix = "bearer "
-	if len(header) <= len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
-		return "", true, errors.New("authorization scheme is not bearer")
-	}
-	token := header[len(prefix):]
-	if token == "" {
-		return "", true, errors.New("bearer token is empty")
-	}
-	if strings.ContainsAny(token, " \t") {
-		return "", true, errors.New("bearer token contains whitespace")
-	}
-	return token, true, nil
+	return shared.ParseBearerToken(header)
 }
 
 func stringClaim(claims jwt.MapClaims, key string) string {
-	if v, ok := claims[key]; ok {
-		switch vv := v.(type) {
-		case string:
-			return vv
-		case fmt.Stringer:
-			return vv.String()
-		}
-	}
-	return ""
+	return shared.StringClaim(claims, key)
 }
 
 func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
+	return shared.FirstNonEmpty(values...)
 }
 
 type claimRequirements struct {
@@ -305,91 +253,47 @@ type claimRequirements struct {
 }
 
 func normalizeClaimRequirements(req ClaimRequirements) claimRequirements {
-	out := claimRequirements{
-		requireSubject:    true,
-		requireExpiration: true,
-		requireIssuedAt:   false,
-		requireNotBefore:  false,
+	return claimRequirementsFromShared(shared.NormalizeClaimRequirements(shared.ClaimRequirementsInput{
+		RequireSubject:    req.RequireSubject,
+		RequireExpiration: req.RequireExpiration,
+		RequireIssuedAt:   req.RequireIssuedAt,
+		RequireNotBefore:  req.RequireNotBefore,
+	}))
+}
+
+func claimRequirementsFromShared(req shared.ClaimRequirements) claimRequirements {
+	return claimRequirements{
+		requireSubject:    req.RequireSubject,
+		requireExpiration: req.RequireExpiration,
+		requireIssuedAt:   req.RequireIssuedAt,
+		requireNotBefore:  req.RequireNotBefore,
 	}
-	if req.RequireSubject != nil {
-		out.requireSubject = *req.RequireSubject
+}
+
+func (r claimRequirements) shared() shared.ClaimRequirements {
+	return shared.ClaimRequirements{
+		RequireSubject:    r.requireSubject,
+		RequireExpiration: r.requireExpiration,
+		RequireIssuedAt:   r.requireIssuedAt,
+		RequireNotBefore:  r.requireNotBefore,
 	}
-	if req.RequireExpiration != nil {
-		out.requireExpiration = *req.RequireExpiration
-	}
-	if req.RequireIssuedAt != nil {
-		out.requireIssuedAt = *req.RequireIssuedAt
-	}
-	if req.RequireNotBefore != nil {
-		out.requireNotBefore = *req.RequireNotBefore
-	}
-	return out
 }
 
 func validateRequiredClaims(claims jwt.MapClaims, req claimRequirements) error {
-	if req.requireSubject && strings.TrimSpace(stringClaim(claims, "sub")) == "" {
-		return errors.New("token missing subject")
-	}
-	if req.requireExpiration {
-		exp, err := claims.GetExpirationTime()
-		if err != nil {
-			return err
-		}
-		if exp == nil {
-			return errors.New("token missing exp")
-		}
-	}
-	if req.requireIssuedAt {
-		iat, err := claims.GetIssuedAt()
-		if err != nil {
-			return err
-		}
-		if iat == nil {
-			return errors.New("token missing iat")
-		}
-	}
-	if req.requireNotBefore {
-		nbf, err := claims.GetNotBefore()
-		if err != nil {
-			return err
-		}
-		if nbf == nil {
-			return errors.New("token missing nbf")
-		}
-	}
-	return nil
+	return shared.ValidateRequiredClaims(claims, req.shared())
 }
 
 func authErrorDetail(err error, present bool) string {
-	if err != nil {
-		return err.Error()
-	}
-	if !present {
-		return "missing authorization header"
-	}
-	return "missing bearer token"
+	return shared.AuthErrorDetail(err, present)
 }
 
 func (m *Middleware) shouldSkip(r *http.Request) bool {
-	if !m.cfg.SkipHeaderEnabled {
-		return false
-	}
-	if m.skipHdr == "" {
-		return false
-	}
-	if !m.cfg.AllowDangerousDevBypasses {
-		return false
-	}
-	if !headerIsTrue(r.Header.Get(m.skipHdr)) {
-		return false
-	}
-	if len(m.skipResolver.TrustedProxies) == 0 {
-		return false
-	}
-	if r == nil {
-		return false
-	}
-	return m.skipResolver.TrustsRemoteAddr(r.RemoteAddr)
+	return shared.ShouldSkipRequest(r, shared.SkipPolicy{
+		Enabled:                   m.cfg.SkipHeaderEnabled,
+		AllowDangerousDevBypasses: m.cfg.AllowDangerousDevBypasses,
+		HeaderName:                m.skipHdr,
+		Resolver:                  m.skipResolver,
+	})
 }
 
 // Close stops background JWKS refresh work, if enabled.
@@ -405,25 +309,5 @@ func (m *Middleware) Close() {
 }
 
 func normalizeAlgorithms(algs []string) ([]string, error) {
-	seen := make(map[string]struct{}, len(algs))
-	out := make([]string, 0, len(algs))
-	for _, raw := range algs {
-		val := strings.ToUpper(strings.TrimSpace(raw))
-		if val == "" {
-			continue
-		}
-		if val == "NONE" {
-			return nil, errors.New("algorithm none is not allowed")
-		}
-		if _, ok := seen[val]; ok {
-			continue
-		}
-		seen[val] = struct{}{}
-		out = append(out, val)
-	}
-	return out, nil
-}
-
-func headerIsTrue(val string) bool {
-	return strings.TrimSpace(val) == "true"
+	return shared.NormalizeAlgorithms(algs)
 }
