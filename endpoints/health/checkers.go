@@ -53,7 +53,16 @@ func (c *DatabaseChecker) Name() string {
 
 // Check runs the database health check.
 func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
+	if c == nil || c.pool == nil {
+		return ports.HealthResult{
+			Status:    ports.HealthStatusUnhealthy,
+			Message:   "database pool not configured",
+			Timestamp: time.Now(),
+		}
+	}
+
 	start := time.Now()
+	ctx = normalizeContext(ctx)
 
 	// Create context with timeout for ping
 	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)

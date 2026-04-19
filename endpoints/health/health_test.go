@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -208,6 +209,68 @@ func TestCustomCheckerDefaultsNonPositiveTimeouts(t *testing.T) {
 	}
 }
 
+func TestManagerMethodsAcceptNilContext(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableCaching:   false,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	assertNoPanic(t, "GetLiveness", func() {
+		if result := manager.GetLiveness(nilContext()); result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("liveness status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+	assertNoPanic(t, "GetReadiness", func() {
+		if result := manager.GetReadiness(nilContext()); result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("readiness status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+	assertNoPanic(t, "GetDetailedHealth", func() {
+		if result := manager.GetDetailedHealth(nilContext()); result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("detailed status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+	assertNoPanic(t, "RefreshAll", func() {
+		if result := manager.RefreshAll(nilContext()); result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("refresh status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+}
+
+func TestDatabaseCheckerFailsClosedWhenPoolMissing(t *testing.T) {
+	checker := NewDatabaseChecker(nil)
+
+	assertNoPanic(t, "DatabaseChecker.Check", func() {
+		result := checker.Check(context.Background())
+		if result.Status != ports.HealthStatusUnhealthy {
+			t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusUnhealthy)
+		}
+		if result.Message != "database pool not configured" {
+			t.Fatalf("message = %q", result.Message)
+		}
+	})
+}
+
+func TestDatabaseCheckerAcceptsNilContext(t *testing.T) {
+	pool := &stubDatabasePool{}
+	checker := NewDatabaseChecker(pool)
+
+	assertNoPanic(t, "DatabaseChecker.Check nil context", func() {
+		result := checker.Check(nilContext())
+		if result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+
+	if pool.pingCalls.Load() != 1 {
+		t.Fatalf("expected one ping, got %d", pool.pingCalls.Load())
+	}
+}
+
 type countingChecker struct {
 	name  string
 	calls atomic.Int32
@@ -247,4 +310,38 @@ func (c *blockingChecker) Check(ctx context.Context) ports.HealthResult {
 		Message:   ctx.Err().Error(),
 		Timestamp: time.Now(),
 	}
+}
+
+type stubDatabasePool struct {
+	pingCalls atomic.Int32
+	pingErr   error
+}
+
+func (s *stubDatabasePool) Ping(context.Context) error {
+	s.pingCalls.Add(1)
+	return s.pingErr
+}
+
+func (*stubDatabasePool) Close() {}
+
+func (*stubDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (*stubDatabasePool) Stat() ports.DatabaseStats {
+	return nil
+}
+
+func assertNoPanic(t *testing.T, name string, fn func()) {
+	t.Helper()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("%s panicked: %v", name, recovered)
+		}
+	}()
+	fn()
+}
+
+func nilContext() context.Context {
+	return nil
 }
