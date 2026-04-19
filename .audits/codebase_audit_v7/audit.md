@@ -10,18 +10,18 @@ The other notable weakness is output hardening around the docs surface. `endpoin
 The repo’s tests are broad and generally useful, and lint/race checks are currently green. The remaining gap is that several cross-package contracts are only lightly exercised: response commitment semantics, buffered replay semantics, and docs page escaping are all examples where leaf-package green tests do not prove integration safety.
 
 ## Scorecard
-| Dimension                              | Score | Notes |
-|----------------------------------------|------:|-------|
-| Architecture & boundaries              |  8/10 | Core `ports` and adapter split is still clean; most leakage is in HTTP composition helpers rather than business boundaries. |
-| SOLID / cohesion / coupling            |  7/10 | Packages are mostly focused, but shared response primitives have too much blast radius for their current test coverage. |
+| Dimension                              | Score | Notes                                                                                                                                             |
+|----------------------------------------|------:|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| Architecture & boundaries              |  8/10 | Core `ports` and adapter split is still clean; most leakage is in HTTP composition helpers rather than business boundaries.                       |
+| SOLID / cohesion / coupling            |  7/10 | Packages are mostly focused, but shared response primitives have too much blast radius for their current test coverage.                           |
 | Correctness & robustness               |  6/10 | Shared response wrappers do not fully match `net/http` commitment rules, which can skew recovery, logging, metrics, and buffered replay behavior. |
-| Security                               |  7/10 | JWT and SSRF hardening are solid, but docs HTML generation still interpolates raw config into HTML and inline JS. |
-| Test effectiveness                     |  7/10 | Broad unit coverage and green race/lint runs; weaker around cross-package response semantics and output escaping. |
-| Change safety & backward compatibility |  8/10 | API checks are present and passing; risks are more behavioral than exported-API related. |
-| Operability & observability            |  6/10 | Metrics/request logging are thoughtfully placed, but they depend on response tracking that can currently report the wrong visible status. |
-| Clarity & developer experience         |  7/10 | Package layout is readable, though a few exported helpers have surprising edge behavior. |
-| Extensibility                          |  8/10 | Adding adapters or middleware remains relatively cheap because the repo keeps interfaces and implementations separated well. |
-| Overall                                |  7/10 | Good structural base with a small number of real correctness and hardening issues worth fixing immediately. |
+| Security                               |  7/10 | JWT and SSRF hardening are solid, but docs HTML generation still interpolates raw config into HTML and inline JS.                                 |
+| Test effectiveness                     |  7/10 | Broad unit coverage and green race/lint runs; weaker around cross-package response semantics and output escaping.                                 |
+| Change safety & backward compatibility |  8/10 | API checks are present and passing; risks are more behavioral than exported-API related.                                                          |
+| Operability & observability            |  6/10 | Metrics/request logging are thoughtfully placed, but they depend on response tracking that can currently report the wrong visible status.         |
+| Clarity & developer experience         |  7/10 | Package layout is readable, though a few exported helpers have surprising edge behavior.                                                          |
+| Extensibility                          |  8/10 | Adding adapters or middleware remains relatively cheap because the repo keeps interfaces and implementations separated well.                      |
+| Overall                                |  7/10 | Good structural base with a small number of real correctness and hardening issues worth fixing immediately.                                       |
 
 Confidence: high
 
