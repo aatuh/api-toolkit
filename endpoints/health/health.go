@@ -101,11 +101,14 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 	}
 	m.mu.RUnlock()
 
+	checkCtx, cancel := context.WithTimeout(ctx, m.config.Timeout)
+	defer cancel()
+
 	checks := make(map[string]ports.HealthResult)
 	summary := ports.HealthSummary{Total: len(checkerNames)}
 
 	for _, name := range checkerNames {
-		result := m.performCheck(ctx, name)
+		result := m.performCheck(checkCtx, name)
 		checks[name] = result
 
 		switch result.Status {
