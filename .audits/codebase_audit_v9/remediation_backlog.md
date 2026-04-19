@@ -3,7 +3,7 @@
 ## Epic 1: Contract Hardening For Runtime Safety
 Goal: close the three confirmed correctness gaps identified in `audit.md` without broad refactoring.
 
-- [ ] Ticket 1: Enforce the documented timeout contract for detailed health passes.
+- [x] Ticket 1: Enforce the documented timeout contract for detailed health passes.
   Scope: `endpoints/health`
   Acceptance:
   - `GetDetailedHealth` applies `HealthCheckConfig.Timeout` to the full detailed pass.
@@ -12,7 +12,7 @@ Goal: close the three confirmed correctness gaps identified in `audit.md` withou
   Quality checks:
   - `go test ./endpoints/health`
   - `make lint`
-  Commit: pending
+  Commit: completed in the accompanying ticket commit
 
 - [ ] Ticket 2: Preserve upstream retry semantics for non-replayable request bodies.
   Scope: `contrib/adapters/httpclient`

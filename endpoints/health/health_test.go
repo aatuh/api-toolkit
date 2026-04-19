@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -126,6 +127,43 @@ func TestGetDetailedHealthBypassesCacheWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestGetDetailedHealthHonorsConfiguredTimeout(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:        20 * time.Millisecond,
+		EnableCaching:  false,
+		EnableDetailed: true,
+	})
+	checker := &blockingChecker{name: "slow", started: make(chan struct{})}
+	manager.RegisterChecker(checker)
+
+	done := make(chan ports.DetailedHealthResponse, 1)
+	go func() {
+		done <- manager.GetDetailedHealth(context.Background())
+	}()
+
+	select {
+	case <-checker.started:
+	case <-time.After(time.Second):
+		t.Fatal("checker did not start")
+	}
+
+	select {
+	case resp := <-done:
+		result, ok := resp.Checks["slow"]
+		if !ok {
+			t.Fatalf("expected slow checker result, got %#v", resp.Checks)
+		}
+		if result.Status != ports.HealthStatusUnhealthy {
+			t.Fatalf("expected unhealthy result after timeout, got %q", result.Status)
+		}
+		if !strings.Contains(result.Message, context.DeadlineExceeded.Error()) {
+			t.Fatalf("expected timeout message, got %q", result.Message)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("GetDetailedHealth did not honor configured timeout")
+	}
+}
+
 type countingChecker struct {
 	name  string
 	calls atomic.Int32
@@ -140,6 +178,29 @@ func (c *countingChecker) Check(context.Context) ports.HealthResult {
 	return ports.HealthResult{
 		Status:    ports.HealthStatusHealthy,
 		Message:   fmt.Sprintf("call %d", call),
+		Timestamp: time.Now(),
+	}
+}
+
+type blockingChecker struct {
+	name    string
+	started chan struct{}
+}
+
+func (c *blockingChecker) Name() string {
+	return c.name
+}
+
+func (c *blockingChecker) Check(ctx context.Context) ports.HealthResult {
+	select {
+	case <-c.started:
+	default:
+		close(c.started)
+	}
+	<-ctx.Done()
+	return ports.HealthResult{
+		Status:    ports.HealthStatusUnhealthy,
+		Message:   ctx.Err().Error(),
 		Timestamp: time.Now(),
 	}
 }
