@@ -291,7 +291,7 @@ func (h *Handler) detailedHealthEnabled() bool {
 	}
 	mgr, ok := h.manager.(detailedHealthManager)
 	if !ok {
-		return true
+		return false
 	}
 	return mgr.DetailedHealthEnabled()
 }
