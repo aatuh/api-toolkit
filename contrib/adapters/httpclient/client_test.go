@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -116,4 +117,77 @@ func TestRetryReturnsOriginalResponseWhenBodyIsNotReplayable(t *testing.T) {
 	if got := atomic.LoadInt32(&calls); got != 1 {
 		t.Fatalf("expected 1 attempt for non-replayable body, got %d", got)
 	}
+}
+
+func TestRetryStopsWhenContextCanceledDuringBackoff(t *testing.T) {
+	t.Parallel()
+
+	firstAttempt := make(chan struct{})
+	client := New(Options{
+		DisableTracing: true,
+		Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			select {
+			case <-firstAttempt:
+			default:
+				close(firstAttempt)
+			}
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("retry later")),
+			}, nil
+		}),
+		Retry: RetryOptions{
+			MaxRetries:     2,
+			MinBackoff:     time.Second,
+			MaxBackoff:     time.Second,
+			MaxElapsedTime: 5 * time.Second,
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://example.com", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	errCh := make(chan error, 1)
+	start := time.Now()
+	go func() {
+		resp, err := client.Do(req)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		errCh <- err
+	}()
+
+	select {
+	case <-firstAttempt:
+	case <-time.After(time.Second):
+		t.Fatal("first attempt did not start")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context canceled, got %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("retry wait did not stop promptly after cancellation")
+	}
+
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Fatalf("expected cancellation before full backoff elapsed, got %s", elapsed)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
 }
