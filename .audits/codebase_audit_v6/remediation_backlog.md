@@ -270,7 +270,7 @@ Notes:
 - Keep the shared layer internal so public API churn stays minimal.
 - Affected areas: new internal package plus both auth middlewares.
 
-### Ticket E4-T2 - Migrate core JWT middleware to shared primitives [ ]
+### Ticket E4-T2 - Migrate core JWT middleware to shared primitives [x]
 
 Description: Refactor `middleware/auth/jwt` to use the extracted primitives without changing its public configuration or response behavior.
 
