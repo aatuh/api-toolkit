@@ -243,10 +243,15 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
 					return
 				case ports.IdempotencyStateUnknown:
-					// Fall through to process as a fresh request.
+					// Fall through to fail closed below.
 				}
 			}
-			// Fallback to processing if we can't observe a stored record.
+			if m.opts.FailOpen {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeReservationStateUnavailable(w)
+			return
 		}
 
 		capture := response_writer.NewLimitedCapture(m.opts.MaxResponseBytes)
@@ -448,6 +453,14 @@ func writeAmbiguousResponseTooLarge(w http.ResponseWriter, ttl time.Duration) {
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "previous idempotent attempt may have completed, but its response exceeded the replay buffer limit",
+	})
+}
+
+func writeReservationStateUnavailable(w http.ResponseWriter) {
+	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+		Title:  http.StatusText(http.StatusServiceUnavailable),
+		Detail: "idempotency state is temporarily unavailable; retry with the same key later",
 	})
 }
 

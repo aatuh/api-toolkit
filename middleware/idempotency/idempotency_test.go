@@ -524,6 +524,70 @@ func TestIdempotencyBlocksRetryAfterTransientSaveFailure(t *testing.T) {
 	}
 }
 
+func TestIdempotencyFailsClosedWhenReservationCollisionCannotBeResolved(t *testing.T) {
+	store := &reservationCollisionStore{}
+
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-collision")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	if got := rec.Body.String(); !strings.Contains(got, `"detail":"idempotency state is temporarily unavailable; retry with the same key later"`) {
+		t.Fatalf("expected reservation collision problem detail, got body %q", got)
+	}
+	if calls != 0 {
+		t.Fatalf("expected unresolved collision not to execute handler, got %d calls", calls)
+	}
+}
+
+func TestIdempotencyReservationCollisionHonorsFailOpen(t *testing.T) {
+	store := &reservationCollisionStore{}
+
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+		FailOpen:     true,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-collision-open")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected fail-open request to succeed, got %d", rec.Code)
+	}
+	if calls != 1 {
+		t.Fatalf("expected fail-open unresolved collision to execute handler once, got %d calls", calls)
+	}
+}
+
 type memoryStore struct {
 	mu   sync.Mutex
 	data map[string]memoryEntry
@@ -536,6 +600,8 @@ type saveFailStore struct {
 	saveErr           error
 	remainingFailures int
 }
+
+type reservationCollisionStore struct{}
 
 type memoryEntry struct {
 	record    ports.IdempotencyRecord
@@ -620,6 +686,28 @@ func (s *saveFailStore) Save(ctx context.Context, key string, record ports.Idemp
 		return s.saveErr
 	}
 	return s.memoryStore.Save(ctx, key, record, ttl)
+}
+
+func (s *reservationCollisionStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+	_ = ctx
+	_ = key
+	return ports.IdempotencyRecord{}, false, nil
+}
+
+func (s *reservationCollisionStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+	_ = ctx
+	_ = key
+	_ = record
+	_ = ttl
+	return false, nil
+}
+
+func (s *reservationCollisionStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	_ = ctx
+	_ = key
+	_ = record
+	_ = ttl
+	return nil
 }
 
 func (m *memoryStore) isExpired(entry memoryEntry) bool {
