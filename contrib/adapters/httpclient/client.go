@@ -59,6 +59,7 @@ type Client struct {
 	client         *http.Client
 	retry          retryConfig
 	sleep          func(time.Duration)
+	customSleep    bool
 	breaker        Breaker
 	breakerFailure FailureFunc
 	bulkhead       Bulkhead
@@ -68,6 +69,7 @@ var _ ports.HTTPClient = (*Client)(nil)
 
 // New constructs an outbound HTTP client with sane defaults.
 func New(opts Options) *Client {
+	customSleep := opts.Sleep != nil
 	if opts.Timeout <= 0 {
 		opts.Timeout = 10 * time.Second
 	}
@@ -97,6 +99,7 @@ func New(opts Options) *Client {
 		},
 		retry:          normalizeRetry(opts.Retry),
 		sleep:          opts.Sleep,
+		customSleep:    customSleep,
 		breaker:        opts.Breaker,
 		breakerFailure: normalizeBreakerFailure(opts.BreakerFailure),
 		bulkhead:       opts.Bulkhead,
@@ -170,11 +173,45 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 		}
-		if delay > 0 {
-			c.sleep(delay)
+		if err := c.waitRetry(req.Context(), delay); err != nil {
+			return nil, err
 		}
 	}
 	return resp, err
+}
+
+func (c *Client) waitRetry(ctx context.Context, delay time.Duration) error {
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+	}
+	if delay <= 0 {
+		return nil
+	}
+	if ctx == nil {
+		c.sleep(delay)
+		return nil
+	}
+	if c.customSleep {
+		c.sleep(delay)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return nil
+		}
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func requestReplayable(req *http.Request) bool {

@@ -3,11 +3,11 @@
 ## Epic 1: Boundary Contract Hardening
 Status: in progress
 
-- [ ] Ticket 1: Honor request cancellation during outbound HTTP retry backoff.
+- [x] Ticket 1: Honor request cancellation during outbound HTTP retry backoff.
   Scope: `contrib/adapters/httpclient`
   Why: current retry sleep can continue after caller cancellation.
   Quality gate: `go test ./contrib/adapters/httpclient`
-  Commit: pending
+  Commit: next commit will record this change
 
 - [ ] Ticket 2: Disable detailed health exposure by default unless explicitly enabled.
   Scope: `endpoints/health`, docs/tests that lock the contract
