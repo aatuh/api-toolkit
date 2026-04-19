@@ -178,13 +178,18 @@ func (c *CustomChecker) Name() string {
 // Check runs the custom health check.
 func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 	start := time.Now()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if c == nil || c.checkFunc == nil {
 		return ports.HealthResult{
 			Status:    ports.HealthStatusUnknown,
 			Message:   "custom health check not configured",
+			Timestamp: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+	if ctx == nil {
+		return ports.HealthResult{
+			Status:    ports.HealthStatusUnknown,
+			Message:   "custom health check context is missing",
 			Timestamp: time.Now(),
 			Duration:  time.Since(start),
 		}
