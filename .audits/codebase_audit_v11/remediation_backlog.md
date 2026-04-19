@@ -9,11 +9,11 @@ Status: in_progress
   Quality gate: `go test ./contrib/migrator`
   Commit: completed in the ticket commit
 
-- [ ] Ticket 2: Make custom health checkers fail closed instead of panicking on nil functions.
+- [x] Ticket 2: Make custom health checkers fail closed instead of panicking on nil functions.
   Scope: `endpoints/health`
   Why: a wiring mistake in `NewCustomChecker*` currently turns health checks into a panic path.
   Quality gate: `go test ./endpoints/health`
-  Commit: pending
+  Commit: completed in the ticket commit
 
 - [ ] Ticket 3: Stop bootstrap profiles from validating query-limit config when query limits are disabled.
   Scope: `contrib/bootstrap`

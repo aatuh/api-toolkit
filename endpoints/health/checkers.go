@@ -12,6 +12,8 @@ import (
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
+const defaultCustomCheckerTimeout = 5 * time.Second
+
 // BasicChecker implements a basic health check that always returns healthy.
 type BasicChecker struct{}
 
@@ -155,7 +157,7 @@ func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.He
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
-		timeout:   5 * time.Second,
+		timeout:   defaultCustomCheckerTimeout,
 	}
 }
 
@@ -164,7 +166,7 @@ func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc f
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
-		timeout:   timeout,
+		timeout:   normalizeCustomCheckerTimeout(timeout),
 	}
 }
 
@@ -176,6 +178,17 @@ func (c *CustomChecker) Name() string {
 // Check runs the custom health check.
 func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 	start := time.Now()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if c == nil || c.checkFunc == nil {
+		return ports.HealthResult{
+			Status:    ports.HealthStatusUnknown,
+			Message:   "custom health check not configured",
+			Timestamp: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
 
 	// Create context with timeout
 	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
@@ -191,6 +204,13 @@ func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 		Timestamp: time.Now(),
 		Duration:  duration,
 	}
+}
+
+func normalizeCustomCheckerTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return defaultCustomCheckerTimeout
+	}
+	return timeout
 }
 
 // CompositeChecker implements a composite health check that combines multiple checks.
