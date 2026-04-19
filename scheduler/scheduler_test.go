@@ -211,6 +211,98 @@ func TestExecuteRecoversPanicsAndRecordsFailure(t *testing.T) {
 	}
 }
 
+func TestExecuteSurfacesRecorderFailuresWithoutChangingJobOutcome(t *testing.T) {
+	tests := []struct {
+		name            string
+		run             func(context.Context) error
+		wantSuccess     bool
+		wantErrMsg      string
+		wantErrorLogMsg []string
+		wantInfoLogMsg  []string
+	}{
+		{
+			name:        "successful job",
+			run:         func(context.Context) error { return nil },
+			wantSuccess: true,
+			wantErrMsg:  "",
+			wantErrorLogMsg: []string{
+				"scheduled job record failed",
+			},
+			wantInfoLogMsg: []string{
+				"scheduled job start",
+				"scheduled job complete",
+			},
+		},
+		{
+			name:        "failed job",
+			run:         func(context.Context) error { return errors.New("boom") },
+			wantSuccess: false,
+			wantErrMsg:  "boom",
+			wantErrorLogMsg: []string{
+				"scheduled job failed",
+				"scheduled job record failed",
+			},
+			wantInfoLogMsg: []string{
+				"scheduled job start",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := &testLogger{}
+			recErr := errors.New("persist failed")
+			runner := New(log, RecorderFunc(func(context.Context, string, time.Time, time.Time, bool, string) error {
+				return recErr
+			}), nil)
+
+			var failures []RecorderFailure
+			runner.SetRecorderFailureHandler(RecorderFailureHandlerFunc(
+				func(_ context.Context, failure RecorderFailure) {
+					failures = append(failures, failure)
+				},
+			))
+
+			runner.execute(context.Background(), Job{
+				Name:     "sync",
+				Interval: time.Minute,
+				Run:      tt.run,
+			})
+
+			if len(failures) != 1 {
+				t.Fatalf("expected 1 recorder failure callback, got %d", len(failures))
+			}
+			failure := failures[0]
+			if failure.JobName != "sync" {
+				t.Fatalf("failure job = %q, want sync", failure.JobName)
+			}
+			if failure.Success != tt.wantSuccess {
+				t.Fatalf("failure success = %t, want %t", failure.Success, tt.wantSuccess)
+			}
+			if failure.ErrMsg != tt.wantErrMsg {
+				t.Fatalf("failure errMsg = %q, want %q", failure.ErrMsg, tt.wantErrMsg)
+			}
+			if !errors.Is(failure.Err, recErr) {
+				t.Fatalf("failure error = %v, want %v", failure.Err, recErr)
+			}
+			if failure.FinishedAt.Before(failure.StartedAt) {
+				t.Fatal("expected recorder failure timestamps to stay ordered")
+			}
+
+			assertLoggedMessages(t, log.infos, tt.wantInfoLogMsg)
+			assertLoggedMessages(t, log.errors, tt.wantErrorLogMsg)
+
+			recordLog := log.errors[len(log.errors)-1]
+			if got := valueForKey(recordLog.args, "record_error"); got != recErr.Error() {
+				t.Fatalf("record error log field = %v, want %q", got, recErr.Error())
+			}
+			if got := valueForKey(recordLog.args, "job_error"); got != tt.wantErrMsg {
+				t.Fatalf("job error log field = %v, want %q", got, tt.wantErrMsg)
+			}
+		})
+	}
+}
+
 func TestStartDoesNotOverlapSameJobAcrossDuplicateStarts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -360,4 +452,26 @@ func waitForRuns(t *testing.T, runs <-chan struct{}, want int, timeout time.Dura
 			t.Fatalf("timed out waiting for %d runs, got %d", want, count)
 		}
 	}
+}
+
+func assertLoggedMessages(t *testing.T, entries []loggedEntry, want []string) {
+	t.Helper()
+	if len(entries) != len(want) {
+		t.Fatalf("log entries = %d, want %d (%v)", len(entries), len(want), want)
+	}
+	for i, msg := range want {
+		if entries[i].msg != msg {
+			t.Fatalf("log entry %d = %q, want %q", i, entries[i].msg, msg)
+		}
+	}
+}
+
+func valueForKey(args []any, key string) any {
+	for i := 0; i+1 < len(args); i += 2 {
+		name, ok := args[i].(string)
+		if ok && name == key {
+			return args[i+1]
+		}
+	}
+	return nil
 }

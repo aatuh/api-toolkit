@@ -186,7 +186,7 @@ Notes:
 - Keep the test harness precise enough to reproduce the exact ambiguous path.
 - Affected areas: `contrib/migrator/*_test.go`.
 
-## Epic E3 - Surface scheduler persistence failures [ ]
+## Epic E3 - Surface scheduler persistence failures [x]
 
 Description: Make scheduler run-recording failures visible so operators can trust job history and startup decisions.
 
@@ -228,7 +228,7 @@ Notes:
 - Keep the logger interface small; avoid widening core interfaces unless there is a clear need.
 - Affected areas: `scheduler/scheduler.go`, `contrib/scheduler/postgres`.
 
-### Ticket E3-T3 - Add scheduler recorder failure tests [ ]
+### Ticket E3-T3 - Add scheduler recorder failure tests [x]
 
 Description: Add tests that force recorder errors and verify the scheduler emits the expected logs or hook behavior without losing normal run completion behavior.
 
