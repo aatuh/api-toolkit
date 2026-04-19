@@ -1,7 +1,7 @@
 # Remediation Backlog
 
 ## Epic 1: Runtime Contract Corrections
-Status: in_progress
+Status: done
 
 - [x] Ticket 1: Restore embedded migration loading for `embed.FS` sources.
   Scope: `contrib/migrator`
@@ -15,13 +15,14 @@ Status: in_progress
   Quality gate: `go test ./endpoints/health`
   Commit: completed in the ticket commit
 
-- [ ] Ticket 3: Stop bootstrap profiles from validating query-limit config when query limits are disabled.
+- [x] Ticket 3: Stop bootstrap profiles from validating query-limit config when query limits are disabled.
   Scope: `contrib/bootstrap`
   Why: disabled query guardrails should not block profile construction on stale or invalid query-limit options.
   Quality gate: `go test ./contrib/bootstrap`
-  Commit: pending
+  Commit: completed in the ticket commit
 
 ## Execution notes
 - Work one ticket at a time.
 - After each completed ticket: run its quality gate, update this file, and create a commit.
 - After the epic is complete: run broader repo checks and mark the epic done.
+- Epic close checks completed: `make finalize`
