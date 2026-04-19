@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Harden idempotency ambiguous-outcome handling [ ]
+## Epic E1 - Harden idempotency ambiguous-outcome handling [x]
 
 Description: Prevent idempotent writes from reopening the same key after the downstream handler has already executed but replay safety is unknown.
 
@@ -30,7 +30,7 @@ Notes:
 - cover `middleware/idempotency/idempotency.go`
 - add or update unit tests for ambiguous retry behavior
 
-### Ticket E1-T2 - Document idempotency retry semantics [ ]
+### Ticket E1-T2 - Document idempotency retry semantics [x]
 
 Description: Update public docs and package docs so callers understand the middleware’s behavior for large responses, persistence failures, and ambiguous outcomes.
 
