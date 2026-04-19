@@ -156,6 +156,20 @@ func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
 	}
+	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("expected problem content type, got %q", got)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode detailed health problem: %v", err)
+	}
+	if got := body["detail"]; got != "detailed health is disabled" {
+		t.Fatalf("expected disabled detail, got %#v", got)
+	}
+	if got := body["status"]; got != float64(http.StatusNotFound) {
+		t.Fatalf("expected problem status 404, got %#v", got)
+	}
 }
 
 func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {

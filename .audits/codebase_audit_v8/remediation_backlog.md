@@ -52,7 +52,7 @@ Notes:
 
 Description: Make the health endpoint surface internally consistent across helpers, handlers, and published default routes.
 
-### Ticket E2-T1 - Return Problem Details for disabled detailed health [ ]
+### Ticket E2-T1 - Return Problem Details for disabled detailed health [x]
 
 Description: Replace the plain-text `404` in the detailed health handler with the toolkit’s RFC 9457 error envelope and add regression coverage for the response shape.
 
