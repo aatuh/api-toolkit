@@ -209,6 +209,60 @@ func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 	}
 }
 
+type externalHealthManager struct{}
+
+func (externalHealthManager) RegisterChecker(ports.HealthChecker) {}
+
+func (externalHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+
+func (externalHealthManager) GetLiveness(context.Context) ports.HealthResult {
+	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (externalHealthManager) GetReadiness(context.Context) ports.HealthResult {
+	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (externalHealthManager) GetHealth(context.Context) ports.HealthResponse {
+	return ports.HealthResponse{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (externalHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
+	return ports.DetailedHealthResponse{
+		Status:    ports.HealthStatusHealthy,
+		Timestamp: time.Now(),
+		Checks: map[string]ports.HealthResult{
+			"db": {Status: ports.HealthStatusHealthy, Timestamp: time.Now()},
+		},
+		Summary: ports.HealthSummary{Total: 1, Healthy: 1},
+	}
+}
+
+func TestRegisterRoutesToSkipsDetailedHealthForManagersWithoutOptIn(t *testing.T) {
+	handler := NewHandler(externalHealthManager{})
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterRoutesTo(router)
+
+	for _, pattern := range router.patterns {
+		if pattern == specs.HealthDetailed {
+			t.Fatalf("did not expect %q route without explicit detailed-health opt-in", specs.HealthDetailed)
+		}
+	}
+}
+
+func TestDetailedHealthHandlerReturnsNotFoundForManagersWithoutOptIn(t *testing.T) {
+	handler := NewHandler(externalHealthManager{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.HealthDetailed, nil)
+	handler.DetailedHealthHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
 func TestDefaultHealthPathsUseCanonicalSpecsEndpoints(t *testing.T) {
 	paths := DefaultHealthPaths()
 
