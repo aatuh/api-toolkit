@@ -27,6 +27,15 @@ func (c *responseCapture) Header() http.Header {
 }
 
 func (c *responseCapture) WriteHeader(code int) {
+	if c == nil {
+		return
+	}
+	if isInformational(code) {
+		return
+	}
+	if c.wroteHeader {
+		return
+	}
 	c.status = code
 	c.wroteHeader = true
 }
@@ -77,4 +86,8 @@ func copyHeader(dst, src http.Header) {
 		copy(out, v)
 		dst[k] = out
 	}
+}
+
+func isInformational(code int) bool {
+	return code >= 100 && code < 200
 }
