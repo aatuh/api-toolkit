@@ -143,7 +143,11 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /health/detailed [get]
 func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.detailedHealthEnabled() {
-		http.NotFound(w, r)
+		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeNotFound),
+			Title:  http.StatusText(http.StatusNotFound),
+			Detail: "detailed health is disabled",
+		})
 		return
 	}
 
