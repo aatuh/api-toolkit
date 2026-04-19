@@ -164,6 +164,50 @@ func TestGetDetailedHealthHonorsConfiguredTimeout(t *testing.T) {
 	}
 }
 
+func TestCustomCheckerReturnsUnknownWhenFunctionMissing(t *testing.T) {
+	checker := NewCustomChecker("custom", nil)
+
+	result := checker.Check(context.Background())
+
+	if result.Status != ports.HealthStatusUnknown {
+		t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusUnknown)
+	}
+	if result.Message != "custom health check not configured" {
+		t.Fatalf("message = %q", result.Message)
+	}
+}
+
+func TestCustomCheckerDefaultsNonPositiveTimeouts(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{name: "zero", timeout: 0},
+		{name: "negative", timeout: -time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checker := NewCustomCheckerWithTimeout("custom", tt.timeout, func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("expected deadline on custom checker context")
+				}
+				remaining := time.Until(deadline)
+				if remaining < 4*time.Second || remaining > 6*time.Second {
+					t.Fatalf("deadline remaining = %v, want default timeout window", remaining)
+				}
+				return ports.HealthStatusHealthy, "ok", nil
+			})
+
+			result := checker.Check(context.Background())
+			if result.Status != ports.HealthStatusHealthy {
+				t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+			}
+		})
+	}
+}
+
 type countingChecker struct {
 	name  string
 	calls atomic.Int32
