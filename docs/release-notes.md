@@ -1,5 +1,20 @@
 # Release Notes
 
+## 2026-04-19
+
+- Health endpoints now fail closed on empty or miswired liveness/readiness probe sets, and HTTP handlers only expose detailed dependency output when `ports.HealthCheckConfig.EnableDetailed` is explicitly enabled.
+- `contrib/adapters/txpostgres.WithinTx` now attempts deferred rollback with a bounded cleanup context even when the caller context is already canceled or timed out.
+- `contrib/migrator` now records commit-acknowledgement failures as `uncertain` and blocks later runs when a prior migration record is still `started` or `uncertain`.
+- `scheduler.Runner` now surfaces recorder persistence failures through structured logs and optional `SetRecorderFailureHandler` callbacks without changing the completed job result or schedule cadence.
+- JWT and Clerk middleware now share internal auth/JWKS validation primitives with no intended public API or configuration change.
+
+### Upgrade notes
+
+- If operators previously relied on `/health` or equivalent routes exposing dependency-level detail by default, set `EnableDetailed` explicitly during wiring; otherwise only basic probes should remain visible.
+- If your deployment workflow retried migrations automatically after commit errors, stop doing that. Inspect the database state and reconcile `schema_migrations` before rerunning when a migration is recorded as `started` or `uncertain`.
+- If you need alerting when scheduler run history cannot be persisted, wire `SetRecorderFailureHandler` or monitor the new recorder-failure log events; job completion alone no longer implies recorder persistence succeeded.
+- JWT and Clerk integrations should be behaviorally equivalent to their prior public APIs, but custom wrappers that depended on edge-case differences in bearer parsing, claim requirements, or skip-header handling should be revalidated.
+
 ## 2026-04-15
 
 - Idempotency middleware now releases failed reservations after `5xx` responses, panics, and completed-response persistence failures, so retries with the same payload and `Idempotency-Key` are not blocked behind a stale in-flight record.

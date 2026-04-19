@@ -41,6 +41,7 @@ All exported identifiers in these packages are considered stable:
 ## Experimental or unstable surfaces
 
 - The `contrib` module is experimental and may change in minor releases.
+- `github.com/aatuh/api-toolkit/middleware/auth/shared` is an implementation-sharing package for auth middleware and is not part of the stable compatibility promise.
 - Examples, docs, and tooling are not API commitments.
 - Any package explicitly documented as experimental is unstable.
 
@@ -54,6 +55,17 @@ All exported identifiers in these packages are considered stable:
 
 CI runs `scripts/apicheck.sh` to detect incompatible changes in the stable
 packages. Breaking changes must coincide with a major version bump.
+
+## Behavioral upgrade guidance
+
+- API compatibility checks protect exported identifiers in the stable surface,
+  not every runtime contract or operator-facing default.
+- Review [docs/release-notes.md](/home/aatu/projects/saas/api-toolkit/docs/release-notes.md)
+  on every upgrade for behavior changes around health endpoint exposure,
+  scheduler observability, transaction cleanup, and `contrib` migration state
+  handling.
+- New helper packages added to support internal refactors should be treated as
+  unstable unless they are listed in the stable API surface above.
 
 ## Related policies
 

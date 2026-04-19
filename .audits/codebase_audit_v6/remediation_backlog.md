@@ -388,7 +388,7 @@ Notes:
 - Keep these tests cheap enough to stay stable in CI.
 - Affected areas: `contrib/integrations/*`, `contrib/cmd/*`.
 
-## Epic E6 - Align documentation and release guidance [ ]
+## Epic E6 - Align documentation and release guidance [x]
 
 Description: Keep documentation, upgrade notes, and release communication aligned with the behavior changes introduced by the remediation work.
 
@@ -411,7 +411,7 @@ Notes:
 - Keep examples consistent with any changed defaults or operator guidance.
 - Affected areas: `README.md`, `docs/security.md`, `docs/architecture.md`, package docs.
 
-### Ticket E6-T2 - Record upgrade impact in release notes and versioning guidance [ ]
+### Ticket E6-T2 - Record upgrade impact in release notes and versioning guidance [x]
 
 Description: Capture any behavior changes that downstream services must notice, especially health endpoint exposure, migration behavior, and auth refactoring with no intended API change.
 
