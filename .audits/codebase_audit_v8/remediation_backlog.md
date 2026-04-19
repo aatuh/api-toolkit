@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Harden countrycodes dataset loading [ ]
+## Epic E1 - Harden countrycodes dataset loading [x]
 
 Description: Make `contrib/countrycodes` safe to reload and consistent with the CSV contract it already documents.
 
@@ -29,7 +29,7 @@ Notes:
 - cover `contrib/countrycodes/countrycodes.go`
 - add a new `contrib/countrycodes/countrycodes_test.go`
 
-### Ticket E1-T2 - Honor documented CSV headers by name [ ]
+### Ticket E1-T2 - Honor documented CSV headers by name [x]
 
 Description: Resolve the `name` and `alpha-2` columns from the CSV header row instead of assuming fixed positions, and add unit tests that prove the loader accepts valid reordered input.
 

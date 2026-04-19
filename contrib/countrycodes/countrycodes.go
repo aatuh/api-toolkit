@@ -42,12 +42,17 @@ func parseCSV(r io.Reader) (map[string]struct{}, map[string]string, error) {
 
 	codes := make(map[string]struct{})
 	countries := make(map[string]string)
-	for i, row := range records {
-		if i == 0 || len(row) < 2 {
+	if len(records) == 0 {
+		return codes, countries, nil
+	}
+
+	nameIndex, codeIndex := resolveCSVColumns(records[0])
+	for _, row := range records[1:] {
+		if nameIndex >= len(row) || codeIndex >= len(row) {
 			continue
 		}
-		code := Normalize(row[1])
-		name := strings.TrimSpace(row[0])
+		code := Normalize(row[codeIndex])
+		name := strings.TrimSpace(row[nameIndex])
 		if code == "" {
 			continue
 		}
@@ -57,6 +62,20 @@ func parseCSV(r io.Reader) (map[string]struct{}, map[string]string, error) {
 		}
 	}
 	return codes, countries, nil
+}
+
+func resolveCSVColumns(header []string) (int, int) {
+	nameIndex := 0
+	codeIndex := 1
+	for i, column := range header {
+		switch strings.ToLower(strings.TrimSpace(column)) {
+		case "name":
+			nameIndex = i
+		case "alpha-2":
+			codeIndex = i
+		}
+	}
+	return nameIndex, codeIndex
 }
 
 // MustLoadCSV loads CSV data or panics. Intended for wiring during startup.
