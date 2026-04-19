@@ -260,7 +260,6 @@ func TestMountSystemEndpointsToUsesMinimalRegistrar(t *testing.T) {
 		specs.Readyz,
 		specs.Healthz,
 		specs.Health,
-		specs.HealthDetailed,
 		specs.Docs,
 		specs.DocsOpenAPI,
 		specs.DocsVersion,

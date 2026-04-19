@@ -1,7 +1,7 @@
 # Remediation Backlog
 
 ## Epic 1: Boundary Contract Hardening
-Status: in progress
+Status: done
 
 - [x] Ticket 1: Honor request cancellation during outbound HTTP retry backoff.
   Scope: `contrib/adapters/httpclient`
@@ -25,3 +25,4 @@ Status: in progress
 - Work one ticket at a time.
 - After each completed ticket: run its quality gate, update this file, and create a commit.
 - After the epic is complete: run broader repo checks and mark the epic done.
+- Epic close checks completed: `make test`, `make test-race`, `make lint`.
