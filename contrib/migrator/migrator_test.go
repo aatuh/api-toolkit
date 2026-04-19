@@ -233,6 +233,65 @@ func TestApplyOneReturnsUncertainErrorWhenAppliedStateCannotBeRecorded(t *testin
 	assertRecordStateCall(t, recorded[2], migrationStateUncertain, false)
 }
 
+func TestCommitFailureRecordsStateThatBlocksNextRun(t *testing.T) {
+	commitErr := errors.New("commit lost")
+	tx := &fakeMigrationTx{commitErr: commitErr}
+	var recorded []recordStateCall
+	m := &Migration{
+		Version:  20240101000000,
+		Name:     "init",
+		Dir:      "up",
+		SQL:      "create table widgets(id bigint);",
+		Checksum: "abc123",
+	}
+	r := &Runner{
+		Opts: Options{TableName: "migration_runs"},
+		migrations: []*Migration{
+			m,
+		},
+		beginTxHook: func(context.Context, *sql.TxOptions) (migrationTx, error) {
+			return tx, nil
+		},
+		execContextHook: func(
+			_ context.Context, _ string, args ...any,
+		) (sql.Result, error) {
+			recorded = append(recorded, extractRecordStateCall(t, args...))
+			return fakeSQLResult(1), nil
+		},
+	}
+
+	err := r.applyOne(context.Background(), m)
+	var uncertain *UncertainMigrationError
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("expected UncertainMigrationError, got %T", err)
+	}
+	if !errors.Is(err, commitErr) {
+		t.Fatalf("expected wrapped commit error, got %v", err)
+	}
+	if len(recorded) != 2 {
+		t.Fatalf("recordState() calls = %d, want 2", len(recorded))
+	}
+	assertRecordStateCall(t, recorded[0], migrationStateStarted, false)
+	assertRecordStateCall(t, recorded[1], migrationStateUncertain, false)
+
+	_, err = r.pendingUp([]appliedRow{
+		{
+			Version:  recorded[1].version,
+			Name:     recorded[1].name,
+			Checksum: recorded[1].checksum,
+			Success:  recorded[1].success,
+			State:    recorded[1].state,
+		},
+	})
+	var unresolved *UnresolvedMigrationStateError
+	if !errors.As(err, &unresolved) {
+		t.Fatalf("expected UnresolvedMigrationStateError, got %T", err)
+	}
+	if unresolved.State != migrationStateUncertain {
+		t.Fatalf("unresolved state = %q, want %q", unresolved.State, migrationStateUncertain)
+	}
+}
+
 func writeMigrationFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

@@ -167,7 +167,7 @@ Notes:
 - Favor explicit operator-visible failure over implicit retry.
 - Affected areas: `contrib/migrator/migrator.go`, migrator tests, release notes.
 
-### Ticket E2-T5 - Add fault-injection tests for migrator commit ambiguity [ ]
+### Ticket E2-T5 - Add fault-injection tests for migrator commit ambiguity [x]
 
 Description: Add tests that simulate execution success followed by commit failure and verify that the runner records and reacts to the outcome safely.
 
