@@ -2,6 +2,7 @@ package docs
 
 import (
 	"context"
+	htmltemplate "html/template"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -110,6 +111,50 @@ func TestHTMLHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestHTMLHandlerEscapesConfiguredValues(t *testing.T) {
+	title := `Docs <script>alert("boom")</script>`
+	description := `Desc <b>raw</b>`
+	openAPIPath := `/docs/openapi.json";window.pwned=true;//`
+
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       title,
+		Description: description,
+		Version:     "1.0.0",
+		Paths: ports.DocsPaths{
+			HTML:    "/docs",
+			OpenAPI: openAPIPath,
+			Version: "/docs/version",
+			Info:    "/docs/info",
+		},
+		EnableHTML: true,
+		EnableJSON: true,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
+	handler.HTMLHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `<script>alert("boom")</script>`) {
+		t.Fatalf("expected script tag to be escaped, got %q", body)
+	}
+	if !strings.Contains(body, htmltemplate.HTMLEscapeString(title)) {
+		t.Fatalf("expected escaped title, got %q", body)
+	}
+	if !strings.Contains(body, htmltemplate.HTMLEscapeString(description)) {
+		t.Fatalf("expected escaped description, got %q", body)
+	}
+	if strings.Contains(body, `url: "`+openAPIPath+`"`) {
+		t.Fatalf("expected raw openapi path not to appear in script, got %q", body)
+	}
+	if !strings.Contains(body, `\u0022;window.pwned=true;\/\/`) {
+		t.Fatalf("expected quote-breaking payload to stay escaped inside the js string, got %q", body)
 	}
 }
 

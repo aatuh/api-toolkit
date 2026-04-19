@@ -27,11 +27,11 @@ Acceptance:
 - Run targeted tests for `response_writer`, `middleware/idempotency`, and `contrib/middleware/openapi`.
 - Commit after the ticket is complete.
 
-## Epic E2 - Harden docs output [ ]
+## Epic E2 - Harden docs output [x]
 
 Description: Make the generated docs surface safe and deterministic even when config metadata contains HTML- or JS-significant characters.
 
-### Ticket E2-T1 - Escape generated docs HTML and inline JS [ ]
+### Ticket E2-T1 - Escape generated docs HTML and inline JS [x]
 
 Description: Replace `fmt.Sprintf` HTML generation with templated output that escapes config values in text, attribute, and script contexts.
 

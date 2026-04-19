@@ -3,7 +3,7 @@ package docs
 import (
 	"bytes"
 	"errors"
-	"fmt"
+	"html/template"
 	"io/fs"
 	"net/http"
 	"os"
@@ -24,6 +24,76 @@ type openAPIDocument struct {
 	content     []byte
 	contentType string
 }
+
+type docsPageData struct {
+	Title       string
+	Description string
+	Version     string
+	OpenAPIPath string
+	InfoPath    string
+	VersionPath string
+}
+
+var defaultHTMLTemplate = template.Must(template.New("docs-default").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html, body { margin: 0; padding: 0; background: #fafafa; }
+    #swagger-ui { box-sizing: border-box; }
+    .info-panel { padding: 16px; background: #fff; border-bottom: 1px solid #e5e5e5; }
+    .info-panel h1 { margin: 0 0 8px 0; font-size: 1.5rem; }
+    .info-panel p { margin: 0 0 4px 0; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="info-panel">
+    <h1>{{ .Title }}</h1>
+    <p>{{ .Description }}</p>
+    <p><strong>Version:</strong> {{ .Version }}</p>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+  window.onload = function() {
+    const ui = SwaggerUIBundle({
+      url: "{{ .OpenAPIPath }}",
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: "BaseLayout"
+    });
+    window.ui = ui;
+  };
+  </script>
+</body>
+</html>`))
+
+var staticHTMLTemplate = template.Must(template.New("docs-static").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }}</title>
+</head>
+<body>
+  <main>
+    <h1>{{ .Title }}</h1>
+    <p>{{ .Description }}</p>
+    <p>Version: {{ .Version }}</p>
+    <ul>
+      <li><a href="{{ .OpenAPIPath }}">OpenAPI JSON</a></li>
+      <li><a href="{{ .VersionPath }}">Version Info</a></li>
+      <li><a href="{{ .InfoPath }}">API Info</a></li>
+    </ul>
+    <p>This strict docs mode serves only first-party content and avoids third-party assets.</p>
+  </main>
+</body>
+</html>`))
 
 // New creates a new docs manager with default configuration.
 func New() ports.DocsManager {
@@ -215,98 +285,24 @@ func (m *Manager) ServeInfo(w http.ResponseWriter, _ *http.Request) {
 
 // generateDefaultHTML generates a default HTML documentation page.
 func (m *Manager) generateDefaultHTML() string {
-	openAPIPath := m.config.Paths.OpenAPI
-	if openAPIPath == "" {
-		openAPIPath = ports.DefaultDocsPaths().OpenAPI
-	}
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>%s</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
-  <style>
-    html, body { margin: 0; padding: 0; background: #fafafa; }
-    #swagger-ui { box-sizing: border-box; }
-    .info-panel { padding: 16px; background: #fff; border-bottom: 1px solid #e5e5e5; }
-    .info-panel h1 { margin: 0 0 8px 0; font-size: 1.5rem; }
-    .info-panel p { margin: 0 0 4px 0; color: #555; }
-  </style>
-</head>
-<body>
-  <div class="info-panel">
-    <h1>%s</h1>
-    <p>%s</p>
-    <p><strong>Version:</strong> %s</p>
-  </div>
-  <div id="swagger-ui"></div>
-  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
-  <script>
-  window.onload = function() {
-    const ui = SwaggerUIBundle({
-      url: "%s",
-      dom_id: '#swagger-ui',
-      deepLinking: true,
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-      layout: "BaseLayout"
-    });
-    window.ui = ui;
-  };
-  </script>
-</body>
-</html>`,
-		m.config.Title,
-		m.config.Title,
-		m.config.Description,
-		m.config.Version,
-		openAPIPath,
-	)
+	return renderDocsTemplate(defaultHTMLTemplate, docsPageData{
+		Title:       m.config.Title,
+		Description: m.config.Description,
+		Version:     m.config.Version,
+		OpenAPIPath: defaultPath(m.config.Paths.OpenAPI, ports.DefaultDocsPaths().OpenAPI),
+	})
 }
 
 func (m *Manager) generateStaticHTML() string {
-	openAPIPath := m.config.Paths.OpenAPI
-	if openAPIPath == "" {
-		openAPIPath = ports.DefaultDocsPaths().OpenAPI
-	}
-	infoPath := m.config.Paths.Info
-	if infoPath == "" {
-		infoPath = ports.DefaultDocsPaths().Info
-	}
-	versionPath := m.config.Paths.Version
-	if versionPath == "" {
-		versionPath = ports.DefaultDocsPaths().Version
-	}
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>%s</title>
-</head>
-<body>
-  <main>
-    <h1>%s</h1>
-    <p>%s</p>
-    <p>Version: %s</p>
-    <ul>
-      <li><a href="%s">OpenAPI JSON</a></li>
-      <li><a href="%s">Version Info</a></li>
-      <li><a href="%s">API Info</a></li>
-    </ul>
-    <p>This strict docs mode serves only first-party content and avoids third-party assets.</p>
-  </main>
-</body>
-</html>`,
-		m.config.Title,
-		m.config.Title,
-		m.config.Description,
-		m.config.Version,
-		openAPIPath,
-		versionPath,
-		infoPath,
-	)
+	defaultPaths := ports.DefaultDocsPaths()
+	return renderDocsTemplate(staticHTMLTemplate, docsPageData{
+		Title:       m.config.Title,
+		Description: m.config.Description,
+		Version:     m.config.Version,
+		OpenAPIPath: defaultPath(m.config.Paths.OpenAPI, defaultPaths.OpenAPI),
+		InfoPath:    defaultPath(m.config.Paths.Info, defaultPaths.Info),
+		VersionPath: defaultPath(m.config.Paths.Version, defaultPaths.Version),
+	})
 }
 
 // loadOpenAPIFile attempts to load OpenAPI specification from common locations.
@@ -370,4 +366,22 @@ func detectOpenAPIFormat(content []byte) (string, string) {
 		return "json", "application/json"
 	}
 	return "yaml", "application/yaml"
+}
+
+func renderDocsTemplate(tmpl *template.Template, data docsPageData) string {
+	if tmpl == nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+func defaultPath(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
