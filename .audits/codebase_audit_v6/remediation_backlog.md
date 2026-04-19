@@ -392,7 +392,7 @@ Notes:
 
 Description: Keep documentation, upgrade notes, and release communication aligned with the behavior changes introduced by the remediation work.
 
-### Ticket E6-T1 - Update docs for health, transactions, migrations, and scheduler behavior [ ]
+### Ticket E6-T1 - Update docs for health, transactions, migrations, and scheduler behavior [x]
 
 Description: Refresh README and package docs so users understand the new health semantics, transaction cleanup guarantees, migration ambiguity behavior, and scheduler recorder visibility.
 

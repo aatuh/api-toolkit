@@ -10,10 +10,14 @@ Core defaults aim to be safe, deterministic, and explicit:
 - Problem Details responses (RFC 9457) for consistent errors.
 - Strict JSON content-type enforcement when enabled, including rejection of
   body-bearing write requests that omit `Content-Type`.
+- Detailed dependency health output is opt-in; public health surfaces should
+  keep `EnableDetailed` disabled unless operators explicitly need it.
 - Request body limits via `middleware/maxbody`.
 - Query limits via `middleware/querylimits`.
 - Security headers via `middleware/secure`.
 - Trace context validation via `middleware/trace`.
+- Migration reruns fail closed when a previous commit outcome is uncertain, so
+  non-idempotent DDL is not retried blindly.
 
 ## Bypass and Dev-Only Controls
 
@@ -21,6 +25,7 @@ Some features include explicit bypasses for local development only:
 
 - Rate limit skip header: only honored when `AllowDangerousDevBypasses`
   is true and the request comes from a trusted proxy.
+- JWT auth skip header: same trusted-proxy restriction.
 - Clerk auth skip header: same proxy restriction.
 - Webhook verification skip in adapters: intended for development only.
 
@@ -38,6 +43,8 @@ Goal:
 
 - Fail safe by default and make bypasses explicit and restricted.
 - Bound resource usage (CPU, memory, network) per request.
+- Preserve cleanup and operator visibility even during timeout, cancellation,
+  or partial infrastructure failure paths.
 - Keep auditability via structured logs and stable errors.
 
 ## OWASP Mapping (Resource Consumption)
