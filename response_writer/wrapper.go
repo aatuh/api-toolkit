@@ -63,6 +63,17 @@ func (w *Writer) WriteHeader(code int) {
 	if w == nil {
 		return
 	}
+	if isInformational(code) {
+		if w.wroteHeader {
+			return
+		}
+		w.status = code
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	if w.wroteHeader {
+		return
+	}
 	w.status = code
 	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(code)
@@ -85,6 +96,9 @@ func (w *Writer) Write(b []byte) (int, error) {
 func (w *Writer) Flush() {
 	if w == nil {
 		return
+	}
+	if !w.wroteHeader && !isInformational(w.status) {
+		w.WriteHeader(http.StatusOK)
 	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
@@ -129,4 +143,8 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 	n, err := io.Copy(w.ResponseWriter, r)
 	w.bytes += int(n)
 	return n, err
+}
+
+func isInformational(code int) bool {
+	return code >= 100 && code < 200
 }
