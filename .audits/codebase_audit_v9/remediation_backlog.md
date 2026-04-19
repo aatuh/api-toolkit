@@ -1,6 +1,7 @@
 # Remediation Backlog
 
 ## Epic 1: Contract Hardening For Runtime Safety
+Status: completed
 Goal: close the three confirmed correctness gaps identified in `audit.md` without broad refactoring.
 
 - [x] Ticket 1: Enforce the documented timeout contract for detailed health passes.
@@ -24,7 +25,7 @@ Goal: close the three confirmed correctness gaps identified in `audit.md` withou
   - `make lint`
   Commit: completed in the accompanying ticket commit
 
-- [ ] Ticket 3: Fail closed on unresolved idempotency reservation collisions.
+- [x] Ticket 3: Fail closed on unresolved idempotency reservation collisions.
   Scope: `middleware/idempotency`
   Acceptance:
   - If `TryBegin` loses the reservation race and the store cannot confirm the existing record, the middleware does not execute the downstream handler again unless `FailOpen` is explicitly enabled.
@@ -34,7 +35,7 @@ Goal: close the three confirmed correctness gaps identified in `audit.md` withou
   - `go test ./middleware/idempotency`
   - `go test -race ./middleware/idempotency`
   - `make lint`
-  Commit: pending
+  Commit: completed in the accompanying ticket commit
 
 ## Completion Rules
 - Work one ticket at a time.
