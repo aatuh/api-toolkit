@@ -69,6 +69,20 @@ func TestMiddlewareAbortsAfterCommittedHeader(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 }
 
+func TestMiddlewareAbortsAfterFlushCommit(t *testing.T) {
+	handler := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	defer assertAbortPanic(t, rec, http.StatusOK, "")()
+	handler.ServeHTTP(rec, req)
+}
+
 func TestNewLogsPanicsToProvidedLogger(t *testing.T) {
 	log := &captureLogger{}
 	handler := New(WithLogger(log))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
