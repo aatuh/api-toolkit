@@ -247,7 +247,7 @@ Notes:
 - Cover both error-returning jobs and successful jobs whose persistence write fails afterward.
 - Affected areas: `scheduler/scheduler_test.go`.
 
-## Epic E4 - Deduplicate auth and JWKS validation logic [ ]
+## Epic E4 - Deduplicate auth and JWKS validation logic [x]
 
 Description: Remove security-sensitive duplication between generic JWT and Clerk middleware while preserving the public behavior that downstream services depend on.
 
@@ -308,7 +308,7 @@ Notes:
 - Keep Clerk-specific docs and env loading aligned with the refactor.
 - Affected areas: `contrib/middleware/auth/clerk/*`, `contrib/integrations/auth/clerk/*`.
 
-### Ticket E4-T4 - Add parity tests across auth implementations [ ]
+### Ticket E4-T4 - Add parity tests across auth implementations [x]
 
 Description: Add shared test cases that verify both auth implementations enforce the same bearer parsing, claim validation, skip-header, and algorithm rules.
 
