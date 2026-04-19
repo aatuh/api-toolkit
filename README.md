@@ -307,10 +307,11 @@ if err != nil { /* handle */ }
 
 - Use `Idempotency-Key` to store and replay the first non-5xx response by default.
 - The default request hash includes authenticated actor and tenant scope when present, so place auth and tenant middleware before idempotency in authenticated APIs.
-- If a completed response cannot be persisted, the middleware returns `503 Service Unavailable` instead of the downstream success response.
+- If a completed response cannot be persisted, the middleware returns `503 Service Unavailable` instead of the downstream success response and records an ambiguous outcome for that key.
 - Buffered replay bodies are capped at `1 MiB` by default via `MaxResponseBytes`.
 - Exclude streaming, upgrade, and large download routes with `ShouldHandle`; the idempotency middleware is for normal buffered responses, not streaming transport.
-- Failed attempts (`5xx`, panics, or completed-response persistence failures) release their reservation so the same request can retry immediately with the same key.
+- Failed attempts that end in downstream `5xx` responses or panics release their reservation so the same request can retry immediately with the same key.
+- Completed-response persistence failures and replay-buffer overflows do not reopen the key. They return `503`, leave an ambiguous record behind, and block same-key retries until the record expires or is reconciled.
 - Replays include `Idempotency-Replayed: true`.
 - `Set-Cookie` is stripped from replayed responses unless explicitly allowed.
 - Use `api-toolkit-contrib/adapters/idempotencyredis` for production storage.
