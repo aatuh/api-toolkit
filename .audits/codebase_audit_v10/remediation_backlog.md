@@ -15,11 +15,11 @@ Status: in progress
   Quality gate: `go test ./endpoints/health`
   Commit: next commit will record this change
 
-- [ ] Ticket 3: Make OpenAPI response capture preserve the first final status code.
+- [x] Ticket 3: Make OpenAPI response capture preserve the first final status code.
   Scope: `contrib/middleware/openapi`
   Why: response validation should match real `http.ResponseWriter` behavior.
   Quality gate: `go test ./contrib/middleware/openapi`
-  Commit: pending
+  Commit: next commit will record this change
 
 ## Execution notes
 - Work one ticket at a time.
