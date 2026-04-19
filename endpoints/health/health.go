@@ -24,7 +24,7 @@ func New() ports.HealthManager {
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
-		EnableDetailed:  true,
+		EnableDetailed:  false,
 		LivenessChecks:  []string{"basic"},
 		ReadinessChecks: []string{"basic"},
 	})

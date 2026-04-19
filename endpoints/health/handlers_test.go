@@ -105,7 +105,6 @@ func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 		specs.Readyz,
 		specs.Healthz,
 		specs.Health,
-		specs.HealthDetailed,
 	}
 	if len(router.patterns) != len(expected) {
 		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
@@ -114,6 +113,18 @@ func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 		if router.patterns[i] != expected[i] {
 			t.Fatalf("route %d = %q", i, router.patterns[i])
 		}
+	}
+}
+
+func TestNewHandlerDisablesDetailedHealthByDefault(t *testing.T) {
+	handler := NewHandler(nil)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.HealthDetailed, nil)
+	handler.DetailedHealthHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
 	}
 }
 
