@@ -21,6 +21,7 @@ type Runner struct {
 	log       Logger
 	rec       Recorder
 	lastRuns  LastRunProvider
+	recFail   RecorderFailureHandler
 	mu        sync.Mutex
 	inFlight  map[string]bool
 	scheduled map[string]bool
@@ -56,6 +57,17 @@ func New(log Logger, rec Recorder, last LastRunProvider, jobs ...Job) *Runner {
 		inFlight:  make(map[string]bool),
 		scheduled: make(map[string]bool),
 	}
+}
+
+// SetRecorderFailureHandler configures a callback for recorder persistence
+// failures. Set it before calling Start.
+func (r *Runner) SetRecorderFailureHandler(handler RecorderFailureHandler) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recFail = handler
 }
 
 // Start launches all jobs in separate goroutines.
@@ -138,7 +150,31 @@ func (r *Runner) execute(ctx context.Context, job Job) {
 		r.log.Info("scheduled job complete", "job", job.Name, "elapsed_ms", end.Sub(start).Milliseconds())
 	}
 	if r.rec != nil {
-		_ = r.rec.Record(ctx, job.Name, start, end, err == nil, errMsg(err))
+		runErrMsg := errMsg(err)
+		if recErr := r.rec.Record(ctx, job.Name, start, end, err == nil, runErrMsg); recErr != nil {
+			if r.log != nil {
+				r.log.Error(
+					"scheduled job record failed",
+					"job", job.Name,
+					"success", err == nil,
+					"job_error", runErrMsg,
+					"record_error", recErr.Error(),
+					"started_at", start.String(),
+					"finished_at", end.String(),
+					"elapsed_ms", end.Sub(start).Milliseconds(),
+				)
+			}
+			if handler := r.recorderFailureHandler(); handler != nil {
+				handler.OnRecorderFailure(ctx, RecorderFailure{
+					JobName:    job.Name,
+					StartedAt:  start,
+					FinishedAt: end,
+					Success:    err == nil,
+					ErrMsg:     runErrMsg,
+					Err:        recErr,
+				})
+			}
+		}
 	}
 }
 
@@ -204,4 +240,13 @@ func scheduleKey(index int, job Job) string {
 		return "job:" + job.Name
 	}
 	return fmt.Sprintf("job#%d", index)
+}
+
+func (r *Runner) recorderFailureHandler() RecorderFailureHandler {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.recFail
 }
