@@ -14,7 +14,7 @@ Goal: close the three confirmed correctness gaps identified in `audit.md` withou
   - `make lint`
   Commit: completed in the accompanying ticket commit
 
-- [ ] Ticket 2: Preserve upstream retry semantics for non-replayable request bodies.
+- [x] Ticket 2: Preserve upstream retry semantics for non-replayable request bodies.
   Scope: `contrib/adapters/httpclient`
   Acceptance:
   - When a retried request body cannot be replayed, the client returns the original upstream response/error instead of replacing it with `request body is not replayable`.
@@ -22,7 +22,7 @@ Goal: close the three confirmed correctness gaps identified in `audit.md` withou
   Quality checks:
   - `cd contrib && go test ./adapters/httpclient`
   - `make lint`
-  Commit: pending
+  Commit: completed in the accompanying ticket commit
 
 - [ ] Ticket 3: Fail closed on unresolved idempotency reservation collisions.
   Scope: `middleware/idempotency`
