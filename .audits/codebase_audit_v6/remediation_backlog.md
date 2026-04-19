@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Fix health semantics and probe contracts [ ]
+## Epic E1 - Fix health semantics and probe contracts [x]
 
 Description: Make health endpoints reflect real service state, honor advertised configuration, and fail safely when probe configuration is incomplete.
 
@@ -68,7 +68,7 @@ Notes:
 - Pick one explicit outcome for invalid config and keep it consistent across manager and handlers.
 - Affected areas: `endpoints/health/health.go`, `endpoints/health/handlers.go`.
 
-### Ticket E1-T4 - Add regression coverage for probe semantics [ ]
+### Ticket E1-T4 - Add regression coverage for probe semantics [x]
 
 Description: Add table-driven tests covering detailed health enablement, empty check sets, missing checker names, nil registration, and caching behavior.
 
