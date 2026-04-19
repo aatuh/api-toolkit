@@ -283,7 +283,7 @@ func TestMiddlewareBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
 	assertOptionalInterfaceHeadersFalse(t, rec.Header())
 }
 
-func TestIdempotencyFailsClosedWhenResponseExceedsBufferLimit(t *testing.T) {
+func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit(t *testing.T) {
 	mem := newMemoryStore()
 	mw, err := New(Options{
 		Store:            mem,
@@ -307,13 +307,18 @@ func TestIdempotencyFailsClosedWhenResponseExceedsBufferLimit(t *testing.T) {
 	if rec1.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 for oversized buffered response, got %d", rec1.Code)
 	}
-	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"idempotent response exceeds replay buffer limit"`) {
+	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"previous idempotent attempt may have completed, but its response exceeded the replay buffer limit"`) {
 		t.Fatalf("expected buffer limit problem detail, got body %q", got)
 	}
-	if _, found, err := mem.Get(context.Background(), "key-response-limit"); err != nil {
+	record, found, err := mem.Get(context.Background(), "key-response-limit")
+	if err != nil {
 		t.Fatalf("store get after oversized response: %v", err)
-	} else if found {
-		t.Fatal("expected oversized response path to release reservation")
+	}
+	if !found {
+		t.Fatal("expected oversized response path to leave an ambiguous record")
+	}
+	if record.State != ports.IdempotencyStateAmbiguous {
+		t.Fatalf("expected ambiguous state, got %v", record.State)
 	}
 
 	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
@@ -321,10 +326,13 @@ func TestIdempotencyFailsClosedWhenResponseExceedsBufferLimit(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected retry to fail closed again while response exceeds limit, got %d", rec2.Code)
+		t.Fatalf("expected retry to stay blocked after ambiguous outcome, got %d", rec2.Code)
 	}
-	if calls != 2 {
-		t.Fatalf("expected oversized response request to execute handler again on retry, got %d calls", calls)
+	if got := rec2.Body.String(); !strings.Contains(got, `"detail":"idempotency outcome is ambiguous; previous attempt may have completed"`) {
+		t.Fatalf("expected ambiguous outcome detail, got body %q", got)
+	}
+	if calls != 1 {
+		t.Fatalf("expected ambiguous retry not to execute handler again, got %d calls", calls)
 	}
 }
 
@@ -446,20 +454,23 @@ func TestIdempotencyReturnsServiceUnavailableWhenSaveFails(t *testing.T) {
 	if len(onError) != 1 || onError[0] == nil || onError[0].Error() != "save failed" {
 		t.Fatalf("expected save failure to be reported, got %#v", onError)
 	}
-	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"idempotency response persistence failed"`) {
+	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"previous idempotent attempt may have completed, but its response could not be persisted"`) {
 		t.Fatalf("expected persistence failure problem detail, got body %q", got)
 	}
 
-	_, found, err := store.Get(context.Background(), "key-save-fail")
+	record, found, err := store.Get(context.Background(), "key-save-fail")
 	if err != nil {
 		t.Fatalf("store get after save failure: %v", err)
 	}
-	if found {
-		t.Fatal("expected failed completion save to release reservation")
+	if !found {
+		t.Fatal("expected failed completion save to leave ambiguous record")
+	}
+	if record.State != ports.IdempotencyStateAmbiguous {
+		t.Fatalf("expected ambiguous state after save failure, got %v", record.State)
 	}
 }
 
-func TestIdempotencyAllowsRetryAfterTransientSaveFailure(t *testing.T) {
+func TestIdempotencyBlocksRetryAfterTransientSaveFailure(t *testing.T) {
 	store := &saveFailStore{
 		memoryStore:       newMemoryStore(),
 		saveErr:           errors.New("save failed"),
@@ -487,30 +498,29 @@ func TestIdempotencyAllowsRetryAfterTransientSaveFailure(t *testing.T) {
 	if rec1.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected first response to fail closed with 503, got %d", rec1.Code)
 	}
+	record, found, err := store.Get(context.Background(), "key-transient-save-fail")
+	if err != nil {
+		t.Fatalf("store get after transient save failure: %v", err)
+	}
+	if !found {
+		t.Fatal("expected transient save failure to leave ambiguous record")
+	}
+	if record.State != ports.IdempotencyStateAmbiguous {
+		t.Fatalf("expected ambiguous state after save failure, got %v", record.State)
+	}
 
 	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
 	req2.Header.Set("Idempotency-Key", "key-transient-save-fail")
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusCreated {
-		t.Fatalf("expected retry to succeed after transient save failure, got %d", rec2.Code)
+	if rec2.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected retry to stay blocked after ambiguous save failure, got %d", rec2.Code)
 	}
-	if got := rec2.Body.String(); !strings.Contains(got, `"calls":2`) {
-		t.Fatalf("expected retry to execute handler again, got body %q", got)
+	if got := rec2.Body.String(); !strings.Contains(got, `"detail":"idempotency outcome is ambiguous; previous attempt may have completed"`) {
+		t.Fatalf("expected ambiguous outcome detail, got body %q", got)
 	}
-
-	req3 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
-	req3.Header.Set("Idempotency-Key", "key-transient-save-fail")
-	rec3 := httptest.NewRecorder()
-	handler.ServeHTTP(rec3, req3)
-	if rec3.Code != http.StatusCreated {
-		t.Fatalf("expected stored retry response to replay, got %d", rec3.Code)
-	}
-	if rec3.Header().Get("Idempotency-Replayed") != "true" {
-		t.Fatalf("expected replay header on stored retry response")
-	}
-	if rec3.Body.String() != rec2.Body.String() {
-		t.Fatalf("expected replayed body to match stored retry response")
+	if calls != 1 {
+		t.Fatalf("expected ambiguous retry not to execute handler again, got %d calls", calls)
 	}
 }
 
