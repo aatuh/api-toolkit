@@ -331,7 +331,7 @@ Notes:
 
 Description: Add targeted tests around public contrib adapters, wrappers, and command entrypoints so repo boundary changes are safer.
 
-### Ticket E5-T1 - Add tests for public transport and adapter shims [ ]
+### Ticket E5-T1 - Add tests for public transport and adapter shims [x]
 
 Description: Add focused tests for `txpostgres`, `chi`, and `middleware/cors` that validate their exported behavior and expected lifecycle semantics.
 
