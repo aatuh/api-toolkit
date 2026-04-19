@@ -87,7 +87,7 @@ Notes:
 - Lock behavior down before any follow-on observability changes depend on it.
 - Affected areas: `endpoints/health/*_test.go`.
 
-## Epic E2 - Harden transaction and migration failure handling [ ]
+## Epic E2 - Harden transaction and migration failure handling [x]
 
 Description: Make transaction cleanup and migration state tracking safe under timeout, cancellation, and ambiguous commit outcomes.
 
@@ -148,7 +148,7 @@ Notes:
 - This ticket may require a migration metadata schema change or a stronger verification step after commit failure.
 - Affected areas: `contrib/migrator/migrator.go`, migration metadata table behavior, docs.
 
-### Ticket E2-T4 - Block reruns when migration outcome is uncertain [ ]
+### Ticket E2-T4 - Block reruns when migration outcome is uncertain [x]
 
 Description: Update pending migration selection so previously ambiguous runs stop the process with a clear operator action instead of re-running non-idempotent DDL.
 
