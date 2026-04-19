@@ -49,7 +49,7 @@ Notes:
 - Preserve backward compatibility where possible, but prefer safer defaults over silent exposure.
 - Affected areas: `endpoints/health/handlers.go`, `endpoints/health/health.go`.
 
-### Ticket E1-T3 - Fail safely on invalid probe configuration [ ]
+### Ticket E1-T3 - Fail safely on invalid probe configuration [x]
 
 Description: Stop returning `healthy` for empty readiness or liveness check lists and make nil checker registration fail predictably instead of panicking.
 

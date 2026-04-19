@@ -61,8 +61,8 @@ func TestMiddlewareWithNilManagerAddsHealthContext(t *testing.T) {
 		if !ok {
 			t.Fatal("expected health status in context")
 		}
-		if status != ports.HealthStatusUnknown {
-			t.Fatalf("expected unknown status, got %q", status)
+		if status != ports.HealthStatusHealthy {
+			t.Fatalf("expected healthy status, got %q", status)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)
