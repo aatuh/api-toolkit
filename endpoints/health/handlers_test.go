@@ -197,3 +197,20 @@ func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultHealthPathsUseCanonicalSpecsEndpoints(t *testing.T) {
+	paths := DefaultHealthPaths()
+
+	if paths.Liveness != specs.Livez {
+		t.Fatalf("expected liveness path %q, got %q", specs.Livez, paths.Liveness)
+	}
+	if paths.Readiness != specs.Readyz {
+		t.Fatalf("expected readiness path %q, got %q", specs.Readyz, paths.Readiness)
+	}
+	if paths.Health != specs.Health {
+		t.Fatalf("expected health path %q, got %q", specs.Health, paths.Health)
+	}
+	if paths.DetailedHealth != specs.HealthDetailed {
+		t.Fatalf("expected detailed health path %q, got %q", specs.HealthDetailed, paths.DetailedHealth)
+	}
+}

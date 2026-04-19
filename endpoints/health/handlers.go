@@ -230,10 +230,10 @@ type HealthPaths struct {
 // DefaultHealthPaths returns the default health endpoint paths.
 func DefaultHealthPaths() HealthPaths {
 	return HealthPaths{
-		Liveness:       "/live",
-		Readiness:      "/ready",
-		Health:         "/health",
-		DetailedHealth: "/health/detailed",
+		Liveness:       specs.Livez,
+		Readiness:      specs.Readyz,
+		Health:         specs.Health,
+		DetailedHealth: specs.HealthDetailed,
 	}
 }
 
