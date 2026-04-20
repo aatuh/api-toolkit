@@ -37,6 +37,25 @@ Avoid:
 The metrics middleware derives `route` from the router pattern and defaults
 missing routes to `unknown`. This keeps cardinality stable by design.
 
+## Bootstrap defaults
+
+The contrib bootstrap helpers keep metrics opt-in:
+
+- `bootstrap.ProfileStrictAPI` and `bootstrap.ProfileDev` use a No-op metrics
+  recorder unless you pass `bootstrap.WithMetricsRecorder(...)`.
+- `bootstrap.MountSystemEndpoints` only mounts `specs.Metrics` when you set
+  `SystemEndpoints.Metrics` explicitly.
+- `bootstrap.PrometheusMetricsHandler()` is the convenience helper for the
+  standard Prometheus HTTP handler.
+
+Example:
+
+```go
+bootstrap.MountSystemEndpoints(r, bootstrap.SystemEndpoints{
+	Metrics: bootstrap.PrometheusMetricsHandler(),
+})
+```
+
 ## Custom metrics
 
 If you add custom metrics, keep label sets small and bounded. If you need

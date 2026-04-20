@@ -277,6 +277,17 @@ The metrics middleware lives in the contrib module.
 Provide an implementation of `ports.MetricsRecorder` to record counts
 and durations. Passing a nil recorder to `metricsmw.New(metricsmw.Options{})`
 uses a No-op implementation.
+Bootstrap profiles also default to a No-op recorder. They do not register
+Prometheus collectors unless you pass an explicit recorder with
+`bootstrap.WithMetricsRecorder(...)`.
+Mounting `/metrics` is also explicit:
+
+```go
+bootstrap.MountSystemEndpoints(r, bootstrap.SystemEndpoints{
+	Metrics: bootstrap.PrometheusMetricsHandler(),
+})
+```
+
 See `docs/metrics.md` for naming and label policy.
 
 ## Request logging

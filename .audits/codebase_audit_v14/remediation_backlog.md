@@ -49,7 +49,7 @@ Notes:
 - keep the call site easy to wire from examples and bootstrap code
 - avoid silently changing unrelated health/docs/version behavior
 
-### Ticket E1-T3 - Lock the new metrics contract with tests and docs [ ]
+### Ticket E1-T3 - Lock the new metrics contract with tests and docs [x]
 
 Description: Add tests and docs that assert metrics registration and metrics exposure are explicit choices rather than default side effects.
 
