@@ -14,9 +14,11 @@ import (
 
 type migratorFactory func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (ports.Migrator, error)
 
+const defaultStartupTimeout = 5 * time.Second
+
 // NewMigrator builds a migrator with either directories or embedded FS sources.
 func NewMigrator(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
-	return NewMigratorWithContext(context.Background(), dsn, table, lockKey, allowDown, log, dirs, embedded)
+	return newMigratorWithStartupTimeout(dsn, table, lockKey, allowDown, log, dirs, embedded, NewMigratorWithContext)
 }
 
 // NewMigratorWithContext builds a migrator with either directories or embedded FS sources.
@@ -34,6 +36,12 @@ func NewMigratorWithContext(ctx context.Context, dsn, table string, lockKey int6
 		EmbeddedFSs:        embedded,
 	}
 	return migrate.NewWithContext(ctx, opts)
+}
+
+func newMigratorWithStartupTimeout(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS, newMigrator migratorFactory) (ports.Migrator, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
+	defer cancel()
+	return newMigrator(ctx, dsn, table, lockKey, allowDown, log, dirs, embedded)
 }
 
 // RunUp runs migrations up with context and directory path.
