@@ -71,7 +71,7 @@ Notes:
 
 Description: Remove misleading or expensive default runtime behavior from timeout and health helpers.
 
-### Ticket E2-T1 - Decide and codify timeout semantics [ ]
+### Ticket E2-T1 - Decide and codify timeout semantics [x]
 
 Description: Either implement hard timeout handling with a stable response contract or rename/document the current middleware so it is clearly a context-deadline propagator only.
 

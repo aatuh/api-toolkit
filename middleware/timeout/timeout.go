@@ -7,27 +7,38 @@ import (
 	"time"
 )
 
-// Middleware applies a per-request context deadline without writing responses.
-// Handlers and downstream calls must observe ctx.Done for the timeout to take effect.
-type Middleware struct {
+// Propagator applies a per-request context deadline without writing timeout
+// responses. Handlers and downstream calls must observe ctx.Done for the
+// deadline to take effect.
+type Propagator struct {
 	Timeout time.Duration
 }
+
+// Middleware is kept as a backward-compatible alias for Propagator.
+type Middleware = Propagator
 
 // Options configures the timeout middleware.
 type Options struct {
 	Timeout time.Duration
 }
 
-// New constructs a timeout middleware with the given duration.
-func New(opts Options) (*Middleware, error) {
+// NewPropagator constructs a cooperative request-deadline propagator with the
+// given duration.
+func NewPropagator(opts Options) (*Propagator, error) {
 	if opts.Timeout <= 0 {
 		return nil, errors.New("timeout must be greater than zero")
 	}
-	return &Middleware{Timeout: opts.Timeout}, nil
+	return &Propagator{Timeout: opts.Timeout}, nil
+}
+
+// New constructs a cooperative request-deadline propagator.
+// Deprecated: use NewPropagator to make the non-aborting behavior explicit.
+func New(opts Options) (*Propagator, error) {
+	return NewPropagator(opts)
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
-func (m *Middleware) Middleware() func(http.Handler) http.Handler {
+func (m *Propagator) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }
 	}
@@ -36,7 +47,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 
 // Handler wraps the next handler with a context deadline.
 // It does not abort writes or synthesize timeout responses.
-func (m *Middleware) Handler(next http.Handler) http.Handler {
+func (m *Propagator) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next
 	}

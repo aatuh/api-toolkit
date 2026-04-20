@@ -10,13 +10,23 @@ import (
 )
 
 func TestNewRequiresPositiveTimeout(t *testing.T) {
-	if _, err := New(Options{Timeout: 0}); err == nil {
+	if _, err := NewPropagator(Options{Timeout: 0}); err == nil {
 		t.Fatal("expected error for zero timeout")
 	}
 }
 
-func TestHandlerAppliesContextDeadline(t *testing.T) {
-	mw, err := New(Options{Timeout: 10 * time.Millisecond})
+func TestNewRemainsBackwardCompatible(t *testing.T) {
+	mw, err := New(Options{Timeout: time.Millisecond})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	if mw == nil {
+		t.Fatal("expected propagator")
+	}
+}
+
+func TestPropagatorHandlerAppliesContextDeadline(t *testing.T) {
+	mw, err := NewPropagator(Options{Timeout: 10 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
 	}
@@ -43,8 +53,8 @@ func TestHandlerAppliesContextDeadline(t *testing.T) {
 	}
 }
 
-func TestHandlerDoesNotForceTimeoutResponse(t *testing.T) {
-	mw, err := New(Options{Timeout: 5 * time.Millisecond})
+func TestPropagatorHandlerDoesNotForceTimeoutResponse(t *testing.T) {
+	mw, err := NewPropagator(Options{Timeout: 5 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
 	}
