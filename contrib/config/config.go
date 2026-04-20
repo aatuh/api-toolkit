@@ -18,7 +18,7 @@ type Config struct {
 }
 
 // MustLoadFromEnv loads config or panics if required values are missing or
-// present values are invalid.
+// present values are invalid. Reusable library code should prefer LoadFromEnv.
 func MustLoadFromEnv() Config {
 	cfg, err := LoadFromEnv(nil)
 	if err != nil {
