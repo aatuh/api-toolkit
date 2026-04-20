@@ -13,6 +13,7 @@ import (
 	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
 	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type stubMiddlewareChain struct {
@@ -194,6 +195,38 @@ func TestProfileStrictAPICanBeConstructedRepeatedlyWithDefaultMetrics(t *testing
 		if len(profile.Middlewares) == 0 {
 			t.Fatalf("expected middleware stack on iteration %d", i)
 		}
+	}
+}
+
+func TestProfileStrictAPIDoesNotRegisterPrometheusCollectorsByDefault(t *testing.T) {
+	reg := withDefaultPrometheusRegistry(t)
+
+	if _, err := ProfileStrictAPI(ports.NopLogger{}); err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	metricFamilies, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	if len(metricFamilies) != 0 {
+		t.Fatalf("expected no implicit collectors, got %d", len(metricFamilies))
+	}
+}
+
+func TestProfileDevDoesNotRegisterPrometheusCollectorsByDefault(t *testing.T) {
+	reg := withDefaultPrometheusRegistry(t)
+
+	if _, err := ProfileDev(ports.NopLogger{}); err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	metricFamilies, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	if len(metricFamilies) != 0 {
+		t.Fatalf("expected no implicit collectors, got %d", len(metricFamilies))
 	}
 }
 
@@ -425,4 +458,19 @@ func cloneMetricLabels(labels metricsmw.Labels) metricsmw.Labels {
 		out[key] = value
 	}
 	return out
+}
+
+func withDefaultPrometheusRegistry(t *testing.T) *prometheus.Registry {
+	t.Helper()
+
+	reg := prometheus.NewRegistry()
+	prevRegisterer := prometheus.DefaultRegisterer
+	prevGatherer := prometheus.DefaultGatherer
+	prometheus.DefaultRegisterer = reg
+	prometheus.DefaultGatherer = reg
+	t.Cleanup(func() {
+		prometheus.DefaultRegisterer = prevRegisterer
+		prometheus.DefaultGatherer = prevGatherer
+	})
+	return reg
 }
