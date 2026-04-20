@@ -182,9 +182,6 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 			opt(&cfg)
 		}
 	}
-	if cfg.metrics == nil {
-		cfg.metrics = metricsmw.NewPrometheusRecorder(nil, nil)
-	}
 
 	secureOptions := []securemw.Option{
 		securemw.WithResolver(cfg.identityResolver),
@@ -285,9 +282,6 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 		if opt != nil {
 			opt(&cfg)
 		}
-	}
-	if cfg.metrics == nil {
-		cfg.metrics = metricsmw.NewPrometheusRecorder(nil, nil)
 	}
 	secureOptions := []securemw.Option{
 		securemw.WithResolver(cfg.identityResolver),
