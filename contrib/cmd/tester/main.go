@@ -12,8 +12,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
@@ -24,8 +26,9 @@ var env = envvar.New()
 // Config holds all configuration for the test runner
 type Config struct {
 	// API configuration
-	APIHost     string
-	SkipAPIWait bool
+	APIHost        string
+	SkipAPIWait    bool
+	APIWaitTimeout time.Duration
 
 	// Test configuration
 	PackagePattern string
@@ -44,6 +47,7 @@ func LoadConfig() *Config {
 	return &Config{
 		APIHost:        env.GetOr("API_HOST", ""),
 		SkipAPIWait:    env.GetBoolOr("SKIP_API_WAIT", false),
+		APIWaitTimeout: env.GetDurationOr("API_WAIT_TIMEOUT", 20*time.Second),
 		PackagePattern: env.GetOr("PKG", "./..."),
 		TestPattern:    env.GetOr("TEST_PATTERN", ""),
 		Flags:          env.GetOr("FLAGS", ""),
@@ -66,6 +70,7 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println("  API_HOST              API server URL (required unless SKIP_API_WAIT is set)")
 	fmt.Println("  SKIP_API_WAIT         Skip waiting for API server (any non-empty value)")
+	fmt.Println("  API_WAIT_TIMEOUT      Max time to wait for API readiness (default: 20s, <=0 waits until context cancel)")
 	fmt.Println("  PKG                   Package pattern to test (default: ./...)")
 	fmt.Println("  TEST_PATTERN          Test name pattern to run (e.g., TestFoo)")
 	fmt.Println("  FLAGS                 Additional go test flags (e.g., -race -count=1)")
@@ -114,8 +119,8 @@ func sanitizeForFilename(s string) string {
 	return r.Replace(s)
 }
 
-func runGoCmdStreaming(args ...string) (int, error) {
-	cmd := exec.CommandContext(context.Background(), "go")
+func runGoCmdStreaming(ctx context.Context, args ...string) (int, error) {
+	cmd := exec.CommandContext(normalizeContext(ctx), "go")
 	cmd.Args = append(cmd.Args, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -133,8 +138,8 @@ func runGoCmdStreaming(args ...string) (int, error) {
 	return 0, nil
 }
 
-func runGoList(pkgsPattern string) ([]string, error) {
-	cmd := exec.CommandContext(context.Background(), "go", "list")
+func runGoList(ctx context.Context, pkgsPattern string) ([]string, error) {
+	cmd := exec.CommandContext(normalizeContext(ctx), "go", "list")
 	cmd.Args = append(cmd.Args, pkgsPattern)
 	out, err := cmd.Output()
 	if err != nil {
@@ -159,18 +164,19 @@ func splitFlags(s string) []string {
 	return strings.Fields(s)
 }
 
-func waitForAPI(ctx context.Context, baseURL string) error {
+func waitForAPI(ctx context.Context, baseURL string, maxTotalWait time.Duration) error {
 	if baseURL == "" {
 		return fmt.Errorf("API_HOST not set")
 	}
+	ctx = normalizeContext(ctx)
 	healthURL := strings.TrimRight(baseURL, "/") + "/health"
 	client := &http.Client{Timeout: 2 * time.Second}
 	fmt.Printf("Waiting for API server to be ready at %s\n", healthURL)
 
 	initialBackoff := 1 * time.Second
 	maxBackoff := 30 * time.Second
-	maxTotalWait := 20 * time.Second
 	var backoff time.Duration
+	enforceMaxWait := maxTotalWait > 0
 
 	// Exponential decay backoff: backoff = maxBackoff - (maxBackoff-initialBackoff)*decay^attempt
 	decay := 0.95 // can tune for aggressiveness, 0 < decay < 1
@@ -181,7 +187,7 @@ func waitForAPI(ctx context.Context, baseURL string) error {
 	for {
 		// Check if total elapsed time exceeds maxTotalWait
 		elapsed := time.Since(startTime)
-		if elapsed > maxTotalWait {
+		if enforceMaxWait && elapsed > maxTotalWait {
 			return fmt.Errorf("timed out waiting for API after %s", maxTotalWait)
 		}
 
@@ -211,7 +217,7 @@ func waitForAPI(ctx context.Context, baseURL string) error {
 
 		// Don't sleep past maxTotalWait
 		timeToNext := backoff
-		if elapsed+timeToNext > maxTotalWait {
+		if enforceMaxWait && elapsed+timeToNext > maxTotalWait {
 			timeToNext = maxTotalWait - elapsed
 		}
 		fmt.Printf("Retrying in around %ds...\n", int64((timeToNext+time.Second/2)/time.Second))
@@ -230,7 +236,7 @@ func pow(a, b float64) float64 {
 	return math.Pow(a, b)
 }
 
-func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config) error {
+func runTestsWithCache(ctx context.Context, pkg string, runPattern string, flags string, cfg *Config) error {
 	cacheKey := computeCacheKey(pkg, runPattern, flags)
 	var cacheRoot *os.Root
 	if cfg.CacheEnabled {
@@ -271,7 +277,7 @@ func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config)
 	}
 	args = append(args, pkg)
 
-	cmd := exec.CommandContext(context.Background(), "go")
+	cmd := exec.CommandContext(normalizeContext(ctx), "go")
 	cmd.Args = append(cmd.Args, args...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
@@ -291,6 +297,13 @@ func runTestsWithCache(pkg string, runPattern string, flags string, cfg *Config)
 		_ = writeRootFile(cacheRoot, cacheKey, buf.Bytes(), 0o600)
 	}
 	return nil
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 func readRootFile(root *os.Root, name string) ([]byte, error) {
@@ -329,14 +342,15 @@ func main() {
 
 	// Load configuration
 	cfg := LoadConfig()
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// API wait
 	if !cfg.SkipAPIWait {
 		if cfg.APIHost == "" {
 			fatalf("❌ API_HOST environment variable is not set. Please define it in your env var file.")
 		}
-		// No timeout to match original script behavior (wait indefinitely)
-		if err := waitForAPI(context.Background(), cfg.APIHost); err != nil {
+		if err := waitForAPI(rootCtx, cfg.APIHost, cfg.APIWaitTimeout); err != nil {
 			fatalf("failed waiting for API: %v", err)
 		}
 	} else {
@@ -346,7 +360,7 @@ func main() {
 	fmt.Printf("Running tests with caching enabled: %v\n", cfg.CacheEnabled)
 
 	// Expand packages
-	pkgs, err := runGoList(cfg.PackagePattern)
+	pkgs, err := runGoList(rootCtx, cfg.PackagePattern)
 	if err != nil {
 		fatalf("%v", err)
 	}
@@ -363,7 +377,7 @@ func main() {
 			args = append(args, "-run", cfg.TestPattern)
 		}
 		args = append(args, pkgs...)
-		code, err := runGoCmdStreaming(args...)
+		code, err := runGoCmdStreaming(rootCtx, args...)
 		if err != nil {
 			os.Exit(code)
 		}
@@ -377,7 +391,7 @@ func main() {
 	var exitCode int
 	for _, p := range pkgs {
 		fmt.Printf(">> Testing %s\n", p)
-		if err := runTestsWithCache(p, cfg.TestPattern, cfg.Flags, cfg); err != nil {
+		if err := runTestsWithCache(rootCtx, p, cfg.TestPattern, cfg.Flags, cfg); err != nil {
 			fmt.Printf("❌ Tests failed in %s\n", p)
 			exitCode = 1
 			break
