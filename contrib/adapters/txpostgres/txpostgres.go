@@ -24,18 +24,37 @@ var txKey txKeyType
 
 const rollbackCleanupTimeout = 5 * time.Second
 
+// ErrPoolNotConfigured reports that the transaction adapter was constructed without a database pool.
+var ErrPoolNotConfigured = errors.New("database pool not configured")
+
 // Manager implements ports.TxManager using a pgx-like pool.
 type Manager struct {
 	Pool ports.DatabasePool
 }
 
 // New constructs a transaction manager over a DatabasePool.
-func New(pool ports.DatabasePool) ports.TxManager { return &Manager{Pool: pool} }
+func New(pool ports.DatabasePool) ports.TxManager {
+	if pool == nil {
+		return invalidManager{err: ErrPoolNotConfigured}
+	}
+	return &Manager{Pool: pool}
+}
+
+type invalidManager struct {
+	err error
+}
+
+func (m invalidManager) WithinTx(context.Context, func(context.Context) error) error {
+	return m.err
+}
 
 // WithinTx runs fn inside a database transaction.
 func (m *Manager) WithinTx(
 	ctx context.Context, fn func(ctx context.Context) error,
 ) error {
+	if m == nil || m.Pool == nil {
+		return ErrPoolNotConfigured
+	}
 	conn, err := m.Pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -64,9 +83,11 @@ func (m *Manager) WithinTx(
 // FromCtx returns the active transaction if present; otherwise a
 // facade that acquires/releases a connection per call (no leaks).
 func FromCtx(ctx context.Context, pool ports.DatabasePool) DBer {
-	if v := ctx.Value(txKey); v != nil {
-		if tx, ok := v.(ports.DatabaseTransaction); ok {
-			return tx
+	if ctx != nil {
+		if v := ctx.Value(txKey); v != nil {
+			if tx, ok := v.(ports.DatabaseTransaction); ok {
+				return tx
+			}
 		}
 	}
 	return pooledFacade{pool: pool}
@@ -80,6 +101,9 @@ type pooledFacade struct {
 func (p pooledFacade) Exec(
 	ctx context.Context, sql string, args ...any,
 ) (ports.DatabaseResult, error) {
+	if p.pool == nil {
+		return nil, ErrPoolNotConfigured
+	}
 	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -91,6 +115,9 @@ func (p pooledFacade) Exec(
 func (p pooledFacade) Query(
 	ctx context.Context, sql string, args ...any,
 ) (ports.DatabaseRows, error) {
+	if p.pool == nil {
+		return nil, ErrPoolNotConfigured
+	}
 	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -107,6 +134,9 @@ func (p pooledFacade) Query(
 func (p pooledFacade) QueryRow(
 	ctx context.Context, sql string, args ...any,
 ) ports.DatabaseRow {
+	if p.pool == nil {
+		return errRow{err: ErrPoolNotConfigured}
+	}
 	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
 		return errRow{err: err}

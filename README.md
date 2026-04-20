@@ -268,6 +268,8 @@ tx := txpostgres.New(pool)
 but deferred rollback cleanup switches to a short-lived context without caller
 cancellation so timed-out or canceled requests still attempt to release the
 transaction cleanly.
+If a pool is missing, `txpostgres.New(nil)` and `txpostgres.FromCtx(..., nil)`
+now fail closed with `txpostgres.ErrPoolNotConfigured` instead of panicking.
 
 ## Metrics integration
 
