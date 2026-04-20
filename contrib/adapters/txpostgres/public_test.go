@@ -47,6 +47,41 @@ func TestFromCtxExecUsesAndReleasesConnection(t *testing.T) {
 	}
 }
 
+func TestNewNilPoolReturnsConfiguredErrorFromWithinTx(t *testing.T) {
+	called := false
+	err := New(nil).WithinTx(context.Background(), func(context.Context) error {
+		called = true
+		return nil
+	})
+	if called {
+		t.Fatal("expected function not to be called")
+	}
+	if !errors.Is(err, ErrPoolNotConfigured) {
+		t.Fatalf("WithinTx() error = %v, want %v", err, ErrPoolNotConfigured)
+	}
+}
+
+func TestFromCtxExecReturnsConfiguredErrorWhenPoolMissing(t *testing.T) {
+	_, err := FromCtx(context.Background(), nil).Exec(context.Background(), "select 1")
+	if !errors.Is(err, ErrPoolNotConfigured) {
+		t.Fatalf("Exec() error = %v, want %v", err, ErrPoolNotConfigured)
+	}
+}
+
+func TestFromCtxQueryReturnsConfiguredErrorWhenPoolMissing(t *testing.T) {
+	_, err := FromCtx(context.Background(), nil).Query(context.Background(), "select 1")
+	if !errors.Is(err, ErrPoolNotConfigured) {
+		t.Fatalf("Query() error = %v, want %v", err, ErrPoolNotConfigured)
+	}
+}
+
+func TestFromCtxQueryRowReturnsConfiguredErrorWhenPoolMissing(t *testing.T) {
+	err := FromCtx(context.Background(), nil).QueryRow(context.Background(), "select 1").Scan(new(string))
+	if !errors.Is(err, ErrPoolNotConfigured) {
+		t.Fatalf("Scan() error = %v, want %v", err, ErrPoolNotConfigured)
+	}
+}
+
 func TestFromCtxQueryReleasesConnectionOnClose(t *testing.T) {
 	rows := &recordingRows{}
 	conn := &recordingConn{queryRows: rows}

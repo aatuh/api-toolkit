@@ -5,6 +5,7 @@
 - `contrib/middleware/auth/devheaders` now requires explicit dangerous-bypass opt-in and trusted-proxy configuration before it will honor debug auth headers.
 - Health endpoints now fail closed on empty or miswired liveness/readiness probe sets, and HTTP handlers only expose detailed dependency output when `ports.HealthCheckConfig.EnableDetailed` is explicitly enabled.
 - `contrib/adapters/txpostgres.WithinTx` now attempts deferred rollback with a bounded cleanup context even when the caller context is already canceled or timed out.
+- `contrib/adapters/txpostgres` now fails closed with `ErrPoolNotConfigured` when callers forget to wire a database pool, instead of panicking on nil-pool use.
 - `contrib/migrator` now records commit-acknowledgement failures as `uncertain` and blocks later runs when a prior migration record is still `started` or `uncertain`.
 - `scheduler.Runner` now surfaces recorder persistence failures through structured logs and optional `SetRecorderFailureHandler` callbacks without changing the completed job result or schedule cadence.
 - JWT and Clerk middleware now share internal auth/JWKS validation primitives with no intended public API or configuration change.
@@ -12,6 +13,7 @@
 ### Upgrade notes
 
 - If you previously enabled `devheaders` without explicitly opting into dangerous bypasses or without trusted-proxy configuration, startup will now fail fast until you set both intentionally.
+- If you had tests or thin wiring paths that called `txpostgres.New(nil)` or `txpostgres.FromCtx(..., nil)`, they now return `ErrPoolNotConfigured` instead of panicking.
 - If operators previously relied on `/health` or equivalent routes exposing dependency-level detail by default, set `EnableDetailed` explicitly during wiring; otherwise only basic probes should remain visible.
 - If your deployment workflow retried migrations automatically after commit errors, stop doing that. Inspect the database state and reconcile `schema_migrations` before rerunning when a migration is recorded as `started` or `uncertain`.
 - If you need alerting when scheduler run history cannot be persisted, wire `SetRecorderFailureHandler` or monitor the new recorder-failure log events; job completion alone no longer implies recorder persistence succeeded.
