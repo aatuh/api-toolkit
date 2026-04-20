@@ -218,7 +218,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 	if err != nil {
 		return Profile{}, err
 	}
-	timeoutMw, err := timeoutmw.New(timeoutmw.Options{Timeout: cfg.timeout})
+	timeoutMw, err := timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
 	if err != nil {
 		return Profile{}, err
 	}
@@ -318,7 +318,7 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
-	timeoutMw, err := timeoutmw.New(timeoutmw.Options{Timeout: cfg.timeout})
+	timeoutMw, err := timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
 	if err != nil {
 		return Profile{}, err
 	}
