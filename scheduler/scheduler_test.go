@@ -303,6 +303,144 @@ func TestExecuteSurfacesRecorderFailuresWithoutChangingJobOutcome(t *testing.T) 
 	}
 }
 
+func TestExecuteRecordsWithCleanupContextAfterCancellation(t *testing.T) {
+	type contextKey string
+
+	const key contextKey = "trace_id"
+
+	baseCtx, cancel := context.WithCancel(context.WithValue(context.Background(), key, "trace-123"))
+	recorderCalled := false
+	runner := New(nil, RecorderFunc(func(ctx context.Context, jobName string, startedAt, finishedAt time.Time, success bool, errMsg string) error {
+		recorderCalled = true
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("recorder context err = %v, want nil", err)
+		}
+		if got := ctx.Value(key); got != "trace-123" {
+			t.Fatalf("recorder context value = %v, want trace-123", got)
+		}
+		if jobName != "sync" {
+			t.Fatalf("recorder job = %q, want sync", jobName)
+		}
+		if !success {
+			t.Fatal("expected successful job to stay successful")
+		}
+		if errMsg != "" {
+			t.Fatalf("recorder errMsg = %q, want empty", errMsg)
+		}
+		if finishedAt.Before(startedAt) {
+			t.Fatal("expected finishedAt to be on or after startedAt")
+		}
+		return nil
+	}), nil)
+
+	runner.execute(baseCtx, Job{
+		Name:     "sync",
+		Interval: time.Minute,
+		Run: func(context.Context) error {
+			cancel()
+			return nil
+		},
+	})
+
+	if !recorderCalled {
+		t.Fatal("expected recorder to be called")
+	}
+}
+
+func TestExecuteSurfacesRecorderFailureWithCleanupContextAfterCancellation(t *testing.T) {
+	type contextKey string
+
+	const key contextKey = "trace_id"
+
+	log := &testLogger{}
+	baseCtx, cancel := context.WithCancel(context.WithValue(context.Background(), key, "trace-123"))
+	recErr := errors.New("persist failed")
+	runner := New(log, RecorderFunc(func(ctx context.Context, jobName string, startedAt, finishedAt time.Time, success bool, errMsg string) error {
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("recorder context err = %v, want nil", err)
+		}
+		if got := ctx.Value(key); got != "trace-123" {
+			t.Fatalf("recorder context value = %v, want trace-123", got)
+		}
+		if jobName != "sync" {
+			t.Fatalf("recorder job = %q, want sync", jobName)
+		}
+		if !success {
+			t.Fatal("expected successful job to stay successful")
+		}
+		if errMsg != "" {
+			t.Fatalf("recorder errMsg = %q, want empty", errMsg)
+		}
+		if finishedAt.Before(startedAt) {
+			t.Fatal("expected finishedAt to be on or after startedAt")
+		}
+		return recErr
+	}), nil)
+
+	var (
+		handlerCalled bool
+		failureCtxErr error
+		failureValue  any
+		failure       RecorderFailure
+	)
+	runner.SetRecorderFailureHandler(RecorderFailureHandlerFunc(func(ctx context.Context, got RecorderFailure) {
+		handlerCalled = true
+		failureCtxErr = ctx.Err()
+		failureValue = ctx.Value(key)
+		failure = got
+	}))
+
+	runner.execute(baseCtx, Job{
+		Name:     "sync",
+		Interval: time.Minute,
+		Run: func(context.Context) error {
+			cancel()
+			return nil
+		},
+	})
+
+	if !handlerCalled {
+		t.Fatal("expected recorder failure handler to be called")
+	}
+	if failureCtxErr != nil {
+		t.Fatalf("failure handler context err = %v, want nil", failureCtxErr)
+	}
+	if failureValue != "trace-123" {
+		t.Fatalf("failure handler context value = %v, want trace-123", failureValue)
+	}
+	if failure.JobName != "sync" {
+		t.Fatalf("failure job = %q, want sync", failure.JobName)
+	}
+	if !failure.Success {
+		t.Fatal("expected recorder failure to preserve successful job outcome")
+	}
+	if failure.ErrMsg != "" {
+		t.Fatalf("failure errMsg = %q, want empty", failure.ErrMsg)
+	}
+	if !errors.Is(failure.Err, recErr) {
+		t.Fatalf("failure err = %v, want %v", failure.Err, recErr)
+	}
+	if failure.FinishedAt.Before(failure.StartedAt) {
+		t.Fatal("expected recorder failure timestamps to stay ordered")
+	}
+
+	assertLoggedMessages(t, log.infos, []string{
+		"scheduled job start",
+		"scheduled job complete",
+	})
+	assertLoggedMessages(t, log.errors, []string{
+		"scheduled job record failed",
+	})
+
+	recordLog := log.errors[0]
+	if got := valueForKey(recordLog.args, "record_error"); got != recErr.Error() {
+		t.Fatalf("record error log field = %v, want %q", got, recErr.Error())
+	}
+	if got := valueForKey(recordLog.args, "job_error"); got != "" {
+		t.Fatalf("job error log field = %v, want empty", got)
+	}
+}
+
 func TestStartDoesNotOverlapSameJobAcrossDuplicateStarts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
