@@ -170,7 +170,7 @@ Notes:
 - cover `bootstrap.NewMigrator`, `pgxpool.New`, and `adapters/migrate.New`
 - preserve ergonomic wrappers only if they remain bounded and documented
 
-### Ticket E3-T3 - Add semantic config validation [ ]
+### Ticket E3-T3 - Add semantic config validation [x]
 
 Description: Validate documented enum-like fields such as `Env` and `LogLevel` during `LoadFromEnv`, and fail fast with aggregated startup errors.
 

@@ -89,6 +89,26 @@ func (l *Loader) CSV(key string) []string {
 	return SplitCSV(l.ensureEnv().GetOr(key, ""))
 }
 
+// OneOf validates an enum-like string value and records an error when the
+// normalized value is not in the allowed set.
+func (l *Loader) OneOf(key, value string, allowed ...string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	for _, candidate := range allowed {
+		if normalized == candidate {
+			return normalized
+		}
+	}
+	if l != nil {
+		l.errs = append(l.errs, fmt.Errorf(
+			"invalid value for %s: %s (allowed: %s)",
+			key,
+			strings.TrimSpace(value),
+			strings.Join(allowed, ", "),
+		))
+	}
+	return normalized
+}
+
 func (l *Loader) raw(key string) (string, bool) {
 	val, ok := l.ensureEnv().Get(key)
 	if !ok {

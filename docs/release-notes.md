@@ -48,5 +48,6 @@
 - If application code called `scheduler.Runner.Start` more than once or reused the same job name across duplicate schedules, those executions no longer overlap. Validate any workload that previously relied on concurrent execution of the same named job.
 - If browser clients previously relied on `ProfileStrictAPI` to emit `Access-Control-Allow-Origin: *`, they must now set an explicit allowlist with `WithCORSOptions(...)` during bootstrap.
 - If deployment environments previously contained malformed bool or int values such as `MIGRATE_ON_START=maybe`, startup now fails fast instead of silently using defaults. Validate env files and secrets before rollout.
+- If deployment environments used undocumented semantic values such as `ENV=qa`, `ENV=prod`, `LOG_LEVEL=verbose`, or `LOG_LEVEL=warning`, startup now fails fast. Use `development|staging|production` for `ENV` and `debug|info|warn|error` for `LOG_LEVEL`.
 - Docs handlers no longer return a synthetic OpenAPI document when no authoritative spec exists. Expect `404` for disabled docs surfaces and for missing OpenAPI files unless a real document is configured.
 - `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` now control which discovered OpenAPI formats can be served. Verify custom docs paths and any YAML-based docs setup during upgrade.
