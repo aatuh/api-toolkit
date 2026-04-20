@@ -65,6 +65,65 @@ func TestMiddlewareWithNilManagerUsesDefaultInfo(t *testing.T) {
 	}
 }
 
+func TestNewDefaultsToStaticMode(t *testing.T) {
+	manager, ok := New().(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
+		t.Fatalf("default html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	}
+}
+
+func TestNewSwaggerUIUsesSwaggerMode(t *testing.T) {
+	manager, ok := NewSwaggerUI().(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	if got := manager.HTMLMode(); got != ports.DocsHTMLModeSwaggerUI {
+		t.Fatalf("swagger html mode = %q, want %q", got, ports.DocsHTMLModeSwaggerUI)
+	}
+}
+
+func TestNewWithConfigDefaultsBlankModeToStatic(t *testing.T) {
+	manager, ok := NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "Default mode",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+	}).(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
+		t.Fatalf("blank html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	}
+}
+
+func TestHTMLHandlerUsesStrictCSPByDefault(t *testing.T) {
+	handler := NewHandler(nil)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
+	handler.HTMLHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); got != strictDocsCSP {
+		t.Fatalf("unexpected CSP: %q", got)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "cdn.jsdelivr.net") {
+		t.Fatalf("expected no external CDN assets, got %q", body)
+	}
+	if strings.Contains(body, "<script") {
+		t.Fatalf("expected no script tags, got %q", body)
+	}
+}
+
 func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
 	handler := NewHandler(NewWithConfig(ports.DocsConfig{
 		Title:       "Strict Docs",
@@ -92,6 +151,36 @@ func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
 	}
 	if strings.Contains(body, "<script") {
 		t.Fatalf("expected no script tags, got %q", body)
+	}
+}
+
+func TestHTMLHandlerUsesSwaggerUICSPWhenOptedIn(t *testing.T) {
+	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+		Title:       "Docs UI",
+		Description: "Swagger UI docs",
+		Version:     "1.2.3",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
+	handler.HTMLHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); got != defaultDocsCSP {
+		t.Fatalf("unexpected CSP: %q", got)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "cdn.jsdelivr.net") {
+		t.Fatalf("expected external CDN assets in swagger mode, got %q", body)
+	}
+	if !strings.Contains(body, "<script") {
+		t.Fatalf("expected script tags in swagger mode, got %q", body)
 	}
 }
 
@@ -131,6 +220,7 @@ func TestHTMLHandlerEscapesConfiguredValues(t *testing.T) {
 		},
 		EnableHTML: true,
 		EnableJSON: true,
+		HTMLMode:   ports.DocsHTMLModeSwaggerUI,
 	}))
 
 	rec := httptest.NewRecorder()

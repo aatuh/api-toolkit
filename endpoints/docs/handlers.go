@@ -138,10 +138,13 @@ type htmlModeProvider interface {
 }
 
 func docsCSP(manager ports.DocsManager) string {
-	if provider, ok := manager.(htmlModeProvider); ok && provider.HTMLMode() == ports.DocsHTMLModeStatic {
+	if provider, ok := manager.(htmlModeProvider); ok {
+		if provider.HTMLMode() == ports.DocsHTMLModeSwaggerUI {
+			return defaultDocsCSP
+		}
 		return strictDocsCSP
 	}
-	return defaultDocsCSP
+	return strictDocsCSP
 }
 
 type docsRouteRegistrar struct {

@@ -12,6 +12,8 @@ Core defaults aim to be safe, deterministic, and explicit:
   body-bearing write requests that omit `Content-Type`.
 - Detailed dependency health output is opt-in; public health surfaces should
   keep `EnableDetailed` disabled unless operators explicitly need it.
+- Docs HTML defaults to a first-party static page; the CDN-backed Swagger UI
+  surface requires explicit opt-in.
 - Request body limits via `middleware/maxbody`.
 - Query limits via `middleware/querylimits`.
 - Security headers via `middleware/secure`.
