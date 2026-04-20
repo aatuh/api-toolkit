@@ -165,6 +165,8 @@ health.NewBasicHandler().RegisterRoutes(r)
 docs.NewHandler(docs.New()).RegisterRoutes(r)
 ```
 
+`ENV` accepts `development`, `staging`, or `production`. `LOG_LEVEL` accepts `debug`, `info`, `warn`, or `error`.
+
 ## Health endpoint contract
 
 The health package exposes separate liveness, readiness, and detailed health

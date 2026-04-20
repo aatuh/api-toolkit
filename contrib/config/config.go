@@ -2,6 +2,11 @@ package config
 
 import "fmt"
 
+var (
+	validLogLevels = []string{"debug", "info", "warn", "error"}
+	validEnvs      = []string{"development", "staging", "production"}
+)
+
 // Config captures application configuration loaded from environment variables.
 type Config struct {
 	Addr           string `env:"API_ADDR"`         // host:port|:port
@@ -45,6 +50,8 @@ func LoadFromEnv(loader *Loader) (Config, error) {
 		RateLimitSkipHeader:                loader.String("RATE_LIMIT_SKIP_HEADER", ""),
 		RateLimitAllowDangerousDevBypasses: loader.Bool("RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES", false),
 	}
+	cfg.LogLevel = loader.OneOf("LOG_LEVEL", cfg.LogLevel, validLogLevels...)
+	cfg.Env = loader.OneOf("ENV", cfg.Env, validEnvs...)
 	if err := loader.Err(); err != nil {
 		return Config{}, fmt.Errorf("config: %w", err)
 	}
