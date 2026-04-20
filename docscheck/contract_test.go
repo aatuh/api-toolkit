@@ -1,12 +1,18 @@
 package docscheck
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+)
+
+var (
+	rootModulePath    = strings.Join([]string{"github.com", "aatuh", "api-toolkit"}, "/")
+	contribModulePath = rootModulePath + "/contrib/v2"
 )
 
 func TestPublicMarkdownUsesV2ModulePaths(t *testing.T) {
@@ -43,8 +49,15 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 	testSrc := extractSectionCodeBlock(t, string(content), "## 4) Add a tiny test")
 
 	tmpDir := t.TempDir()
-	writeFile(t, filepath.Join(tmpDir, "main.go"), mainSrc)
-	writeFile(t, filepath.Join(tmpDir, "main_test.go"), testSrc)
+	tmpRoot, err := os.OpenRoot(tmpDir)
+	if err != nil {
+		t.Fatalf("open temp root: %v", err)
+	}
+	defer func() {
+		_ = tmpRoot.Close()
+	}()
+	writeFile(t, tmpRoot, "main.go", mainSrc)
+	writeFile(t, tmpRoot, "main_test.go", testSrc)
 
 	goMod := strings.Join([]string{
 		"module example.com/my-api",
@@ -52,15 +65,15 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 		"go 1.24.0",
 		"",
 		"require (",
-		"\tgithub.com/aatuh/api-toolkit/v2 v2.0.0",
-		"\tgithub.com/aatuh/api-toolkit/contrib/v2 v2.0.0",
+		"\t" + rootModulePath + "/v2 v2.0.0",
+		"\t" + contribModulePath + " v2.0.0",
 		")",
 		"",
-		"replace github.com/aatuh/api-toolkit/v2 => " + repoRoot,
-		"replace github.com/aatuh/api-toolkit/contrib/v2 => " + filepath.Join(repoRoot, "contrib"),
+		"replace " + rootModulePath + "/v2 => " + repoRoot,
+		"replace " + contribModulePath + " => " + filepath.Join(repoRoot, "contrib"),
 		"",
 	}, "\n")
-	writeFile(t, filepath.Join(tmpDir, "go.mod"), goMod)
+	writeFile(t, tmpRoot, "go.mod", goMod)
 
 	out, err := runGoCmd(tmpDir, "go", "mod", "tidy")
 	if err != nil {
@@ -92,25 +105,25 @@ func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
 }
 
 func forbiddenModuleToken(token string) bool {
-	if strings.HasPrefix(token, "github.com/aatuh/api-toolkit-contrib") {
+	if strings.HasPrefix(token, rootModulePath+"-contrib") {
 		return true
 	}
-	if token == "github.com/aatuh/api-toolkit" {
+	if token == rootModulePath {
 		return true
 	}
-	if token == "github.com/aatuh/api-toolkit/v2" {
+	if token == rootModulePath+"/v2" {
 		return false
 	}
-	if strings.HasPrefix(token, "github.com/aatuh/api-toolkit/v2/") {
+	if strings.HasPrefix(token, rootModulePath+"/v2/") {
 		return false
 	}
-	if token == "github.com/aatuh/api-toolkit/contrib/v2" {
+	if token == contribModulePath {
 		return false
 	}
-	if strings.HasPrefix(token, "github.com/aatuh/api-toolkit/contrib/v2/") {
+	if strings.HasPrefix(token, contribModulePath+"/") {
 		return false
 	}
-	return strings.HasPrefix(token, "github.com/aatuh/api-toolkit/")
+	return strings.HasPrefix(token, rootModulePath+"/")
 }
 
 func mustRepoRoot(t *testing.T) string {
@@ -145,15 +158,22 @@ func extractSectionCodeBlock(t *testing.T, doc, heading string) string {
 	return section[:end] + "\n"
 }
 
-func writeFile(t *testing.T, path, content string) {
+func writeFile(t *testing.T, root *os.Root, name, content string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write %s: %v", path, err)
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		t.Fatalf("open %s: %v", name, err)
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+	if _, err := f.Write([]byte(content)); err != nil {
+		t.Fatalf("write %s: %v", name, err)
 	}
 }
 
 func runGoCmd(dir string, name string, args ...string) ([]byte, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
