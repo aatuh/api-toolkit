@@ -16,6 +16,9 @@ type Manager struct {
 	cache      map[string]ports.HealthResult
 	cacheMutex sync.RWMutex
 	mu         sync.RWMutex
+	snapshot   ports.HealthResponse
+	snapshotMu sync.RWMutex
+	snapshotOK bool
 }
 
 // New creates a new health manager with default configuration.
@@ -74,22 +77,36 @@ func (m *Manager) RegisterCheckers(checkers ...ports.HealthChecker) {
 
 // GetLiveness performs liveness checks.
 func (m *Manager) GetLiveness(ctx context.Context) ports.HealthResult {
-	return m.performChecks(ctx, m.config.LivenessChecks)
+	result := m.performChecks(ctx, m.config.LivenessChecks)
+	m.storeSnapshot(ports.HealthResponse{
+		Status:    result.Status,
+		Timestamp: result.Timestamp,
+		Message:   result.Message,
+	})
+	return result
 }
 
 // GetReadiness performs readiness checks.
 func (m *Manager) GetReadiness(ctx context.Context) ports.HealthResult {
-	return m.performChecks(ctx, m.config.ReadinessChecks)
+	result := m.performChecks(ctx, m.config.ReadinessChecks)
+	m.storeSnapshot(ports.HealthResponse{
+		Status:    result.Status,
+		Timestamp: result.Timestamp,
+		Message:   result.Message,
+	})
+	return result
 }
 
 // GetHealth performs basic health checks.
 func (m *Manager) GetHealth(ctx context.Context) ports.HealthResponse {
 	result := m.GetReadiness(ctx)
-	return ports.HealthResponse{
+	response := ports.HealthResponse{
 		Status:    result.Status,
 		Timestamp: result.Timestamp,
 		Message:   result.Message,
 	}
+	m.storeSnapshot(response)
+	return response
 }
 
 // GetDetailedHealth performs detailed health checks.
@@ -136,12 +153,17 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 		overallStatus = ports.HealthStatusUnknown
 	}
 
-	return ports.DetailedHealthResponse{
+	response := ports.DetailedHealthResponse{
 		Status:    overallStatus,
 		Timestamp: time.Now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
+	m.storeSnapshot(ports.HealthResponse{
+		Status:    response.Status,
+		Timestamp: response.Timestamp,
+	})
+	return response
 }
 
 // RefreshAll runs all registered checks and updates the cache.
@@ -187,12 +209,30 @@ func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
 		overallStatus = ports.HealthStatusUnknown
 	}
 
-	return ports.DetailedHealthResponse{
+	response := ports.DetailedHealthResponse{
 		Status:    overallStatus,
 		Timestamp: time.Now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
+	m.storeSnapshot(ports.HealthResponse{
+		Status:    response.Status,
+		Timestamp: response.Timestamp,
+	})
+	return response
+}
+
+// CachedHealth returns the most recent health snapshot produced by this manager.
+func (m *Manager) CachedHealth() (ports.HealthResponse, bool) {
+	if m == nil {
+		return ports.HealthResponse{}, false
+	}
+	m.snapshotMu.RLock()
+	defer m.snapshotMu.RUnlock()
+	if !m.snapshotOK {
+		return ports.HealthResponse{}, false
+	}
+	return m.snapshot, true
 }
 
 // performChecks performs multiple health checks.
@@ -342,4 +382,20 @@ func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.He
 	}
 
 	return result
+}
+
+func (m *Manager) storeSnapshot(response ports.HealthResponse) {
+	if m == nil {
+		return
+	}
+	if response.Status == "" {
+		response.Status = ports.HealthStatusUnknown
+	}
+	if response.Timestamp.IsZero() {
+		response.Timestamp = time.Now()
+	}
+	m.snapshotMu.Lock()
+	m.snapshot = response
+	m.snapshotOK = true
+	m.snapshotMu.Unlock()
 }
