@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/config"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -113,6 +114,41 @@ func TestRunMigrationsReturnsCloseError(t *testing.T) {
 	}
 }
 
+func TestNewMigratorUsesBoundedStartupContext(t *testing.T) {
+	wantErr := errors.New("stop after context capture")
+	cfgDirs := []string{"db/migrations"}
+	cfgEmbedded := []fs.FS{fstest.MapFS{}}
+
+	_, err := newMigratorWithStartupTimeout("postgres://db.example/internal", "schema_migrations", 7, true, ports.NopLogger{}, cfgDirs, cfgEmbedded, func(ctx context.Context, dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
+		assertDeadlineWithin(t, ctx, defaultStartupTimeout)
+		if dsn != "postgres://db.example/internal" {
+			t.Fatalf("dsn = %q", dsn)
+		}
+		if table != "schema_migrations" {
+			t.Fatalf("table = %q", table)
+		}
+		if lockKey != 7 {
+			t.Fatalf("lockKey = %d", lockKey)
+		}
+		if !allowDown {
+			t.Fatal("allowDown = false, want true")
+		}
+		if len(dirs) != len(cfgDirs) || dirs[0] != cfgDirs[0] {
+			t.Fatalf("dirs = %#v, want %#v", dirs, cfgDirs)
+		}
+		if len(embedded) != len(cfgEmbedded) {
+			t.Fatalf("embedded = %#v, want %#v", embedded, cfgEmbedded)
+		}
+		if log == nil {
+			t.Fatal("log = nil, want logger")
+		}
+		return nil, wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("newMigratorWithStartupTimeout() error = %v, want %v", err, wantErr)
+	}
+}
+
 type stubMigrator struct {
 	upDir    string
 	closed   bool
@@ -131,4 +167,19 @@ func (m *stubMigrator) Status(context.Context, string) (string, error) { return 
 func (m *stubMigrator) Close() error {
 	m.closed = true
 	return m.closeErr
+}
+
+func assertDeadlineWithin(t *testing.T, ctx context.Context, want time.Duration) {
+	t.Helper()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("context missing deadline")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		t.Fatalf("context deadline already expired: %s", remaining)
+	}
+	if remaining > want || remaining < want-(time.Second) {
+		t.Fatalf("context deadline = %s from now, want roughly %s", remaining, want)
+	}
 }

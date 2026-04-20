@@ -11,14 +11,19 @@ import (
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
+const defaultStartupTimeout = 5 * time.Second
+
+type poolFactory func(context.Context, string) (ports.DatabasePool, error)
+
 // Adapter wraps pgxpool.Pool to implement ports.DatabasePool.
 type Adapter struct {
 	*pgxpool.Pool
 }
 
-// New creates a new database pool adapter.
+// New creates a new database pool adapter using a bounded startup context.
+// Callers that need direct context control should use NewWithContext.
 func New(dsn string) (ports.DatabasePool, error) {
-	return NewWithContext(context.Background(), dsn)
+	return newWithStartupTimeout(dsn, NewWithContext)
 }
 
 // NewWithContext creates a new database pool adapter with a context.
@@ -28,6 +33,12 @@ func NewWithContext(ctx context.Context, dsn string) (ports.DatabasePool, error)
 		return nil, err
 	}
 	return &Adapter{Pool: pool}, nil
+}
+
+func newWithStartupTimeout(dsn string, open poolFactory) (ports.DatabasePool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
+	defer cancel()
+	return open(ctx, dsn)
 }
 
 // Acquire gets a connection from the pool.

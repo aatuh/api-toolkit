@@ -151,7 +151,7 @@ Notes:
 - keep hard exit behavior only in binaries, examples, or explicitly named must or exit helpers
 - document which APIs are intended for reusable library code
 
-### Ticket E3-T2 - Remove unbounded background-context startup paths [ ]
+### Ticket E3-T2 - Remove unbounded background-context startup paths [x]
 
 Description: Require caller-supplied contexts or enforce explicit internal timeouts in startup constructors so database and migration startup cannot hang indefinitely.
 
