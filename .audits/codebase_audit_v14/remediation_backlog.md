@@ -132,7 +132,7 @@ Notes:
 
 Description: Make contrib helpers easier to embed in real services by removing hidden process-control behavior and validating documented configuration constraints earlier.
 
-### Ticket E3-T1 - Replace hard exit and panic helpers with composable variants [ ]
+### Ticket E3-T1 - Replace hard exit and panic helpers with composable variants [x]
 
 Description: Add error-returning alternatives for panic or exit based bootstrap helpers and steer library users toward them in docs.
 

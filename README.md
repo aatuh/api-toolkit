@@ -151,7 +151,8 @@ Recommended: import adapters directly and use integrations only when you want co
 ```go
 // Logger and config (contrib)
 log := logzap.NewProduction()            // ports.Logger
-cfg := config.MustLoadFromEnv()          // panics on missing or invalid env
+cfg, err := config.LoadFromEnv(nil)
+if err != nil { /* handle */ }
 
 // Router and middleware profile (contrib + core)
 r := chi.New()                           // ports.HTTPRouter
