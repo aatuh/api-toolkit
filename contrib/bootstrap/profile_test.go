@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -227,6 +228,48 @@ func TestProfileDevDoesNotRegisterPrometheusCollectorsByDefault(t *testing.T) {
 	}
 	if len(metricFamilies) != 0 {
 		t.Fatalf("expected no implicit collectors, got %d", len(metricFamilies))
+	}
+}
+
+func TestProfileStrictAPIRegistersPrometheusCollectorsWhenExplicitRecorderProvided(t *testing.T) {
+	reg := withDefaultPrometheusRegistry(t)
+
+	recorder := metricsmw.NewPrometheusRecorder(nil, nil)
+	if _, err := ProfileStrictAPI(
+		ports.NopLogger{},
+		WithMetricsRecorder(recorder),
+	); err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+	recorder.IncCounter("", metricsmw.Labels{
+		"method": http.MethodGet,
+		"route":  "/metrics",
+		"status": "200",
+	})
+	recorder.ObserveHistogram("", 0.25, metricsmw.Labels{
+		"method": http.MethodGet,
+		"route":  "/metrics",
+		"status": "200",
+	})
+
+	metricFamilies, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	if len(metricFamilies) != 2 {
+		t.Fatalf("expected 2 explicit collectors, got %d", len(metricFamilies))
+	}
+
+	names := make([]string, 0, len(metricFamilies))
+	for _, family := range metricFamilies {
+		names = append(names, family.GetName())
+	}
+	sort.Strings(names)
+	want := []string{"http_request_duration_seconds", "http_requests_total"}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatalf("metric family %d = %q, want %q", i, names[i], want[i])
+		}
 	}
 }
 
