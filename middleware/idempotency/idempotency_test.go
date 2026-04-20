@@ -140,6 +140,99 @@ func TestIdempotencyUsesCustomReplayHeaderName(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayMetadataOverridesStoredHeaders(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Idempotency-Replayed", "false")
+		w.Header().Set("Idempotency-Key", "handler-key")
+		w.Header().Set("X-App-Header", "kept")
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": "alpha"})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-owned")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-owned")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay to succeed, got %d", rec2.Code)
+	}
+	if got := rec2.Header().Get("Idempotency-Replayed"); got != "true" {
+		t.Fatalf("expected middleware replay header, got %q", got)
+	}
+	if got := rec2.Header().Get("Idempotency-Key"); got != "key-owned" {
+		t.Fatalf("expected middleware key echo, got %q", got)
+	}
+	if got := rec2.Header().Get("X-App-Header"); got != "kept" {
+		t.Fatalf("expected unrelated app header to be preserved, got %q", got)
+	}
+}
+
+func TestIdempotencyCustomReplayMetadataOverridesStoredHeaders(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:            mem,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 1024,
+		ReplayHeaderName: "X-Idempotent-Replay",
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Idempotent-Replay", "false")
+		w.Header().Set("Idempotency-Replayed", "false")
+		w.Header().Set("Idempotency-Key", "handler-key")
+		w.Header().Set("X-App-Header", "kept")
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": "alpha"})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-custom-owned")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-custom-owned")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay to succeed, got %d", rec2.Code)
+	}
+	if got := rec2.Header().Get("X-Idempotent-Replay"); got != "true" {
+		t.Fatalf("expected middleware custom replay header, got %q", got)
+	}
+	if got := rec2.Header().Get("Idempotency-Replayed"); got != "" {
+		t.Fatalf("expected default replay header to remain unset, got %q", got)
+	}
+	if got := rec2.Header().Get("Idempotency-Key"); got != "key-custom-owned" {
+		t.Fatalf("expected middleware key echo, got %q", got)
+	}
+	if got := rec2.Header().Get("X-App-Header"); got != "kept" {
+		t.Fatalf("expected unrelated app header to be preserved, got %q", got)
+	}
+}
+
 func TestIdempotencyRejectsReplayAcrossDifferentActors(t *testing.T) {
 	mem := newMemoryStore()
 	mw, err := New(Options{

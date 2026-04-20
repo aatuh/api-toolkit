@@ -482,18 +482,19 @@ func setRetryAfter(w http.ResponseWriter, ttl time.Duration) {
 }
 
 func writeReplay(w http.ResponseWriter, key string, record ports.IdempotencyRecord, replayHeader string) {
+	if record.Header != nil {
+		headers := stripReplayOwnedHeaders(record.Header, replayHeader)
+		for k, v := range headers {
+			out := make([]string, len(v))
+			copy(out, v)
+			w.Header()[k] = out
+		}
+	}
 	if replayHeader != "" {
 		w.Header().Set(replayHeader, "true")
 	}
 	if key != "" {
 		w.Header().Set("Idempotency-Key", key)
-	}
-	if record.Header != nil {
-		for k, v := range record.Header {
-			out := make([]string, len(v))
-			copy(out, v)
-			w.Header()[k] = out
-		}
 	}
 	status := record.Status
 	if status == 0 {
@@ -592,6 +593,14 @@ func applyDefaultDeny(h http.Header) http.Header {
 		"Set-Cookie2",
 	}
 	return applyHeaderDeny(h, defaultDeny)
+}
+
+func stripReplayOwnedHeaders(h http.Header, replayHeader string) http.Header {
+	deny := []string{"Idempotency-Key", "Idempotency-Replayed"}
+	if replayHeader != "" {
+		deny = append(deny, replayHeader)
+	}
+	return applyHeaderDeny(h.Clone(), deny)
 }
 
 func itoa(n int) string {
