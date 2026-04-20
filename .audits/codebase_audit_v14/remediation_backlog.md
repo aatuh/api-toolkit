@@ -128,7 +128,7 @@ Notes:
 - add regression tests for the final default checker set
 - keep detailed health behavior consistent with the same checker inventory
 
-## Epic E3 - Clean up bootstrap and config ergonomics [ ]
+## Epic E3 - Clean up bootstrap and config ergonomics [x]
 
 Description: Make contrib helpers easier to embed in real services by removing hidden process-control behavior and validating documented configuration constraints earlier.
 
