@@ -30,7 +30,7 @@ Notes:
 - preserve a straightforward opt-in path for Prometheus users
 - document migration behavior for existing bootstrap consumers
 
-### Ticket E1-T2 - Make `/metrics` opt-in [ ]
+### Ticket E1-T2 - Make `/metrics` opt-in [x]
 
 Description: Change `MountSystemEndpointsTo` so a nil `SystemEndpoints.Metrics` does not mount `/metrics`, and add an explicit helper or option for the Prometheus handler.
 

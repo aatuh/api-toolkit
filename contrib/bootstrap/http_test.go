@@ -265,6 +265,37 @@ func TestMountSystemEndpointsToUsesMinimalRegistrar(t *testing.T) {
 		specs.DocsVersion,
 		specs.DocsInfo,
 		specs.Version,
+	}
+	if len(router.patterns) != len(expected) {
+		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
+	}
+	for i := range expected {
+		if router.patterns[i] != expected[i] {
+			t.Fatalf("route %d = %q", i, router.patterns[i])
+		}
+	}
+}
+
+func TestMountSystemEndpointsToRegistersMetricsWhenProvided(t *testing.T) {
+	router := &stubRouteRegistrar{}
+
+	MountSystemEndpointsTo(router, SystemEndpoints{
+		Health:  health.NewHandler(nil),
+		Docs:    docs.NewHandler(nil),
+		Version: version.NewHandler(version.Config{}),
+		Metrics: PrometheusMetricsHandler(),
+	})
+
+	expected := []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+		specs.Docs,
+		specs.DocsOpenAPI,
+		specs.DocsVersion,
+		specs.DocsInfo,
+		specs.Version,
 		specs.Metrics,
 	}
 	if len(router.patterns) != len(expected) {

@@ -131,15 +131,17 @@ func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
 			h:      se.Pprof,
 		})
 	}
-	metricsHandler := se.Metrics
-	if metricsHandler == nil {
-		metricsHandler = metricsmw.PrometheusHandler()
-	}
-	if metricsHandler != nil {
+	if se.Metrics != nil {
 		r.Get(specs.Metrics, func(w http.ResponseWriter, req *http.Request) {
-			metricsHandler.ServeHTTP(w, req)
+			se.Metrics.ServeHTTP(w, req)
 		})
 	}
+}
+
+// PrometheusMetricsHandler returns the standard Prometheus metrics handler for
+// explicit mounting on specs.Metrics.
+func PrometheusMetricsHandler() http.Handler {
+	return metricsmw.PrometheusHandler()
 }
 
 type pprofRouter struct {
