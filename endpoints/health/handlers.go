@@ -19,6 +19,10 @@ type detailedHealthManager interface {
 	DetailedHealthEnabled() bool
 }
 
+type cachedHealthManager interface {
+	CachedHealth() (ports.HealthResponse, bool)
+}
+
 // NewHandler creates a new health handler.
 func NewHandler(manager ports.HealthManager) *Handler {
 	if manager == nil {
@@ -237,21 +241,45 @@ func DefaultHealthPaths() HealthPaths {
 	}
 }
 
-// Middleware creates a middleware that adds health information to requests.
+// Middleware creates a middleware that adds cached or local health information
+// to requests without probing dependencies on the request path.
 func (h *Handler) Middleware() func(http.Handler) http.Handler {
+	if h == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Add health status to request context
-			ctx := r.Context()
-			health := h.manager.GetHealth(ctx)
-
-			// Add to context for use by other handlers
-			ctx = context.WithValue(ctx, healthStatusKey, health.Status)
+			health := h.cachedOrLocalHealth()
+			ctx := context.WithValue(r.Context(), healthStatusKey, health.Status)
 			ctx = context.WithValue(ctx, healthTimestampKey, health.Timestamp)
-
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
+	response := ports.HealthResponse{
+		Status:    ports.HealthStatusUnknown,
+		Timestamp: time.Now(),
+	}
+	if h == nil || h.manager == nil {
+		return response
+	}
+	cached, ok := h.manager.(cachedHealthManager)
+	if !ok {
+		return response
+	}
+	snapshot, ok := cached.CachedHealth()
+	if !ok {
+		return response
+	}
+	if snapshot.Status == "" {
+		snapshot.Status = ports.HealthStatusUnknown
+	}
+	if snapshot.Timestamp.IsZero() {
+		snapshot.Timestamp = time.Now()
+	}
+	return snapshot
 }
 
 // HealthStatusFromContext extracts health status from request context.

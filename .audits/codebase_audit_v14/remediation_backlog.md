@@ -90,7 +90,7 @@ Notes:
 - keep compatibility impact explicit in release notes
 - add tests for both cooperative and non-cooperative handlers
 
-### Ticket E2-T2 - Remove live health probes from request middleware [ ]
+### Ticket E2-T2 - Remove live health probes from request middleware [x]
 
 Description: Redesign `health.Handler.Middleware()` so it injects cached or local state only, or deprecate it if that contract cannot be made safe.
 

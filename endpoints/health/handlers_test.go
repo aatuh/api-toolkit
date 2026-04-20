@@ -61,14 +61,56 @@ func TestMiddlewareWithNilManagerAddsHealthContext(t *testing.T) {
 		if !ok {
 			t.Fatal("expected health status in context")
 		}
-		if status != ports.HealthStatusHealthy {
-			t.Fatalf("expected healthy status, got %q", status)
+		if status != ports.HealthStatusUnknown {
+			t.Fatalf("expected unknown status without cached snapshot, got %q", status)
+		}
+		if _, ok := HealthTimestampFromContext(r.Context()); !ok {
+			t.Fatal("expected health timestamp in context")
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+}
+
+func TestMiddlewareUsesCachedHealthSnapshotWithoutProbing(t *testing.T) {
+	manager := &probeCountingHealthManager{
+		cached: ports.HealthResponse{
+			Status:    ports.HealthStatusHealthy,
+			Timestamp: time.Unix(123, 0),
+			Message:   "cached",
+		},
+	}
+	handler := NewHandler(manager)
+	middleware := handler.Middleware()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status, ok := HealthStatusFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected health status in context")
+		}
+		if status != ports.HealthStatusHealthy {
+			t.Fatalf("expected cached healthy status, got %q", status)
+		}
+		timestamp, ok := HealthTimestampFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected health timestamp in context")
+		}
+		if !timestamp.Equal(time.Unix(123, 0)) {
+			t.Fatalf("expected cached timestamp, got %s", timestamp)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if manager.getHealthCalls != 0 {
+		t.Fatalf("expected middleware to avoid GetHealth probes, got %d calls", manager.getHealthCalls)
 	}
 }
 
@@ -236,6 +278,36 @@ func (externalHealthManager) GetDetailedHealth(context.Context) ports.DetailedHe
 		},
 		Summary: ports.HealthSummary{Total: 1, Healthy: 1},
 	}
+}
+
+type probeCountingHealthManager struct {
+	cached         ports.HealthResponse
+	getHealthCalls int
+}
+
+func (*probeCountingHealthManager) RegisterChecker(ports.HealthChecker) {}
+
+func (*probeCountingHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+
+func (*probeCountingHealthManager) GetLiveness(context.Context) ports.HealthResult {
+	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (*probeCountingHealthManager) GetReadiness(context.Context) ports.HealthResult {
+	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (m *probeCountingHealthManager) GetHealth(context.Context) ports.HealthResponse {
+	m.getHealthCalls++
+	return ports.HealthResponse{Status: ports.HealthStatusUnhealthy, Timestamp: time.Now()}
+}
+
+func (*probeCountingHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
+	return ports.DetailedHealthResponse{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+}
+
+func (m *probeCountingHealthManager) CachedHealth() (ports.HealthResponse, bool) {
+	return m.cached, true
 }
 
 func TestRegisterRoutesToSkipsDetailedHealthForManagersWithoutOptIn(t *testing.T) {
