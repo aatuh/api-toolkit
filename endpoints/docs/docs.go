@@ -105,12 +105,17 @@ func New() ports.DocsManager {
 		EnableHTML:  true,
 		EnableJSON:  true,
 		EnableYAML:  false,
-		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
+		HTMLMode:    ports.DocsHTMLModeStatic,
 	})
 }
 
 // NewStrict creates a docs manager that avoids third-party assets in HTML mode.
 func NewStrict() ports.DocsManager {
+	return New()
+}
+
+// NewSwaggerUI creates a docs manager that opts into the CDN-backed Swagger UI surface.
+func NewSwaggerUI() ports.DocsManager {
 	return NewWithConfig(ports.DocsConfig{
 		Title:       "API Documentation",
 		Description: "REST API Documentation",
@@ -119,14 +124,14 @@ func NewStrict() ports.DocsManager {
 		EnableHTML:  true,
 		EnableJSON:  true,
 		EnableYAML:  false,
-		HTMLMode:    ports.DocsHTMLModeStatic,
+		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
 	})
 }
 
 // NewWithConfig creates a new docs manager with custom configuration.
 func NewWithConfig(config ports.DocsConfig) ports.DocsManager {
 	if config.HTMLMode == "" {
-		config.HTMLMode = ports.DocsHTMLModeSwaggerUI
+		config.HTMLMode = ports.DocsHTMLModeStatic
 	}
 	return &Manager{
 		config: config,
@@ -207,10 +212,10 @@ func (m *Manager) GetInfo() ports.DocsInfo {
 // HTMLMode reports the configured docs HTML rendering mode.
 func (m *Manager) HTMLMode() ports.DocsHTMLMode {
 	if m == nil {
-		return ports.DocsHTMLModeSwaggerUI
+		return ports.DocsHTMLModeStatic
 	}
 	if m.config.HTMLMode == "" {
-		return ports.DocsHTMLModeSwaggerUI
+		return ports.DocsHTMLModeStatic
 	}
 	return m.config.HTMLMode
 }

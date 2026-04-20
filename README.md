@@ -345,7 +345,7 @@ if err != nil { /* handle */ }
 ```
 
 `DocsUI()` allows third-party CDN assets and inline styles for Swagger UI; `WebApp()` is stricter and may block inline scripts until you add nonces/hashes.
-For a first-party docs surface without CDN assets or `unsafe-inline`, use `docs.NewStrict()` or `docs.NewWithConfig(ports.DocsConfig{HTMLMode: ports.DocsHTMLModeStatic})`.
+`docs.New()` now defaults to the first-party static docs surface. Use `docs.NewSwaggerUI()` or `docs.NewWithConfig(ports.DocsConfig{HTMLMode: ports.DocsHTMLModeSwaggerUI})` only when you explicitly want the CDN-backed Swagger UI convenience mode.
 Disabled docs surfaces and missing OpenAPI files return `404` instead of placeholder content.
 `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` control which discovered OpenAPI formats may be served on the configured OpenAPI path.
 COOP/COEP/CORP can break cross-origin embeds; enable only when you control embedded resources.
