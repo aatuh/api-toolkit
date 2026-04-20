@@ -397,6 +397,9 @@ Clerk JWT middleware follows RFC 8725 guidance:
 - Allowed signing algorithms are enforced (defaults to `RS256`).
 - Required claims default to `sub` and `exp`; `iat`/`nbf` can be required.
 - Bearer parsing is strict (single header, no whitespace ambiguity).
+- Dev header auth fallback is development-only and now requires explicit
+  dangerous-bypass opt-in plus trusted-proxy configuration before it will
+  honor debug headers.
 
 ```go
 requireIssuedAt := true

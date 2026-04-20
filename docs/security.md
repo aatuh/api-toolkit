@@ -27,6 +27,8 @@ Some features include explicit bypasses for local development only:
   is true and the request comes from a trusted proxy.
 - JWT auth skip header: same trusted-proxy restriction.
 - Clerk auth skip header: same proxy restriction.
+- Dev header auth fallback: requires explicit dangerous-bypass opt-in and only
+  trusts headers from configured trusted proxies.
 - Webhook verification skip in adapters: intended for development only.
 
 Do not enable dev bypasses in production environments.

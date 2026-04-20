@@ -2,10 +2,12 @@ package devheaders
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -18,12 +20,17 @@ type Config struct {
 	FirstNameHeader string
 	LastNameHeader  string
 	DefaultLanguage string
+	// AllowDangerousDevBypasses must be explicitly enabled for debug-header auth.
+	AllowDangerousDevBypasses bool
+	// TrustedProxies lists the direct peers allowed to supply debug auth headers.
+	TrustedProxies []string
 }
 
 // Middleware injects an auth subject in local environments without a JWT provider.
 type Middleware struct {
-	cfg Config
-	log ports.Logger
+	cfg      Config
+	log      ports.Logger
+	resolver identity.Resolver
 }
 
 // New constructs the middleware.
@@ -39,7 +46,11 @@ func New(cfg Config, log ports.Logger) (*Middleware, error) {
 	if cfg.Enabled && cfg.UserIDHeader == "" {
 		return nil, errors.New("user id header is required when dev auth is enabled")
 	}
-	return &Middleware{cfg: cfg, log: log}, nil
+	resolver, err := trustedProxyResolver(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Middleware{cfg: cfg, log: log, resolver: resolver}, nil
 }
 
 // Handler attaches a subject from debug headers if JWT auth is disabled.
@@ -60,6 +71,13 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "missing development auth headers",
+			})
+			return
+		}
+		if !m.resolver.TrustsRemoteAddr(r.RemoteAddr) {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+				Title:  http.StatusText(http.StatusUnauthorized),
+				Detail: "development auth headers are not allowed from untrusted remote addresses",
 			})
 			return
 		}
@@ -94,6 +112,13 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if !m.resolver.TrustsRemoteAddr(r.RemoteAddr) {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+				Title:  http.StatusText(http.StatusUnauthorized),
+				Detail: "development auth headers are not allowed from untrusted remote addresses",
+			})
+			return
+		}
 		subj := jwtauth.Subject{
 			UserID:   userID,
 			Email:    strings.TrimSpace(r.Header.Get(m.cfg.EmailHeader)),
@@ -104,4 +129,21 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 		ctx := jwtauth.WithSubject(r.Context(), subj)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func trustedProxyResolver(cfg Config) (identity.Resolver, error) {
+	if !cfg.Enabled {
+		return identity.Resolver{}, nil
+	}
+	if !cfg.AllowDangerousDevBypasses {
+		return identity.Resolver{}, errors.New("dangerous dev bypasses must be explicitly allowed when dev auth is enabled")
+	}
+	prefixes, err := identity.ParseTrustedProxies(cfg.TrustedProxies)
+	if err != nil {
+		return identity.Resolver{}, fmt.Errorf("dev auth trusted proxies: %w", err)
+	}
+	if len(prefixes) == 0 {
+		return identity.Resolver{}, errors.New("trusted proxies are required when dev auth is enabled")
+	}
+	return identity.Resolver{TrustedProxies: prefixes}, nil
 }
