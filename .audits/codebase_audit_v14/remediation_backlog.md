@@ -109,7 +109,7 @@ Notes:
 - do not put DB or HTTP dependency checks on normal application request paths
 - if deprecated, provide a clear replacement pattern
 
-### Ticket E2-T3 - Align default health check registration with executed probes [ ]
+### Ticket E2-T3 - Align default health check registration with executed probes [x]
 
 Description: Update `NewDefaultHandler` so every registered default checker participates in the default liveness/readiness contract, or stop registering unused checkers.
 

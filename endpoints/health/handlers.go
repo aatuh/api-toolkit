@@ -45,8 +45,8 @@ func NewDefaultHandler(pool ports.DatabasePool) *Handler {
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
 		EnableDetailed:  false,
-		LivenessChecks:  []string{"basic"},
-		ReadinessChecks: []string{"basic"},
+		LivenessChecks:  []string{"basic", "memory"},
+		ReadinessChecks: []string{"basic", "memory"},
 	}
 	checkers := []ports.HealthChecker{
 		NewBasicChecker(),
