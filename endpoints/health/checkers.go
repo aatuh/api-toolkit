@@ -195,14 +195,7 @@ func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 			Duration:  time.Since(start),
 		}
 	}
-	if ctx == nil {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
-			Message:   "custom health check context is missing",
-			Timestamp: time.Now(),
-			Duration:  time.Since(start),
-		}
-	}
+	ctx = normalizeContext(ctx)
 
 	// Create context with timeout
 	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
@@ -257,6 +250,7 @@ func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 	}
 
 	start := time.Now()
+	ctx = normalizeContext(ctx)
 	results := make([]ports.HealthResult, 0, len(c.checkers))
 
 	for _, checker := range c.checkers {
@@ -445,6 +439,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 		}
 	}
 
+	ctx = normalizeContext(ctx)
 	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -560,6 +555,7 @@ func (c *PaymentProviderChecker) Check(ctx context.Context) ports.HealthResult {
 			Timestamp: time.Now(),
 		}
 	}
+	ctx = normalizeContext(ctx)
 	prices, err := c.provider.ListPrices(ctx)
 	duration := time.Since(start)
 	if err != nil {

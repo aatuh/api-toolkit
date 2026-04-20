@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -209,6 +211,22 @@ func TestCustomCheckerDefaultsNonPositiveTimeouts(t *testing.T) {
 	}
 }
 
+func TestCustomCheckerAcceptsNilContext(t *testing.T) {
+	checker := NewCustomChecker("custom", func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		if ctx == nil {
+			t.Fatal("expected normalized context")
+		}
+		return ports.HealthStatusHealthy, "ok", nil
+	})
+
+	assertNoPanic(t, "CustomChecker.Check nil context", func() {
+		result := checker.Check(nilContext())
+		if result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+}
+
 func TestManagerMethodsAcceptNilContext(t *testing.T) {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         time.Second,
@@ -271,6 +289,38 @@ func TestDatabaseCheckerAcceptsNilContext(t *testing.T) {
 	}
 }
 
+func TestHTTPCheckerAcceptsNilContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	checker := NewHTTPChecker("dependency", server.URL, WithHTTPClient(server.Client()))
+
+	assertNoPanic(t, "HTTPChecker.Check nil context", func() {
+		result := checker.Check(nilContext())
+		if result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+}
+
+func TestPaymentProviderCheckerAcceptsNilContext(t *testing.T) {
+	provider := &stubPaymentProvider{}
+	checker := NewPaymentProviderChecker(provider)
+
+	assertNoPanic(t, "PaymentProviderChecker.Check nil context", func() {
+		result := checker.Check(nilContext())
+		if result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+		}
+	})
+
+	if provider.calls.Load() != 1 {
+		t.Fatalf("expected one provider call, got %d", provider.calls.Load())
+	}
+}
+
 type countingChecker struct {
 	name  string
 	calls atomic.Int32
@@ -317,6 +367,10 @@ type stubDatabasePool struct {
 	pingErr   error
 }
 
+type stubPaymentProvider struct {
+	calls atomic.Int32
+}
+
 func (s *stubDatabasePool) Ping(context.Context) error {
 	s.pingCalls.Add(1)
 	return s.pingErr
@@ -330,6 +384,22 @@ func (*stubDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, err
 
 func (*stubDatabasePool) Stat() ports.DatabaseStats {
 	return nil
+}
+
+func (*stubPaymentProvider) CreateCheckoutSession(context.Context, ports.CheckoutSessionRequest) (ports.CheckoutSession, error) {
+	return ports.CheckoutSession{}, errors.New("not implemented")
+}
+
+func (*stubPaymentProvider) ParseWebhook(context.Context, []byte, string) (ports.WebhookEvent, error) {
+	return ports.WebhookEvent{}, errors.New("not implemented")
+}
+
+func (s *stubPaymentProvider) ListPrices(ctx context.Context) ([]ports.Price, error) {
+	if ctx == nil {
+		return nil, errors.New("context is nil")
+	}
+	s.calls.Add(1)
+	return []ports.Price{{ID: "price_1"}}, nil
 }
 
 func assertNoPanic(t *testing.T, name string, fn func()) {
