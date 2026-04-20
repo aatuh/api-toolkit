@@ -10,11 +10,12 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
 	querylimits "github.com/aatuh/api-toolkit/v2/middleware/querylimits"
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type stubMiddlewareChain struct {
