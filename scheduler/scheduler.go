@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const recorderCleanupTimeout = 5 * time.Second
+
 // Job represents a periodic task.
 type Job struct {
 	Name     string
@@ -151,7 +153,9 @@ func (r *Runner) execute(ctx context.Context, job Job) {
 	}
 	if r.rec != nil {
 		runErrMsg := errMsg(err)
-		if recErr := r.rec.Record(ctx, job.Name, start, end, err == nil, runErrMsg); recErr != nil {
+		recordCtx, cancel := recorderContext(ctx)
+		defer cancel()
+		if recErr := r.rec.Record(recordCtx, job.Name, start, end, err == nil, runErrMsg); recErr != nil {
 			if r.log != nil {
 				r.log.Error(
 					"scheduled job record failed",
@@ -165,7 +169,7 @@ func (r *Runner) execute(ctx context.Context, job Job) {
 				)
 			}
 			if handler := r.recorderFailureHandler(); handler != nil {
-				handler.OnRecorderFailure(ctx, RecorderFailure{
+				handler.OnRecorderFailure(recordCtx, RecorderFailure{
 					JobName:    job.Name,
 					StartedAt:  start,
 					FinishedAt: end,
@@ -183,6 +187,15 @@ func errMsg(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func recorderContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(
+		context.WithoutCancel(ctx), recorderCleanupTimeout,
+	)
 }
 
 func (r *Runner) beginRun(jobName string) bool {

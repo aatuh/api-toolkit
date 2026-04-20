@@ -11,4 +11,6 @@
 // than job failures. The runner should surface them through logging and any
 // configured callback hook, but it should not rerun the job immediately or
 // stop future intervals after the job function itself has already completed.
+// Final run persistence uses a short-lived cleanup context so graceful
+// shutdown can still record outcomes after the job function returns.
 package scheduler
