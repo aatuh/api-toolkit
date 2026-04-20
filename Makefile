@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check fmt lint vuln gosec tidy test test-race fuzz clean finalize codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -47,6 +47,9 @@ tools: ## Install lint/vuln tools
 # In api-check you can set API_BASE_REF to compare to specific tag (e.g. API_BASE_REF=2.0.0)
 api-check: ## Run API compatibility check.
 	@scripts/apicheck.sh
+
+docs-check: ## Run documentation contract checks
+	@$(GO) test ./docscheck -count=1
 
 fmt: ## Run gofmt
 	@set -e; for mod in $(MODULES); do \
@@ -113,6 +116,7 @@ finalize: ## Run every quality assurance tool
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) api-check
+	$(MAKE) docs-check
 	$(MAKE) tidy
 	$(MAKE) test
 	$(MAKE) test-race

@@ -12,15 +12,15 @@ defaults, and predictable wiring.
 
 ## Design goals
 
-- Interfaces first: depend on `github.com/aatuh/api-toolkit/ports`.
-- Adapters for third-party libs live in `github.com/aatuh/api-toolkit-contrib`.
+- Interfaces first: depend on `github.com/aatuh/api-toolkit/v2/ports`.
+- Adapters for third-party libs live in `github.com/aatuh/api-toolkit/contrib/v2`.
 - Consistent errors via RFC‑9457 (Problem Details).
 - Small, composable middlewares with simple constructor options.
 
 ## Modules
 
-- Core: `github.com/aatuh/api-toolkit` (stable ports, middleware, `httpx`, and endpoints with minimal framework coupling)
-- Contrib: `github.com/aatuh/api-toolkit-contrib` (adapters, integrations, tooling)
+- Core: `github.com/aatuh/api-toolkit/v2` (stable ports, middleware, `httpx`, and endpoints with minimal framework coupling)
+- Contrib: `github.com/aatuh/api-toolkit/contrib/v2` (adapters, integrations, tooling)
 
 ## Documentation
 
@@ -119,7 +119,7 @@ Common env vars:
 
 ## Package map
 
-Core (`github.com/aatuh/api-toolkit`):
+Core (`github.com/aatuh/api-toolkit/v2`):
 - `ports` — core interfaces for all boundaries
 - `middleware/*` — json, timeout, maxbody, querylimits, ratelimit, idempotency, secure, trace, auth/authz, auth/jwt
 - `httpx`, `httpx/identity`, `httpx/recover` — JSON + error helpers and panic recovery
@@ -127,7 +127,7 @@ Core (`github.com/aatuh/api-toolkit`):
 - `endpoints/*` — docs, health, pprof, version, list helpers
 - `authorization`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `fielderrors`
 
-Contrib (`github.com/aatuh/api-toolkit-contrib`):
+Contrib (`github.com/aatuh/api-toolkit/contrib/v2`):
 - `adapters/*` — envvar, chi, logzap, pgxpool, txpostgres, redis, stripe, resend, httpclient, ids, clock, validation
 - `middleware/*` — cors, requestlog, metrics, openapi, oteltrace, auth/clerk, auth/devheaders
 - `bootstrap`, `config`, `telemetry`, `migrator`
@@ -136,15 +136,15 @@ Contrib (`github.com/aatuh/api-toolkit-contrib`):
 
 ## Adapters vs integrations
 
-- `api-toolkit-contrib/adapters/*` are concrete implementations of `ports` and are intended to be stable.
-- `api-toolkit-contrib/integrations/*` are convenience wrappers for quick wiring; they may change faster than core adapters.
-Recommended: import adapters directly and use integrations only when you want convenience defaults.
+- `github.com/aatuh/api-toolkit/contrib/v2/adapters/*` are the primary reusable contrib implementations of `ports`.
+- `github.com/aatuh/api-toolkit/contrib/v2/integrations/*` are convenience wrappers for quick wiring; they may change faster than direct adapter usage.
+Recommended: import adapters directly when you need the narrowest dependency surface. The contrib module remains outside the root module's stable compatibility promise.
 
 ## Stability
 
-- Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`
-- Stable (contrib): `adapters/*`, `bootstrap`
-- Experimental/legacy: `integrations/*` (contrib), `securityprofile`, `specs`, `swagstub`, `response_writer`
+- Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`, `securityprofile`, `specs`, `swagstub`, `response_writer`
+- Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
+- Legacy but compatibility-sensitive: `response_writer` remains part of the stable core surface, but new code should prefer `httpx`
 
 ## Quickstart (wiring in main)
 
