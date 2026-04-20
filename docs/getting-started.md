@@ -6,8 +6,8 @@ This guide shows a minimal API with hardened defaults, a simple handler, and a t
 
 ```sh
 go mod init example.com/my-api
-go get github.com/aatuh/api-toolkit
-go get github.com/aatuh/api-toolkit-contrib
+go get github.com/aatuh/api-toolkit/v2
+go get github.com/aatuh/api-toolkit/contrib/v2
 ```
 
 ## 2) Create `main.go`
@@ -16,15 +16,14 @@ go get github.com/aatuh/api-toolkit-contrib
 package main
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit-contrib/adapters/chi"
-	"github.com/aatuh/api-toolkit-contrib/adapters/logzap"
-	"github.com/aatuh/api-toolkit-contrib/bootstrap"
-	"github.com/aatuh/api-toolkit/httpx"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
 type widget struct {
