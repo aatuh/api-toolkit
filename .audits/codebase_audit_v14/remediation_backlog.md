@@ -67,7 +67,7 @@ Notes:
 
 - cover both zero-value bootstrap behavior and explicit opt-in wiring
 
-## Epic E2 - Make request-path runtime behavior predictable [ ]
+## Epic E2 - Make request-path runtime behavior predictable [x]
 
 Description: Remove misleading or expensive default runtime behavior from timeout and health helpers.
 
