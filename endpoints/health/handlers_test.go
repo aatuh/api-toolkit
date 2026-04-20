@@ -136,6 +136,27 @@ func TestNewDefaultHandlerWithNilPoolSkipsDatabaseCheck(t *testing.T) {
 	}
 }
 
+func TestNewDefaultHandlerDefaultProbesCoverRegisteredChecks(t *testing.T) {
+	handler := NewDefaultHandler(nil)
+
+	manager, ok := handler.manager.(*Manager)
+	if !ok {
+		t.Fatalf("expected concrete manager, got %T", handler.manager)
+	}
+
+	for _, checker := range []string{"basic", "memory"} {
+		if _, ok := manager.checkers[checker]; !ok {
+			t.Fatalf("expected checker %q to be registered", checker)
+		}
+		if !containsCheck(manager.config.LivenessChecks, checker) {
+			t.Fatalf("expected checker %q in liveness checks", checker)
+		}
+		if !containsCheck(manager.config.ReadinessChecks, checker) {
+			t.Fatalf("expected checker %q in readiness checks", checker)
+		}
+	}
+}
+
 func TestRegisterRoutesToUsesMinimalRegistrar(t *testing.T) {
 	handler := NewHandler(nil)
 	router := &stubRouteRegistrar{}
@@ -350,4 +371,13 @@ func TestDefaultHealthPathsUseCanonicalSpecsEndpoints(t *testing.T) {
 	if paths.DetailedHealth != specs.HealthDetailed {
 		t.Fatalf("expected detailed health path %q, got %q", specs.HealthDetailed, paths.DetailedHealth)
 	}
+}
+
+func containsCheck(checks []string, want string) bool {
+	for _, check := range checks {
+		if check == want {
+			return true
+		}
+	}
+	return false
 }
