@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Make observability surfaces explicit [ ]
+## Epic E1 - Make observability surfaces explicit [x]
 
 Description: Remove hidden metrics side effects from bootstrap helpers so service authors must opt into metrics exposure and global Prometheus registration.
 
