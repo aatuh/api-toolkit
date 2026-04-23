@@ -195,7 +195,7 @@ Notes:
 - preserve existing public behavior and config names unless there is a deliberate migration plan
 - add parity tests so JWT and Clerk continue to enforce the same skip-header and claim-validation rules
 
-### Ticket E4-T2 - Make docs middleware nil-safe and add parity tests [ ]
+### Ticket E4-T2 - Make docs middleware nil-safe and add parity tests [x]
 
 Description: Align `endpoints/docs.Handler.Middleware` with the nil-safe behavior already used by sibling middleware adapters and lock that behavior in with tests.
 

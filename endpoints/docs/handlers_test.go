@@ -65,6 +65,27 @@ func TestMiddlewareWithNilManagerUsesDefaultInfo(t *testing.T) {
 	}
 }
 
+func TestMiddlewareWithNilHandlerIsIdentity(t *testing.T) {
+	var handler *Handler
+	middleware := handler.Middleware()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-API-Title"); got != "" {
+		t.Fatalf("expected no docs headers from nil middleware, got %q", got)
+	}
+	if got := rec.Header().Get("X-API-Version"); got != "" {
+		t.Fatalf("expected no docs headers from nil middleware, got %q", got)
+	}
+}
+
 func TestNewDefaultsToStaticMode(t *testing.T) {
 	manager, ok := New().(*Manager)
 	if !ok {

@@ -118,6 +118,9 @@ func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, path
 
 // Middleware creates a middleware that adds documentation information to requests.
 func (h *Handler) Middleware() func(http.Handler) http.Handler {
+	if h == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Add docs info to response headers
