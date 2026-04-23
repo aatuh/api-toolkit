@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -86,10 +87,14 @@ type PrometheusRecorder struct {
 	durations *prometheus.HistogramVec
 }
 
+// ErrIncompatibleCollectorRegistration reports that a Prometheus metric name is
+// already registered with an incompatible collector type or descriptor shape.
+var ErrIncompatibleCollectorRegistration = errors.New("metrics: incompatible collector already registered")
+
 // NewPrometheusRecorder wires counters and histograms with standard names.
 // Consumers may pass a custom registerer (e.g. for testing). When nil, the
 // default Prometheus registerer is used.
-func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) *PrometheusRecorder {
+func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) (*PrometheusRecorder, error) {
 	reg := registerer
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer
@@ -106,40 +111,52 @@ func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) 
 		Help:    "HTTP request duration in seconds",
 		Buckets: buckets,
 	}, []string{"method", "route", "status"})
-	return &PrometheusRecorder{
-		requests:  registerOrReuseCounterVec(reg, requests),
-		durations: registerOrReuseHistogramVec(reg, durations),
+	registeredRequests, err := registerOrReuseCounterVec(reg, requests)
+	if err != nil {
+		return nil, fmt.Errorf("register http_requests_total: %w", err)
 	}
+	registeredDurations, err := registerOrReuseHistogramVec(reg, durations)
+	if err != nil {
+		return nil, fmt.Errorf("register http_request_duration_seconds: %w", err)
+	}
+	return &PrometheusRecorder{
+		requests:  registeredRequests,
+		durations: registeredDurations,
+	}, nil
 }
 
-func registerOrReuseCounterVec(reg prometheus.Registerer, collector *prometheus.CounterVec) *prometheus.CounterVec {
+func registerOrReuseCounterVec(reg prometheus.Registerer, collector *prometheus.CounterVec) (*prometheus.CounterVec, error) {
 	if collector == nil || reg == nil {
-		return collector
+		return collector, nil
 	}
 	if err := reg.Register(collector); err != nil {
 		var alreadyRegistered prometheus.AlreadyRegisteredError
 		if errors.As(err, &alreadyRegistered) {
 			if existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.CounterVec); ok {
-				return existing
+				return existing, nil
 			}
+			return nil, fmt.Errorf("%w: expected *prometheus.CounterVec, got %T", ErrIncompatibleCollectorRegistration, alreadyRegistered.ExistingCollector)
 		}
+		return nil, err
 	}
-	return collector
+	return collector, nil
 }
 
-func registerOrReuseHistogramVec(reg prometheus.Registerer, collector *prometheus.HistogramVec) *prometheus.HistogramVec {
+func registerOrReuseHistogramVec(reg prometheus.Registerer, collector *prometheus.HistogramVec) (*prometheus.HistogramVec, error) {
 	if collector == nil || reg == nil {
-		return collector
+		return collector, nil
 	}
 	if err := reg.Register(collector); err != nil {
 		var alreadyRegistered prometheus.AlreadyRegisteredError
 		if errors.As(err, &alreadyRegistered) {
 			if existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.HistogramVec); ok {
-				return existing
+				return existing, nil
 			}
+			return nil, fmt.Errorf("%w: expected *prometheus.HistogramVec, got %T", ErrIncompatibleCollectorRegistration, alreadyRegistered.ExistingCollector)
 		}
+		return nil, err
 	}
-	return collector
+	return collector, nil
 }
 
 // IncCounter increments the Prometheus counter.

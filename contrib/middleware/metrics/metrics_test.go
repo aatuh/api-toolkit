@@ -44,8 +44,14 @@ func TestNewDefaults(t *testing.T) {
 func TestNewPrometheusRecorderReusesRegisteredCollectors(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	first := NewPrometheusRecorder(reg, nil)
-	second := NewPrometheusRecorder(reg, nil)
+	first, err := NewPrometheusRecorder(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+	second, err := NewPrometheusRecorder(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
 
 	if first.requests != second.requests {
 		t.Fatal("expected duplicate counter registration to reuse existing collector")
