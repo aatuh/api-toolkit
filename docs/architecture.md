@@ -69,7 +69,7 @@ This keeps the core stable while allowing integrations to change independently.
 
 - Most of `ports` is intended to stay adapter-neutral and reusable across applications.
 - The billing contracts in `ports/billing.go` are a compatibility-sensitive v2 surface. They are currently Stripe-shaped, deprecated for new code, and superseded by the explicit compatibility package `github.com/aatuh/api-toolkit/v2/compat/billing`.
-- The database stats contracts in `ports/database.go` are also compatibility-sensitive in v2. They currently mirror pgxpool counters; new generic observability call sites should prefer plain-value snapshots.
+- The database stats contracts in `ports/database.go` are also compatibility-sensitive in v2. They currently mirror pgxpool counters; new generic observability call sites should prefer `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods so legacy `DatabaseStats` usage stays inside compatibility adapters.
 - New provider-specific or driver-specific contracts should live in app code, `contrib`, or a dedicated future module instead of widening the stable core package.
 - The planned v3 extraction path for these surfaces is documented in `docs/ports-surface.md`.
 

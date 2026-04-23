@@ -7,7 +7,76 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+type stubPoolStats struct{}
+
+func (stubPoolStats) AcquireCount() int64            { return 11 }
+func (stubPoolStats) AcquireDuration() time.Duration { return 12 * time.Millisecond }
+func (stubPoolStats) AcquiredConns() int32           { return 13 }
+func (stubPoolStats) CanceledAcquireCount() int64    { return 14 }
+func (stubPoolStats) ConstructingConns() int32       { return 15 }
+func (stubPoolStats) EmptyAcquireCount() int64       { return 16 }
+func (stubPoolStats) IdleConns() int32               { return 17 }
+func (stubPoolStats) MaxConns() int32                { return 18 }
+func (stubPoolStats) NewConnsCount() int64           { return 19 }
+func (stubPoolStats) TotalConns() int32              { return 20 }
+
+func TestSnapshotFromPoolStatsCopiesPlainValues(t *testing.T) {
+	t.Parallel()
+
+	got := snapshotFromPoolStats(stubPoolStats{})
+
+	if got.AcquireCount != 11 {
+		t.Fatalf("AcquireCount = %d", got.AcquireCount)
+	}
+	if got.AcquireDuration != 12*time.Millisecond {
+		t.Fatalf("AcquireDuration = %v", got.AcquireDuration)
+	}
+	if got.AcquiredConns != 13 {
+		t.Fatalf("AcquiredConns = %d", got.AcquiredConns)
+	}
+	if got.CanceledAcquireCount != 14 {
+		t.Fatalf("CanceledAcquireCount = %d", got.CanceledAcquireCount)
+	}
+	if got.ConstructingConns != 15 {
+		t.Fatalf("ConstructingConns = %d", got.ConstructingConns)
+	}
+	if got.EmptyAcquireCount != 16 {
+		t.Fatalf("EmptyAcquireCount = %d", got.EmptyAcquireCount)
+	}
+	if got.IdleConns != 17 {
+		t.Fatalf("IdleConns = %d", got.IdleConns)
+	}
+	if got.MaxConns != 18 {
+		t.Fatalf("MaxConns = %d", got.MaxConns)
+	}
+	if got.NewConnsCount != 19 {
+		t.Fatalf("NewConnsCount = %d", got.NewConnsCount)
+	}
+	if got.TotalConns != 20 {
+		t.Fatalf("TotalConns = %d", got.TotalConns)
+	}
+}
+
+func TestSnapshotFromPoolStatsNil(t *testing.T) {
+	t.Parallel()
+
+	if got := snapshotFromPoolStats(nil); got != (ports.DatabasePoolSnapshot{}) {
+		t.Fatalf("expected zero snapshot, got %+v", got)
+	}
+}
+
+func TestAdapterStatSnapshotNilAdapter(t *testing.T) {
+	t.Parallel()
+
+	var adapter *Adapter
+	if got := adapter.StatSnapshot(); got != (ports.DatabasePoolSnapshot{}) {
+		t.Fatalf("expected zero snapshot, got %+v", got)
+	}
+}
 
 func TestNewWithContextRejectsMalformedDSN(t *testing.T) {
 	t.Parallel()

@@ -15,6 +15,19 @@ const defaultStartupTimeout = 5 * time.Second
 
 type poolFactory func(context.Context, string) (ports.DatabasePool, error)
 
+type poolStatsSnapshotSource interface {
+	AcquireCount() int64
+	AcquireDuration() time.Duration
+	AcquiredConns() int32
+	CanceledAcquireCount() int64
+	ConstructingConns() int32
+	EmptyAcquireCount() int64
+	IdleConns() int32
+	MaxConns() int32
+	NewConnsCount() int64
+	TotalConns() int32
+}
+
 // Adapter wraps pgxpool.Pool to implement ports.DatabasePool.
 type Adapter struct {
 	*pgxpool.Pool
@@ -50,17 +63,17 @@ func (a *Adapter) Acquire(ctx context.Context) (ports.DatabaseConnection, error)
 	return &Connection{Conn: conn}, nil
 }
 
-// Stat returns pool statistics.
+// Stat returns the legacy database stats compatibility wrapper.
 func (a *Adapter) Stat() ports.DatabaseStats {
 	return &Stats{Stat: a.Pool.Stat()}
 }
 
-// StatSnapshot returns pool statistics as plain values.
+// StatSnapshot returns pool statistics as plain values for new call sites.
 func (a *Adapter) StatSnapshot() ports.DatabasePoolSnapshot {
 	if a == nil || a.Pool == nil {
 		return ports.DatabasePoolSnapshot{}
 	}
-	return ports.SnapshotDatabaseStats(a.Stat())
+	return snapshotFromPoolStats(a.Pool.Stat())
 }
 
 // Connection wraps pgxpool.Conn to implement ports.DatabaseConnection.
@@ -148,6 +161,25 @@ func (t *Transaction) Exec(ctx context.Context, sql string, args ...any) (ports.
 // Stats wraps pgxpool.Stat to implement ports.DatabaseStats.
 type Stats struct {
 	*pgxpool.Stat
+}
+
+func snapshotFromPoolStats(stats poolStatsSnapshotSource) ports.DatabasePoolSnapshot {
+	if stats == nil {
+		return ports.DatabasePoolSnapshot{}
+	}
+
+	return ports.DatabasePoolSnapshot{
+		AcquireCount:         stats.AcquireCount(),
+		AcquireDuration:      stats.AcquireDuration(),
+		AcquiredConns:        stats.AcquiredConns(),
+		CanceledAcquireCount: stats.CanceledAcquireCount(),
+		ConstructingConns:    stats.ConstructingConns(),
+		EmptyAcquireCount:    stats.EmptyAcquireCount(),
+		IdleConns:            stats.IdleConns(),
+		MaxConns:             stats.MaxConns(),
+		NewConnsCount:        stats.NewConnsCount(),
+		TotalConns:           stats.TotalConns(),
+	}
 }
 
 // AcquireCount returns the number of times a connection was acquired from the pool.
