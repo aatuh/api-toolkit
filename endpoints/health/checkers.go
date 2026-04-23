@@ -80,8 +80,9 @@ func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 		}
 	}
 
-	// Get pool stats for additional details
-	stats := ports.SnapshotDatabaseStats(c.pool.Stat())
+	// Prefer plain-value snapshots so generic call sites do not need to depend
+	// on legacy driver-shaped stats details.
+	stats := ports.SnapshotDatabasePoolStats(c.pool)
 	details := map[string]interface{}{
 		"total_conns":    stats.TotalConns,
 		"idle_conns":     stats.IdleConns,

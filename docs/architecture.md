@@ -58,12 +58,20 @@ flowchart LR
 
 ## Practical Wiring
 
-1. Define ports in core to avoid vendor lock-in.
+1. Define ports in core to avoid vendor lock-in where the boundary can stay generic.
 2. Pick adapters (contrib) that implement those ports.
 3. Use bootstrap profiles to apply middleware consistently.
 4. Keep business logic in handlers/services, not in adapters.
 
 This keeps the core stable while allowing integrations to change independently.
+
+## Stable Boundary Clarifications
+
+- Most of `ports` is intended to stay adapter-neutral and reusable across applications.
+- The billing contracts in `ports/billing.go` are a compatibility-sensitive v2 surface. They are currently Stripe-shaped and should not be extended as if they were a generic multi-provider model.
+- The database stats contracts in `ports/database.go` are also compatibility-sensitive in v2. They currently mirror pgxpool counters; new generic observability call sites should prefer plain-value snapshots.
+- New provider-specific or driver-specific contracts should live in app code, `contrib`, or a dedicated future module instead of widening the stable core package.
+- The planned v3 extraction path for these surfaces is documented in `docs/ports-surface.md`.
 
 ## Operational Safety Contracts
 

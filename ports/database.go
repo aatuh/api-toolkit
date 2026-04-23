@@ -6,11 +6,24 @@ import (
 )
 
 // DatabasePool defines the interface for database connection pooling.
+//
+// The query, transaction, and lifecycle methods are intended to stay generic.
+// Stat is retained as a v2 compatibility surface for adapters that already
+// expose driver-shaped counters. New observability call sites that only need
+// plain values should prefer the optional DatabasePoolSnapshotProvider
+// capability with SnapshotDatabasePoolStats.
 type DatabasePool interface {
 	Ping(ctx context.Context) error
 	Close()
 	Acquire(ctx context.Context) (DatabaseConnection, error)
 	Stat() DatabaseStats
+}
+
+// DatabasePoolSnapshotProvider is an optional capability for pools that can
+// expose plain-value pool statistics without forcing callers to depend on the
+// legacy DatabaseStats shape.
+type DatabasePoolSnapshotProvider interface {
+	StatSnapshot() DatabasePoolSnapshot
 }
 
 // DatabaseConnection defines the interface for individual database connections.
@@ -49,7 +62,11 @@ type DatabaseResult interface {
 	RowsAffected() int64
 }
 
-// DatabaseStats defines the interface for database pool statistics.
+// DatabaseStats defines database pool statistics.
+//
+// This interface mirrors pgxpool-style counters and remains in v2 as a
+// compatibility-sensitive surface. Prefer DatabasePoolSnapshotProvider or
+// SnapshotDatabasePoolStats in new generic call sites.
 type DatabaseStats interface {
 	AcquireCount() int64
 	AcquireDuration() time.Duration
@@ -75,6 +92,20 @@ type DatabasePoolSnapshot struct {
 	MaxConns             int32
 	NewConnsCount        int64
 	TotalConns           int32
+}
+
+// SnapshotDatabasePoolStats copies pool stats into a value snapshot.
+//
+// It prefers the optional DatabasePoolSnapshotProvider capability and falls
+// back to the legacy DatabaseStats interface when necessary.
+func SnapshotDatabasePoolStats(pool DatabasePool) DatabasePoolSnapshot {
+	if pool == nil {
+		return DatabasePoolSnapshot{}
+	}
+	if snapshotter, ok := pool.(DatabasePoolSnapshotProvider); ok {
+		return snapshotter.StatSnapshot()
+	}
+	return SnapshotDatabaseStats(pool.Stat())
 }
 
 // SnapshotDatabaseStats copies database stats into a value snapshot.

@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-// CheckoutSessionRequest describes a hosted checkout request (e.g. Stripe Checkout).
+// CheckoutSessionRequest describes a hosted checkout request.
+//
+// This billing surface is compatibility-sensitive in v2 and currently models a
+// Stripe-like hosted checkout flow rather than a provider-neutral abstraction.
 type CheckoutSessionRequest struct {
 	Amount               int64             // Minor units (cents)
 	Currency             string            // ISO currency, e.g. "eur"
@@ -48,6 +51,10 @@ type Price struct {
 }
 
 // PaymentProvider defines a hosted checkout + webhook contract.
+//
+// This is a compatibility-sensitive v2 surface. It intentionally reflects the
+// current hosted-checkout provider model and should not be presented as a
+// universal billing abstraction.
 type PaymentProvider interface {
 	CreateCheckoutSession(ctx context.Context, req CheckoutSessionRequest) (CheckoutSession, error)
 	ParseWebhook(ctx context.Context, payload []byte, sigHeader string) (WebhookEvent, error)
@@ -207,6 +214,10 @@ type BillingPortalSession struct {
 }
 
 // BillingProvider defines billing-related operations for hosted invoicing.
+//
+// This is a compatibility-sensitive v2 surface. It is currently shaped around
+// provider-specific customer, invoicing, and billing-portal workflows and is a
+// candidate for extraction in v3.
 type BillingProvider interface {
 	CreateCustomer(ctx context.Context, in CustomerInput) (Customer, error)
 	UpdateCustomer(ctx context.Context, customerID string, in CustomerInput) error

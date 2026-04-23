@@ -2,7 +2,10 @@
 
 This project follows semantic versioning for the core module
 `github.com/aatuh/api-toolkit/v2`. From v1 onward, we treat the packages listed
-below as stable: any breaking change requires a major version bump.
+below as stable: any breaking change requires a major version bump. Stability
+does not imply every exported identifier is perfectly adapter-neutral; some v2
+surfaces are explicitly classified as compatibility-sensitive so the public docs
+do not over-claim genericity.
 
 ## Stable API surface (core module)
 
@@ -38,6 +41,27 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/specs`
 - `github.com/aatuh/api-toolkit/v2/swagstub`
 
+## Compatibility-sensitive stable sub-surfaces
+
+These exports remain part of the v2 compatibility promise, but they are not the
+recommended model for new generic boundary design:
+
+- `github.com/aatuh/api-toolkit/v2/ports` billing contracts in
+  `ports/billing.go` are stable in v2 but intentionally Stripe-shaped today.
+- `github.com/aatuh/api-toolkit/v2/ports` database stats contracts in
+  `ports/database.go` are stable in v2 but intentionally mirror pgxpool-style
+  counters today.
+- `github.com/aatuh/api-toolkit/v2/response_writer` is also stable but legacy.
+
+Compatibility-sensitive means:
+
+- Minor and patch releases must preserve these APIs unless a security fix
+  requires otherwise.
+- New design work should prefer narrower, plain-value, or app-owned contracts
+  instead of widening these surfaces further.
+- The repository should document the migration path before any future major
+  cleanup. The current plan lives in `docs/ports-surface.md`.
+
 ## Experimental or unstable surfaces
 
 - The `contrib` module is experimental and may change in minor releases.
@@ -61,6 +85,8 @@ packages. Breaking changes must coincide with a major version bump.
 
 - API compatibility checks protect exported identifiers in the stable surface,
   not every runtime contract or operator-facing default.
+- API compatibility checks still cover the full `ports` package, including the
+  compatibility-sensitive billing and database-stats exports described above.
 - Review [docs/release-notes.md](/home/aatu/projects/saas/api-toolkit/docs/release-notes.md)
   on every upgrade for behavior changes around health endpoint exposure,
   scheduler observability, transaction cleanup, and `contrib` migration state

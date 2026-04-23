@@ -289,6 +289,47 @@ func TestDatabaseCheckerAcceptsNilContext(t *testing.T) {
 	}
 }
 
+func TestDatabaseCheckerPrefersSnapshotCapability(t *testing.T) {
+	pool := &stubDatabasePool{
+		snapshot: &ports.DatabasePoolSnapshot{
+			AcquireCount:  7,
+			AcquiredConns: 2,
+			IdleConns:     3,
+			MaxConns:      10,
+			TotalConns:    5,
+		},
+	}
+	checker := NewDatabaseChecker(pool)
+
+	result := checker.Check(context.Background())
+
+	if result.Status != ports.HealthStatusHealthy {
+		t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
+	}
+	details, ok := result.Details.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map details, got %T", result.Details)
+	}
+	if got := details["acquire_count"]; got != int64(7) {
+		t.Fatalf("acquire_count = %#v", got)
+	}
+	if got := details["acquired_conns"]; got != int32(2) {
+		t.Fatalf("acquired_conns = %#v", got)
+	}
+	if got := details["idle_conns"]; got != int32(3) {
+		t.Fatalf("idle_conns = %#v", got)
+	}
+	if got := details["max_conns"]; got != int32(10) {
+		t.Fatalf("max_conns = %#v", got)
+	}
+	if got := details["total_conns"]; got != int32(5) {
+		t.Fatalf("total_conns = %#v", got)
+	}
+	if pool.statCalls.Load() != 0 {
+		t.Fatalf("expected no legacy Stat calls, got %d", pool.statCalls.Load())
+	}
+}
+
 func TestHTTPCheckerAcceptsNilContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -364,7 +405,9 @@ func (c *blockingChecker) Check(ctx context.Context) ports.HealthResult {
 
 type stubDatabasePool struct {
 	pingCalls atomic.Int32
+	statCalls atomic.Int32
 	pingErr   error
+	snapshot  *ports.DatabasePoolSnapshot
 }
 
 type stubPaymentProvider struct {
@@ -382,8 +425,16 @@ func (*stubDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, err
 	return nil, errors.New("not implemented")
 }
 
-func (*stubDatabasePool) Stat() ports.DatabaseStats {
+func (s *stubDatabasePool) Stat() ports.DatabaseStats {
+	s.statCalls.Add(1)
 	return nil
+}
+
+func (s *stubDatabasePool) StatSnapshot() ports.DatabasePoolSnapshot {
+	if s.snapshot == nil {
+		return ports.DatabasePoolSnapshot{}
+	}
+	return *s.snapshot
 }
 
 func (*stubPaymentProvider) CreateCheckoutSession(context.Context, ports.CheckoutSessionRequest) (ports.CheckoutSession, error) {

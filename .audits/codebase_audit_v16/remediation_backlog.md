@@ -11,7 +11,7 @@
 |----|---------:|------|---------|
 | [x] AUDIT-16-01 | P1 | Validation contract | `ports.Validator` becomes explicit, non-silent, and toolkit-shaped on all public codepaths. |
 | [x] AUDIT-16-02 | P1 | Health/docs capabilities | Handler behavior depends only on exported, documented contracts. |
-| AUDIT-16-03 | P2 | Stable ports surface | Vendor-shaped billing/database contracts are either narrowed, reclassified, or staged for versioned extraction. |
+| [x] AUDIT-16-03 | P2 | Stable ports surface | Vendor-shaped billing/database contracts are either narrowed, reclassified, or staged for versioned extraction. |
 | AUDIT-16-04 | P2 | Health config | Invalid health cache/refresh settings fail closed or clamp to documented defaults. |
 | AUDIT-16-05 | P2 | Contract regression suite | New tests lock the public semantics that this audit found weak. |
 
@@ -29,7 +29,7 @@
 - Acceptance criteria: custom manager implementations can discover all required methods from the exported API surface alone; detailed health route registration, cached health middleware behavior, and docs CSP behavior no longer depend on package-private knowledge.
 - Verification: add tests with stub managers defined outside the concrete manager types that implement only the exported contracts; ensure route registration and middleware behavior match the built-in managers.
 
-## AUDIT-16-03: Rationalize the stable `ports` surface
+## [x] AUDIT-16-03: Rationalize the stable `ports` surface
 - Problem: the stable core `ports` package now includes Stripe-shaped billing concepts and pgx-shaped database statistics, which weakens the “narrow, stable, dependency-inverted” story and makes future adapter diversity expensive.
 - Scope: [ports/billing.go](/home/aatu/projects/saas/api-toolkit/ports/billing.go:9) [ports/database.go](/home/aatu/projects/saas/api-toolkit/ports/database.go:8) [contrib/adapters/stripe/billing.go](/home/aatu/projects/saas/api-toolkit/contrib/adapters/stripe/billing.go:336) [VERSIONING.md](/home/aatu/projects/saas/api-toolkit/VERSIONING.md:1) [docs/architecture.md](/home/aatu/projects/saas/api-toolkit/docs/architecture.md:1)
 - Required changes: decide which contracts truly belong in stable core; for `v2`, either reclassify the most provider-shaped surfaces as compatibility-sensitive/experimental or introduce narrower sub-interfaces without breaking existing callers; for the longer-term roadmap, design a `v3` extraction path that moves provider-shaped billing flows and driver-shaped database stats out of the core `ports` package.

@@ -4,8 +4,11 @@
 
 Reusable building blocks for Go HTTP APIs that enforce Dependency
 Inversion. Your application depends on stable `ports` interfaces, while
-this toolkit ships adapters for popular libraries. Result: fewer direct
-third‑party imports in your app, easier testing, and cleaner wiring.
+this toolkit ships adapters for popular libraries. A small set of v2
+compatibility surfaces inside `ports` remains provider-shaped or
+driver-shaped and is called out explicitly in the stability docs. Result:
+fewer direct third‑party imports in your app, easier testing, and cleaner
+wiring.
 
 Agent‑friendly by design: clear interfaces, small packages, sensible
 defaults, and predictable wiring.
@@ -29,6 +32,7 @@ defaults, and predictable wiring.
 - Security posture: `docs/security.md`
 - Security policy: `SECURITY.md`
 - Versioning and stability: `VERSIONING.md`
+- Stable ports boundary note: `docs/ports-surface.md`
 - Release notes: `docs/release-notes.md`
 - Panic policy: `PANIC_POLICY.md`
 - Metrics naming + labels policy: `docs/metrics.md`
@@ -40,10 +44,12 @@ defaults, and predictable wiring.
   - Logger, Clock, IDGen
   - HTTPRouter, HTTPMiddleware, HTTPClient, RateLimiter
   - CORS handler, Security headers
-  - Database: Pool, Tx, Rows, Row, Result, Stats
+  - Database: Pool, Tx, Rows, Row, Result, plain-value stats snapshots
+  - Database stats compatibility surface: `DatabasePool.Stat` and `DatabaseStats` remain stable in v2 but mirror pgx-style counters
   - Health: Manager, Checkers, Results, Summaries
   - Docs: Manager, Info, Version, OpenAPI
   - Validator
+  - Billing compatibility surface: hosted checkout, webhook, invoicing, and billing portal contracts that are currently Stripe-shaped
   - MetricsRecorder (pluggable, with No-op default)
 
 - HTTP middleware
@@ -120,7 +126,7 @@ Common env vars:
 ## Package map
 
 Core (`github.com/aatuh/api-toolkit/v2`):
-- `ports` — core interfaces for all boundaries
+- `ports` — core interfaces for all boundaries, plus compatibility-sensitive v2 billing and database-stats surfaces
 - `middleware/*` — json, timeout, maxbody, querylimits, ratelimit, idempotency, secure, trace, auth/authz, auth/jwt
 - `httpx`, `httpx/identity`, `httpx/recover` — JSON + error helpers and panic recovery
 - `response_writer` — legacy success JSON writer
@@ -143,6 +149,7 @@ Recommended: import adapters directly when you need the narrowest dependency sur
 ## Stability
 
 - Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`, `securityprofile`, `specs`, `swagstub`, `response_writer`
+- Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces. See `docs/ports-surface.md`.
 - Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
 - Legacy but compatibility-sensitive: `response_writer` remains part of the stable core surface, but new code should prefer `httpx`
 
@@ -569,6 +576,7 @@ See `contrib/examples/` for end-to-end wiring samples.
 - Supported Go versions: 1.24.x
 - Minimum in `go.mod`: Go 1.24.x.
 - Core keeps transport and application boundaries stable and lightweight; contrib pins router, logging, database, and validation integrations.
+- The `ports` package still contains a few compatibility-sensitive v2 surfaces; use the guidance in `docs/ports-surface.md` when introducing new billing or database observability contracts.
 
 ## Go toolchain behavior
 
