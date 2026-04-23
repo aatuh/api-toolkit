@@ -55,6 +55,14 @@ func (a *Adapter) Stat() ports.DatabaseStats {
 	return &Stats{Stat: a.Pool.Stat()}
 }
 
+// StatSnapshot returns pool statistics as plain values.
+func (a *Adapter) StatSnapshot() ports.DatabasePoolSnapshot {
+	if a == nil || a.Pool == nil {
+		return ports.DatabasePoolSnapshot{}
+	}
+	return ports.SnapshotDatabaseStats(a.Stat())
+}
+
 // Connection wraps pgxpool.Conn to implement ports.DatabaseConnection.
 type Connection struct {
 	*pgxpool.Conn
