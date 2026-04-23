@@ -235,7 +235,10 @@ func TestProfileDevDoesNotRegisterPrometheusCollectorsByDefault(t *testing.T) {
 func TestProfileStrictAPIRegistersPrometheusCollectorsWhenExplicitRecorderProvided(t *testing.T) {
 	reg := withDefaultPrometheusRegistry(t)
 
-	recorder := metricsmw.NewPrometheusRecorder(nil, nil)
+	recorder, err := metricsmw.NewPrometheusRecorder(nil, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
 	if _, err := ProfileStrictAPI(
 		ports.NopLogger{},
 		WithMetricsRecorder(recorder),

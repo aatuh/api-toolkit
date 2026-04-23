@@ -92,7 +92,7 @@ Notes:
 
 Description: Ensure first-party observability helpers fail predictably instead of silently dropping metrics when applications compose the library with existing collectors.
 
-### Ticket E2-T1 - Surface Prometheus registration conflicts [ ]
+### Ticket E2-T1 - Surface Prometheus registration conflicts [x]
 
 Description: Change the Prometheus recorder constructor and helper functions so incompatible metric registration errors are returned or otherwise surfaced explicitly instead of being swallowed.
 
