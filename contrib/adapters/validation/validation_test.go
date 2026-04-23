@@ -21,6 +21,32 @@ func TestValidateNilValueReturnsValidationError(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsUnsupportedTargets(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{}
+	}{
+		{name: "scalar", value: 42},
+		{name: "slice", value: []string{"admin"}},
+		{name: "map", value: map[string]string{"role": "admin"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := New()
+
+			err := v.Validate(context.Background(), tt.value)
+			var got ValidationError
+			if !errors.As(err, &got) {
+				t.Fatalf("expected ValidationError, got %T", err)
+			}
+			if got.Message != "value must be a struct or pointer to struct" {
+				t.Fatalf("message = %q, want %q", got.Message, "value must be a struct or pointer to struct")
+			}
+		})
+	}
+}
+
 func TestValidateStructUsesJSONFieldNames(t *testing.T) {
 	v := New()
 
@@ -45,10 +71,52 @@ func TestValidateStructUsesJSONFieldNames(t *testing.T) {
 	}
 }
 
+func TestValidateStructAcceptsPointerToStruct(t *testing.T) {
+	v := New()
+
+	err := v.ValidateStruct(context.Background(), &validationFixture{})
+	var got ValidationErrors
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationErrors, got %T", err)
+	}
+	if len(got.Errors) != 3 {
+		t.Fatalf("validation errors = %d, want 3", len(got.Errors))
+	}
+}
+
+func TestValidateStructRejectsUnsupportedTarget(t *testing.T) {
+	v := New()
+
+	err := v.ValidateStruct(context.Background(), []string{"admin"})
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if got.Message != "object must be a struct or pointer to struct" {
+		t.Fatalf("message = %q, want %q", got.Message, "object must be a struct or pointer to struct")
+	}
+}
+
 func TestValidateFieldReturnsSingleFieldError(t *testing.T) {
 	v := NewBasicValidator()
 
 	err := v.ValidateField(context.Background(), validationFixture{}, "Email")
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if got.Field != "email" {
+		t.Fatalf("field = %q, want email", got.Field)
+	}
+	if got.Message != "is required" {
+		t.Fatalf("message = %q, want %q", got.Message, "is required")
+	}
+}
+
+func TestValidateFieldAcceptsJSONFieldName(t *testing.T) {
+	v := NewPlaygroundValidator()
+
+	err := v.ValidateField(context.Background(), validationFixture{}, "email")
 	var got ValidationError
 	if !errors.As(err, &got) {
 		t.Fatalf("expected ValidationError, got %T", err)
@@ -80,6 +148,77 @@ func TestValidateFieldRequiresInputAndFieldName(t *testing.T) {
 	if got.Message != "field name is required" {
 		t.Fatalf("message = %q, want %q", got.Message, "field name is required")
 	}
+}
+
+func TestValidateFieldRejectsUnsupportedTarget(t *testing.T) {
+	v := NewPlaygroundValidator()
+
+	err := v.ValidateField(context.Background(), []string{"admin"}, "role")
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if got.Message != "object must be a struct or pointer to struct" {
+		t.Fatalf("message = %q, want %q", got.Message, "object must be a struct or pointer to struct")
+	}
+}
+
+func TestValidateFieldRejectsUnknownField(t *testing.T) {
+	v := NewPlaygroundValidator()
+
+	err := v.ValidateField(context.Background(), validationFixture{}, "missing")
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if got.Field != "missing" {
+		t.Fatalf("field = %q, want missing", got.Field)
+	}
+	if got.Message != "field is not valid for validation" {
+		t.Fatalf("message = %q, want %q", got.Message, "field is not valid for validation")
+	}
+}
+
+func TestValidationMethodsAcceptNilContext(t *testing.T) {
+	v := NewPlaygroundValidator()
+
+	assertNoPanic(t, "Validate nil context", func() {
+		err := v.Validate(nilContext(), validationFixture{})
+		var got ValidationErrors
+		if !errors.As(err, &got) {
+			t.Fatalf("expected ValidationErrors, got %T", err)
+		}
+	})
+
+	assertNoPanic(t, "ValidateStruct nil context", func() {
+		err := v.ValidateStruct(nilContext(), validationFixture{})
+		var got ValidationErrors
+		if !errors.As(err, &got) {
+			t.Fatalf("expected ValidationErrors, got %T", err)
+		}
+	})
+
+	assertNoPanic(t, "ValidateField nil context", func() {
+		err := v.ValidateField(nilContext(), validationFixture{}, "email")
+		var got ValidationError
+		if !errors.As(err, &got) {
+			t.Fatalf("expected ValidationError, got %T", err)
+		}
+	})
+}
+
+func assertNoPanic(t *testing.T, name string, fn func()) {
+	t.Helper()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("%s panicked: %v", name, recovered)
+		}
+	}()
+	fn()
+}
+
+func nilContext() context.Context {
+	return nil
 }
 
 type validationFixture struct {
