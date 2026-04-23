@@ -69,7 +69,7 @@ Notes:
 - preserve multi-value parameter semantics
 - add coverage for reordered query strings and equivalent retries
 
-### Ticket E1-T4 - Expand idempotency regression coverage [ ]
+### Ticket E1-T4 - Expand idempotency regression coverage [x]
 
 Description: Add negative-path and contract tests for cancellation cleanup, store contract mismatch, canonical hashing, and retry windows so future changes cannot reintroduce these bugs.
 
