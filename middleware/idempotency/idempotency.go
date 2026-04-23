@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -375,14 +376,28 @@ func DefaultHash(r *http.Request, body []byte) (string, error) {
 	h.Write([]byte{0})
 	_, _ = io.WriteString(h, strings.ToUpper(r.Method))
 	h.Write([]byte{0})
-	_, _ = io.WriteString(h, r.URL.Path)
+	_, _ = io.WriteString(h, requestPath(r.URL))
 	h.Write([]byte{0})
-	_, _ = io.WriteString(h, r.URL.RawQuery)
+	_, _ = io.WriteString(h, canonicalQuery(r.URL))
 	h.Write([]byte{0})
 	_, _ = io.WriteString(h, r.Header.Get("Content-Type"))
 	h.Write([]byte{0})
 	h.Write(body)
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func requestPath(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return u.Path
+}
+
+func canonicalQuery(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return u.Query().Encode()
 }
 
 func defaultMethodFilter(methods ...string) func(*http.Request) bool {

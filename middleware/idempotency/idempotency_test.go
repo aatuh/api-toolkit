@@ -62,6 +62,81 @@ func TestIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayIgnoresQueryParameterOrder(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge?b=2&a=1", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-query-order")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge?a=1&b=2", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-query-order")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay for equivalent query ordering, got %d", rec2.Code)
+	}
+	if rec2.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatal("expected replay header on canonicalized query replay")
+	}
+	if calls != 1 {
+		t.Fatalf("expected canonicalized replay to avoid second execution, got %d calls", calls)
+	}
+}
+
+func TestIdempotencyPreservesMultiValueQueryOrder(t *testing.T) {
+	mem := newMemoryStore()
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge?tag=a&tag=b", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-query-values")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge?tag=b&tag=a", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-query-values")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusConflict {
+		t.Fatalf("expected conflict for reordered multi-value query, got %d", rec2.Code)
+	}
+	if calls != 1 {
+		t.Fatalf("expected reordered multi-value query not to execute twice, got %d calls", calls)
+	}
+}
+
 func TestIdempotencyReplaysResponseAtExactBufferLimit(t *testing.T) {
 	mem := newMemoryStore()
 	mw, err := New(Options{

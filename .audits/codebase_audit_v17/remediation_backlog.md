@@ -49,7 +49,7 @@ Notes:
 - add a conformance test for a store that intentionally does not implement the current optional releaser
 - keep existing bundled stores passing through the new contract
 
-### Ticket E1-T3 - Canonicalize idempotency request hashing [ ]
+### Ticket E1-T3 - Canonicalize idempotency request hashing [x]
 
 Description: Normalize hash inputs so semantically equivalent retries produce identical hashes even when query parameter ordering or other serialization details differ.
 
