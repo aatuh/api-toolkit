@@ -8,11 +8,12 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v79"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // CreateCustomer creates a Stripe customer.
-func (p *Provider) CreateCustomer(ctx context.Context, in ports.CustomerInput) (ports.Customer, error) {
+func (p *Provider) CreateCustomer(ctx context.Context, in compatbilling.CustomerInput) (compatbilling.Customer, error) {
 	params := &stripe.CustomerParams{}
 	params.Context = ctx
 	if strings.TrimSpace(in.Name) != "" {
@@ -51,13 +52,13 @@ func (p *Provider) CreateCustomer(ctx context.Context, in ports.CustomerInput) (
 	}
 	cust, err := p.client.Customers.New(params)
 	if err != nil {
-		return ports.Customer{}, normalizeStripeError(err)
+		return compatbilling.Customer{}, normalizeStripeError(err)
 	}
-	return ports.Customer{ID: cust.ID}, nil
+	return compatbilling.Customer{ID: cust.ID}, nil
 }
 
 // UpdateCustomer updates an existing Stripe customer.
-func (p *Provider) UpdateCustomer(ctx context.Context, customerID string, in ports.CustomerInput) error {
+func (p *Provider) UpdateCustomer(ctx context.Context, customerID string, in compatbilling.CustomerInput) error {
 	customerID = strings.TrimSpace(customerID)
 	if customerID == "" {
 		return errors.New("customer id required")
@@ -112,9 +113,9 @@ func (p *Provider) UpdateCustomer(ctx context.Context, customerID string, in por
 }
 
 // CreateSetupIntent creates a Stripe setup intent for saving payment methods.
-func (p *Provider) CreateSetupIntent(ctx context.Context, in ports.SetupIntentInput) (ports.SetupIntent, error) {
+func (p *Provider) CreateSetupIntent(ctx context.Context, in compatbilling.SetupIntentInput) (compatbilling.SetupIntent, error) {
 	if strings.TrimSpace(in.CustomerID) == "" {
-		return ports.SetupIntent{}, errors.New("customer id required")
+		return compatbilling.SetupIntent{}, errors.New("customer id required")
 	}
 	params := &stripe.SetupIntentParams{}
 	params.Context = ctx
@@ -126,9 +127,9 @@ func (p *Provider) CreateSetupIntent(ctx context.Context, in ports.SetupIntentIn
 	}
 	intent, err := p.client.SetupIntents.New(params)
 	if err != nil {
-		return ports.SetupIntent{}, normalizeStripeError(err)
+		return compatbilling.SetupIntent{}, normalizeStripeError(err)
 	}
-	out := ports.SetupIntent{
+	out := compatbilling.SetupIntent{
 		ID:           intent.ID,
 		ClientSecret: intent.ClientSecret,
 		CustomerID:   in.CustomerID,
@@ -159,18 +160,18 @@ func (p *Provider) SetCustomerDefaultPaymentMethod(ctx context.Context, customer
 }
 
 // RetrievePaymentMethod fetches a stored payment method details.
-func (p *Provider) RetrievePaymentMethod(ctx context.Context, paymentMethodID string) (ports.PaymentMethod, error) {
+func (p *Provider) RetrievePaymentMethod(ctx context.Context, paymentMethodID string) (compatbilling.PaymentMethod, error) {
 	paymentMethodID = strings.TrimSpace(paymentMethodID)
 	if paymentMethodID == "" {
-		return ports.PaymentMethod{}, errors.New("payment method id required")
+		return compatbilling.PaymentMethod{}, errors.New("payment method id required")
 	}
 	params := &stripe.PaymentMethodParams{}
 	params.Context = ctx
 	pm, err := p.client.PaymentMethods.Get(paymentMethodID, params)
 	if err != nil {
-		return ports.PaymentMethod{}, normalizeStripeError(err)
+		return compatbilling.PaymentMethod{}, normalizeStripeError(err)
 	}
-	out := ports.PaymentMethod{ID: pm.ID}
+	out := compatbilling.PaymentMethod{ID: pm.ID}
 	if pm.Card != nil {
 		out.Brand = string(pm.Card.Brand)
 		out.Last4 = pm.Card.Last4
@@ -181,9 +182,9 @@ func (p *Provider) RetrievePaymentMethod(ctx context.Context, paymentMethodID st
 }
 
 // CreateInvoiceItem creates a pending invoice item.
-func (p *Provider) CreateInvoiceItem(ctx context.Context, in ports.InvoiceItemInput) (ports.InvoiceItem, error) {
+func (p *Provider) CreateInvoiceItem(ctx context.Context, in compatbilling.InvoiceItemInput) (compatbilling.InvoiceItem, error) {
 	if strings.TrimSpace(in.CustomerID) == "" {
-		return ports.InvoiceItem{}, errors.New("customer id required")
+		return compatbilling.InvoiceItem{}, errors.New("customer id required")
 	}
 	params := &stripe.InvoiceItemParams{}
 	params.Context = ctx
@@ -204,9 +205,9 @@ func (p *Provider) CreateInvoiceItem(ctx context.Context, in ports.InvoiceItemIn
 	}
 	item, err := p.client.InvoiceItems.New(params)
 	if err != nil {
-		return ports.InvoiceItem{}, normalizeStripeError(err)
+		return compatbilling.InvoiceItem{}, normalizeStripeError(err)
 	}
-	out := ports.InvoiceItem{ID: item.ID}
+	out := compatbilling.InvoiceItem{ID: item.ID}
 	if item.Invoice != nil && strings.TrimSpace(item.Invoice.ID) != "" {
 		out.InvoiceID = item.Invoice.ID
 	}
@@ -214,18 +215,18 @@ func (p *Provider) CreateInvoiceItem(ctx context.Context, in ports.InvoiceItemIn
 }
 
 // RetrieveInvoiceItem fetches an invoice item to see if it's already attached to an invoice.
-func (p *Provider) RetrieveInvoiceItem(ctx context.Context, invoiceItemID string) (ports.InvoiceItem, error) {
+func (p *Provider) RetrieveInvoiceItem(ctx context.Context, invoiceItemID string) (compatbilling.InvoiceItem, error) {
 	invoiceItemID = strings.TrimSpace(invoiceItemID)
 	if invoiceItemID == "" {
-		return ports.InvoiceItem{}, errors.New("invoice item id required")
+		return compatbilling.InvoiceItem{}, errors.New("invoice item id required")
 	}
 	params := &stripe.InvoiceItemParams{}
 	params.Context = ctx
 	item, err := p.client.InvoiceItems.Get(invoiceItemID, params)
 	if err != nil {
-		return ports.InvoiceItem{}, normalizeStripeError(err)
+		return compatbilling.InvoiceItem{}, normalizeStripeError(err)
 	}
-	out := ports.InvoiceItem{ID: item.ID}
+	out := compatbilling.InvoiceItem{ID: item.ID}
 	if item.Invoice != nil && strings.TrimSpace(item.Invoice.ID) != "" {
 		out.InvoiceID = item.Invoice.ID
 	}
@@ -233,10 +234,10 @@ func (p *Provider) RetrieveInvoiceItem(ctx context.Context, invoiceItemID string
 }
 
 // UpdateInvoiceItem updates fields on a draft invoice item.
-func (p *Provider) UpdateInvoiceItem(ctx context.Context, invoiceItemID string, in ports.InvoiceItemUpdate) (ports.InvoiceItem, error) {
+func (p *Provider) UpdateInvoiceItem(ctx context.Context, invoiceItemID string, in compatbilling.InvoiceItemUpdate) (compatbilling.InvoiceItem, error) {
 	invoiceItemID = strings.TrimSpace(invoiceItemID)
 	if invoiceItemID == "" {
-		return ports.InvoiceItem{}, errors.New("invoice item id required")
+		return compatbilling.InvoiceItem{}, errors.New("invoice item id required")
 	}
 	params := &stripe.InvoiceItemParams{}
 	params.Context = ctx
@@ -245,9 +246,9 @@ func (p *Provider) UpdateInvoiceItem(ctx context.Context, invoiceItemID string, 
 	}
 	item, err := p.client.InvoiceItems.Update(invoiceItemID, params)
 	if err != nil {
-		return ports.InvoiceItem{}, normalizeStripeError(err)
+		return compatbilling.InvoiceItem{}, normalizeStripeError(err)
 	}
-	out := ports.InvoiceItem{ID: item.ID}
+	out := compatbilling.InvoiceItem{ID: item.ID}
 	if item.Invoice != nil && strings.TrimSpace(item.Invoice.ID) != "" {
 		out.InvoiceID = item.Invoice.ID
 	}
@@ -255,9 +256,9 @@ func (p *Provider) UpdateInvoiceItem(ctx context.Context, invoiceItemID string, 
 }
 
 // CreateInvoice creates a draft invoice for the customer.
-func (p *Provider) CreateInvoice(ctx context.Context, in ports.InvoiceInput) (ports.Invoice, error) {
+func (p *Provider) CreateInvoice(ctx context.Context, in compatbilling.InvoiceInput) (compatbilling.Invoice, error) {
 	if strings.TrimSpace(in.CustomerID) == "" {
-		return ports.Invoice{}, errors.New("customer id required")
+		return compatbilling.Invoice{}, errors.New("customer id required")
 	}
 	params := &stripe.InvoiceParams{}
 	params.Context = ctx
@@ -283,61 +284,61 @@ func (p *Provider) CreateInvoice(ctx context.Context, in ports.InvoiceInput) (po
 	}
 	inv, err := p.client.Invoices.New(params)
 	if err != nil {
-		return ports.Invoice{}, normalizeStripeError(err)
+		return compatbilling.Invoice{}, normalizeStripeError(err)
 	}
 	return invoiceFromStripe(inv), nil
 }
 
 // FinalizeInvoice finalizes a draft invoice.
-func (p *Provider) FinalizeInvoice(ctx context.Context, invoiceID string) (ports.Invoice, error) {
+func (p *Provider) FinalizeInvoice(ctx context.Context, invoiceID string) (compatbilling.Invoice, error) {
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
-		return ports.Invoice{}, errors.New("invoice id required")
+		return compatbilling.Invoice{}, errors.New("invoice id required")
 	}
 	params := &stripe.InvoiceFinalizeInvoiceParams{}
 	params.Context = ctx
 	inv, err := p.client.Invoices.FinalizeInvoice(invoiceID, params)
 	if err != nil {
-		return ports.Invoice{}, normalizeStripeError(err)
+		return compatbilling.Invoice{}, normalizeStripeError(err)
 	}
 	return invoiceFromStripe(inv), nil
 }
 
 // PayInvoice attempts to pay an open invoice immediately using the customer's default payment method.
-func (p *Provider) PayInvoice(ctx context.Context, invoiceID string) (ports.Invoice, error) {
+func (p *Provider) PayInvoice(ctx context.Context, invoiceID string) (compatbilling.Invoice, error) {
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
-		return ports.Invoice{}, errors.New("invoice id required")
+		return compatbilling.Invoice{}, errors.New("invoice id required")
 	}
 	params := &stripe.InvoicePayParams{}
 	params.Context = ctx
 	inv, err := p.client.Invoices.Pay(invoiceID, params)
 	if err != nil {
-		return ports.Invoice{}, normalizeStripeError(err)
+		return compatbilling.Invoice{}, normalizeStripeError(err)
 	}
 	return invoiceFromStripe(inv), nil
 }
 
 // RetrieveInvoice fetches an invoice by ID.
-func (p *Provider) RetrieveInvoice(ctx context.Context, invoiceID string) (ports.Invoice, error) {
+func (p *Provider) RetrieveInvoice(ctx context.Context, invoiceID string) (compatbilling.Invoice, error) {
 	invoiceID = strings.TrimSpace(invoiceID)
 	if invoiceID == "" {
-		return ports.Invoice{}, errors.New("invoice id required")
+		return compatbilling.Invoice{}, errors.New("invoice id required")
 	}
 	params := &stripe.InvoiceParams{}
 	params.Context = ctx
 	inv, err := p.client.Invoices.Get(invoiceID, params)
 	if err != nil {
-		return ports.Invoice{}, normalizeStripeError(err)
+		return compatbilling.Invoice{}, normalizeStripeError(err)
 	}
 	return invoiceFromStripe(inv), nil
 }
 
 // CreateBillingPortalSession creates a customer portal session.
-func (p *Provider) CreateBillingPortalSession(ctx context.Context, in ports.BillingPortalSessionInput) (ports.BillingPortalSession, error) {
+func (p *Provider) CreateBillingPortalSession(ctx context.Context, in compatbilling.BillingPortalSessionInput) (compatbilling.BillingPortalSession, error) {
 	customerID := strings.TrimSpace(in.CustomerID)
 	if customerID == "" {
-		return ports.BillingPortalSession{}, errors.New("customer id required")
+		return compatbilling.BillingPortalSession{}, errors.New("customer id required")
 	}
 	params := &stripe.BillingPortalSessionParams{}
 	params.Context = ctx
@@ -351,9 +352,9 @@ func (p *Provider) CreateBillingPortalSession(ctx context.Context, in ports.Bill
 	params.FlowData = billingPortalFlowDataParams(in.Flow)
 	session, err := p.client.BillingPortalSessions.New(params)
 	if err != nil {
-		return ports.BillingPortalSession{}, normalizeStripeError(err)
+		return compatbilling.BillingPortalSession{}, normalizeStripeError(err)
 	}
-	return ports.BillingPortalSession{ID: session.ID, URL: session.URL}, nil
+	return compatbilling.BillingPortalSession{ID: session.ID, URL: session.URL}, nil
 }
 
 // GetSubscriptionPrimaryItemID returns the first subscription item's id for plan-change deep links.
@@ -380,7 +381,7 @@ func (p *Provider) GetSubscriptionPrimaryItemID(ctx context.Context, subscriptio
 	return itemID, nil
 }
 
-func billingPortalFlowDataParams(flow *ports.BillingPortalFlowData) *stripe.BillingPortalSessionFlowDataParams {
+func billingPortalFlowDataParams(flow *compatbilling.BillingPortalFlowData) *stripe.BillingPortalSessionFlowDataParams {
 	if flow == nil {
 		return nil
 	}
@@ -468,15 +469,15 @@ func normalizeStripeError(err error) error {
 	return err
 }
 
-func invoiceFromStripe(inv *stripe.Invoice) ports.Invoice {
+func invoiceFromStripe(inv *stripe.Invoice) compatbilling.Invoice {
 	if inv == nil {
-		return ports.Invoice{}
+		return compatbilling.Invoice{}
 	}
 	amountDue := inv.AmountDue
 	if amountDue == 0 && inv.Total > 0 {
 		amountDue = inv.Total
 	}
-	out := ports.Invoice{
+	out := compatbilling.Invoice{
 		ID:               inv.ID,
 		Status:           string(inv.Status),
 		Currency:         strings.ToUpper(string(inv.Currency)),

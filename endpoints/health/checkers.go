@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -502,7 +503,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 // PaymentProviderChecker implements a health check for payment providers.
 type PaymentProviderChecker struct {
 	name          string
-	provider      ports.PaymentProvider
+	provider      compatbilling.PaymentProvider
 	failureStatus ports.HealthStatus
 }
 
@@ -510,7 +511,7 @@ type PaymentProviderChecker struct {
 type PaymentProviderCheckerOption func(*PaymentProviderChecker)
 
 // NewPaymentProviderChecker returns a checker for payment providers.
-func NewPaymentProviderChecker(provider ports.PaymentProvider, opts ...PaymentProviderCheckerOption) ports.HealthChecker {
+func NewPaymentProviderChecker(provider compatbilling.PaymentProvider, opts ...PaymentProviderCheckerOption) ports.HealthChecker {
 	checker := &PaymentProviderChecker{
 		name:          "payments",
 		provider:      provider,

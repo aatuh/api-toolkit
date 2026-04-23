@@ -8,6 +8,8 @@ import (
 
 // CheckoutSessionRequest describes a hosted checkout request.
 //
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.CheckoutSessionRequest.
+//
 // This billing surface is compatibility-sensitive in v2 and currently models a
 // Stripe-like hosted checkout flow rather than a provider-neutral abstraction.
 type CheckoutSessionRequest struct {
@@ -26,12 +28,16 @@ type CheckoutSessionRequest struct {
 }
 
 // CheckoutSession represents a provider-created hosted checkout session.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.CheckoutSession.
 type CheckoutSession struct {
 	ID  string
 	URL string
 }
 
 // WebhookEvent is a generic payment provider webhook payload wrapper.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.WebhookEvent.
 type WebhookEvent struct {
 	ID        string
 	Type      string
@@ -40,6 +46,8 @@ type WebhookEvent struct {
 }
 
 // Price represents a payment provider price.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.Price.
 type Price struct {
 	ID         string
 	ProductID  string
@@ -52,6 +60,8 @@ type Price struct {
 
 // PaymentProvider defines a hosted checkout + webhook contract.
 //
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.PaymentProvider.
+//
 // This is a compatibility-sensitive v2 surface. It intentionally reflects the
 // current hosted-checkout provider model and should not be presented as a
 // universal billing abstraction.
@@ -62,6 +72,8 @@ type PaymentProvider interface {
 }
 
 // CustomerInput describes a new billing customer.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.CustomerInput.
 type CustomerInput struct {
 	Name     string
 	Email    string
@@ -71,6 +83,8 @@ type CustomerInput struct {
 }
 
 // CustomerAddress describes a customer's billing address.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.CustomerAddress.
 type CustomerAddress struct {
 	Line1      string
 	Line2      string
@@ -81,11 +95,15 @@ type CustomerAddress struct {
 }
 
 // Customer represents a billing customer.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.Customer.
 type Customer struct {
 	ID string
 }
 
 // SetupIntentInput describes a payment method setup intent request.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.SetupIntentInput.
 type SetupIntentInput struct {
 	CustomerID string
 	Usage      string
@@ -93,6 +111,8 @@ type SetupIntentInput struct {
 }
 
 // SetupIntent represents a setup intent response.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.SetupIntent.
 type SetupIntent struct {
 	ID              string
 	ClientSecret    string
@@ -101,6 +121,8 @@ type SetupIntent struct {
 }
 
 // PaymentMethod describes a stored payment method.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.PaymentMethod.
 type PaymentMethod struct {
 	ID       string
 	Brand    string
@@ -110,6 +132,8 @@ type PaymentMethod struct {
 }
 
 // InvoiceItemInput describes a pending invoice item.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.InvoiceItemInput.
 type InvoiceItemInput struct {
 	CustomerID     string
 	Amount         int64
@@ -121,17 +145,23 @@ type InvoiceItemInput struct {
 }
 
 // InvoiceItem represents a created invoice item.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.InvoiceItem.
 type InvoiceItem struct {
 	ID        string
 	InvoiceID string
 }
 
 // InvoiceItemUpdate describes a patch for an invoice item.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.InvoiceItemUpdate.
 type InvoiceItemUpdate struct {
 	TaxBehavior string
 }
 
 // InvoiceInput describes a draft invoice creation request.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.InvoiceInput.
 type InvoiceInput struct {
 	CustomerID                  string
 	AutoAdvance                 bool
@@ -144,6 +174,8 @@ type InvoiceInput struct {
 }
 
 // Invoice represents a billing invoice.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.Invoice.
 type Invoice struct {
 	ID               string
 	Status           string
@@ -158,28 +190,40 @@ type Invoice struct {
 }
 
 // BillingPortalFlowType describes customer portal deep-link flow types.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowType.
 type BillingPortalFlowType string
 
 const (
 	// BillingPortalFlowTypeSubscriptionUpdateConfirm opens a confirmation flow for a specific plan update.
+	//
+	// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowTypeSubscriptionUpdateConfirm.
 	BillingPortalFlowTypeSubscriptionUpdateConfirm BillingPortalFlowType = "subscription_update_confirm"
 )
 
 // BillingPortalFlowAfterCompletionType describes behavior once a deep-link flow completes.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowAfterCompletionType.
 type BillingPortalFlowAfterCompletionType string
 
 const (
 	// BillingPortalFlowAfterCompletionTypeRedirect redirects customer to provided URL after completion.
+	//
+	// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowAfterCompletionTypeRedirect.
 	BillingPortalFlowAfterCompletionTypeRedirect BillingPortalFlowAfterCompletionType = "redirect"
 )
 
 // BillingPortalFlowAfterCompletion configures the post-flow behavior.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowAfterCompletion.
 type BillingPortalFlowAfterCompletion struct {
 	Type              BillingPortalFlowAfterCompletionType
 	RedirectReturnURL string
 }
 
 // BillingPortalFlowSubscriptionUpdateConfirmItem describes one item update inside confirm flow.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowSubscriptionUpdateConfirmItem.
 type BillingPortalFlowSubscriptionUpdateConfirmItem struct {
 	SubscriptionItemID string
 	PriceID            string
@@ -187,12 +231,16 @@ type BillingPortalFlowSubscriptionUpdateConfirmItem struct {
 }
 
 // BillingPortalFlowSubscriptionUpdateConfirm configures a targeted subscription update confirmation.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowSubscriptionUpdateConfirm.
 type BillingPortalFlowSubscriptionUpdateConfirm struct {
 	SubscriptionID string
 	Items          []BillingPortalFlowSubscriptionUpdateConfirmItem
 }
 
 // BillingPortalFlowData configures a deep-link flow in billing portal session creation.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalFlowData.
 type BillingPortalFlowData struct {
 	Type                      BillingPortalFlowType
 	AfterCompletion           *BillingPortalFlowAfterCompletion
@@ -200,6 +248,8 @@ type BillingPortalFlowData struct {
 }
 
 // BillingPortalSessionInput describes a customer portal session request.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalSessionInput.
 type BillingPortalSessionInput struct {
 	CustomerID string
 	ReturnURL  string
@@ -208,12 +258,16 @@ type BillingPortalSessionInput struct {
 }
 
 // BillingPortalSession represents a customer portal session.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingPortalSession.
 type BillingPortalSession struct {
 	ID  string
 	URL string
 }
 
 // BillingProvider defines billing-related operations for hosted invoicing.
+//
+// Deprecated: use github.com/aatuh/api-toolkit/v2/compat/billing.BillingProvider.
 //
 // This is a compatibility-sensitive v2 surface. It is currently shaped around
 // provider-specific customer, invoicing, and billing-portal workflows and is a

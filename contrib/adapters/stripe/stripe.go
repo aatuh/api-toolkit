@@ -13,11 +13,11 @@ import (
 	"github.com/stripe/stripe-go/v79/client"
 	"github.com/stripe/stripe-go/v79/webhook"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
-	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
-// Provider implements ports.PaymentProvider using Stripe Checkout + webhooks.
+// Provider implements compatbilling.PaymentProvider using Stripe Checkout + webhooks.
 type Provider struct {
 	client        *client.API
 	webhookSecret string
@@ -54,9 +54,9 @@ func New(secretKey, webhookSecret string, opts ...Option) *Provider {
 }
 
 // CreateCheckoutSession creates a hosted checkout session for a single line item.
-func (p *Provider) CreateCheckoutSession(ctx context.Context, req ports.CheckoutSessionRequest) (ports.CheckoutSession, error) {
+func (p *Provider) CreateCheckoutSession(ctx context.Context, req compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
 	if req.PriceID == "" && (req.Amount <= 0 || req.Currency == "") {
-		return ports.CheckoutSession{}, errors.New("price id or amount+currency required")
+		return compatbilling.CheckoutSession{}, errors.New("price id or amount+currency required")
 	}
 
 	params := &stripe.CheckoutSessionParams{
@@ -112,24 +112,24 @@ func (p *Provider) CreateCheckoutSession(ctx context.Context, req ports.Checkout
 
 	session, err := p.client.CheckoutSessions.New(params)
 	if err != nil {
-		return ports.CheckoutSession{}, normalizeStripeError(err)
+		return compatbilling.CheckoutSession{}, normalizeStripeError(err)
 	}
-	return ports.CheckoutSession{ID: session.ID, URL: session.URL}, nil
+	return compatbilling.CheckoutSession{ID: session.ID, URL: session.URL}, nil
 }
 
 // ParseWebhook verifies and parses the Stripe webhook payload.
-func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader string) (ports.WebhookEvent, error) {
+func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader string) (compatbilling.WebhookEvent, error) {
 	secret := strings.TrimSpace(p.webhookSecret)
 	allowInsecure := p.allowInsecureWebhook(ctx)
 	if secret == "" {
 		if !allowInsecure {
-			return ports.WebhookEvent{}, errors.New("stripe webhook verification required")
+			return compatbilling.WebhookEvent{}, errors.New("stripe webhook verification required")
 		}
 		var event stripe.Event
 		if err := json.Unmarshal(payload, &event); err != nil {
-			return ports.WebhookEvent{}, err
+			return compatbilling.WebhookEvent{}, err
 		}
-		return ports.WebhookEvent{
+		return compatbilling.WebhookEvent{
 			ID:        event.ID,
 			Type:      string(event.Type),
 			CreatedAt: time.Unix(event.Created, 0),
@@ -139,9 +139,9 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader s
 	if p.skipVerify && allowInsecure {
 		var event stripe.Event
 		if err := json.Unmarshal(payload, &event); err != nil {
-			return ports.WebhookEvent{}, err
+			return compatbilling.WebhookEvent{}, err
 		}
-		return ports.WebhookEvent{
+		return compatbilling.WebhookEvent{
 			ID:        event.ID,
 			Type:      string(event.Type),
 			CreatedAt: time.Unix(event.Created, 0),
@@ -150,9 +150,9 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, sigHeader s
 	}
 	event, err := webhook.ConstructEvent(payload, sigHeader, secret)
 	if err != nil {
-		return ports.WebhookEvent{}, err
+		return compatbilling.WebhookEvent{}, err
 	}
-	return ports.WebhookEvent{
+	return compatbilling.WebhookEvent{
 		ID:        event.ID,
 		Type:      string(event.Type),
 		CreatedAt: time.Unix(event.Created, 0),
@@ -213,19 +213,19 @@ func isSafeWebhookIP(ip netip.Addr) bool {
 }
 
 // ListPrices fetches active prices from Stripe.
-func (p *Provider) ListPrices(ctx context.Context) ([]ports.Price, error) {
+func (p *Provider) ListPrices(ctx context.Context) ([]compatbilling.Price, error) {
 	params := &stripe.PriceListParams{}
 	params.Context = ctx
 	params.Filters.AddFilter("active", "", "true")
 
 	iter := p.client.Prices.List(params)
-	var out []ports.Price
+	var out []compatbilling.Price
 	for iter.Next() {
 		price := iter.Price()
 		if price == nil {
 			continue
 		}
-		out = append(out, ports.Price{
+		out = append(out, compatbilling.Price{
 			ID:         price.ID,
 			ProductID:  price.Product.ID,
 			Currency:   strings.ToLower(string(price.Currency)),

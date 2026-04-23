@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -467,20 +468,20 @@ func (s *stubDatabasePool) StatSnapshot() ports.DatabasePoolSnapshot {
 	return *s.snapshot
 }
 
-func (*stubPaymentProvider) CreateCheckoutSession(context.Context, ports.CheckoutSessionRequest) (ports.CheckoutSession, error) {
-	return ports.CheckoutSession{}, errors.New("not implemented")
+func (*stubPaymentProvider) CreateCheckoutSession(context.Context, compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
+	return compatbilling.CheckoutSession{}, errors.New("not implemented")
 }
 
-func (*stubPaymentProvider) ParseWebhook(context.Context, []byte, string) (ports.WebhookEvent, error) {
-	return ports.WebhookEvent{}, errors.New("not implemented")
+func (*stubPaymentProvider) ParseWebhook(context.Context, []byte, string) (compatbilling.WebhookEvent, error) {
+	return compatbilling.WebhookEvent{}, errors.New("not implemented")
 }
 
-func (s *stubPaymentProvider) ListPrices(ctx context.Context) ([]ports.Price, error) {
+func (s *stubPaymentProvider) ListPrices(ctx context.Context) ([]compatbilling.Price, error) {
 	if ctx == nil {
 		return nil, errors.New("context is nil")
 	}
 	s.calls.Add(1)
-	return []ports.Price{{ID: "price_1"}}, nil
+	return []compatbilling.Price{{ID: "price_1"}}, nil
 }
 
 func assertNoPanic(t *testing.T, name string, fn func()) {

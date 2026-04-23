@@ -7,6 +7,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe"
 	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -42,7 +43,7 @@ func LoadConfig(loader *config.Loader) Config {
 }
 
 // HealthChecker reports readiness of the Stripe provider.
-func HealthChecker(provider ports.PaymentProvider) ports.HealthChecker {
+func HealthChecker(provider compatbilling.PaymentProvider) ports.HealthChecker {
 	return stripe.HealthChecker(provider)
 }
 

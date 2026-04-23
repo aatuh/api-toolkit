@@ -12,6 +12,7 @@ do not over-claim genericity.
 All exported identifiers in these packages are considered stable:
 
 - `github.com/aatuh/api-toolkit/v2/authorization`
+- `github.com/aatuh/api-toolkit/v2/compat/billing`
 - `github.com/aatuh/api-toolkit/v2/email`
 - `github.com/aatuh/api-toolkit/v2/endpoints/docs`
 - `github.com/aatuh/api-toolkit/v2/endpoints/health`
@@ -48,6 +49,8 @@ recommended model for new generic boundary design:
 
 - `github.com/aatuh/api-toolkit/v2/ports` billing contracts in
   `ports/billing.go` are stable in v2 but intentionally Stripe-shaped today.
+  They are deprecated in favor of `github.com/aatuh/api-toolkit/v2/compat/billing`,
+  which is the explicit v2 compatibility import path for that model.
 - `github.com/aatuh/api-toolkit/v2/ports` database stats contracts in
   `ports/database.go` are stable in v2 but intentionally mirror pgxpool-style
   counters today.
@@ -59,6 +62,9 @@ Compatibility-sensitive means:
   requires otherwise.
 - New design work should prefer narrower, plain-value, or app-owned contracts
   instead of widening these surfaces further.
+- For the existing hosted-checkout and invoicing model, new v2 code should
+  import `github.com/aatuh/api-toolkit/v2/compat/billing` instead of importing
+  billing contracts from `ports`.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
 
