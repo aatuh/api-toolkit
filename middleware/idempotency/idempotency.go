@@ -47,13 +47,18 @@ type Options struct {
 
 // Middleware enforces Idempotency-Key semantics.
 type Middleware struct {
-	opts Options
+	opts     Options
+	releaser ports.IdempotencyReleaser
 }
 
 // New constructs an idempotency middleware.
 func New(opts Options) (*Middleware, error) {
 	if opts.Store == nil {
 		return nil, errors.New("idempotency store is required")
+	}
+	releaser, ok := opts.Store.(ports.IdempotencyReleaser)
+	if !ok {
+		return nil, errors.New("idempotency store must implement release semantics")
 	}
 	if opts.TTL < 0 {
 		return nil, errors.New("ttl must be non-negative")
@@ -106,7 +111,10 @@ func New(opts Options) (*Middleware, error) {
 	if opts.Clock == nil {
 		opts.Clock = ports.SystemClock{}
 	}
-	return &Middleware{opts: opts}, nil
+	return &Middleware{
+		opts:     opts,
+		releaser: releaser,
+	}, nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
@@ -323,28 +331,11 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 }
 
 func (m *Middleware) releaseReservation(ctx context.Context, key, hash string) error {
-	if key == "" || m == nil || m.opts.Store == nil {
+	_ = hash
+	if key == "" || m == nil || m.releaser == nil {
 		return nil
 	}
-
-	var errs []error
-	if releaser, ok := m.opts.Store.(ports.IdempotencyReleaser); ok {
-		if err := releaser.Release(ctx, key); err == nil {
-			return nil
-		} else {
-			errs = append(errs, err)
-		}
-	}
-
-	record := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateUnknown,
-		RequestHash: hash,
-		CreatedAt:   m.opts.Clock.Now(),
-	}
-	if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil {
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
+	return m.releaser.Release(ctx, key)
 }
 
 func (m *Middleware) markAmbiguous(ctx context.Context, key, hash string) error {

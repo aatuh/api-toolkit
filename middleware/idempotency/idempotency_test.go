@@ -331,6 +331,12 @@ func TestNewRequiresStore(t *testing.T) {
 	}
 }
 
+func TestNewRejectsStoreWithoutReleaseSemantics(t *testing.T) {
+	if _, err := New(Options{Store: &storeWithoutRelease{store: newMemoryStore()}}); err == nil {
+		t.Fatal("expected error for store without release semantics")
+	}
+}
+
 func TestNewRejectsNegativeMaxResponseBytes(t *testing.T) {
 	if _, err := New(Options{
 		Store:            newMemoryStore(),
@@ -705,6 +711,10 @@ type contextSensitiveStore struct {
 
 type reservationCollisionStore struct{}
 
+type storeWithoutRelease struct {
+	store *memoryStore
+}
+
 type memoryEntry struct {
 	record    ports.IdempotencyRecord
 	expiresAt time.Time
@@ -840,6 +850,33 @@ func (s *reservationCollisionStore) Save(ctx context.Context, key string, record
 	_ = record
 	_ = ttl
 	return nil
+}
+
+func (s *reservationCollisionStore) Release(ctx context.Context, key string) error {
+	_ = ctx
+	_ = key
+	return nil
+}
+
+func (s *storeWithoutRelease) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+	if s == nil || s.store == nil {
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	return s.store.Get(ctx, key)
+}
+
+func (s *storeWithoutRelease) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+	if s == nil || s.store == nil {
+		return false, nil
+	}
+	return s.store.TryBegin(ctx, key, record, ttl)
+}
+
+func (s *storeWithoutRelease) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	return s.store.Save(ctx, key, record, ttl)
 }
 
 func (m *memoryStore) isExpired(entry memoryEntry) bool {

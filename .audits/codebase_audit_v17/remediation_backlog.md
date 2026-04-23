@@ -30,7 +30,7 @@ Notes:
 - mirror the cleanup pattern already used in `contrib/adapters/txpostgres` and `scheduler`
 - cover panic, 5xx, oversized response, and store-save failure paths
 
-### Ticket E1-T2 - Make store release semantics explicit and safe [ ]
+### Ticket E1-T2 - Make store release semantics explicit and safe [x]
 
 Description: Remove the hidden dependency on optional `Release` behavior by either promoting release into `ports.IdempotencyStore` or redesigning the middleware state machine so stores without delete semantics remain correct and retryable.
 
