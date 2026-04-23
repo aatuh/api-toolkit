@@ -172,7 +172,7 @@ Notes:
 - prefer value snapshots in health and observability call sites
 - document the intended end-state clearly so adapter authors know which surface is legacy
 
-## Epic E4 - Remove duplication and API inconsistencies [ ]
+## Epic E4 - Remove duplication and API inconsistencies [x]
 
 Description: Reduce future drift in security-sensitive packages and normalize edge-case behavior across public middleware adapters.
 
