@@ -48,6 +48,7 @@ fi
 
 packages=(
   "github.com/aatuh/api-toolkit/v2/authorization"
+  "github.com/aatuh/api-toolkit/v2/compat/billing"
   "github.com/aatuh/api-toolkit/v2/email"
   "github.com/aatuh/api-toolkit/v2/endpoints/docs"
   "github.com/aatuh/api-toolkit/v2/endpoints/health"

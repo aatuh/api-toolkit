@@ -49,7 +49,7 @@ defaults, and predictable wiring.
   - Health: Manager, Checkers, Results, Summaries
   - Docs: Manager, Info, Version, OpenAPI
   - Validator
-  - Billing compatibility surface: hosted checkout, webhook, invoicing, and billing portal contracts that are currently Stripe-shaped
+  - Billing compatibility surface: hosted checkout, webhook, invoicing, and billing portal contracts that are currently Stripe-shaped; new code should import `github.com/aatuh/api-toolkit/v2/compat/billing`
   - MetricsRecorder (pluggable, with No-op default)
 
 - HTTP middleware
@@ -126,6 +126,7 @@ Common env vars:
 ## Package map
 
 Core (`github.com/aatuh/api-toolkit/v2`):
+- `compat/billing` — explicit v2 compatibility package for the Stripe-shaped billing surface
 - `ports` — core interfaces for all boundaries, plus compatibility-sensitive v2 billing and database-stats surfaces
 - `middleware/*` — json, timeout, maxbody, querylimits, ratelimit, idempotency, secure, trace, auth/authz, auth/jwt
 - `httpx`, `httpx/identity`, `httpx/recover` — JSON + error helpers and panic recovery
@@ -149,7 +150,8 @@ Recommended: import adapters directly when you need the narrowest dependency sur
 ## Stability
 
 - Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`, `securityprofile`, `specs`, `swagstub`, `response_writer`
-- Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces. See `docs/ports-surface.md`.
+- Stable migration target: `github.com/aatuh/api-toolkit/v2/compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
+- Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped and deprecated in favor of `compat/billing`, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces. See `docs/ports-surface.md`.
 - Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
 - Legacy but compatibility-sensitive: `response_writer` remains part of the stable core surface, but new code should prefer `httpx`
 

@@ -134,7 +134,7 @@ Notes:
 
 Description: Move the stable core closer to a genuinely adapter-neutral boundary so future evolution does not require downstream application code to speak provider or driver dialects.
 
-### Ticket E3-T1 - Define and implement the billing-port extraction path [ ]
+### Ticket E3-T1 - Define and implement the billing-port extraction path [x]
 
 Description: Move Stripe-shaped billing contracts out of the stable core surface or formally deprecate them behind a compatibility package with a documented migration path.
 

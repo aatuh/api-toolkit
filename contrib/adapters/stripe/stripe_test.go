@@ -13,6 +13,7 @@ import (
 	"github.com/stripe/stripe-go/v79/form"
 	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -125,7 +126,7 @@ func TestBillingValidationGuards(t *testing.T) {
 		{
 			name: "checkout session requires price or amount currency",
 			run: func() error {
-				_, err := p.CreateCheckoutSession(context.Background(), ports.CheckoutSessionRequest{})
+				_, err := p.CreateCheckoutSession(context.Background(), compatbilling.CheckoutSessionRequest{})
 				return err
 			},
 			want: "price id or amount+currency required",
@@ -148,7 +149,7 @@ func TestBillingValidationGuards(t *testing.T) {
 		{
 			name: "invoice requires customer id",
 			run: func() error {
-				_, err := p.CreateInvoice(context.Background(), ports.InvoiceInput{})
+				_, err := p.CreateInvoice(context.Background(), compatbilling.InvoiceInput{})
 				return err
 			},
 			want: "customer id required",
@@ -156,7 +157,7 @@ func TestBillingValidationGuards(t *testing.T) {
 		{
 			name: "billing portal session requires customer id",
 			run: func() error {
-				_, err := p.CreateBillingPortalSession(context.Background(), ports.BillingPortalSessionInput{})
+				_, err := p.CreateBillingPortalSession(context.Background(), compatbilling.BillingPortalSessionInput{})
 				return err
 			},
 			want: "customer id required",
@@ -193,7 +194,7 @@ func TestProviderNormalizesStripeResourceMissingErrors(t *testing.T) {
 		{
 			name: "create checkout session",
 			run: func() error {
-				_, err := p.CreateCheckoutSession(context.Background(), ports.CheckoutSessionRequest{
+				_, err := p.CreateCheckoutSession(context.Background(), compatbilling.CheckoutSessionRequest{
 					PriceID:    "price_123",
 					SuccessURL: "https://example.com/success",
 					CancelURL:  "https://example.com/cancel",
@@ -257,15 +258,15 @@ func TestNormalizeStripeErrorLeavesNonMissingErrorsUntouched(t *testing.T) {
 func TestBillingPortalFlowDataParams(t *testing.T) {
 	t.Parallel()
 
-	flow := &ports.BillingPortalFlowData{
-		Type: ports.BillingPortalFlowTypeSubscriptionUpdateConfirm,
-		AfterCompletion: &ports.BillingPortalFlowAfterCompletion{
-			Type:              ports.BillingPortalFlowAfterCompletionTypeRedirect,
+	flow := &compatbilling.BillingPortalFlowData{
+		Type: compatbilling.BillingPortalFlowTypeSubscriptionUpdateConfirm,
+		AfterCompletion: &compatbilling.BillingPortalFlowAfterCompletion{
+			Type:              compatbilling.BillingPortalFlowAfterCompletionTypeRedirect,
 			RedirectReturnURL: "https://example.com/account",
 		},
-		SubscriptionUpdateConfirm: &ports.BillingPortalFlowSubscriptionUpdateConfirm{
+		SubscriptionUpdateConfirm: &compatbilling.BillingPortalFlowSubscriptionUpdateConfirm{
 			SubscriptionID: "sub_123",
-			Items: []ports.BillingPortalFlowSubscriptionUpdateConfirmItem{
+			Items: []compatbilling.BillingPortalFlowSubscriptionUpdateConfirmItem{
 				{
 					SubscriptionItemID: "si_123",
 					PriceID:            "price_123",
@@ -280,10 +281,10 @@ func TestBillingPortalFlowDataParams(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected flow params")
 	}
-	if got.Type == nil || *got.Type != string(ports.BillingPortalFlowTypeSubscriptionUpdateConfirm) {
+	if got.Type == nil || *got.Type != string(compatbilling.BillingPortalFlowTypeSubscriptionUpdateConfirm) {
 		t.Fatalf("flow type = %v", got.Type)
 	}
-	if got.AfterCompletion == nil || got.AfterCompletion.Type == nil || *got.AfterCompletion.Type != string(ports.BillingPortalFlowAfterCompletionTypeRedirect) {
+	if got.AfterCompletion == nil || got.AfterCompletion.Type == nil || *got.AfterCompletion.Type != string(compatbilling.BillingPortalFlowAfterCompletionTypeRedirect) {
 		t.Fatalf("after completion type = %+v", got.AfterCompletion)
 	}
 	if got.AfterCompletion.Redirect == nil || got.AfterCompletion.Redirect.ReturnURL == nil || *got.AfterCompletion.Redirect.ReturnURL != "https://example.com/account" {
@@ -311,7 +312,7 @@ func TestBillingPortalFlowDataParams(t *testing.T) {
 func TestBillingPortalFlowDataParamsReturnsNilForEmptyFlow(t *testing.T) {
 	t.Parallel()
 
-	if got := billingPortalFlowDataParams(&ports.BillingPortalFlowData{}); got != nil {
+	if got := billingPortalFlowDataParams(&compatbilling.BillingPortalFlowData{}); got != nil {
 		t.Fatalf("expected nil flow params, got %+v", got)
 	}
 }
@@ -367,7 +368,7 @@ func TestInvoiceFromStripe(t *testing.T) {
 	}
 }
 
-func assertWebhookEvent(t *testing.T, got ports.WebhookEvent) {
+func assertWebhookEvent(t *testing.T, got compatbilling.WebhookEvent) {
 	t.Helper()
 
 	if got.ID != "evt_123" {

@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2026-04-23
+
+- Billing contracts in `ports/billing.go` are now formally deprecated for new code. The same Stripe-shaped v2 model is available through the new compatibility package `github.com/aatuh/api-toolkit/v2/compat/billing`.
+
+### Upgrade notes
+
+- Existing code that imports billing contracts from `ports` keeps working for the rest of v2, but new code should migrate to `github.com/aatuh/api-toolkit/v2/compat/billing` so the provider-shaped dependency is explicit before v3 extraction.
+
 ## 2026-04-19
 
 - `contrib/middleware/auth/devheaders` now requires explicit dangerous-bypass opt-in and trusted-proxy configuration before it will honor debug auth headers.

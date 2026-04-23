@@ -12,9 +12,9 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/validation"
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
-	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 type checkoutRequest struct {
@@ -25,18 +25,18 @@ type checkoutRequest struct {
 type fakeProvider struct{}
 
 //nolint:unparam
-func (fakeProvider) CreateCheckoutSession(_ context.Context, _ ports.CheckoutSessionRequest) (ports.CheckoutSession, error) {
-	return ports.CheckoutSession{
+func (fakeProvider) CreateCheckoutSession(_ context.Context, _ compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
+	return compatbilling.CheckoutSession{
 		ID:  "cs_test_123",
 		URL: "https://checkout.example.test/session/cs_test_123",
 	}, nil
 }
 
-func (fakeProvider) ParseWebhook(_ context.Context, _ []byte, _ string) (ports.WebhookEvent, error) {
-	return ports.WebhookEvent{}, nil
+func (fakeProvider) ParseWebhook(_ context.Context, _ []byte, _ string) (compatbilling.WebhookEvent, error) {
+	return compatbilling.WebhookEvent{}, nil
 }
 
-func (fakeProvider) ListPrices(_ context.Context) ([]ports.Price, error) {
+func (fakeProvider) ListPrices(_ context.Context) ([]compatbilling.Price, error) {
 	return nil, nil
 }
 
@@ -70,7 +70,7 @@ func main() {
 			httpx.WriteError(w, err)
 			return
 		}
-		session, err := provider.CreateCheckoutSession(r.Context(), ports.CheckoutSessionRequest{
+		session, err := provider.CreateCheckoutSession(r.Context(), compatbilling.CheckoutSessionRequest{
 			Amount:   req.Amount,
 			Currency: req.Currency,
 		})

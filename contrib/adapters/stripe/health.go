@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 // HealthChecker returns a Stripe payment provider checker or nil when provider is nil.
-func HealthChecker(provider ports.PaymentProvider) ports.HealthChecker {
+func HealthChecker(provider compatbilling.PaymentProvider) ports.HealthChecker {
 	if provider == nil {
 		return nil
 	}
