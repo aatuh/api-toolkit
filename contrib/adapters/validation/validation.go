@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 
@@ -116,44 +117,53 @@ func (p *playgroundValidator) Validate(ctx context.Context, value interface{}) e
 	if value == nil {
 		return ValidationError{Message: "value is required"}
 	}
-	if isStruct(value) {
-		return convertError(p.validator.StructCtx(ctx, value))
+	if !isStruct(value) {
+		return ValidationError{Message: "value must be a struct or pointer to struct"}
 	}
-	// Non-struct validations are not supported via generic Validate; consider using ValidateField.
-	return nil
+	return convertError(p.validator.StructCtx(normalizeContext(ctx), value))
 }
 
 func (p *playgroundValidator) ValidateStruct(ctx context.Context, obj interface{}) error {
 	if obj == nil {
 		return ValidationError{Message: "object is required"}
 	}
-	return convertError(p.validator.StructCtx(ctx, obj))
+	if !isStruct(obj) {
+		return ValidationError{Message: "object must be a struct or pointer to struct"}
+	}
+	return convertError(p.validator.StructCtx(normalizeContext(ctx), obj))
 }
 
 func (p *playgroundValidator) ValidateField(ctx context.Context, obj interface{}, field string) error {
 	if obj == nil {
 		return ValidationError{Message: "object is required"}
 	}
-	if strings.TrimSpace(field) == "" {
+	field = strings.TrimSpace(field)
+	if field == "" {
 		return ValidationError{Message: "field name is required"}
 	}
-	return convertError(p.validator.StructPartialCtx(ctx, obj, field))
+	structType, ok := structTypeOf(obj)
+	if !ok {
+		return ValidationError{Message: "object must be a struct or pointer to struct"}
+	}
+	resolvedField, err := resolveFieldPath(structType, field)
+	if err != nil {
+		return err
+	}
+	return convertError(p.validator.StructPartialCtx(normalizeContext(ctx), obj, resolvedField))
 }
 
 func isStruct(v interface{}) bool {
-	rv := reflect.ValueOf(v)
-	if !rv.IsValid() {
-		return false
-	}
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
-	}
-	return rv.IsValid() && rv.Kind() == reflect.Struct
+	_, ok := structTypeOf(v)
+	return ok
 }
 
 func convertError(err error) error {
 	if err == nil {
 		return nil
+	}
+	var invalid *validator.InvalidValidationError
+	if errors.As(err, &invalid) {
+		return ValidationError{Message: invalidValidationMessage(invalid)}
 	}
 	var ve validator.ValidationErrors
 	if errors.As(err, &ve) {
@@ -172,6 +182,107 @@ func convertError(err error) error {
 		return errs
 	}
 	return err
+}
+
+var validatorTimeType = reflect.TypeOf(time.Time{})
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+func structTypeOf(v interface{}) (reflect.Type, bool) {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return nil, false
+	}
+	for rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return nil, false
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct || rv.Type().ConvertibleTo(validatorTimeType) {
+		return nil, false
+	}
+	return rv.Type(), true
+}
+
+func resolveFieldPath(rootType reflect.Type, fieldPath string) (string, error) {
+	parts := strings.Split(fieldPath, ".")
+	resolved := make([]string, 0, len(parts))
+	currentType := rootType
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return "", ValidationError{
+				Field:   strings.TrimSpace(fieldPath),
+				Message: "field path is invalid",
+			}
+		}
+
+		field, ok := resolveField(currentType, part)
+		if !ok {
+			return "", ValidationError{
+				Field:   strings.TrimSpace(fieldPath),
+				Message: "field is not valid for validation",
+			}
+		}
+
+		resolved = append(resolved, field.Name)
+		currentType = indirectType(field.Type)
+	}
+
+	return strings.Join(resolved, "."), nil
+}
+
+func resolveField(structType reflect.Type, name string) (reflect.StructField, bool) {
+	structType = indirectType(structType)
+	if structType.Kind() != reflect.Struct {
+		return reflect.StructField{}, false
+	}
+	if field, ok := structType.FieldByName(name); ok && field.PkgPath == "" {
+		return field, true
+	}
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		if jsonName := jsonFieldName(field); jsonName == name {
+			return field, true
+		}
+	}
+	return reflect.StructField{}, false
+}
+
+func indirectType(t reflect.Type) reflect.Type {
+	for t != nil && t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
+}
+
+func jsonFieldName(field reflect.StructField) string {
+	tag := strings.TrimSpace(field.Tag.Get("json"))
+	if tag == "" {
+		return ""
+	}
+	name := strings.Split(tag, ",")[0]
+	if name == "" || name == "-" {
+		return ""
+	}
+	return name
+}
+
+func invalidValidationMessage(err *validator.InvalidValidationError) string {
+	if err == nil || err.Type == nil {
+		return "invalid validation target"
+	}
+	return fmt.Sprintf("invalid validation target: %s", err.Type.String())
 }
 
 func buildMessage(fe validator.FieldError) string {
