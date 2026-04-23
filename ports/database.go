@@ -65,8 +65,9 @@ type DatabaseResult interface {
 // DatabaseStats defines database pool statistics.
 //
 // This interface mirrors pgxpool-style counters and remains in v2 as a
-// compatibility-sensitive surface. Prefer DatabasePoolSnapshotProvider or
-// SnapshotDatabasePoolStats in new generic call sites.
+// compatibility-sensitive surface. New generic call sites should treat it as
+// an adapter-compatibility shape and prefer DatabasePoolSnapshotProvider or
+// SnapshotDatabasePoolStats instead.
 type DatabaseStats interface {
 	AcquireCount() int64
 	AcquireDuration() time.Duration

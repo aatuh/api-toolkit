@@ -23,8 +23,12 @@ type Result = pgxpool.Result
 // Transaction aliases the pgxpool transaction wrapper type.
 type Transaction = pgxpool.Transaction
 
-// Stats aliases the pgxpool stats wrapper type.
+// Stats aliases the legacy pgxpool stats wrapper type.
+// New code should prefer Adapter.StatSnapshot and ports.DatabasePoolSnapshot.
 type Stats = pgxpool.Stats
+
+// Snapshot aliases the preferred plain-value pool stats type for new code.
+type Snapshot = ports.DatabasePoolSnapshot
 
 // New constructs a pgx-backed database pool adapter.
 func New(dsn string) (ports.DatabasePool, error) {

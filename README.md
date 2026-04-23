@@ -44,8 +44,8 @@ defaults, and predictable wiring.
   - Logger, Clock, IDGen
   - HTTPRouter, HTTPMiddleware, HTTPClient, RateLimiter
   - CORS handler, Security headers
-  - Database: Pool, Tx, Rows, Row, Result, plain-value stats snapshots
-  - Database stats compatibility surface: `DatabasePool.Stat` and `DatabaseStats` remain stable in v2 but mirror pgx-style counters
+  - Database: Pool, Tx, Rows, Row, Result, plain-value stats snapshots via `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods
+  - Database stats compatibility surface: `DatabasePool.Stat` and `DatabaseStats` remain stable in v2 but mirror pgx-style counters and should stay inside compatibility adapters
   - Health: Manager, Checkers, Results, Summaries
   - Docs: Manager, Info, Version, OpenAPI
   - Validator
@@ -151,7 +151,7 @@ Recommended: import adapters directly when you need the narrowest dependency sur
 
 - Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`, `securityprofile`, `specs`, `swagstub`, `response_writer`
 - Stable migration target: `github.com/aatuh/api-toolkit/v2/compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
-- Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped and deprecated in favor of `compat/billing`, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces. See `docs/ports-surface.md`.
+- Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped and deprecated in favor of `compat/billing`, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces, and new observability code should stay on snapshot APIs. See `docs/ports-surface.md`.
 - Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
 - Legacy but compatibility-sensitive: `response_writer` remains part of the stable core surface, but new code should prefer `httpx`
 

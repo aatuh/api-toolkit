@@ -153,7 +153,7 @@ Notes:
 - update `README.md`, `docs/architecture.md`, `docs/ports-surface.md`, and release notes together
 - keep compatibility guarantees explicit if the extraction spans more than one release
 
-### Ticket E3-T2 - Isolate legacy database stats compatibility from new call sites [ ]
+### Ticket E3-T2 - Isolate legacy database stats compatibility from new call sites [x]
 
 Description: Finish the migration toward plain-value pool stats by keeping new code on snapshot APIs and containing legacy `DatabaseStats` usage to compatibility adapters.
 

@@ -3,10 +3,12 @@
 ## 2026-04-23
 
 - Billing contracts in `ports/billing.go` are now formally deprecated for new code. The same Stripe-shaped v2 model is available through the new compatibility package `github.com/aatuh/api-toolkit/v2/compat/billing`.
+- `contrib/adapters/pgxpool.Adapter.StatSnapshot()` now copies plain-value pool stats directly from pgxpool instead of routing through the legacy `DatabaseStats` wrapper path.
 
 ### Upgrade notes
 
 - Existing code that imports billing contracts from `ports` keeps working for the rest of v2, but new code should migrate to `github.com/aatuh/api-toolkit/v2/compat/billing` so the provider-shaped dependency is explicit before v3 extraction.
+- If your health or observability code still reads `DatabasePool.Stat()` or depends on `DatabaseStats`, move it to `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods. The legacy counter interface remains for compatibility adapters, not as the preferred generic path.
 
 ## 2026-04-19
 
