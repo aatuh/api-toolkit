@@ -176,7 +176,7 @@ Notes:
 
 Description: Reduce future drift in security-sensitive packages and normalize edge-case behavior across public middleware adapters.
 
-### Ticket E4-T1 - Consolidate shared JWT and Clerk middleware flow [ ]
+### Ticket E4-T1 - Consolidate shared JWT and Clerk middleware flow [x]
 
 Description: Refactor the duplicated JWT validation pipeline into shared machinery with provider-specific subject mapping hooks so future auth fixes land once.
 

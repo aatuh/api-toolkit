@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestParseBearerToken(t *testing.T) {
@@ -190,6 +192,73 @@ func TestParseTokenClaimsEnforcesAllowedAlgorithms(t *testing.T) {
 	hsToken := signToken(t, jwt.SigningMethodHS256, baseClaims(now), []byte("secret"), "test-kid")
 	if _, err := ParseTokenClaims(hsToken, kf.Keyfunc, cfg); err == nil {
 		t.Fatal("expected HS256 token to be rejected")
+	}
+}
+
+func TestRequiredBearerHandlerRejectsMissingToken(t *testing.T) {
+	called := false
+	handler := RequiredBearerHandler(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			called = true
+		}),
+		true,
+		ports.NopLogger{},
+		nil,
+		HandlerMessages{
+			MissingDetail: "missing",
+			InvalidDetail: "invalid",
+		},
+		func(*http.Request) (string, bool, error) {
+			return "", false, nil
+		},
+		func(ctx context.Context, _ string) (context.Context, error) {
+			return ctx, nil
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if called {
+		t.Fatal("expected next handler not to run")
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestOptionalBearerHandlerAllowsMissingToken(t *testing.T) {
+	called := false
+	handler := OptionalBearerHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusNoContent)
+		}),
+		true,
+		ports.NopLogger{},
+		nil,
+		HandlerMessages{
+			MissingDetail: "missing",
+			InvalidDetail: "invalid",
+		},
+		func(*http.Request) (string, bool, error) {
+			return "", false, nil
+		},
+		func(ctx context.Context, _ string) (context.Context, error) {
+			return ctx, nil
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if !called {
+		t.Fatal("expected next handler to run")
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
 	}
 }
 
