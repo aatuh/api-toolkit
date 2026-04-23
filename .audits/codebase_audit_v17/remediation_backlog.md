@@ -88,7 +88,7 @@ Notes:
 - keep the tests behavior-oriented rather than asserting internal implementation details
 - include at least one test that proves retries recover after request-context cancellation
 
-## Epic E2 - Harden observability registration behavior [ ]
+## Epic E2 - Harden observability registration behavior [x]
 
 Description: Ensure first-party observability helpers fail predictably instead of silently dropping metrics when applications compose the library with existing collectors.
 
