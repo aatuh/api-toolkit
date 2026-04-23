@@ -10,4 +10,7 @@
 //     ports.CachedHealthManager in addition to ports.HealthManager.
 //   - When caching is enabled, cached checker results may be reused across
 //     liveness, readiness, and detailed responses until CacheDuration expires.
+//   - LoadConfig falls back to a 30-second refresh interval and a cache
+//     duration of twice that refresh interval when env values are missing,
+//     invalid, zero, or negative.
 package health

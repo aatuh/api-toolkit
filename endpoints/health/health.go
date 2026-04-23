@@ -313,10 +313,14 @@ func normalizeContext(ctx context.Context) context.Context {
 	return ctx
 }
 
+func (m *Manager) cachingEnabled() bool {
+	return m != nil && m.config.EnableCaching && m.config.CacheDuration > 0
+}
+
 // performCheck performs a single health check with caching.
 func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthResult {
 	// Check cache first
-	if m.config.EnableCaching {
+	if m.cachingEnabled() {
 		m.cacheMutex.RLock()
 		if cached, exists := m.cache[name]; exists {
 			if time.Since(cached.Timestamp) < m.config.CacheDuration {
@@ -347,7 +351,7 @@ func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthRes
 	result.Timestamp = time.Now()
 
 	// Cache result
-	if m.config.EnableCaching {
+	if m.cachingEnabled() {
 		m.cacheMutex.Lock()
 		m.cache[name] = result
 		m.cacheMutex.Unlock()
@@ -375,7 +379,7 @@ func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.He
 	result.Duration = time.Since(start)
 	result.Timestamp = time.Now()
 
-	if m.config.EnableCaching {
+	if m.cachingEnabled() {
 		m.cacheMutex.Lock()
 		m.cache[name] = result
 		m.cacheMutex.Unlock()

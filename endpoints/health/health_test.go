@@ -130,6 +130,36 @@ func TestGetDetailedHealthBypassesCacheWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestGetDetailedHealthFailsClosedForNonPositiveCacheDuration(t *testing.T) {
+	tests := []struct {
+		name          string
+		cacheDuration time.Duration
+	}{
+		{name: "zero", cacheDuration: 0},
+		{name: "negative", cacheDuration: -time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checker := &countingChecker{name: "counted"}
+			manager := NewManagerWithConfig(ports.HealthCheckConfig{
+				Timeout:        time.Second,
+				CacheDuration:  tt.cacheDuration,
+				EnableCaching:  true,
+				EnableDetailed: true,
+			})
+			manager.RegisterChecker(checker)
+
+			manager.GetDetailedHealth(context.Background())
+			manager.GetDetailedHealth(context.Background())
+
+			if got := checker.calls.Load(); got != 2 {
+				t.Fatalf("expected caching to fail closed, got %d checker calls", got)
+			}
+		})
+	}
+}
+
 func TestGetDetailedHealthHonorsConfiguredTimeout(t *testing.T) {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:        20 * time.Millisecond,

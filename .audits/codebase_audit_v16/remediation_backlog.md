@@ -12,7 +12,7 @@
 | [x] AUDIT-16-01 | P1 | Validation contract | `ports.Validator` becomes explicit, non-silent, and toolkit-shaped on all public codepaths. |
 | [x] AUDIT-16-02 | P1 | Health/docs capabilities | Handler behavior depends only on exported, documented contracts. |
 | [x] AUDIT-16-03 | P2 | Stable ports surface | Vendor-shaped billing/database contracts are either narrowed, reclassified, or staged for versioned extraction. |
-| AUDIT-16-04 | P2 | Health config | Invalid health cache/refresh settings fail closed or clamp to documented defaults. |
+| [x] AUDIT-16-04 | P2 | Health config | Invalid health cache/refresh settings fail closed or clamp to documented defaults. |
 | AUDIT-16-05 | P2 | Contract regression suite | New tests lock the public semantics that this audit found weak. |
 
 ## [x] AUDIT-16-01: Harden the validator contract
@@ -36,7 +36,7 @@
 - Acceptance criteria: README, architecture docs, and versioning policy all describe the same stability boundary; the stable core surface no longer claims to be generic where it is actually provider-specific; any deferred breaking cleanup is captured as an explicit versioned migration plan.
 - Verification: update API-diff/stability checks if package classifications change; add a short design note describing what stays in core, what moves, and what deprecation path applies.
 
-## AUDIT-16-04: Validate health refresh/cache configuration
+## [x] AUDIT-16-04: Validate health refresh/cache configuration
 - Problem: `endpoints/health.LoadConfig` accepts zero or negative durations and can produce ineffective cache settings without surfacing a configuration error.
 - Scope: [endpoints/health/config.go](/home/aatu/projects/saas/api-toolkit/endpoints/health/config.go:20) [endpoints/health/health.go](/home/aatu/projects/saas/api-toolkit/endpoints/health/health.go:316)
 - Required changes: define explicit semantics for `HEALTH_REFRESH_INTERVAL` and `HEALTH_CACHE_DURATION`; reject or clamp non-positive values; ensure defaults remain sane when one variable is missing or invalid.
