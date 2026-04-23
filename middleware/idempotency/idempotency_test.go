@@ -593,6 +593,56 @@ func TestIdempotencyAllowsRetryAfterPanic(t *testing.T) {
 	}
 }
 
+func TestIdempotencyAllowsRetryAfterCanceledPanic(t *testing.T) {
+	store := &contextSensitiveStore{
+		memoryStore:    newMemoryStore(),
+		requireCleanup: true,
+	}
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	var cancel context.CancelFunc
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			cancel()
+			panic("boom")
+		}
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected first request to panic")
+			}
+		}()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+		req.Header.Set("Idempotency-Key", "key-canceled-panic")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+	}()
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-canceled-panic")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected retry to succeed after canceled panic, got %d", rec2.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected second request to execute after canceled panic cleanup, got %d calls", calls)
+	}
+}
+
 func TestIdempotencyReturnsServiceUnavailableWhenSaveFails(t *testing.T) {
 	store := &saveFailStore{
 		memoryStore:       newMemoryStore(),
@@ -999,6 +1049,14 @@ func assertOptionalInterfaceHeadersFalse(t *testing.T, header http.Header) {
 	}
 }
 
+type fixedClock struct {
+	now time.Time
+}
+
+func (c fixedClock) Now() time.Time {
+	return c.now
+}
+
 func TestIdempotencyStoresCompletedResponseAfterRequestCancellation(t *testing.T) {
 	store := &contextSensitiveStore{
 		memoryStore:    newMemoryStore(),
@@ -1168,5 +1226,91 @@ func TestIdempotencyPersistsAmbiguousStateAfterSaveFailureWhenRequestCanceled(t 
 	}
 	if record.State != ports.IdempotencyStateAmbiguous {
 		t.Fatalf("expected ambiguous state, got %v", record.State)
+	}
+}
+
+func TestIdempotencyInFlightResponseIncludesConfiguredRetryAfter(t *testing.T) {
+	mem := newMemoryStore()
+	record := ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "hash",
+		CreatedAt:   time.Now(),
+	}
+	ok, err := mem.TryBegin(context.Background(), "key-inflight-retry-after", record, time.Minute)
+	if err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected to seed in-flight record")
+	}
+
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  90 * time.Second,
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "hash", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected in-flight request not to execute handler")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-inflight-retry-after")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "90" {
+		t.Fatalf("expected Retry-After 90, got %q", got)
+	}
+}
+
+func TestIdempotencyAmbiguousResponseUsesRemainingRetryWindow(t *testing.T) {
+	now := time.Date(2026, time.April, 23, 12, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	err := mem.Save(context.Background(), "key-ambiguous-retry-after", ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateAmbiguous,
+		RequestHash: "hash",
+		CreatedAt:   now.Add(-30 * time.Second),
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		TTL:          2 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "hash", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected ambiguous request not to execute handler")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-ambiguous-retry-after")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "90" {
+		t.Fatalf("expected Retry-After 90, got %q", got)
 	}
 }
