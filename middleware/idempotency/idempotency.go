@@ -17,6 +17,8 @@ import (
 	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
+const cleanupTimeout = 5 * time.Second
+
 // KeyFunc extracts an idempotency key from the request.
 type KeyFunc func(*http.Request) string
 
@@ -257,7 +259,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		capture := response_writer.NewLimitedCapture(m.opts.MaxResponseBytes)
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
+				cleanupCtx, cancel := cleanupContext(ctx)
+				defer cancel()
+				if err := m.releaseReservation(cleanupCtx, key, hash); err != nil && m.opts.OnError != nil {
 					m.opts.OnError(err)
 				}
 				panic(recovered)
@@ -265,7 +269,10 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(capture, r)
 		if capture.Overflowed() {
-			if err := m.markAmbiguous(ctx, key, hash); err != nil && m.opts.OnError != nil {
+			cleanupCtx, cancel := cleanupContext(ctx)
+			err := m.markAmbiguous(cleanupCtx, key, hash)
+			cancel()
+			if err != nil && m.opts.OnError != nil {
 				m.opts.OnError(err)
 			}
 			writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(ports.IdempotencyRecord{
@@ -283,11 +290,17 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			CreatedAt:   m.opts.Clock.Now(),
 		}
 		if m.opts.ShouldStore(capture.Status()) {
-			if err := m.opts.Store.Save(ctx, key, record, m.opts.TTL); err != nil {
+			cleanupCtx, cancel := cleanupContext(ctx)
+			err := m.opts.Store.Save(cleanupCtx, key, record, m.opts.TTL)
+			cancel()
+			if err != nil {
 				if m.opts.OnError != nil {
 					m.opts.OnError(err)
 				}
-				if markErr := m.markAmbiguous(ctx, key, hash); markErr != nil {
+				cleanupCtx, cancel = cleanupContext(ctx)
+				markErr := m.markAmbiguous(cleanupCtx, key, hash)
+				cancel()
+				if markErr != nil {
 					if m.opts.OnError != nil {
 						m.opts.OnError(markErr)
 					}
@@ -297,8 +310,13 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				}, m.opts.TTL, m.opts.Clock))
 				return
 			}
-		} else if err := m.releaseReservation(ctx, key, hash); err != nil && m.opts.OnError != nil {
-			m.opts.OnError(err)
+		} else {
+			cleanupCtx, cancel := cleanupContext(ctx)
+			err := m.releaseReservation(cleanupCtx, key, hash)
+			cancel()
+			if err != nil && m.opts.OnError != nil {
+				m.opts.OnError(err)
+			}
 		}
 		capture.WriteTo(w)
 	})
@@ -479,6 +497,13 @@ func setRetryAfter(w http.ResponseWriter, ttl time.Duration) {
 	if ttl > 0 {
 		w.Header().Set("Retry-After", itoa(int(ttl.Seconds())))
 	}
+}
+
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
 func writeReplay(w http.ResponseWriter, key string, record ports.IdempotencyRecord, replayHeader string) {

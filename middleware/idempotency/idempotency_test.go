@@ -694,6 +694,15 @@ type saveFailStore struct {
 	remainingFailures int
 }
 
+type contextSensitiveStore struct {
+	*memoryStore
+	mu             sync.Mutex
+	failFirstSave  bool
+	saveCalls      int
+	releaseCalls   int
+	requireCleanup bool
+}
+
 type reservationCollisionStore struct{}
 
 type memoryEntry struct {
@@ -781,6 +790,36 @@ func (s *saveFailStore) Save(ctx context.Context, key string, record ports.Idemp
 	return s.memoryStore.Save(ctx, key, record, ttl)
 }
 
+func (s *contextSensitiveStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	s.saveCalls++
+	failFirst := s.failFirstSave && s.saveCalls == 1
+	s.mu.Unlock()
+	if failFirst {
+		return errors.New("save failed")
+	}
+	if s.requireCleanup && ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return s.memoryStore.Save(ctx, key, record, ttl)
+}
+
+func (s *contextSensitiveStore) Release(ctx context.Context, key string) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	s.releaseCalls++
+	s.mu.Unlock()
+	if s.requireCleanup && ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return s.memoryStore.Release(ctx, key)
+}
+
 func (s *reservationCollisionStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
 	_ = ctx
 	_ = key
@@ -845,5 +884,177 @@ func assertOptionalInterfaceHeadersFalse(t *testing.T, header http.Header) {
 	}
 	if got := header.Get("X-Has-ReaderFrom"); got != "false" {
 		t.Fatalf("expected buffered writer without readerFrom, got %q", got)
+	}
+}
+
+func TestIdempotencyStoresCompletedResponseAfterRequestCancellation(t *testing.T) {
+	store := &contextSensitiveStore{
+		memoryStore:    newMemoryStore(),
+		requireCleanup: true,
+	}
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var cancel context.CancelFunc
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	}))
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-canceled-success")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected completed response to be persisted after cancellation, got %d", rec.Code)
+	}
+	record, found, err := store.Get(context.Background(), "key-canceled-success")
+	if err != nil {
+		t.Fatalf("store get: %v", err)
+	}
+	if !found {
+		t.Fatal("expected completed idempotency record")
+	}
+	if record.State != ports.IdempotencyStateCompleted {
+		t.Fatalf("expected completed record, got %v", record.State)
+	}
+}
+
+func TestIdempotencyReleasesReservationAfterServerErrorWhenRequestCanceled(t *testing.T) {
+	store := &contextSensitiveStore{
+		memoryStore:    newMemoryStore(),
+		requireCleanup: true,
+	}
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	var cancel context.CancelFunc
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		cancel()
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeInternal),
+			Title:  http.StatusText(http.StatusInternalServerError),
+			Detail: "boom",
+		})
+	}))
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	req1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-canceled-500")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-canceled-500")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusInternalServerError {
+		t.Fatalf("expected retry to execute handler again, got %d", rec2.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected retry after cleanup release, got %d calls", calls)
+	}
+}
+
+func TestIdempotencyMarksAmbiguousAfterOversizedResponseWhenRequestCanceled(t *testing.T) {
+	store := &contextSensitiveStore{
+		memoryStore:    newMemoryStore(),
+		requireCleanup: true,
+	}
+	mw, err := New(Options{
+		Store:            store,
+		MaxBodyBytes:     1024,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var cancel context.CancelFunc
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": "abcdef"})
+	}))
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	req1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", "key-canceled-oversized")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for oversized response, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", "key-canceled-oversized")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected ambiguous retry to stay blocked, got %d", rec2.Code)
+	}
+	if got := rec2.Body.String(); !strings.Contains(got, `"detail":"idempotency outcome is ambiguous; previous attempt may have completed"`) {
+		t.Fatalf("expected ambiguous detail, got %q", got)
+	}
+}
+
+func TestIdempotencyPersistsAmbiguousStateAfterSaveFailureWhenRequestCanceled(t *testing.T) {
+	store := &contextSensitiveStore{
+		memoryStore:    newMemoryStore(),
+		failFirstSave:  true,
+		requireCleanup: true,
+	}
+	mw, err := New(Options{
+		Store:        store,
+		MaxBodyBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var cancel context.CancelFunc
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	}))
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-canceled-save-fail")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 on initial save failure, got %d", rec.Code)
+	}
+
+	record, found, err := store.Get(context.Background(), "key-canceled-save-fail")
+	if err != nil {
+		t.Fatalf("store get: %v", err)
+	}
+	if !found {
+		t.Fatal("expected ambiguous record after failed save")
+	}
+	if record.State != ports.IdempotencyStateAmbiguous {
+		t.Fatalf("expected ambiguous state, got %v", record.State)
 	}
 }
