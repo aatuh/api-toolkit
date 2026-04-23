@@ -133,12 +133,8 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 	}
 }
 
-type htmlModeProvider interface {
-	HTMLMode() ports.DocsHTMLMode
-}
-
 func docsCSP(manager ports.DocsManager) string {
-	if provider, ok := manager.(htmlModeProvider); ok {
+	if provider, ok := manager.(ports.DocsHTMLModeProvider); ok {
 		if provider.HTMLMode() == ports.DocsHTMLModeSwaggerUI {
 			return defaultDocsCSP
 		}

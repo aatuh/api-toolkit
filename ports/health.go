@@ -35,6 +35,10 @@ const (
 )
 
 // HealthManager defines the interface for managing health checks.
+//
+// HTTP handler packages may opt into additional health behavior through the
+// exported DetailedHealthManager and CachedHealthManager capability interfaces
+// instead of relying on package-private knowledge about concrete managers.
 type HealthManager interface {
 	RegisterChecker(checker HealthChecker)
 	RegisterCheckers(checkers ...HealthChecker)
@@ -42,6 +46,20 @@ type HealthManager interface {
 	GetReadiness(ctx context.Context) HealthResult
 	GetHealth(ctx context.Context) HealthResponse
 	GetDetailedHealth(ctx context.Context) DetailedHealthResponse
+}
+
+// DetailedHealthManager is an optional capability for health managers that
+// allows HTTP handler packages to decide whether detailed health routes should
+// be registered or served.
+type DetailedHealthManager interface {
+	DetailedHealthEnabled() bool
+}
+
+// CachedHealthManager is an optional capability for health managers that
+// exposes a reusable health snapshot for middleware and other request-path
+// callers that should avoid probing dependencies inline.
+type CachedHealthManager interface {
+	CachedHealth() (HealthResponse, bool)
 }
 
 // HealthResponse represents the overall health response.

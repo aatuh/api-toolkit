@@ -32,7 +32,9 @@ type DocsInfo struct {
 // DocsManager defines the interface for managing documentation.
 //
 // Implementations should treat disabled or missing docs surfaces as not found
-// rather than silently fabricating placeholder content.
+// rather than silently fabricating placeholder content. HTTP handler packages
+// may also inspect the exported DocsHTMLModeProvider capability instead of
+// relying on package-private knowledge about concrete managers.
 type DocsManager interface {
 	RegisterProvider(provider DocsProvider)
 	GetHTML() (string, error)
@@ -43,6 +45,12 @@ type DocsManager interface {
 	ServeOpenAPI(w http.ResponseWriter, r *http.Request)
 	ServeVersion(w http.ResponseWriter, r *http.Request)
 	ServeInfo(w http.ResponseWriter, r *http.Request)
+}
+
+// DocsHTMLModeProvider is an optional capability for docs managers that
+// exposes the configured HTML rendering mode to HTTP handler packages.
+type DocsHTMLModeProvider interface {
+	HTMLMode() DocsHTMLMode
 }
 
 // DocsConfig defines configuration for documentation.
