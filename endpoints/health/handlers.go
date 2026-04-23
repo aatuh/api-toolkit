@@ -15,14 +15,6 @@ type Handler struct {
 	manager ports.HealthManager
 }
 
-type detailedHealthManager interface {
-	DetailedHealthEnabled() bool
-}
-
-type cachedHealthManager interface {
-	CachedHealth() (ports.HealthResponse, bool)
-}
-
 // NewHandler creates a new health handler.
 func NewHandler(manager ports.HealthManager) *Handler {
 	if manager == nil {
@@ -265,7 +257,7 @@ func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
 	if h == nil || h.manager == nil {
 		return response
 	}
-	cached, ok := h.manager.(cachedHealthManager)
+	cached, ok := h.manager.(ports.CachedHealthManager)
 	if !ok {
 		return response
 	}
@@ -317,7 +309,7 @@ func (h *Handler) detailedHealthEnabled() bool {
 	if h == nil {
 		return false
 	}
-	mgr, ok := h.manager.(detailedHealthManager)
+	mgr, ok := h.manager.(ports.DetailedHealthManager)
 	if !ok {
 		return false
 	}

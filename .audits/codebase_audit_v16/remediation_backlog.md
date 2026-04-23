@@ -10,7 +10,7 @@
 | ID | Priority | Area | Outcome |
 |----|---------:|------|---------|
 | [x] AUDIT-16-01 | P1 | Validation contract | `ports.Validator` becomes explicit, non-silent, and toolkit-shaped on all public codepaths. |
-| AUDIT-16-02 | P1 | Health/docs capabilities | Handler behavior depends only on exported, documented contracts. |
+| [x] AUDIT-16-02 | P1 | Health/docs capabilities | Handler behavior depends only on exported, documented contracts. |
 | AUDIT-16-03 | P2 | Stable ports surface | Vendor-shaped billing/database contracts are either narrowed, reclassified, or staged for versioned extraction. |
 | AUDIT-16-04 | P2 | Health config | Invalid health cache/refresh settings fail closed or clamp to documented defaults. |
 | AUDIT-16-05 | P2 | Contract regression suite | New tests lock the public semantics that this audit found weak. |
@@ -22,7 +22,7 @@
 - Acceptance criteria: `Validate(nil)` still returns a validation error; `Validate` on scalar, slice, and map inputs no longer returns success; `ValidateField` works for both `"Email"` and `"email"` on the current fixture shape or fails with a deterministic toolkit error; no public path leaks raw `validator.InvalidValidationError`.
 - Verification: add focused unit tests for scalar input, slice input, map input, pointer-to-struct input, unknown field input, JSON-name field input, and nil context behavior if nil contexts are intended to be supported.
 
-## AUDIT-16-02: Export health/docs capability contracts
+## [x] AUDIT-16-02: Export health/docs capability contracts
 - Problem: health and docs handlers currently discover extra behavior through hidden local interfaces, so external implementations of `ports.HealthManager` and `ports.DocsManager` can satisfy the public interface while silently losing features.
 - Scope: [ports/health.go](/home/aatu/projects/saas/api-toolkit/ports/health.go:37) [endpoints/health/handlers.go](/home/aatu/projects/saas/api-toolkit/endpoints/health/handlers.go:18) [ports/docs.go](/home/aatu/projects/saas/api-toolkit/ports/docs.go:32) [endpoints/docs/handlers.go](/home/aatu/projects/saas/api-toolkit/endpoints/docs/handlers.go:136)
 - Required changes: introduce exported capability interfaces in `ports` for detailed-health enablement, cached-health snapshots, and docs HTML mode, or fold the methods into the existing manager interfaces if that is acceptable under the compatibility policy; update handlers to use only exported interfaces; document the extension points in package docs.
