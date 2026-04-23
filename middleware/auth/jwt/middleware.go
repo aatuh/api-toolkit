@@ -3,16 +3,13 @@ package jwt
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/middleware/auth/shared"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -67,55 +64,37 @@ func NewMiddleware(ctx context.Context, cfg Config, log ports.Logger) (*Middlewa
 	if log == nil {
 		log = ports.NopLogger{}
 	}
-	mw := &Middleware{
-		cfg:     cfg,
-		log:     log,
-		enabled: cfg.Enabled,
-		skipHdr: strings.TrimSpace(cfg.SkipHeaderName),
-	}
-	if !cfg.Enabled {
-		return mw, nil
-	}
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
-	}
-	if cfg.JWKSURL == "" || cfg.Issuer == "" || cfg.Audience == "" {
-		return nil, fmt.Errorf("jwt middleware missing mandatory configuration")
-	}
-	allowedAlgs, err := normalizeAlgorithms(cfg.AllowedAlgorithms)
+	state, err := shared.PrepareValidationState(ctx, shared.ValidationConfig{
+		Enabled:                   cfg.Enabled,
+		ProviderName:              "jwt",
+		JWKSDescriptor:            "jwks",
+		JWKSURL:                   cfg.JWKSURL,
+		Issuer:                    cfg.Issuer,
+		Audience:                  cfg.Audience,
+		AllowedAlgorithms:         cfg.AllowedAlgorithms,
+		AllowedClockSkew:          cfg.AllowedClockSkew,
+		JWKSRefreshTimeout:        cfg.JWKSRefreshTimeout,
+		JWKSRefreshInterval:       cfg.JWKSRefreshInterval,
+		RequiredClaims:            shared.ClaimRequirementsInput(cfg.RequiredClaims),
+		AllowDangerousDevBypasses: cfg.AllowDangerousDevBypasses,
+		SkipHeaderEnabled:         cfg.SkipHeaderEnabled,
+		SkipHeaderName:            cfg.SkipHeaderName,
+		SkipTrustedProxies:        cfg.SkipTrustedProxies,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("jwt allowed algorithms: %w", err)
+		return nil, err
 	}
-	if len(allowedAlgs) == 0 {
-		allowedAlgs = []string{"RS256"}
-	}
-	mw.allowedAlgs = allowedAlgs
-	mw.claimReq = normalizeClaimRequirements(cfg.RequiredClaims)
-
-	if cfg.AllowDangerousDevBypasses && cfg.SkipHeaderEnabled {
-		resolver, err := shared.ParseSkipTrustedProxies(cfg.SkipTrustedProxies)
-		if err != nil {
-			if err.Error() == "skip header requires trusted proxies" {
-				return nil, fmt.Errorf("jwt skip header requires trusted proxies")
-			}
-			return nil, fmt.Errorf("jwt skip trusted proxies: %w", err)
-		}
-		mw.skipResolver = resolver
-	}
-	jwksCtx, cancel := context.WithCancel(ctx)
-	mw.cancel = cancel
-	override := keyfunc.Override{
-		HTTPTimeout:       cfg.JWKSRefreshTimeout,
-		RefreshInterval:   cfg.JWKSRefreshInterval,
-		ValidationSkipAll: false,
-	}
-	jwks, err := keyfunc.NewDefaultOverrideCtx(jwksCtx, []string{cfg.JWKSURL}, override)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("initializing jwks: %w", err)
-	}
-	mw.jwks = jwks
-	return mw, nil
+	return &Middleware{
+		cfg:          cfg,
+		log:          log,
+		jwks:         state.JWKS,
+		enabled:      state.Enabled,
+		skipHdr:      state.SkipHeader,
+		skipResolver: state.SkipResolver,
+		allowedAlgs:  state.AllowedAlgorithms,
+		claimReq:     normalizeClaimRequirements(cfg.RequiredClaims),
+		cancel:       state.Cancel,
+	}, nil
 }
 
 // Handler returns the http middleware enforcing authentication.
@@ -123,38 +102,26 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next
 	}
-	if !m.enabled {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if m.shouldSkip(r) {
-			m.log.Warn("jwt auth skipped via header")
-			next.ServeHTTP(w, r)
-			return
-		}
-		token, present, err := tokenFromRequest(r)
-		if err != nil || !present {
-			m.log.Warn("jwt auth failed", "error", authErrorDetail(err, present))
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
-				Title:  http.StatusText(http.StatusUnauthorized),
-				Detail: "invalid or missing authentication token",
-			})
-			return
-		}
-		subj, err := m.subjectFromToken(token)
-		if err != nil {
-			m.log.Warn("jwt auth failed", "error", err.Error())
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
-				Title:  http.StatusText(http.StatusUnauthorized),
-				Detail: "invalid or missing authentication token",
-			})
-			return
-		}
-		ctx := WithSubject(r.Context(), subj)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+	return shared.RequiredBearerHandler(
+		next,
+		m.enabled,
+		m.log,
+		m.shouldSkip,
+		shared.HandlerMessages{
+			SkipLog:       "jwt auth skipped via header",
+			FailureLog:    "jwt auth failed",
+			MissingDetail: "invalid or missing authentication token",
+			InvalidDetail: "invalid or missing authentication token",
+		},
+		tokenFromRequest,
+		func(ctx context.Context, token string) (context.Context, error) {
+			subj, err := m.subjectFromToken(token)
+			if err != nil {
+				return nil, err
+			}
+			return WithSubject(ctx, subj), nil
+		},
+	)
 }
 
 // OptionalHandler attaches a subject when a valid token is present,
@@ -163,42 +130,26 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 	if m == nil {
 		return next
 	}
-	if !m.enabled {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if m.shouldSkip(r) {
-			m.log.Warn("jwt auth skipped via header")
-			next.ServeHTTP(w, r)
-			return
-		}
-		token, present, err := tokenFromRequest(r)
-		if err != nil {
-			m.log.Warn("jwt auth failed", "error", err.Error())
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
-				Title:  http.StatusText(http.StatusUnauthorized),
-				Detail: "invalid authentication token",
-			})
-			return
-		}
-		if !present {
-			next.ServeHTTP(w, r)
-			return
-		}
-		subj, err := m.subjectFromToken(token)
-		if err != nil {
-			m.log.Warn("jwt auth failed", "error", err.Error())
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
-				Title:  http.StatusText(http.StatusUnauthorized),
-				Detail: "invalid authentication token",
-			})
-			return
-		}
-		ctx := WithSubject(r.Context(), subj)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+	return shared.OptionalBearerHandler(
+		next,
+		m.enabled,
+		m.log,
+		m.shouldSkip,
+		shared.HandlerMessages{
+			SkipLog:       "jwt auth skipped via header",
+			FailureLog:    "jwt auth failed",
+			MissingDetail: "invalid authentication token",
+			InvalidDetail: "invalid authentication token",
+		},
+		tokenFromRequest,
+		func(ctx context.Context, token string) (context.Context, error) {
+			subj, err := m.subjectFromToken(token)
+			if err != nil {
+				return nil, err
+			}
+			return WithSubject(ctx, subj), nil
+		},
+	)
 }
 
 func (m *Middleware) subjectFromToken(tokenStr string) (Subject, error) {
@@ -281,10 +232,6 @@ func (r claimRequirements) shared() shared.ClaimRequirements {
 
 func validateRequiredClaims(claims jwt.MapClaims, req claimRequirements) error {
 	return shared.ValidateRequiredClaims(claims, req.shared())
-}
-
-func authErrorDetail(err error, present bool) string {
-	return shared.AuthErrorDetail(err, present)
 }
 
 func (m *Middleware) shouldSkip(r *http.Request) bool {
