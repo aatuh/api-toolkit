@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Repair idempotency failure semantics [ ]
+## Epic E1 - Repair idempotency failure semantics [x]
 
 Description: Make idempotency behavior correct under cancellation, retries, and future store implementations so payment-like flows do not get stranded by infrastructure edge cases.
 
