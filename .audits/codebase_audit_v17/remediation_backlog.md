@@ -130,7 +130,7 @@ Notes:
 - cover default and custom registerer scenarios
 - verify that failure cases are observable to callers
 
-## Epic E3 - Reduce stable boundary leakage [ ]
+## Epic E3 - Reduce stable boundary leakage [x]
 
 Description: Move the stable core closer to a genuinely adapter-neutral boundary so future evolution does not require downstream application code to speak provider or driver dialects.
 
