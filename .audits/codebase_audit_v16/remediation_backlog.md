@@ -13,7 +13,7 @@
 | [x] AUDIT-16-02 | P1 | Health/docs capabilities | Handler behavior depends only on exported, documented contracts. |
 | [x] AUDIT-16-03 | P2 | Stable ports surface | Vendor-shaped billing/database contracts are either narrowed, reclassified, or staged for versioned extraction. |
 | [x] AUDIT-16-04 | P2 | Health config | Invalid health cache/refresh settings fail closed or clamp to documented defaults. |
-| AUDIT-16-05 | P2 | Contract regression suite | New tests lock the public semantics that this audit found weak. |
+| [x] AUDIT-16-05 | P2 | Contract regression suite | New tests lock the public semantics that this audit found weak. |
 
 ## [x] AUDIT-16-01: Harden the validator contract
 - Problem: `contrib/adapters/validation.playgroundValidator.Validate` currently returns success for unsupported non-struct inputs, and `ValidateField` exposes a field-selection contract that is inconsistent with the JSON-tagged errors it returns.
@@ -43,7 +43,7 @@
 - Acceptance criteria: `0s` and negative values do not silently create inert cache behavior; the returned config is always internally consistent; package docs state the exact fallback behavior.
 - Verification: add unit tests for default values, explicit positive overrides, zero refresh, zero cache, negative refresh, negative cache, and invalid duration strings.
 
-## AUDIT-16-05: Add contract-focused regression tests
+## [x] AUDIT-16-05: Add contract-focused regression tests
 - Problem: the codebase has strong implementation tests, but the findings in this audit all sit at public-contract edges that are not currently locked down.
 - Scope: [contrib/adapters/validation/validation_test.go](/home/aatu/projects/saas/api-toolkit/contrib/adapters/validation/validation_test.go:1) [endpoints/health/handlers_test.go](/home/aatu/projects/saas/api-toolkit/endpoints/health/handlers_test.go:1) [endpoints/docs/handlers_test.go](/home/aatu/projects/saas/api-toolkit/endpoints/docs/handlers_test.go:1)
 - Required changes: add regression tests for unsupported validator targets, field-name resolution semantics, custom health manager capability discovery, custom docs manager HTML-mode behavior, and health config edge cases; keep these tests in the packages that own the public contract rather than only on concrete manager types.
