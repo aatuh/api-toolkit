@@ -38,7 +38,17 @@ type IdempotencyStore interface {
 	Save(ctx context.Context, key string, record IdempotencyRecord, ttl time.Duration) error
 }
 
-// IdempotencyReleaser optionally removes an in-flight reservation or stale record.
+// IdempotencyReleaser removes an in-flight reservation or stale record.
+//
+// The idempotency middleware requires release semantics so non-stored outcomes
+// can reopen a key safely for later retries.
 type IdempotencyReleaser interface {
 	Release(ctx context.Context, key string) error
+}
+
+// ReleasableIdempotencyStore combines persistence and release semantics for
+// idempotent request processing.
+type ReleasableIdempotencyStore interface {
+	IdempotencyStore
+	IdempotencyReleaser
 }
