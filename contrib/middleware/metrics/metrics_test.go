@@ -2,8 +2,10 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -80,6 +82,88 @@ func TestNewPrometheusRecorderReusesRegisteredCollectors(t *testing.T) {
 	}
 }
 
+func TestNewPrometheusRecorderReusesRegisteredCollectorsWithDefaultRegisterer(t *testing.T) {
+	reg := withDefaultPrometheusRegistry(t)
+
+	first, err := NewPrometheusRecorder(nil, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+	second, err := NewPrometheusRecorder(nil, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	if first.requests != second.requests {
+		t.Fatal("expected duplicate counter registration to reuse existing collector")
+	}
+	if first.durations != second.durations {
+		t.Fatal("expected duplicate histogram registration to reuse existing collector")
+	}
+	first.IncCounter("", Labels{
+		"method": "GET",
+		"route":  "/widgets",
+		"status": "200",
+	})
+	second.ObserveHistogram("", 0.25, Labels{
+		"method": "GET",
+		"route":  "/widgets",
+		"status": "200",
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	if len(families) != 2 {
+		t.Fatalf("expected 2 metric families, got %d", len(families))
+	}
+}
+
+func TestNewPrometheusRecorderReturnsConflictErrorWithCustomRegisterer(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests",
+	}, []string{"method", "route", "status"}))
+
+	recorder, err := NewPrometheusRecorder(reg, nil)
+	if err == nil {
+		t.Fatal("expected registration conflict error")
+	}
+	if recorder != nil {
+		t.Fatal("expected recorder to be nil on registration conflict")
+	}
+	if !errors.Is(err, ErrIncompatibleCollectorRegistration) {
+		t.Fatalf("expected ErrIncompatibleCollectorRegistration, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "http_requests_total") {
+		t.Fatalf("expected metric name in error, got %q", err)
+	}
+}
+
+func TestNewPrometheusRecorderReturnsConflictErrorWithDefaultRegisterer(t *testing.T) {
+	withDefaultPrometheusRegistry(t)
+	prometheus.MustRegister(prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_request_duration_seconds",
+		Help: "HTTP request duration in seconds",
+	}, []string{"method", "route", "status"}))
+
+	recorder, err := NewPrometheusRecorder(nil, nil)
+	if err == nil {
+		t.Fatal("expected registration conflict error")
+	}
+	if recorder != nil {
+		t.Fatal("expected recorder to be nil on registration conflict")
+	}
+	if !errors.Is(err, ErrIncompatibleCollectorRegistration) {
+		t.Fatalf("expected ErrIncompatibleCollectorRegistration, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "http_request_duration_seconds") {
+		t.Fatalf("expected metric name in error, got %q", err)
+	}
+}
+
 func TestHandlerRecordsRecoveredPanicAs500BeforeCommit(t *testing.T) {
 	recorder := &captureRecorder{}
 	mw, err := New(Options{Recorder: recorder})
@@ -119,4 +203,19 @@ func cloneLabels(labels Labels) Labels {
 		out[key] = value
 	}
 	return out
+}
+
+func withDefaultPrometheusRegistry(t *testing.T) *prometheus.Registry {
+	t.Helper()
+
+	reg := prometheus.NewRegistry()
+	prevRegisterer := prometheus.DefaultRegisterer
+	prevGatherer := prometheus.DefaultGatherer
+	prometheus.DefaultRegisterer = reg
+	prometheus.DefaultGatherer = reg
+	t.Cleanup(func() {
+		prometheus.DefaultRegisterer = prevRegisterer
+		prometheus.DefaultGatherer = prevGatherer
+	})
+	return reg
 }

@@ -111,7 +111,7 @@ Notes:
 - preserve the current `AlreadyRegistered` reuse behavior for compatible collectors
 - decide deliberately whether the new API should return an error or require explicit opt-in to silent fallback
 
-### Ticket E2-T2 - Add metrics registration conflict tests [ ]
+### Ticket E2-T2 - Add metrics registration conflict tests [x]
 
 Description: Add tests for compatible reuse and incompatible descriptor conflicts so metrics setup behavior remains deterministic and visible.
 
