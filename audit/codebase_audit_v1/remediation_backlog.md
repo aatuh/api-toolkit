@@ -221,7 +221,7 @@ Notes:
 
 - Keep tests deterministic with local JWKS fixtures.
 
-### Ticket E4-T2 - Add Clerk auth middleware edge-case tests [ ]
+### Ticket E4-T2 - Add Clerk auth middleware edge-case tests [x]
 
 Description: Add tests for Clerk middleware required/optional flows, skip-header denial cases, and malformed token handling.
 

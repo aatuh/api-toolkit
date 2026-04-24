@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"testing"
 	"time"
@@ -11,6 +14,9 @@ import (
 	"github.com/MicahParks/jwkset"
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestParseBearerToken(t *testing.T) {
@@ -237,6 +243,104 @@ func TestSubjectFromTokenEnforcesAllowedAlgorithms(t *testing.T) {
 	hsToken := signToken(t, jwt.SigningMethodHS256, baseClaims(now), []byte("secret"), "test-kid")
 	if _, err := mw.subjectFromToken(hsToken); err == nil {
 		t.Fatal("expected HS256 token to be rejected")
+	}
+}
+
+func TestRequiredAndOptionalHandlerFlows(t *testing.T) {
+	mw := &Middleware{enabled: true, log: ports.NopLogger{}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("required handler should not run without a token")
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("required missing-token status = %d, want 401", rec.Code)
+	}
+
+	called := false
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+	if !called {
+		t.Fatal("expected optional handler to allow missing token")
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("optional missing-token status = %d, want 204", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer malformed")
+	mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("optional handler should reject malformed token")
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("optional malformed-token status = %d, want 401", rec.Code)
+	}
+}
+
+func TestShouldSkipDeniesUnsafeBypassCases(t *testing.T) {
+	prefixes, err := identity.ParseTrustedProxies([]string{"203.0.113.0/24"})
+	if err != nil {
+		t.Fatalf("parse trusted proxies: %v", err)
+	}
+	base := &Middleware{
+		cfg: Config{
+			SkipHeaderEnabled:         true,
+			AllowDangerousDevBypasses: true,
+		},
+		skipHdr:      "X-Debug-Skip",
+		skipResolver: identity.Resolver{TrustedProxies: prefixes},
+	}
+	trustedReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	trustedReq.Header.Set("X-Debug-Skip", "true")
+	trustedReq.RemoteAddr = netip.MustParseAddr("203.0.113.7").String() + ":443"
+
+	tests := []struct {
+		name   string
+		mutate func(*Middleware, *http.Request)
+	}{
+		{
+			name: "dangerous bypass flag disabled",
+			mutate: func(mw *Middleware, _ *http.Request) {
+				mw.cfg.AllowDangerousDevBypasses = false
+			},
+		},
+		{
+			name: "skip header disabled",
+			mutate: func(mw *Middleware, _ *http.Request) {
+				mw.cfg.SkipHeaderEnabled = false
+			},
+		},
+		{
+			name: "header value not true",
+			mutate: func(_ *Middleware, req *http.Request) {
+				req.Header.Set("X-Debug-Skip", "false")
+			},
+		},
+		{
+			name: "trusted proxies missing",
+			mutate: func(mw *Middleware, _ *http.Request) {
+				mw.skipResolver = identity.Resolver{}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := *base
+			req := trustedReq.Clone(context.Background())
+			req.Header = trustedReq.Header.Clone()
+			req.RemoteAddr = trustedReq.RemoteAddr
+			tt.mutate(&mw, req)
+			if mw.shouldSkip(req) {
+				t.Fatal("expected skip header to be denied")
+			}
+		})
 	}
 }
 
