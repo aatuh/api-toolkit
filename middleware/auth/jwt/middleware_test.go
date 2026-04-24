@@ -2,6 +2,8 @@ package jwt
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -9,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MicahParks/jwkset"
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
@@ -120,6 +124,77 @@ func TestValidateRequiredClaimsHonorsConfiguredRequirements(t *testing.T) {
 	}
 }
 
+func TestSubjectFromTokenEnforcesRequiredClaimsAndAlgorithms(t *testing.T) {
+	kf, privateKey := newTestKeyfunc(t)
+	now := time.Now()
+	mw := &Middleware{
+		cfg: Config{
+			Issuer:   "https://issuer.example",
+			Audience: "example",
+		},
+		jwks:        kf,
+		allowedAlgs: []string{"RS256"},
+		claimReq: claimRequirements{
+			requireSubject:    true,
+			requireExpiration: true,
+			requireIssuedAt:   true,
+			requireNotBefore:  true,
+		},
+	}
+
+	claims := baseClaims(now)
+	claims["nbf"] = float64(now.Add(-time.Minute).Unix())
+	token := signToken(t, jwt.SigningMethodRS256, claims, privateKey, "test-kid")
+	subject, err := mw.subjectFromToken(token)
+	if err != nil {
+		t.Fatalf("subjectFromToken() error = %v", err)
+	}
+	if subject.UserID != "user" {
+		t.Fatalf("subject user id = %q, want user", subject.UserID)
+	}
+
+	missingIssuedAt := baseClaims(now)
+	delete(missingIssuedAt, "iat")
+	missingIssuedAt["nbf"] = float64(now.Add(-time.Minute).Unix())
+	token = signToken(t, jwt.SigningMethodRS256, missingIssuedAt, privateKey, "test-kid")
+	if _, err := mw.subjectFromToken(token); err == nil || !strings.Contains(err.Error(), "token missing iat") {
+		t.Fatalf("expected missing iat error, got %v", err)
+	}
+
+	hsToken := signToken(t, jwt.SigningMethodHS256, claims, []byte("secret"), "test-kid")
+	if _, err := mw.subjectFromToken(hsToken); err == nil {
+		t.Fatal("expected disallowed HS256 token to fail")
+	}
+}
+
+func TestOptionalHandlerAuthFlow(t *testing.T) {
+	mw := &Middleware{enabled: true, log: ports.NopLogger{}}
+
+	called := false
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+	if !called {
+		t.Fatal("expected optional auth to allow missing token")
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer malformed")
+	mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for malformed token")
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
 func TestShouldSkipRequiresTrustedProxyAndBypassFlags(t *testing.T) {
 	prefixes, err := identity.ParseTrustedProxies([]string{"203.0.113.0/24"})
 	if err != nil {
@@ -226,5 +301,74 @@ func TestNewMiddlewareValidatesConfiguration(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestNewMiddlewareReportsJWKSSetupFailure(t *testing.T) {
+	mw, err := NewMiddleware(context.Background(), Config{
+		Enabled:  true,
+		JWKSURL:  "://not-a-url",
+		Issuer:   "https://issuer.example",
+		Audience: "example",
+	}, ports.NopLogger{})
+	if err == nil {
+		if mw != nil {
+			mw.Close()
+		}
+		t.Fatal("expected JWKS setup error")
+	}
+	if !strings.Contains(err.Error(), "initializing jwks") {
+		t.Fatalf("error = %q, want initializing jwks", err.Error())
+	}
+}
+
+func newTestKeyfunc(t *testing.T) (keyfunc.Keyfunc, *rsa.PrivateKey) {
+	t.Helper()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+	jwk, err := jwkset.NewJWKFromKey(privateKey.Public(), jwkset.JWKOptions{
+		Metadata: jwkset.JWKMetadataOptions{
+			KID: "test-kid",
+			ALG: jwkset.AlgRS256,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create jwk: %v", err)
+	}
+	store := jwkset.NewMemoryStorage()
+	if err := store.KeyWrite(context.Background(), jwk); err != nil {
+		t.Fatalf("write jwk: %v", err)
+	}
+	kf, err := keyfunc.New(keyfunc.Options{Storage: store})
+	if err != nil {
+		t.Fatalf("create keyfunc: %v", err)
+	}
+	return kf, privateKey
+}
+
+func signToken(t *testing.T, method jwt.SigningMethod, claims jwt.MapClaims, key any, kid string) string {
+	t.Helper()
+
+	token := jwt.NewWithClaims(method, claims)
+	if kid != "" {
+		token.Header["kid"] = kid
+	}
+	signed, err := token.SignedString(key)
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return signed
+}
+
+func baseClaims(now time.Time) jwt.MapClaims {
+	return jwt.MapClaims{
+		"sub": "user",
+		"iss": "https://issuer.example",
+		"aud": "example",
+		"exp": float64(now.Add(time.Hour).Unix()),
+		"iat": float64(now.Unix()),
 	}
 }
