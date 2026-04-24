@@ -243,7 +243,7 @@ Notes:
 - Keep `make finalize` as the implementation-quality gate.
 - Name the new target clearly, for example `check` or `audit-check`.
 
-## Epic E5 - Tighten Documentation Contracts [ ]
+## Epic E5 - Tighten Documentation Contracts [x]
 
 Description: Expand docs contract tests so security and operational docs stay synchronized with actual code behavior.
 
@@ -283,7 +283,7 @@ Notes:
 
 - Mention that `make finalize` may run formatting and tidy steps.
 
-### Ticket E5-T3 - Add release-note guidance for stable surface changes [ ]
+### Ticket E5-T3 - Add release-note guidance for stable surface changes [x]
 
 Description: Add a release checklist note requiring stable surface changes, deprecations, and compatibility-sensitive updates to mention docs, API check coverage, and release notes.
 
