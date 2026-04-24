@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -38,7 +38,7 @@ help: ## Show help
 			printf "  %-14s %s\n", $$1, $$2 \
 		}' $(MAKEFILE_LIST)
 
-tools: ## Install lint/vuln tools
+tools: ## Install lint/vuln/API tools into the Go tool cache
 	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -51,7 +51,7 @@ api-check: ## Run API compatibility check.
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
 
-fmt: ## Run gofmt
+fmt: ## Run gofmt and rewrite formatted Go files
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) fmt ./...); \
@@ -79,7 +79,7 @@ gosec: tools ## Run gosec
 		fi; \
 	done
 
-tidy: ## Run go mod tidy
+tidy: ## Run go mod tidy and rewrite module files
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) mod tidy); \
@@ -109,12 +109,13 @@ clean: ## Clean test cache
 		(cd $$mod && $(GO) clean -testcache); \
 	done
 
-finalize: ## Run every quality assurance tool
+finalize: ## Run QA; installs tools and may rewrite formatted/tidy files
 	$(MAKE) tools
 	$(MAKE) fmt
 	$(MAKE) lint
 	$(MAKE) vuln
 	$(MAKE) gosec
+	$(MAKE) ci-build-smoke
 	$(MAKE) api-check
 	$(MAKE) docs-check
 	$(MAKE) tidy
@@ -123,13 +124,16 @@ finalize: ## Run every quality assurance tool
 	$(MAKE) fuzz
 	$(MAKE) clean
 
-ci-local: ## Run CI steps locally
+ci-build-smoke: ## Build root and contrib modules via the local CI build target
+	$(MAKE) .codeql-local-build
+
+ci-local: ## Run local CI security steps; requires CodeQL, Scorecard token, and Syft
 	rm -rf "$(OUTPUT_DIR)"
 	$(MAKE) codeql-local
 	$(MAKE) scorecard-local
 	$(MAKE) sbom-local
 
-codeql-local: ## Create a CodeQL DB
+codeql-local: ## Create/analyze a CodeQL DB; requires the codeql binary
 	rm -rf "$(OUTPUT_DIR)/codeql"
 	mkdir -p "$(OUTPUT_DIR)/codeql"
 
@@ -147,16 +151,17 @@ codeql-local: ## Create a CodeQL DB
 	codeql database print-baseline .ci-result/codeql
 
 .codeql-local-build:
-	@$(GO) build ./... &&  cd contrib && @$(GO) build ./...
+	@$(GO) build ./...
+	@cd contrib && $(GO) build ./...
 
-scorecard-local: ## Run OpenSSF Scorecard locally
+scorecard-local: ## Run OpenSSF Scorecard locally; requires GITHUB_AUTH_TOKEN and scorecard
 	@test -n "$(GITHUB_AUTH_TOKEN)" || { echo "GITHUB_AUTH_TOKEN is empty"; exit 2; }
 	@test -n "$(SCORECARD_REPO)" || { echo "SCORECARD_REPO is empty"; exit 2; }
 	rm -rf "$(OUTPUT_DIR)/scorecard"
 	mkdir -p "$(OUTPUT_DIR)/scorecard"
 	$(SCORECARD) --repo="$(SCORECARD_REPO)" --format=json > "$(OUTPUT_DIR)/scorecard/scorecard.json"
 
-sbom-local: ## Generate SPDX-JSON SBOMs
+sbom-local: ## Generate SPDX-JSON SBOMs into OUTPUT_DIR; requires syft
 	rm -rf "$(OUTPUT_DIR)/sbom"
 	mkdir -p "$(OUTPUT_DIR)/sbom"
 	"$(SYFT)" dir:. -o spdx-json >"$(OUTPUT_DIR)/sbom/sbom-root.spdx.json"
