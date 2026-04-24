@@ -2,6 +2,7 @@ package trace
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -99,6 +100,88 @@ func TestTraceGeneratesWhenUntrusted(t *testing.T) {
 	}
 }
 
+func TestTraceUsesConfiguredSampledFlagWhenTrustedIncomingMissingOrInvalid(t *testing.T) {
+	tests := []struct {
+		name        string
+		traceparent string
+	}{
+		{name: "absent"},
+		{name: "invalid", traceparent: "00-00000000000000000000000000000000-bbbbbbbbbbbbbbbb-00"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traceGen := &staticIDGen{ids: []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+			spanGen := &staticIDGen{ids: []string{"bbbbbbbbbbbbbbbb"}}
+			mw, err := New(Options{
+				TrustIncoming: true,
+				SampledFlag:   0x01,
+				TraceIDGen:    traceGen,
+				SpanIDGen:     spanGen,
+			})
+			if err != nil {
+				t.Fatalf("new middleware: %v", err)
+			}
+			handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+			if tt.traceparent != "" {
+				req.Header.Set(headerTraceParent, tt.traceparent)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			gotTraceID, gotSpanID, gotFlags, ok := parseTraceParent(rec.Header().Get(headerTraceParent))
+			if !ok {
+				t.Fatalf("expected valid traceparent, got %q", rec.Header().Get(headerTraceParent))
+			}
+			if gotTraceID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+				t.Fatalf("trace_id = %q", gotTraceID)
+			}
+			if gotSpanID != "bbbbbbbbbbbbbbbb" {
+				t.Fatalf("span_id = %q", gotSpanID)
+			}
+			if gotFlags != 0x01 {
+				t.Fatalf("trace_flags = %02x, want 01", gotFlags)
+			}
+		})
+	}
+}
+
+func TestTraceUsesTrustedIncomingFlagsWhenTraceParentValid(t *testing.T) {
+	incoming := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
+	spanGen := &staticIDGen{ids: []string{"bbbbbbbbbbbbbbbb"}}
+	mw, err := New(Options{
+		TrustIncoming: true,
+		SampledFlag:   0x01,
+		SpanIDGen:     spanGen,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	req.Header.Set(headerTraceParent, incoming)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	gotTraceID, _, gotFlags, ok := parseTraceParent(rec.Header().Get(headerTraceParent))
+	if !ok {
+		t.Fatalf("expected valid traceparent, got %q", rec.Header().Get(headerTraceParent))
+	}
+	if gotTraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("trace_id = %q", gotTraceID)
+	}
+	if gotFlags != 0x00 {
+		t.Fatalf("trace_flags = %02x, want 00", gotFlags)
+	}
+}
+
 type staticIDGen struct {
 	ids []string
 	idx int
@@ -183,5 +266,28 @@ func TestTraceEchoesRequestIDOnProblemResponses(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
 		t.Fatalf("Content-Type = %q", got)
+	}
+}
+
+func TestTraceIDGeneratorsFallbackWhenRandomSourceFails(t *testing.T) {
+	oldRead := cryptoRandRead
+	cryptoRandRead = func([]byte) (int, error) {
+		return 0, errors.New("entropy unavailable")
+	}
+	t.Cleanup(func() {
+		cryptoRandRead = oldRead
+	})
+
+	traceID := newTraceID()
+	if !isValidTraceID(traceID) {
+		t.Fatalf("fallback trace id = %q", traceID)
+	}
+	if nextTraceID := newTraceID(); nextTraceID == traceID {
+		t.Fatalf("expected fallback trace ids to change, got %q twice", traceID)
+	}
+
+	spanID := newSpanID()
+	if !isValidSpanID(spanID) {
+		t.Fatalf("fallback span id = %q", spanID)
 	}
 }
