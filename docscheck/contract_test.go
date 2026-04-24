@@ -142,6 +142,9 @@ func TestCompatibilitySensitivePortsManifestIsCurrent(t *testing.T) {
 		t.Fatalf("read ports surface docs: %v", err)
 	}
 	manifestText := string(manifest)
+	if !strings.Contains(manifestText, "## V3 cleanup checklist") {
+		t.Fatal("docs/ports-surface.md missing V3 cleanup checklist")
+	}
 	for _, symbol := range compatibilitySensitivePortsSymbols(t, repoRoot) {
 		if !strings.Contains(manifestText, "`"+symbol+"`") {
 			t.Fatalf("docs/ports-surface.md missing compatibility-sensitive symbol %s", symbol)

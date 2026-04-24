@@ -73,11 +73,20 @@ Database stats compatibility symbols:
 - If you only need database observability data, depend on `DatabasePoolSnapshotProvider`, adapter `StatSnapshot()` methods, or `SnapshotDatabasePoolStats` instead of the legacy `DatabaseStats` interface.
 - Do not add more provider-specific billing fields or more driver-specific database counters to core `ports` in v2 unless compatibility requires it.
 
-## V3 extraction path
+## V3 cleanup checklist
 
-1. Keep the current billing, database-stats, and `response_writer` exports source-compatible for the rest of v2.
-2. In v2, treat `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical import path for the existing provider-shaped billing model. The current compatibility package aliases the deprecated `ports/billing.go` symbols, and contrib Stripe code should continue using the compatibility import path.
-3. Prefer narrow additions in v2 minors, such as plain-value database snapshot capabilities, instead of widening the legacy surfaces.
-4. In v3, remove the deprecated `ports` billing exports after the compatibility overlap window. Either keep the current hosted-checkout and invoicing model in a dedicated compatibility package or replace it with a provider-neutral successor.
-5. In v3, remove `DatabasePool.Stat` and `DatabaseStats` from the generic pool contract. Keep query and transaction lifecycles in core, prefer `DatabasePoolSnapshotProvider` or plain-value snapshots for generic observability, and confine driver-shaped stats wrappers to adapters or compatibility packages.
-6. In v3, retire `response_writer` from the stable core surface. New code should use `httpx` for JSON and Problem Details responses, and any remaining response capture or wrapper helpers should live in a clearly named compatibility or internal package.
+- [ ] Keep the current `ports/billing.go`, database-stats, and `response_writer`
+  exports source-compatible for the rest of v2.
+- [ ] Keep `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical
+  v2 import path for the existing provider-shaped billing model.
+- [ ] Prefer narrow v2 additions, such as plain-value database snapshot
+  capabilities, instead of widening legacy compatibility surfaces.
+- [ ] In v3, remove the deprecated `ports/billing.go` exports after the
+  compatibility overlap window, or move the existing hosted-checkout and
+  invoicing model into an explicit compatibility package.
+- [ ] In v3, remove `DatabasePool.Stat` and `DatabaseStats` from the generic
+  pool contract; keep driver-shaped stats wrappers in adapters or compatibility
+  packages.
+- [ ] In v3, retire `response_writer` from the stable core surface; new JSON,
+  Problem Details, capture, or wrapper helpers should live under `httpx` or a
+  clearly named compatibility/internal package.
