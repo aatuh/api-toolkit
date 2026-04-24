@@ -3,10 +3,15 @@ package trace
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -28,6 +33,11 @@ type ctxKey string
 const (
 	ctxTraceID ctxKey = "trace.trace_id"
 	ctxSpanID  ctxKey = "trace.span_id"
+)
+
+var (
+	cryptoRandRead    = rand.Read
+	fallbackIDCounter atomic.Uint64
 )
 
 // Options controls middleware behaviour.
@@ -65,6 +75,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 
 			var traceFlags byte
 			var traceState string
+			var acceptedIncoming bool
 
 			if opts.TrustIncoming {
 				if tp := r.Header.Get(headerTraceParent); tp != "" {
@@ -72,6 +83,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 						traceID = tid
 						traceFlags = flags
 						traceState = strings.TrimSpace(r.Header.Get(headerTraceState))
+						acceptedIncoming = true
 					}
 				}
 			}
@@ -86,7 +98,7 @@ func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 			r = r.WithContext(withTrace(r.Context(), traceID, spanID))
 
 			flags := opts.SampledFlag
-			if opts.TrustIncoming && traceID != "" {
+			if acceptedIncoming {
 				flags = traceFlags
 			}
 
@@ -165,7 +177,9 @@ func formatTraceParent(traceID, spanID string, flags byte) string {
 
 func newTraceID() string { // 16 bytes => 32 hex
 	var b [16]byte
-	_, _ = rand.Read(b[:])
+	if _, err := cryptoRandRead(b[:]); err != nil {
+		return fallbackID(16)
+	}
 	// Must not be all zeros; very unlikely, but guard anyway.
 	if allZero(b[:]) {
 		b[0] = 1
@@ -175,11 +189,27 @@ func newTraceID() string { // 16 bytes => 32 hex
 
 func newSpanID() string { // 8 bytes => 16 hex
 	var b [8]byte
-	_, _ = rand.Read(b[:])
+	if _, err := cryptoRandRead(b[:]); err != nil {
+		return fallbackID(8)
+	}
 	if allZero(b[:]) {
 		b[0] = 1
 	}
 	return hex.EncodeToString(b[:])
+}
+
+func fallbackID(size int) string {
+	var seed [24]byte
+	binary.BigEndian.PutUint64(seed[0:8], uint64(time.Now().UnixNano()))
+	binary.BigEndian.PutUint64(seed[8:16], uint64(os.Getpid()))
+	binary.BigEndian.PutUint64(seed[16:24], fallbackIDCounter.Add(1))
+	sum := sha256.Sum256(seed[:])
+	id := sum[:size]
+	if allZero(id) {
+		sum[0] = 1
+		id = sum[:size]
+	}
+	return hex.EncodeToString(id)
 }
 
 func generateTraceID(gen ports.IDGen) string {

@@ -65,11 +65,11 @@ Notes:
 
 - Call out `finalize`, `ci-local`, `scorecard-local`, `sbom-local`, `fmt`, and `tidy`.
 
-## Epic E2 - Harden Trace Middleware Edge Cases [ ]
+## Epic E2 - Harden Trace Middleware Edge Cases [x]
 
 Description: Make trace correlation behavior deterministic and preserve configured sampling semantics.
 
-### Ticket E2-T1 - Add regression tests for trace sampling fallback [ ]
+### Ticket E2-T1 - Add regression tests for trace sampling fallback [x]
 
 Description: Add tests proving that `SampledFlag` is honored when `TrustIncoming` is true and the request has no valid incoming `traceparent`.
 
@@ -87,7 +87,7 @@ Notes:
 
 - Include both absent and invalid incoming `traceparent` cases.
 
-### Ticket E2-T2 - Fix trace sampling fallback logic [ ]
+### Ticket E2-T2 - Fix trace sampling fallback logic [x]
 
 Description: Change trace middleware so trusted incoming flags are used only when a valid incoming `traceparent` was accepted; otherwise use the configured `SampledFlag`.
 
@@ -105,7 +105,7 @@ Notes:
 
 - Preserve existing behavior for valid incoming trace flags.
 
-### Ticket E2-T3 - Handle trace random source failures explicitly [ ]
+### Ticket E2-T3 - Handle trace random source failures explicitly [x]
 
 Description: Stop silently discarding `crypto/rand.Read` errors in trace ID and span ID generation.
 
