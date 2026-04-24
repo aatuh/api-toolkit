@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func TestPendingUpChecksumMismatch(t *testing.T) {
@@ -375,6 +376,53 @@ func TestWithLockReturnsAdvisoryLockFailure(t *testing.T) {
 	}
 	if unlockCalled {
 		t.Fatal("unlock should not be attempted when lock acquisition fails")
+	}
+}
+
+func TestWithLockUsesConfiguredLockTimeout(t *testing.T) {
+	lockErr := errors.New("lock timed out")
+	timeout := 25 * time.Millisecond
+	var checkedDeadline bool
+	r := &Runner{
+		Opts: Options{LockKey: 1234, LockTimeout: timeout},
+		execContextHook: func(
+			ctx context.Context, query string, _ ...any,
+		) (sql.Result, error) {
+			if strings.Contains(query, "pg_advisory_lock") {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("lock context missing deadline")
+				}
+				remaining := time.Until(deadline)
+				if remaining <= 0 || remaining > timeout {
+					t.Fatalf("lock timeout remaining = %s, want within %s", remaining, timeout)
+				}
+				checkedDeadline = true
+				return nil, lockErr
+			}
+			return fakeSQLResult(1), nil
+		},
+	}
+
+	err := r.withLock(context.Background(), func(context.Context) error {
+		t.Fatal("migration function should not run after lock failure")
+		return nil
+	})
+	if !errors.Is(err, lockErr) {
+		t.Fatalf("withLock() error = %v, want %v", err, lockErr)
+	}
+	if !strings.Contains(err.Error(), timeout.String()) {
+		t.Fatalf("withLock() error %q missing timeout %s", err.Error(), timeout)
+	}
+	if !checkedDeadline {
+		t.Fatal("lock deadline was not checked")
+	}
+}
+
+func TestWithLockDefaultTimeoutMatchesCompatibilityBehavior(t *testing.T) {
+	r := &Runner{}
+	if got := r.lockTimeout(); got != defaultLockTimeout {
+		t.Fatalf("lockTimeout() = %s, want %s", got, defaultLockTimeout)
 	}
 }
 

@@ -147,7 +147,7 @@ Notes:
 - Preserve existing non-nil client settings by shallow copy.
 - If behavior changes for nil input, document the compatibility impact in release notes.
 
-### Ticket E3-T2 - Add configurable migrator lock timeout [ ]
+### Ticket E3-T2 - Add configurable migrator lock timeout [x]
 
 Description: Add an `Options` field for advisory lock wait timeout, default it to the current behavior, and cover timeout behavior in tests.
 
