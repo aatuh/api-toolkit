@@ -187,6 +187,8 @@ behaviors:
   dependency-level status and check details.
 - `ports.HealthCheckConfig.EnableDetailed` is the switch that controls whether
   HTTP packages should expose detailed health responses at all.
+- Mount detailed health and pprof routes behind admin/internal access control
+  or upstream network policy; the endpoint helpers do not add authorization.
 - Missing checker registrations or invalid probe wiring should fail closed and
   surface as unhealthy state rather than as synthetic success.
 - When `EnableCaching` is true, checker results may be reused across health
