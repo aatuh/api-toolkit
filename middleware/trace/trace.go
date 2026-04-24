@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"net/http"
 	"os"
@@ -199,11 +198,12 @@ func newSpanID() string { // 8 bytes => 16 hex
 }
 
 func fallbackID(size int) string {
-	var seed [24]byte
-	binary.BigEndian.PutUint64(seed[0:8], uint64(time.Now().UnixNano()))
-	binary.BigEndian.PutUint64(seed[8:16], uint64(os.Getpid()))
-	binary.BigEndian.PutUint64(seed[16:24], fallbackIDCounter.Add(1))
-	sum := sha256.Sum256(seed[:])
+	seed := strconv.AppendInt(nil, time.Now().UnixNano(), 10)
+	seed = append(seed, ':')
+	seed = strconv.AppendInt(seed, int64(os.Getpid()), 10)
+	seed = append(seed, ':')
+	seed = strconv.AppendUint(seed, fallbackIDCounter.Add(1), 10)
+	sum := sha256.Sum256(seed)
 	id := sum[:size]
 	if allZero(id) {
 		sum[0] = 1

@@ -288,13 +288,15 @@ func TestShouldSkipDeniesUnsafeBypassCases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse trusted proxies: %v", err)
 	}
-	base := &Middleware{
-		cfg: Config{
-			SkipHeaderEnabled:         true,
-			AllowDangerousDevBypasses: true,
-		},
-		skipHdr:      "X-Debug-Skip",
-		skipResolver: identity.Resolver{TrustedProxies: prefixes},
+	newMiddleware := func() *Middleware {
+		return &Middleware{
+			cfg: Config{
+				SkipHeaderEnabled:         true,
+				AllowDangerousDevBypasses: true,
+			},
+			skipHdr:      "X-Debug-Skip",
+			skipResolver: identity.Resolver{TrustedProxies: prefixes},
+		}
 	}
 	trustedReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	trustedReq.Header.Set("X-Debug-Skip", "true")
@@ -332,11 +334,11 @@ func TestShouldSkipDeniesUnsafeBypassCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mw := *base
+			mw := newMiddleware()
 			req := trustedReq.Clone(context.Background())
 			req.Header = trustedReq.Header.Clone()
 			req.RemoteAddr = trustedReq.RemoteAddr
-			tt.mutate(&mw, req)
+			tt.mutate(mw, req)
 			if mw.shouldSkip(req) {
 				t.Fatal("expected skip header to be denied")
 			}
