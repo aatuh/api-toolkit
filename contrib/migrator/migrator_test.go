@@ -342,6 +342,42 @@ func TestCommitFailureRecordsStateThatBlocksNextRun(t *testing.T) {
 	}
 }
 
+func TestWithLockReturnsAdvisoryLockFailure(t *testing.T) {
+	lockErr := errors.New("advisory lock unavailable")
+	var fnCalled bool
+	var unlockCalled bool
+	r := &Runner{
+		Opts: Options{LockKey: 1234},
+		execContextHook: func(
+			_ context.Context, query string, _ ...any,
+		) (sql.Result, error) {
+			switch {
+			case strings.Contains(query, "pg_advisory_lock"):
+				return nil, lockErr
+			case strings.Contains(query, "pg_advisory_unlock"):
+				unlockCalled = true
+				return fakeSQLResult(1), nil
+			default:
+				return fakeSQLResult(1), nil
+			}
+		},
+	}
+
+	err := r.withLock(context.Background(), func(context.Context) error {
+		fnCalled = true
+		return nil
+	})
+	if !errors.Is(err, lockErr) {
+		t.Fatalf("withLock() error = %v, want %v", err, lockErr)
+	}
+	if fnCalled {
+		t.Fatal("migration function should not run after lock failure")
+	}
+	if unlockCalled {
+		t.Fatal("unlock should not be attempted when lock acquisition fails")
+	}
+}
+
 func writeMigrationFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

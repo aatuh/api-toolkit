@@ -257,7 +257,7 @@ Notes:
 
 - Avoid live Stripe network calls.
 
-### Ticket E4-T4 - Add migrator uncertain-state regression tests [ ]
+### Ticket E4-T4 - Add migrator uncertain-state regression tests [x]
 
 Description: Add tests around failed commit acknowledgement, unresolved migration state, duplicate migration detection, and advisory lock failure paths.
 
