@@ -1,5 +1,16 @@
 # Release Notes
 
+## Release checklist
+
+For stable surface changes, deprecations, or compatibility-sensitive updates:
+
+- Update `VERSIONING.md`, public docs, and any package docs that describe the
+  affected stability contract.
+- Update `scripts/apicheck.sh` and docscheck coverage when the stable package
+  list or compatibility-sensitive manifest changes.
+- Add release notes and upgrade notes that describe user-visible behavior,
+  migration paths, and compatibility impact.
+
 ## 2026-04-24
 
 - `contrib/telemetry.WrapHTTPClient(nil)` now creates an instrumented client with a 10 second timeout instead of an unbounded zero-timeout client.

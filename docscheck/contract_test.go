@@ -247,6 +247,23 @@ func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	}
 }
 
+func TestReleaseNotesIncludeStableSurfaceChecklist(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	notes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+
+	for _, required := range []string{
+		"For stable surface changes, deprecations, or compatibility-sensitive updates",
+		"`VERSIONING.md`",
+		"`scripts/apicheck.sh`",
+		"docscheck coverage",
+		"release notes and upgrade notes",
+	} {
+		if !strings.Contains(notes, required) {
+			t.Fatalf("docs/release-notes.md missing release checklist text %q", required)
+		}
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
 var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
