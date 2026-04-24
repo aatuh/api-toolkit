@@ -265,7 +265,7 @@ Notes:
 
 - Include rate limit, JWT, Clerk, devheaders, and Stripe webhook skip behavior.
 
-### Ticket E5-T2 - Document non-mutating reviewer checks [ ]
+### Ticket E5-T2 - Document non-mutating reviewer checks [x]
 
 Description: Add a short docs section that tells auditors and release managers which commands are non-mutating and which commands may rewrite files.
 
