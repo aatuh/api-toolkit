@@ -371,6 +371,10 @@ if err != nil { /* handle */ }
 `docs.New()` now defaults to the first-party static docs surface. Use `docs.NewSwaggerUI()` or `docs.NewWithConfig(ports.DocsConfig{HTMLMode: ports.DocsHTMLModeSwaggerUI})` only when you explicitly want the CDN-backed Swagger UI convenience mode.
 Disabled docs surfaces and missing OpenAPI files return `404` instead of placeholder content.
 `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` control which discovered OpenAPI formats may be served on the configured OpenAPI path.
+When no provider is registered, OpenAPI discovery uses fixed relative paths
+from the service working directory, such as `./swagger/openapi.json` and
+`./docs/openapi.json`. Register a `ports.DocsProvider` for production services
+that know their OpenAPI source explicitly.
 COOP/COEP/CORP can break cross-origin embeds; enable only when you control embedded resources.
 
 ## Authorization (default deny + policy engines)

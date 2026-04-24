@@ -297,7 +297,7 @@ Notes:
 
 Description: Make security and operational assumptions explicit for users wiring the toolkit into services.
 
-### Ticket E5-T1 - Document docs endpoint file discovery behavior [ ]
+### Ticket E5-T1 - Document docs endpoint file discovery behavior [x]
 
 Description: Explain that default OpenAPI file discovery uses fixed relative paths from the service working directory unless a provider is registered.
 
