@@ -264,6 +264,20 @@ func TestReleaseNotesIncludeStableSurfaceChecklist(t *testing.T) {
 	}
 }
 
+func TestDeprecatedBillingPortsPointToCompatPackage(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	path := filepath.Join(repoRoot, "ports", "billing.go")
+	code := readText(t, path)
+
+	for _, name := range exportedTopLevelNames(t, path) {
+		replacement := rootModulePath + "/v2/compat/billing." + name
+		deprecation := "Deprecated: use " + replacement + "."
+		if !strings.Contains(code, deprecation) {
+			t.Fatalf("ports/billing.go missing deprecation replacement for %s: %s", name, replacement)
+		}
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
 var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
