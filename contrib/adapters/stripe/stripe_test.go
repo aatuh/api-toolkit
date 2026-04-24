@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 
 	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
+	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -94,6 +97,39 @@ func TestParseWebhookAllowsSkipVerifyOnlyInSafeDevContext(t *testing.T) {
 	assertWebhookEvent(t, got)
 }
 
+func TestParseWebhookAllowsInsecureDevContextFromSafeRequest(t *testing.T) {
+	t.Parallel()
+
+	p := New("sk_test", "", WithDevMode(true))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhook", nil)
+	req.RemoteAddr = "127.0.0.1:443"
+	ctx := AllowInsecureWebhookFromRequest(context.Background(), req, identity.Resolver{})
+
+	got, err := p.ParseWebhook(ctx, testWebhookPayload(), "")
+	if err != nil {
+		t.Fatalf("ParseWebhook() error = %v", err)
+	}
+
+	assertWebhookEvent(t, got)
+}
+
+func TestParseWebhookRejectsInsecureDevContextFromPublicRequest(t *testing.T) {
+	t.Parallel()
+
+	p := New("sk_test", "", WithDevMode(true))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhook", nil)
+	req.RemoteAddr = "203.0.113.10:443"
+	ctx := AllowInsecureWebhookFromRequest(context.Background(), req, identity.Resolver{})
+
+	_, err := p.ParseWebhook(ctx, testWebhookPayload(), "")
+	if err == nil {
+		t.Fatal("expected webhook verification error")
+	}
+	if err.Error() != "stripe webhook verification required" {
+		t.Fatalf("error = %q, want verification required", err.Error())
+	}
+}
+
 func TestParseWebhookVerifiesSignedPayload(t *testing.T) {
 	t.Parallel()
 
@@ -147,6 +183,38 @@ func TestBillingValidationGuards(t *testing.T) {
 			want: "payment method id required",
 		},
 		{
+			name: "setup intent requires customer id",
+			run: func() error {
+				_, err := p.CreateSetupIntent(context.Background(), compatbilling.SetupIntentInput{})
+				return err
+			},
+			want: "customer id required",
+		},
+		{
+			name: "invoice item requires customer id",
+			run: func() error {
+				_, err := p.CreateInvoiceItem(context.Background(), compatbilling.InvoiceItemInput{})
+				return err
+			},
+			want: "customer id required",
+		},
+		{
+			name: "retrieve invoice item requires id",
+			run: func() error {
+				_, err := p.RetrieveInvoiceItem(context.Background(), " ")
+				return err
+			},
+			want: "invoice item id required",
+		},
+		{
+			name: "update invoice item requires id",
+			run: func() error {
+				_, err := p.UpdateInvoiceItem(context.Background(), " ", compatbilling.InvoiceItemUpdate{})
+				return err
+			},
+			want: "invoice item id required",
+		},
+		{
 			name: "invoice requires customer id",
 			run: func() error {
 				_, err := p.CreateInvoice(context.Background(), compatbilling.InvoiceInput{})
@@ -155,12 +223,44 @@ func TestBillingValidationGuards(t *testing.T) {
 			want: "customer id required",
 		},
 		{
+			name: "finalize invoice requires id",
+			run: func() error {
+				_, err := p.FinalizeInvoice(context.Background(), " ")
+				return err
+			},
+			want: "invoice id required",
+		},
+		{
+			name: "pay invoice requires id",
+			run: func() error {
+				_, err := p.PayInvoice(context.Background(), " ")
+				return err
+			},
+			want: "invoice id required",
+		},
+		{
+			name: "retrieve invoice requires id",
+			run: func() error {
+				_, err := p.RetrieveInvoice(context.Background(), " ")
+				return err
+			},
+			want: "invoice id required",
+		},
+		{
 			name: "billing portal session requires customer id",
 			run: func() error {
 				_, err := p.CreateBillingPortalSession(context.Background(), compatbilling.BillingPortalSessionInput{})
 				return err
 			},
 			want: "customer id required",
+		},
+		{
+			name: "subscription primary item requires id",
+			run: func() error {
+				_, err := p.GetSubscriptionPrimaryItemID(context.Background(), " ")
+				return err
+			},
+			want: "subscription id required",
 		},
 	}
 
