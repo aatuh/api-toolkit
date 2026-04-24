@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2026-04-24
+
+- `contrib/telemetry.WrapHTTPClient(nil)` now creates an instrumented client with a 10 second timeout instead of an unbounded zero-timeout client.
+
+### Upgrade notes
+
+- If you intentionally need no client-level timeout for a telemetry-wrapped `net/http` client, pass an explicit `&http.Client{}` to `WrapHTTPClient`; prefer request contexts with deadlines for long-running calls.
+
 ## 2026-04-23
 
 - Billing contracts in `ports/billing.go` are now formally deprecated for new code. The same Stripe-shaped v2 model is available through the new compatibility package `github.com/aatuh/api-toolkit/v2/compat/billing`.

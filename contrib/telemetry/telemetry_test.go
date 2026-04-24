@@ -235,6 +235,21 @@ func TestWrapHTTPTransportAndClient(t *testing.T) {
 	}
 }
 
+func TestWrapHTTPClientNilUsesSafeTimeout(t *testing.T) {
+	t.Parallel()
+
+	wrapped := WrapHTTPClient(nil)
+	if wrapped == nil {
+		t.Fatal("expected client")
+	}
+	if wrapped.Timeout != defaultHTTPClientTimeout {
+		t.Fatalf("timeout = %s, want %s", wrapped.Timeout, defaultHTTPClientTimeout)
+	}
+	if wrapped.Transport == nil {
+		t.Fatal("expected wrapped transport")
+	}
+}
+
 func resetTracingState() {
 	traceInitOnce = sync.Once{}
 	traceInitErr = nil
