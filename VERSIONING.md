@@ -52,8 +52,8 @@ recommended model for new generic boundary design:
   They are deprecated in favor of `github.com/aatuh/api-toolkit/v2/compat/billing`,
   which is the explicit v2 compatibility import path for that model.
 - `github.com/aatuh/api-toolkit/v2/ports` database stats contracts in
-  `ports/database.go` are stable in v2 but intentionally mirror pgxpool-style
-  counters today.
+  `ports/database.go`, including `DatabasePool.Stat` and `DatabaseStats`, are
+  stable in v2 but intentionally mirror pgxpool-style counters today.
 - `github.com/aatuh/api-toolkit/v2/response_writer` is also stable but legacy.
 
 Compatibility-sensitive means:
