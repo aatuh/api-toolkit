@@ -1,3 +1,2 @@
-// Package specs provides OpenAPI registry utilities.
-// EXPERIMENTAL: This package is not yet API-stable.
+// Package specs provides stable OpenAPI registry utilities and endpoint constants.
 package specs
