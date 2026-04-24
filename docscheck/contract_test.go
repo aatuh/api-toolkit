@@ -166,7 +166,18 @@ func TestCompatibilitySensitivePortsManifestIsCurrent(t *testing.T) {
 	}
 }
 
+func TestStableAPISurfaceMatchesAPICheckPackages(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+
+	versioningPackages := stablePackagesFromVersioning(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	apiCheckPackages := stablePackagesFromAPICheck(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
+
+	assertStringSlicesEqual(t, "stable API surface", versioningPackages, apiCheckPackages)
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
+var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
+var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
 
 func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
 	t.Helper()
@@ -257,6 +268,85 @@ func runGoCmd(dir string, name string, args ...string) ([]byte, error) {
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
+}
+
+func stablePackagesFromVersioning(t *testing.T, path string) []string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read VERSIONING.md: %v", err)
+	}
+	section := markdownSection(t, string(content), "## Stable API surface (core module)")
+	matches := packageLiteralPattern.FindAllStringSubmatch(section, -1)
+	var packages []string
+	for _, match := range matches {
+		packages = append(packages, match[1])
+	}
+	if len(packages) == 0 {
+		t.Fatal("VERSIONING.md stable API surface package list is empty")
+	}
+	return uniqueSorted(packages)
+}
+
+func stablePackagesFromAPICheck(t *testing.T, path string) []string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read scripts/apicheck.sh: %v", err)
+	}
+	matches := bashPackageLiteralPattern.FindAllString(string(content), -1)
+	var packages []string
+	for _, match := range matches {
+		packages = append(packages, strings.Trim(match, `"`))
+	}
+	if len(packages) == 0 {
+		t.Fatal("scripts/apicheck.sh package list is empty")
+	}
+	return uniqueSorted(packages)
+}
+
+func markdownSection(t *testing.T, doc, heading string) string {
+	t.Helper()
+
+	start := strings.Index(doc, heading)
+	if start == -1 {
+		t.Fatalf("heading %q not found", heading)
+	}
+	section := doc[start+len(heading):]
+	end := strings.Index(section, "\n## ")
+	if end == -1 {
+		return section
+	}
+	return section[:end]
+}
+
+func uniqueSorted(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func assertStringSlicesEqual(t *testing.T, name string, got, want []string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("%s length = %d, want %d\ngot:  %v\nwant: %v", name, len(got), len(want), got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("%s differs at %d\ngot:  %v\nwant: %v", name, i, got, want)
+		}
+	}
 }
 
 func compatibilitySensitivePortsSymbols(t *testing.T, repoRoot string) []string {
