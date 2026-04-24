@@ -188,7 +188,7 @@ Notes:
 
 Description: Make CI and release automation more tamper-resistant and easier to run in non-mutating review contexts.
 
-### Ticket E4-T1 - Pin GitHub Actions to immutable SHAs [ ]
+### Ticket E4-T1 - Pin GitHub Actions to immutable SHAs [x]
 
 Description: Replace version-tag action references in `.github/workflows/*.yml` with full commit SHAs and comments that record the human-readable upstream version.
 
