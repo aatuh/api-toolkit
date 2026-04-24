@@ -4,6 +4,7 @@
 
 - `contrib/telemetry.WrapHTTPClient(nil)` now creates an instrumented client with a 10 second timeout instead of an unbounded zero-timeout client.
 - `contrib/migrator.Options.LockTimeout` can now override the advisory lock wait timeout; zero keeps the previous 10 minute default.
+- `contrib/migrator.Options.UnlockFailureHandler` and the existing migrator logger can now surface advisory unlock failures without replacing the primary migration result.
 
 ### Upgrade notes
 

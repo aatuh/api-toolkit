@@ -124,7 +124,7 @@ Notes:
 
 - Do not add empty coverage tests. Only test stable behavior that future changes could accidentally break.
 
-## Epic E3 - Harden Operational Defaults [ ]
+## Epic E3 - Harden Operational Defaults [x]
 
 Description: Tighten remaining operational edge cases around outbound clients and migration locking without changing public behavior unexpectedly.
 
@@ -166,7 +166,7 @@ Notes:
 - Keep the zero value backward compatible.
 - Make the timeout visible in errors where practical.
 
-### Ticket E3-T3 - Surface migrator unlock failures without masking primary errors [ ]
+### Ticket E3-T3 - Surface migrator unlock failures without masking primary errors [x]
 
 Description: Add logging or an optional callback for advisory unlock failures so operators can see cleanup problems while preserving the primary migration error contract.
 

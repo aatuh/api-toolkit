@@ -51,6 +51,9 @@ type Options struct {
 	AllowDangerousDown bool
 	// Logger outputs formatted status messages.
 	Logger func(format string, args ...any)
+	// UnlockFailureHandler observes advisory unlock failures without changing
+	// the primary migration result.
+	UnlockFailureHandler func(error)
 }
 
 // Migration is a versioned SQL change.
@@ -136,6 +139,7 @@ var (
 	defaultTable            = "schema_migrations"
 	defaultLock             = int64(913551337114213777)
 	defaultLockTimeout      = 10 * time.Minute
+	defaultUnlockTimeout    = 5 * time.Second
 	migrationStateApplied   = "applied"
 	migrationStateFailed    = "failed"
 	migrationStateStarted   = "started"
@@ -535,12 +539,13 @@ func (r *Runner) withLock(
 		return fmt.Errorf("acquire advisory lock within %s: %w", lockTimeout, err)
 	}
 	defer func() {
-		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultUnlockTimeout)
 		defer cancel()
-		_, _ = r.execContext(
+		_, err := r.execContext(
 			unlockCtx,
 			`SELECT pg_advisory_unlock($1);`, r.Opts.LockKey,
 		)
+		r.reportUnlockFailure(err)
 	}()
 	return fn(ctx)
 }
@@ -550,6 +555,25 @@ func (r *Runner) lockTimeout() time.Duration {
 		return r.Opts.LockTimeout
 	}
 	return defaultLockTimeout
+}
+
+func (r *Runner) reportUnlockFailure(err error) {
+	if err == nil {
+		return
+	}
+	reportErr := fmt.Errorf("release advisory lock: %w", err)
+	if r != nil {
+		r.log("migration advisory unlock failed: %v", reportErr)
+	}
+	if r == nil || r.Opts.UnlockFailureHandler == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			r.log("migration advisory unlock failure handler panicked: %v", recovered)
+		}
+	}()
+	r.Opts.UnlockFailureHandler(reportErr)
 }
 
 func (r *Runner) loadMigrations() error {
