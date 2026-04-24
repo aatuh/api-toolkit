@@ -80,14 +80,14 @@ func TestStartAcceptsNilContext(t *testing.T) {
 	})
 
 	assertNotPanics(t, func() {
-		runner.Start(nil)
+		runner.Start(nil) //nolint:staticcheck // Regression coverage for public nil-context handling.
 	})
 }
 
 func TestExecuteNormalizesNilContext(t *testing.T) {
 	runner := New(nil, nil, nil)
 
-	runner.execute(nil, Job{
+	runner.execute(nil, Job{ //nolint:staticcheck // Regression coverage for nil-context run paths.
 		Name:     "sync",
 		Interval: time.Minute,
 		Run: func(ctx context.Context) error {
