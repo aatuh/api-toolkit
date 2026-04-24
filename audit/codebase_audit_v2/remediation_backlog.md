@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Stabilize Public Contract Metadata [ ]
+## Epic E1 - Stabilize Public Contract Metadata [x]
 
 Description: Remove contradictions and drift in the documented stable API surface so downstream users and API checks receive one coherent compatibility contract.
 
@@ -48,7 +48,7 @@ Notes:
 
 - Prefer parsing a simple explicit manifest format over brittle prose scraping if the current docs need a small normalization.
 
-### Ticket E1-T3 - Keep README stability summary aligned [ ]
+### Ticket E1-T3 - Keep README stability summary aligned [x]
 
 Description: Extend the contract check or docs structure so the README stability summary cannot contradict `VERSIONING.md`.
 

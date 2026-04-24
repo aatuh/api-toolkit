@@ -175,6 +175,26 @@ func TestStableAPISurfaceMatchesAPICheckPackages(t *testing.T) {
 	assertStringSlicesEqual(t, "stable API surface", versioningPackages, apiCheckPackages)
 }
 
+func TestREADMEStabilitySummaryUsesVersioningSourceOfTruth(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	content, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	section := markdownSection(t, string(content), "## Stability")
+	for _, required := range []string{
+		"Stable core package list: `VERSIONING.md` is the source of truth",
+		"`scripts/apicheck.sh` must cover the same package list",
+	} {
+		if !strings.Contains(section, required) {
+			t.Fatalf("README stability section missing %q", required)
+		}
+	}
+	if strings.Contains(section, "- Stable (core):") {
+		t.Fatal("README stability section reintroduced an independent stable core package summary")
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
 var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
