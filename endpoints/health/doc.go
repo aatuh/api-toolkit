@@ -4,7 +4,9 @@
 //   - Liveness and readiness should reflect configured checker state rather
 //     than silently succeeding on empty probe sets.
 //   - Detailed health output is intended for explicitly enabled operational
-//     use and may expose dependency-level status details.
+//     use and may expose dependency-level status details. Mount it only behind
+//     the service's admin/internal access-control layer or equivalent upstream
+//     network policy.
 //   - Custom managers can opt into detailed route exposure and cached snapshot
 //     middleware behavior by implementing ports.DetailedHealthManager and
 //     ports.CachedHealthManager in addition to ports.HealthManager.

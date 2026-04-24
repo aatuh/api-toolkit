@@ -315,7 +315,7 @@ Notes:
 
 - Mention provider registration as the preferred explicit production path.
 
-### Ticket E5-T2 - Document pprof and detailed health exposure guidance [ ]
+### Ticket E5-T2 - Document pprof and detailed health exposure guidance [x]
 
 Description: Add operator guidance for when to mount pprof and detailed health endpoints, including expected access-control placement.
 
