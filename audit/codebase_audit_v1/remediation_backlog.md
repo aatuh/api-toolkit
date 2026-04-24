@@ -203,7 +203,7 @@ Notes:
 
 Description: Raise confidence in security-sensitive adapters and compatibility surfaces where current coverage is low or uneven.
 
-### Ticket E4-T1 - Add JWT middleware edge-case tests [ ]
+### Ticket E4-T1 - Add JWT middleware edge-case tests [x]
 
 Description: Add targeted tests for JWT claim requirements, algorithm allowlist behavior, JWKS setup failures, and optional-vs-required auth behavior.
 
