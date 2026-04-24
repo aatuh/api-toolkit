@@ -15,6 +15,57 @@ compatibility-sensitive surfaces.
 - `ports/database.go` query and transaction interfaces stay in core, but `DatabasePool.Stat` and `DatabaseStats` are stable only as a compatibility surface. They currently mirror pgxpool-style counters, and new code should keep that shape inside compatibility adapters rather than using it directly in generic observability code.
 - `response_writer` is another example of a stable but compatibility-sensitive surface: retained for v2 users, not a template for new design.
 
+## Compatibility manifest
+
+The following stable `ports` symbols are compatibility-sensitive. If this list
+changes, update this note and `VERSIONING.md` in the same change so the boundary
+widening is intentional.
+
+Billing compatibility symbols:
+
+- `ports.BillingPortalFlowAfterCompletion`
+- `ports.BillingPortalFlowAfterCompletionType`
+- `ports.BillingPortalFlowAfterCompletionTypeRedirect`
+- `ports.BillingPortalFlowData`
+- `ports.BillingPortalFlowSubscriptionUpdateConfirm`
+- `ports.BillingPortalFlowSubscriptionUpdateConfirmItem`
+- `ports.BillingPortalFlowType`
+- `ports.BillingPortalFlowTypeSubscriptionUpdateConfirm`
+- `ports.BillingPortalSession`
+- `ports.BillingPortalSessionInput`
+- `ports.BillingProvider`
+- `ports.CheckoutSession`
+- `ports.CheckoutSessionRequest`
+- `ports.Customer`
+- `ports.CustomerAddress`
+- `ports.CustomerInput`
+- `ports.Invoice`
+- `ports.InvoiceInput`
+- `ports.InvoiceItem`
+- `ports.InvoiceItemInput`
+- `ports.InvoiceItemUpdate`
+- `ports.PaymentMethod`
+- `ports.PaymentProvider`
+- `ports.Price`
+- `ports.SetupIntent`
+- `ports.SetupIntentInput`
+- `ports.WebhookEvent`
+
+Database stats compatibility symbols:
+
+- `ports.DatabasePool.Stat`
+- `ports.DatabaseStats`
+- `ports.DatabaseStats.AcquireCount`
+- `ports.DatabaseStats.AcquireDuration`
+- `ports.DatabaseStats.AcquiredConns`
+- `ports.DatabaseStats.CanceledAcquireCount`
+- `ports.DatabaseStats.ConstructingConns`
+- `ports.DatabaseStats.EmptyAcquireCount`
+- `ports.DatabaseStats.IdleConns`
+- `ports.DatabaseStats.MaxConns`
+- `ports.DatabaseStats.NewConnsCount`
+- `ports.DatabaseStats.TotalConns`
+
 ## Guidance for new code
 
 - If your application needs billing behavior, prefer an app-owned billing port or a dedicated contrib adapter contract unless the existing v2 billing surface is the exact shape you want.

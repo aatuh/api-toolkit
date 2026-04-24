@@ -2,6 +2,7 @@ package docscheck
 
 import (
 	"context"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -132,6 +134,38 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 	}
 }
 
+func TestCompatibilitySensitivePortsManifestIsCurrent(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	manifestPath := filepath.Join(repoRoot, "docs", "ports-surface.md")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read ports surface docs: %v", err)
+	}
+	manifestText := string(manifest)
+	for _, symbol := range compatibilitySensitivePortsSymbols(t, repoRoot) {
+		if !strings.Contains(manifestText, "`"+symbol+"`") {
+			t.Fatalf("docs/ports-surface.md missing compatibility-sensitive symbol %s", symbol)
+		}
+	}
+
+	versioningPath := filepath.Join(repoRoot, "VERSIONING.md")
+	versioning, err := os.ReadFile(versioningPath)
+	if err != nil {
+		t.Fatalf("read versioning docs: %v", err)
+	}
+	versioningText := string(versioning)
+	for _, required := range []string{
+		"ports/billing.go",
+		"DatabasePool.Stat",
+		"DatabaseStats",
+		"response_writer",
+	} {
+		if !strings.Contains(versioningText, required) {
+			t.Fatalf("VERSIONING.md missing compatibility-sensitive surface %q", required)
+		}
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 
 func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
@@ -223,4 +257,90 @@ func runGoCmd(dir string, name string, args ...string) ([]byte, error) {
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
+}
+
+func compatibilitySensitivePortsSymbols(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	var symbols []string
+	for _, name := range exportedTopLevelNames(t, filepath.Join(repoRoot, "ports", "billing.go")) {
+		symbols = append(symbols, "ports."+name)
+	}
+	symbols = append(symbols, databaseStatsSymbols(t, filepath.Join(repoRoot, "ports", "database.go"))...)
+	sort.Strings(symbols)
+	return symbols
+}
+
+func exportedTopLevelNames(t *testing.T, path string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var names []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			switch spec := spec.(type) {
+			case *ast.TypeSpec:
+				if spec.Name.IsExported() {
+					names = append(names, spec.Name.Name)
+				}
+			case *ast.ValueSpec:
+				for _, name := range spec.Names {
+					if name.IsExported() {
+						names = append(names, name.Name)
+					}
+				}
+			}
+		}
+	}
+	return names
+}
+
+func databaseStatsSymbols(t *testing.T, path string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var symbols []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			if typeSpec.Name.Name != "DatabasePool" && typeSpec.Name.Name != "DatabaseStats" {
+				continue
+			}
+			iface, ok := typeSpec.Type.(*ast.InterfaceType)
+			if !ok {
+				continue
+			}
+			if typeSpec.Name.Name == "DatabaseStats" {
+				symbols = append(symbols, "ports.DatabaseStats")
+			}
+			for _, method := range iface.Methods.List {
+				for _, name := range method.Names {
+					if typeSpec.Name.Name == "DatabasePool" && name.Name != "Stat" {
+						continue
+					}
+					symbols = append(symbols, "ports."+typeSpec.Name.Name+"."+name.Name)
+				}
+			}
+		}
+	}
+	return symbols
 }

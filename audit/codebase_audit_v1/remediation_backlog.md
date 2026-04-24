@@ -373,7 +373,7 @@ Notes:
 
 - A docscheck-style test is sufficient.
 
-### Ticket E6-T2 - Add a compatibility-surface growth guard [ ]
+### Ticket E6-T2 - Add a compatibility-surface growth guard [x]
 
 Description: Add a docs or test check that flags new provider-shaped exports added to stable `ports` without updating versioning and ports-surface documentation.
 
