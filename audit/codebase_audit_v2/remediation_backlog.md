@@ -88,7 +88,7 @@ Notes:
 
 - Assert decoded JSON structures rather than raw JSON string ordering, except where deterministic behavior is the point.
 
-### Ticket E2-T2 - Test `specs` endpoint constants and grouped endpoint values [ ]
+### Ticket E2-T2 - Test `specs` endpoint constants and grouped endpoint values [x]
 
 Description: Add tests that lock down health, docs, metrics, version, and pprof endpoint constants plus the grouped endpoint structs.
 
