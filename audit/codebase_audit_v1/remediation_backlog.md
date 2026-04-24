@@ -355,7 +355,7 @@ Notes:
 
 Description: Keep future changes aligned with the documented ports/adapters boundaries and v2 compatibility promises.
 
-### Ticket E6-T1 - Add a root-to-contrib dependency guard [ ]
+### Ticket E6-T1 - Add a root-to-contrib dependency guard [x]
 
 Description: Add a lightweight check that fails if root-module production code imports `github.com/aatuh/api-toolkit/contrib/v2`.
 

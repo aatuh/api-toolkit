@@ -2,10 +2,14 @@ package docscheck
 
 import (
 	"context"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -83,6 +87,48 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 	out, err = runGoCmd(tmpDir, "go", "test", "./...")
 	if err != nil {
 		t.Fatalf("getting-started guide does not build:\n%s\nerror: %v", out, err)
+	}
+}
+
+func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	fset := token.NewFileSet()
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", "audit", "contrib":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range file.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if importPath == contribModulePath || strings.HasPrefix(importPath, contribModulePath+"/") {
+				rel, relErr := filepath.Rel(repoRoot, path)
+				if relErr != nil {
+					rel = path
+				}
+				t.Fatalf("%s imports contrib module %q", rel, importPath)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan root imports: %v", err)
 	}
 }
 
