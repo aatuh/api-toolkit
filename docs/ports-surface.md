@@ -75,8 +75,9 @@ Database stats compatibility symbols:
 
 ## V3 extraction path
 
-1. Keep the current billing and database-stats exports source-compatible for the rest of v2.
-2. In v2, treat `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical import path for the existing provider-shaped billing model and leave `ports/billing.go` in place only for compatibility.
-3. Prefer narrow additions in v2 minors, such as plain-value snapshot capabilities, instead of widening the legacy surfaces.
-4. In v3, remove the deprecated `ports` billing exports after the compatibility overlap window, while keeping the billing model in a dedicated package or replacing it with a provider-neutral successor.
-5. In v3, replace `DatabasePool.Stat` and `DatabaseStats` in generic call sites with snapshot-based or driver-specific contracts, while keeping query and transaction lifecycles in core and confining any remaining legacy stats wrappers to compatibility adapters.
+1. Keep the current billing, database-stats, and `response_writer` exports source-compatible for the rest of v2.
+2. In v2, treat `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical import path for the existing provider-shaped billing model. The current compatibility package aliases the deprecated `ports/billing.go` symbols, and contrib Stripe code should continue using the compatibility import path.
+3. Prefer narrow additions in v2 minors, such as plain-value database snapshot capabilities, instead of widening the legacy surfaces.
+4. In v3, remove the deprecated `ports` billing exports after the compatibility overlap window. Either keep the current hosted-checkout and invoicing model in a dedicated compatibility package or replace it with a provider-neutral successor.
+5. In v3, remove `DatabasePool.Stat` and `DatabaseStats` from the generic pool contract. Keep query and transaction lifecycles in core, prefer `DatabasePoolSnapshotProvider` or plain-value snapshots for generic observability, and confine driver-shaped stats wrappers to adapters or compatibility packages.
+6. In v3, retire `response_writer` from the stable core surface. New code should use `httpx` for JSON and Problem Details responses, and any remaining response capture or wrapper helpers should live in a clearly named compatibility or internal package.

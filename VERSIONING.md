@@ -67,6 +67,9 @@ Compatibility-sensitive means:
   billing contracts from `ports`.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
+- The current v3 extraction notes cover the deprecated `ports/billing.go`
+  aliases, `DatabasePool.Stat`/`DatabaseStats`, and the legacy
+  `response_writer` package.
 
 ## Experimental or unstable surfaces
 
