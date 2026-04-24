@@ -351,7 +351,7 @@ Notes:
 
 - Cross-reference the SSRF-guarded HTTP client adapter where useful.
 
-## Epic E6 - Preserve Architecture and Compatibility Discipline [ ]
+## Epic E6 - Preserve Architecture and Compatibility Discipline [x]
 
 Description: Keep future changes aligned with the documented ports/adapters boundaries and v2 compatibility promises.
 
@@ -391,7 +391,7 @@ Notes:
 
 - Focus on preventing accidental boundary widening, not blocking intentional documented compatibility work.
 
-### Ticket E6-T3 - Refresh the v3 extraction notes for compatibility-sensitive surfaces [ ]
+### Ticket E6-T3 - Refresh the v3 extraction notes for compatibility-sensitive surfaces [x]
 
 Description: Update the documented v3 migration path for billing, database stats, and legacy response writer surfaces based on the current package state.
 
