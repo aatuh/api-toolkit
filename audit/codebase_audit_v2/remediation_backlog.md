@@ -128,7 +128,7 @@ Notes:
 
 Description: Tighten remaining operational edge cases around outbound clients and migration locking without changing public behavior unexpectedly.
 
-### Ticket E3-T1 - Define safe behavior for `telemetry.WrapHTTPClient(nil)` [ ]
+### Ticket E3-T1 - Define safe behavior for `telemetry.WrapHTTPClient(nil)` [x]
 
 Description: Decide whether nil input should be rejected, documented as no-timeout, or converted to a client with a default timeout; implement the chosen behavior with tests.
 
