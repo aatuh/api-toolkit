@@ -199,7 +199,7 @@ Notes:
 
 - Preserve the existing public `DBer` behavior.
 
-## Epic E4 - Improve High-Risk Test Depth [ ]
+## Epic E4 - Improve High-Risk Test Depth [x]
 
 Description: Raise confidence in security-sensitive adapters and compatibility surfaces where current coverage is low or uneven.
 
@@ -275,7 +275,7 @@ Notes:
 
 - Prefer fake transaction hooks over requiring a live database.
 
-### Ticket E4-T5 - Add OpenAPI middleware negative-path tests [ ]
+### Ticket E4-T5 - Add OpenAPI middleware negative-path tests [x]
 
 Description: Add tests for invalid request/response validation behavior, oversized response capture behavior, and error mapping.
 

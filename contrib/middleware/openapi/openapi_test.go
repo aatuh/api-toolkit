@@ -11,6 +11,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/getkin/kin-openapi/routers"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
 )
@@ -51,6 +52,54 @@ func TestProblemForOpenAPISecurityError(t *testing.T) {
 	}
 }
 
+func TestRequestValidationRejectsMissingRequiredQueryParameter(t *testing.T) {
+	spec := buildSearchSpec()
+	mw, err := New(spec)
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for invalid request")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/search", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["type"] != httpx.DefaultTypeURI(httpx.TypeValidation) {
+		t.Fatalf("problem type = %q, want validation", body["type"])
+	}
+	validation, ok := body[httpx.ValidationErrorsKey].(map[string]any)
+	if !ok {
+		t.Fatalf("validation extension = %#v, want 1 field error", body[httpx.ValidationErrorsKey])
+	}
+	fields, ok := validation["fields"].([]any)
+	if !ok || len(fields) != 1 {
+		t.Fatalf("validation fields = %#v, want 1 field error", validation["fields"])
+	}
+}
+
+func TestMethodNotAllowedMapsToValidationProblem(t *testing.T) {
+	status := statusFromError(routers.ErrMethodNotAllowed)
+	if status != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", status)
+	}
+	problem := problemForOpenAPIError(status, routers.ErrMethodNotAllowed)
+	if problem.Type != httpx.DefaultTypeURI(httpx.TypeValidation) {
+		t.Fatalf("problem type = %q, want validation", problem.Type)
+	}
+	if problem.Detail != "method not allowed" {
+		t.Fatalf("detail = %q, want method not allowed", problem.Detail)
+	}
+}
+
 func TestResponseValidation(t *testing.T) {
 	spec := buildPingSpec()
 	mw, err := New(spec, WithResponseValidation(ResponseValidationOptions{
@@ -80,6 +129,35 @@ func TestResponseValidation(t *testing.T) {
 	}
 }
 
+func TestResponseValidationRejectsOversizedCapture(t *testing.T) {
+	spec := buildPingSpec()
+	mw, err := New(spec, WithResponseValidation(ResponseValidationOptions{
+		Enabled:      true,
+		MaxBodyBytes: 4,
+	}))
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	var body httpx.Problem
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Detail != "response body exceeds validation limit" {
+		t.Fatalf("detail = %q, want response body exceeds validation limit", body.Detail)
+	}
+}
+
 func TestResponseValidationBuffersResponsesWithoutOptionalInterfaces(t *testing.T) {
 	spec := buildPingSpec()
 	mw, err := New(spec, WithResponseValidation(ResponseValidationOptions{
@@ -102,6 +180,36 @@ func TestResponseValidationBuffersResponsesWithoutOptionalInterfaces(t *testing.
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	assertOptionalInterfaceHeadersFalse(t, rec.Header())
+}
+
+func buildSearchSpec() *openapi3.T {
+	responses := openapi3.NewResponses(
+		openapi3.WithStatus(http.StatusOK, &openapi3.ResponseRef{
+			Value: openapi3.NewResponse().WithDescription("ok"),
+		}),
+	)
+	return &openapi3.T{
+		OpenAPI: "3.0.0",
+		Info: &openapi3.Info{
+			Title:   "Search",
+			Version: "1.0.0",
+		},
+		Paths: openapi3.NewPaths(
+			openapi3.WithPath("/search", &openapi3.PathItem{
+				Get: &openapi3.Operation{
+					OperationID: "Search",
+					Parameters: openapi3.Parameters{
+						&openapi3.ParameterRef{
+							Value: openapi3.NewQueryParameter("limit").
+								WithRequired(true).
+								WithSchema(openapi3.NewIntegerSchema()),
+						},
+					},
+					Responses: responses,
+				},
+			}),
+		),
+	}
 }
 
 func buildPingSpec() *openapi3.T {
