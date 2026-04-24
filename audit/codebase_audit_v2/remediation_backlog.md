@@ -247,7 +247,7 @@ Notes:
 
 Description: Expand docs contract tests so security and operational docs stay synchronized with actual code behavior.
 
-### Ticket E5-T1 - Check documented dev bypass names against code [ ]
+### Ticket E5-T1 - Check documented dev bypass names against code [x]
 
 Description: Add docscheck coverage that verifies the security docs mention the actual dangerous bypass environment variables and trusted proxy requirement.
 
