@@ -335,6 +335,11 @@ type HTTPChecker struct {
 type HTTPCheckerOption func(*HTTPChecker)
 
 // NewHTTPChecker returns a checker that probes an HTTP endpoint.
+//
+// The URL is expected to come from trusted application configuration, not from
+// request parameters or other untrusted input. If a target can be influenced
+// externally, configure a client with SSRF guardrails and pass it with
+// WithHTTPClient.
 func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) ports.HealthChecker {
 	checker := &HTTPChecker{
 		name:          name,

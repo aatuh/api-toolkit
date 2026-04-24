@@ -293,7 +293,7 @@ Notes:
 
 - Keep fixtures small and local to the package.
 
-## Epic E5 - Tighten Operator-Facing Documentation [ ]
+## Epic E5 - Tighten Operator-Facing Documentation [x]
 
 Description: Make security and operational assumptions explicit for users wiring the toolkit into services.
 
@@ -333,7 +333,7 @@ Notes:
 
 - Keep guidance short and security-focused.
 
-### Ticket E5-T3 - Document outbound health-check SSRF assumptions [ ]
+### Ticket E5-T3 - Document outbound health-check SSRF assumptions [x]
 
 Description: Add documentation that HTTP health check URLs are application-configured and should not be derived from untrusted input.
 

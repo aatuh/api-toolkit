@@ -18,6 +18,10 @@ Core defaults aim to be safe, deterministic, and explicit:
 - Query limits via `middleware/querylimits`.
 - Security headers via `middleware/secure`.
 - Trace context validation via `middleware/trace`.
+- HTTP health-check URLs are trusted application configuration; do not derive
+  them from request parameters or tenant-controlled input. Use an SSRF-guarded
+  outbound client from `github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient`
+  for any target that can be influenced outside trusted config.
 - Migration reruns fail closed when a previous commit outcome is uncertain, so
   non-idempotent DDL is not retried blindly.
 

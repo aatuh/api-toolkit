@@ -189,6 +189,8 @@ behaviors:
   HTTP packages should expose detailed health responses at all.
 - Mount detailed health and pprof routes behind admin/internal access control
   or upstream network policy; the endpoint helpers do not add authorization.
+- HTTP dependency check URLs are application configuration. Do not derive them
+  from request parameters or tenant-controlled input.
 - Missing checker registrations or invalid probe wiring should fail closed and
   surface as unhealthy state rather than as synthetic success.
 - When `EnableCaching` is true, checker results may be reused across health
@@ -541,6 +543,9 @@ Validation errors include the `validation` extension with field-level details.
 Outbound HTTP client lives in the contrib module. It includes retry budgets
 (idempotent methods by default), optional SSRF guardrails, and resilience
 controls like breakers and bulkheads.
+If an outbound health-check target can be influenced outside trusted
+configuration, build the checker with a guarded client from
+`github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient`.
 
 ```go
 guard, err := httpclient.NewSSRFTransport(httpclient.SSRFOptions{
