@@ -66,7 +66,7 @@ Notes:
 
 - Keep the README readable; the source of truth should remain `VERSIONING.md` or a manifest consumed by both docs and tests.
 
-## Epic E2 - Add Missing Stable Package Coverage [ ]
+## Epic E2 - Add Missing Stable Package Coverage [x]
 
 Description: Add focused behavior tests for stable packages that currently rely on API shape checks but have little or no direct behavioral coverage.
 
@@ -106,7 +106,7 @@ Notes:
 
 - Keep these tests small; they protect stable route constants from accidental drift.
 
-### Ticket E2-T3 - Add low-cost tests for simple stable value packages [ ]
+### Ticket E2-T3 - Add low-cost tests for simple stable value packages [x]
 
 Description: Add minimal tests for stable no-test packages where behavior exists, such as `email.Message` expectations, field error helpers, and scheduler migration embedded assets.
 
