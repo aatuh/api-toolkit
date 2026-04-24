@@ -305,7 +305,7 @@ Notes:
 
 Description: Make the existing v2 compatibility exceptions easier to manage until a future major version can remove or reshape them.
 
-### Ticket E6-T1 - Add tests proving new database observability uses snapshots [ ]
+### Ticket E6-T1 - Add tests proving new database observability uses snapshots [x]
 
 Description: Add or extend tests that fail if new health or observability code calls legacy `DatabasePool.Stat()` when `DatabasePoolSnapshotProvider` is available.
 
