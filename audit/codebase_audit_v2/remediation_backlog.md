@@ -30,7 +30,7 @@ Notes:
 - If `specs` stays stable, remove the experimental package-doc wording.
 - If `specs` becomes experimental, remove it from stable API docs and the API compatibility package list.
 
-### Ticket E1-T2 - Add a stable surface manifest check [ ]
+### Ticket E1-T2 - Add a stable surface manifest check [x]
 
 Description: Add a docs/tooling contract test that verifies the stable package list in `VERSIONING.md` matches the package list used by `scripts/apicheck.sh`.
 
