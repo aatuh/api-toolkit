@@ -79,6 +79,48 @@ func TestWithinTxUsesCleanupContextForRollback(t *testing.T) {
 	}
 }
 
+func TestPooledRowsCloseReleasesConnectionOnce(t *testing.T) {
+	rows := &countingDBRows{}
+	conn := &fakeDBConnection{rows: rows}
+	db := FromCtx(context.Background(), &fakeDBPool{conn: conn})
+
+	gotRows, err := db.Query(context.Background(), "select 1")
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+
+	gotRows.Close()
+	gotRows.Close()
+
+	if conn.releaseCount != 1 {
+		t.Fatalf("Release() calls = %d, want 1", conn.releaseCount)
+	}
+	if rows.closeCount != 1 {
+		t.Fatalf("rows Close() calls = %d, want 1", rows.closeCount)
+	}
+}
+
+func TestPooledRowScanReleasesConnectionOnce(t *testing.T) {
+	row := &countingDBRow{}
+	conn := &fakeDBConnection{row: row}
+	db := FromCtx(context.Background(), &fakeDBPool{conn: conn})
+
+	gotRow := db.QueryRow(context.Background(), "select 1")
+	if err := gotRow.Scan(); err != nil {
+		t.Fatalf("first Scan() error = %v", err)
+	}
+	if err := gotRow.Scan(); err != nil {
+		t.Fatalf("second Scan() error = %v", err)
+	}
+
+	if conn.releaseCount != 1 {
+		t.Fatalf("Release() calls = %d, want 1", conn.releaseCount)
+	}
+	if row.scanCount != 2 {
+		t.Fatalf("row Scan() calls = %d, want 2", row.scanCount)
+	}
+}
+
 func assertRollbackCleanupContext[T comparable](
 	t *testing.T, ctx context.Context, key T,
 ) {
@@ -119,19 +161,27 @@ func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) 
 
 type fakeDBConnection struct {
 	tx           ports.DatabaseTransaction
+	rows         ports.DatabaseRows
+	row          ports.DatabaseRow
 	releaseCount int
 }
 
 func (c *fakeDBConnection) Query(
 	context.Context, string, ...any,
 ) (ports.DatabaseRows, error) {
+	if c.rows != nil {
+		return c.rows, nil
+	}
 	return fakeDBRows{}, nil
 }
 
 func (c *fakeDBConnection) QueryRow(
 	context.Context, string, ...any,
 ) ports.DatabaseRow {
-	return nil
+	if c.row != nil {
+		return c.row
+	}
+	return fakeDBRow{}
 }
 
 func (c *fakeDBConnection) Exec(
@@ -193,6 +243,28 @@ func (fakeDBRows) Next() bool        { return false }
 func (fakeDBRows) Scan(...any) error { return nil }
 func (fakeDBRows) Close()            {}
 func (fakeDBRows) Err() error        { return nil }
+
+type fakeDBRow struct{}
+
+func (fakeDBRow) Scan(...any) error { return nil }
+
+type countingDBRows struct {
+	closeCount int
+}
+
+func (r *countingDBRows) Next() bool        { return false }
+func (r *countingDBRows) Scan(...any) error { return nil }
+func (r *countingDBRows) Close()            { r.closeCount++ }
+func (r *countingDBRows) Err() error        { return nil }
+
+type countingDBRow struct {
+	scanCount int
+}
+
+func (r *countingDBRow) Scan(...any) error {
+	r.scanCount++
+	return nil
+}
 
 type fakeDBResult int64
 
