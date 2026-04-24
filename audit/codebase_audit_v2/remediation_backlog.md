@@ -206,7 +206,7 @@ Notes:
 
 - Include checkout, setup-go, CodeQL, Scorecard, SBOM, cosign installer, release upload, and attestation actions.
 
-### Ticket E4-T2 - Add Dependabot updates for GitHub Actions pins [ ]
+### Ticket E4-T2 - Add Dependabot updates for GitHub Actions pins [x]
 
 Description: Configure Dependabot or document the update workflow so pinned GitHub Actions can still be refreshed safely.
 
