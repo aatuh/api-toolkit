@@ -301,7 +301,7 @@ Notes:
 
 - Keep the checklist short and actionable.
 
-## Epic E6 - Reduce Compatibility Surface Drag [ ]
+## Epic E6 - Reduce Compatibility Surface Drag [x]
 
 Description: Make the existing v2 compatibility exceptions easier to manage until a future major version can remove or reshape them.
 
@@ -341,7 +341,7 @@ Notes:
 
 - This should protect messaging, not expand the legacy billing API.
 
-### Ticket E6-T3 - Add a v3 cleanup checklist for legacy surfaces [ ]
+### Ticket E6-T3 - Add a v3 cleanup checklist for legacy surfaces [x]
 
 Description: Convert the current v3 extraction notes into a concise checklist covering `ports/billing.go`, database stats, and `response_writer`.
 
