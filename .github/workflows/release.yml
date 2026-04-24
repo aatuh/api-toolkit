@@ -1,0 +1,68 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  attestations: write
+  contents: write
+  id-token: write
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+
+      - name: Generate SBOM (root)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # anchore/sbom-action v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-root.spdx.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate SBOM (contrib)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # anchore/sbom-action v0
+        with:
+          path: contrib
+          format: spdx-json
+          output-file: sbom-contrib.spdx.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # sigstore/cosign-installer v3
+
+      - name: Sign SBOMs (keyless, GitHub OIDC)
+        run: |
+          cosign sign-blob --yes \
+            --output-signature sbom-root.spdx.json.sig \
+            --output-certificate sbom-root.spdx.json.pem \
+            sbom-root.spdx.json
+          cosign sign-blob --yes \
+            --output-signature sbom-contrib.spdx.json.sig \
+            --output-certificate sbom-contrib.spdx.json.pem \
+            sbom-contrib.spdx.json
+
+      - name: Upload SBOMs to release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # softprops/action-gh-release v2
+        with:
+          files: |
+            sbom-root.spdx.json
+            sbom-contrib.spdx.json
+            sbom-root.spdx.json.sig
+            sbom-root.spdx.json.pem
+            sbom-contrib.spdx.json.sig
+            sbom-contrib.spdx.json.pem
+
+      - name: Attest provenance (SBOMs)
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # actions/attest-build-provenance v1
+        with:
+          subject-path: |
+            sbom-root.spdx.json
+            sbom-contrib.spdx.json
