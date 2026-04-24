@@ -239,7 +239,7 @@ Notes:
 
 - Reuse shared auth test helpers where possible.
 
-### Ticket E4-T3 - Add Stripe adapter validation and webhook tests [ ]
+### Ticket E4-T3 - Add Stripe adapter validation and webhook tests [x]
 
 Description: Add tests for Stripe request validation, webhook verification-required behavior, safe dev skip behavior, and error normalization.
 
