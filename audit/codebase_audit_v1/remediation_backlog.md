@@ -123,11 +123,11 @@ Notes:
 
 - Keep the public middleware API stable unless a stronger error-returning constructor path already exists.
 
-## Epic E3 - Harden Public API Nil and Cleanup Semantics [ ]
+## Epic E3 - Harden Public API Nil and Cleanup Semantics [x]
 
 Description: Remove small public API footguns that can produce panics or resource-release bugs in otherwise normal caller error paths.
 
-### Ticket E3-T1 - Add scheduler nil-context regression coverage [ ]
+### Ticket E3-T1 - Add scheduler nil-context regression coverage [x]
 
 Description: Add a test that calls `scheduler.Runner.Start(nil)` and verifies the runner does not panic.
 
@@ -145,7 +145,7 @@ Notes:
 
 - Use a short-lived test context or controllable job to avoid leaking goroutines.
 
-### Ticket E3-T2 - Normalize nil scheduler contexts [ ]
+### Ticket E3-T2 - Normalize nil scheduler contexts [x]
 
 Description: Update scheduler start/run paths to normalize nil contexts consistently with other packages in the repository.
 
@@ -163,7 +163,7 @@ Notes:
 
 - Prefer a small helper rather than scattering nil checks.
 
-### Ticket E3-T3 - Add txpostgres idempotent release tests [ ]
+### Ticket E3-T3 - Add txpostgres idempotent release tests [x]
 
 Description: Add tests for double `rows.Close()` and repeated `row.Scan()` calls to define expected connection-release behavior.
 
@@ -181,7 +181,7 @@ Notes:
 
 - Assert that a pooled connection is released exactly once.
 
-### Ticket E3-T4 - Make txpostgres release wrappers idempotent [ ]
+### Ticket E3-T4 - Make txpostgres release wrappers idempotent [x]
 
 Description: Update `rowsWithRelease` and `rowWithRelease` so connection release can occur at most once.
 

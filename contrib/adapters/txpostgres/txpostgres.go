@@ -3,6 +3,7 @@ package txpostgres
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -148,26 +149,32 @@ func (p pooledFacade) QueryRow(
 
 // rowsWithRelease releases the connection when Close is called.
 type rowsWithRelease struct {
-	rows ports.DatabaseRows
-	conn ports.DatabaseConnection
+	rows        ports.DatabaseRows
+	conn        ports.DatabaseConnection
+	releaseOnce sync.Once
 }
 
 func (r *rowsWithRelease) Next() bool             { return r.rows.Next() }
 func (r *rowsWithRelease) Scan(dest ...any) error { return r.rows.Scan(dest...) }
 func (r *rowsWithRelease) Err() error             { return r.rows.Err() }
 func (r *rowsWithRelease) Close() {
-	r.rows.Close()
-	r.conn.Release()
+	r.releaseOnce.Do(func() {
+		r.rows.Close()
+		r.conn.Release()
+	})
 }
 
 // rowWithRelease releases the connection after Scan returns.
 type rowWithRelease struct {
-	row  ports.DatabaseRow
-	conn ports.DatabaseConnection
+	row         ports.DatabaseRow
+	conn        ports.DatabaseConnection
+	releaseOnce sync.Once
 }
 
 func (r *rowWithRelease) Scan(dest ...any) error {
-	defer r.conn.Release()
+	defer r.releaseOnce.Do(func() {
+		r.conn.Release()
+	})
 	return r.row.Scan(dest...)
 }
 

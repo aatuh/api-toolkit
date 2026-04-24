@@ -69,6 +69,36 @@ func TestStartRunsJobImmediatelyAndRepeatedly(t *testing.T) {
 	waitForRuns(t, runs, 2, 250*time.Millisecond)
 }
 
+func TestStartAcceptsNilContext(t *testing.T) {
+	runner := New(nil, nil, nil, Job{
+		Name:     "disabled",
+		Interval: 0,
+		Run: func(context.Context) error {
+			t.Fatal("job with non-positive interval should not run")
+			return nil
+		},
+	})
+
+	assertNotPanics(t, func() {
+		runner.Start(nil)
+	})
+}
+
+func TestExecuteNormalizesNilContext(t *testing.T) {
+	runner := New(nil, nil, nil)
+
+	runner.execute(nil, Job{
+		Name:     "sync",
+		Interval: time.Minute,
+		Run: func(ctx context.Context) error {
+			if ctx == nil {
+				t.Fatal("expected non-nil job context")
+			}
+			return nil
+		},
+	})
+}
+
 func TestMaybeRunSkipsWhenLastRunIsWithinInterval(t *testing.T) {
 	called := false
 	runner := New(nil, nil, testLastRunProvider{
@@ -612,4 +642,14 @@ func valueForKey(args []any, key string) any {
 		}
 	}
 	return nil
+}
+
+func assertNotPanics(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("unexpected panic: %v", recovered)
+		}
+	}()
+	fn()
 }

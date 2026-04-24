@@ -74,6 +74,7 @@ func (r *Runner) SetRecorderFailureHandler(handler RecorderFailureHandler) {
 
 // Start launches all jobs in separate goroutines.
 func (r *Runner) Start(ctx context.Context) {
+	ctx = normalizeContext(ctx)
 	for i, job := range r.jobs {
 		j := job
 		if j.Interval <= 0 || j.Run == nil {
@@ -91,6 +92,7 @@ func (r *Runner) Start(ctx context.Context) {
 }
 
 func (r *Runner) runJob(ctx context.Context, job Job) {
+	ctx = normalizeContext(ctx)
 	ticker := time.NewTicker(job.Interval)
 	defer ticker.Stop()
 
@@ -108,6 +110,7 @@ func (r *Runner) runJob(ctx context.Context, job Job) {
 }
 
 func (r *Runner) maybeRun(ctx context.Context, job Job) {
+	ctx = normalizeContext(ctx)
 	if job.Interval > 0 && r.lastRuns != nil {
 		if last, ok, err := r.lastRuns.LastFinished(ctx, job.Name); err == nil && ok {
 			if time.Since(last) < job.Interval {
@@ -123,6 +126,7 @@ func (r *Runner) maybeRun(ctx context.Context, job Job) {
 }
 
 func (r *Runner) execute(ctx context.Context, job Job) {
+	ctx = normalizeContext(ctx)
 	start := time.Now()
 	if r.log != nil {
 		r.log.Info("scheduled job start", "job", job.Name, "start", start.String())
@@ -190,12 +194,17 @@ func errMsg(err error) string {
 }
 
 func recorderContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	return context.WithTimeout(
 		context.WithoutCancel(ctx), recorderCleanupTimeout,
 	)
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 func (r *Runner) beginRun(jobName string) bool {
