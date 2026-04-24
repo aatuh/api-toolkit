@@ -184,7 +184,7 @@ Notes:
 
 - Do not let unlock reporting hide migration execution, commit, or state-recording errors.
 
-## Epic E4 - Improve CI And Supply Chain Hardening [ ]
+## Epic E4 - Improve CI And Supply Chain Hardening [x]
 
 Description: Make CI and release automation more tamper-resistant and easier to run in non-mutating review contexts.
 
@@ -224,7 +224,7 @@ Notes:
 
 - Verify the chosen Dependabot strategy works with SHA-pinned actions.
 
-### Ticket E4-T3 - Add a non-mutating audit check target [ ]
+### Ticket E4-T3 - Add a non-mutating audit check target [x]
 
 Description: Add a Makefile target for reviewers that runs non-mutating checks such as tests, race tests, fuzz smoke, lint, vuln, gosec, API check, docs-check, and build smoke without running `fmt` or `tidy`.
 

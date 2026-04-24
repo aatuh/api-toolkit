@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize audit-check ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -123,6 +123,17 @@ finalize: ## Run QA; installs tools and may rewrite formatted/tidy files
 	$(MAKE) test-race
 	$(MAKE) fuzz
 	$(MAKE) clean
+
+audit-check: ## Run non-mutating review checks without fmt or tidy
+	$(MAKE) lint
+	$(MAKE) vuln
+	$(MAKE) gosec
+	$(MAKE) ci-build-smoke
+	$(MAKE) api-check
+	$(MAKE) docs-check
+	$(MAKE) test
+	$(MAKE) test-race
+	$(MAKE) fuzz
 
 ci-build-smoke: ## Build root and contrib modules via the local CI build target
 	$(MAKE) .codeql-local-build
