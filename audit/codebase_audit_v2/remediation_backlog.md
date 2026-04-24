@@ -70,7 +70,7 @@ Notes:
 
 Description: Add focused behavior tests for stable packages that currently rely on API shape checks but have little or no direct behavioral coverage.
 
-### Ticket E2-T1 - Test `specs.Registry` deterministic OpenAPI output [ ]
+### Ticket E2-T1 - Test `specs.Registry` deterministic OpenAPI output [x]
 
 Description: Add tests for `specs.NewRegistry`, operation registration, deterministic path/method ordering, default response generation, explicit response content types, request bodies, tags, descriptions, and deprecated operations.
 
