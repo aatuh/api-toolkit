@@ -426,6 +426,88 @@ func TestWithLockDefaultTimeoutMatchesCompatibilityBehavior(t *testing.T) {
 	}
 }
 
+func TestWithLockReportsUnlockFailureWithoutMaskingPrimaryError(t *testing.T) {
+	primaryErr := errors.New("migration failed")
+	unlockErr := errors.New("unlock failed")
+	var reported error
+	var logs []string
+	r := &Runner{
+		Opts: Options{
+			LockKey: 1234,
+			Logger: func(format string, args ...any) {
+				logs = append(logs, format)
+			},
+			UnlockFailureHandler: func(err error) {
+				reported = err
+			},
+		},
+		execContextHook: func(
+			_ context.Context, query string, _ ...any,
+		) (sql.Result, error) {
+			switch {
+			case strings.Contains(query, "pg_advisory_lock"):
+				return fakeSQLResult(1), nil
+			case strings.Contains(query, "pg_advisory_unlock"):
+				return nil, unlockErr
+			default:
+				return fakeSQLResult(1), nil
+			}
+		},
+	}
+
+	err := r.withLock(context.Background(), func(context.Context) error {
+		return primaryErr
+	})
+	if !errors.Is(err, primaryErr) {
+		t.Fatalf("withLock() error = %v, want %v", err, primaryErr)
+	}
+	if !errors.Is(reported, unlockErr) {
+		t.Fatalf("reported unlock error = %v, want %v", reported, unlockErr)
+	}
+	if len(logs) != 1 || logs[0] != "migration advisory unlock failed: %v" {
+		t.Fatalf("logs = %#v", logs)
+	}
+}
+
+func TestWithLockUnlockFailureHandlerPanicDoesNotMaskMigrationResult(t *testing.T) {
+	primaryErr := errors.New("migration failed")
+	unlockErr := errors.New("unlock failed")
+	var logs []string
+	r := &Runner{
+		Opts: Options{
+			LockKey: 1234,
+			Logger: func(format string, args ...any) {
+				logs = append(logs, format)
+			},
+			UnlockFailureHandler: func(error) {
+				panic("handler failed")
+			},
+		},
+		execContextHook: func(
+			_ context.Context, query string, _ ...any,
+		) (sql.Result, error) {
+			switch {
+			case strings.Contains(query, "pg_advisory_lock"):
+				return fakeSQLResult(1), nil
+			case strings.Contains(query, "pg_advisory_unlock"):
+				return nil, unlockErr
+			default:
+				return fakeSQLResult(1), nil
+			}
+		},
+	}
+
+	err := r.withLock(context.Background(), func(context.Context) error {
+		return primaryErr
+	})
+	if !errors.Is(err, primaryErr) {
+		t.Fatalf("withLock() error = %v, want %v", err, primaryErr)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("logs = %#v, want unlock failure and handler panic logs", logs)
+	}
+}
+
 func writeMigrationFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
