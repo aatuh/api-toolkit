@@ -44,6 +44,9 @@ type Options struct {
 	EmbeddedFSs []fs.FS
 	TableName   string
 	LockKey     int64
+	// LockTimeout bounds advisory lock acquisition. Zero keeps the default
+	// 10 minute timeout used by earlier versions.
+	LockTimeout time.Duration
 	// AllowDangerousDown enables Down(); keep disabled in API binaries.
 	AllowDangerousDown bool
 	// Logger outputs formatted status messages.
@@ -132,6 +135,7 @@ var (
 	)
 	defaultTable            = "schema_migrations"
 	defaultLock             = int64(913551337114213777)
+	defaultLockTimeout      = 10 * time.Minute
 	migrationStateApplied   = "applied"
 	migrationStateFailed    = "failed"
 	migrationStateStarted   = "started"
@@ -522,12 +526,13 @@ ON CONFLICT (version) DO UPDATE SET
 func (r *Runner) withLock(
 	ctx context.Context, fn func(context.Context) error,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	lockTimeout := r.lockTimeout()
+	ctx, cancel := context.WithTimeout(ctx, lockTimeout)
 	defer cancel()
 	if _, err := r.execContext(
 		ctx, `SELECT pg_advisory_lock($1);`, r.Opts.LockKey,
 	); err != nil {
-		return err
+		return fmt.Errorf("acquire advisory lock within %s: %w", lockTimeout, err)
 	}
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -538,6 +543,13 @@ func (r *Runner) withLock(
 		)
 	}()
 	return fn(ctx)
+}
+
+func (r *Runner) lockTimeout() time.Duration {
+	if r != nil && r.Opts.LockTimeout > 0 {
+		return r.Opts.LockTimeout
+	}
+	return defaultLockTimeout
 }
 
 func (r *Runner) loadMigrations() error {
