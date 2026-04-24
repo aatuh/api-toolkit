@@ -149,7 +149,7 @@ Recommended: import adapters directly when you need the narrowest dependency sur
 
 ## Stability
 
-- Stable (core): `ports`, `middleware/*`, `httpx`, `endpoints/*`, `authorization`, `scheduler`, `email`, `securityprofile`, `specs`, `swagstub`, `response_writer`
+- Stable core package list: `VERSIONING.md` is the source of truth, and `scripts/apicheck.sh` must cover the same package list.
 - Stable migration target: `github.com/aatuh/api-toolkit/v2/compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
 - Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped and deprecated in favor of `compat/billing`, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces, and new observability code should stay on snapshot APIs. See `docs/ports-surface.md`.
 - Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
