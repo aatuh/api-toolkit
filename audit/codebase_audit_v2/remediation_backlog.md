@@ -323,7 +323,7 @@ Notes:
 
 - Preserve fallback coverage for legacy-only pool implementations.
 
-### Ticket E6-T2 - Add a contract test for deprecated billing aliases [ ]
+### Ticket E6-T2 - Add a contract test for deprecated billing aliases [x]
 
 Description: Add a focused test or docscheck assertion that deprecated `ports/billing.go` aliases continue pointing users to `compat/billing`.
 
