@@ -606,6 +606,11 @@ See `contrib/examples/` for end-to-end wiring samples.
   - `govulncheck v1.2.0`
   - `apidiff v0.0.0-20260410095643-746e56fc9e2f`
 - To reproduce the repository quality gate locally, run `GOTOOLCHAIN=local make finalize`.
+- For reviewer or audit contexts where repository files should not be rewritten,
+  run `GOTOOLCHAIN=local make audit-check`.
+- `make finalize` may rewrite Go files with `fmt` and module files with `tidy`;
+  prefer it before committing implementation changes, not as a read-only audit
+  command.
 - If you override the `*_VERSION` Make variables, your local results may differ from CI and audited baseline runs.
 
 ### Adapter coverage policy
