@@ -195,6 +195,58 @@ func TestREADMEStabilitySummaryUsesVersioningSourceOfTruth(t *testing.T) {
 	}
 }
 
+func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+
+	requirements := map[string][]string{
+		filepath.Join(repoRoot, "contrib", "bootstrap", "http.go"): {
+			"RATE_LIMIT_SKIP_ENABLED",
+			"RATE_LIMIT_SKIP_HEADER",
+			"RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES",
+			"TRUSTED_PROXIES",
+		},
+		filepath.Join(repoRoot, "contrib", "integrations", "auth", "jwt", "jwt.go"): {
+			"JWT_SKIP_HEADER_ENABLED",
+			"JWT_SKIP_HEADER_NAME",
+			"JWT_SKIP_TRUSTED_PROXIES",
+			"JWT_ALLOW_DANGEROUS_DEV_BYPASSES",
+		},
+		filepath.Join(repoRoot, "contrib", "middleware", "auth", "clerk", "config.go"): {
+			"CLERK_SKIP_HEADER_ENABLED",
+			"CLERK_SKIP_HEADER_NAME",
+			"CLERK_SKIP_TRUSTED_PROXIES",
+			"CLERK_ALLOW_DANGEROUS_DEV_BYPASSES",
+		},
+		filepath.Join(repoRoot, "contrib", "middleware", "auth", "devheaders", "config.go"): {
+			"DEV_AUTH_FALLBACK_ENABLED",
+			"DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES",
+			"DEV_AUTH_TRUSTED_PROXIES",
+		},
+		filepath.Join(repoRoot, "contrib", "adapters", "stripe", "config.go"): {
+			"STRIPE_WEBHOOK_SKIP_VERIFY",
+			"STRIPE_WEBHOOK_DEV_MODE",
+		},
+	}
+
+	for path, names := range requirements {
+		code := readText(t, path)
+		for _, name := range names {
+			if !strings.Contains(code, `"`+name+`"`) {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Fatalf("%s no longer contains bypass env var %s", rel, name)
+			}
+			if !strings.Contains(docs, "`"+name+"`") {
+				t.Fatalf("docs/security.md missing bypass env var %s", name)
+			}
+		}
+	}
+
+	if !strings.Contains(strings.ToLower(docs), "trusted prox") {
+		t.Fatal("docs/security.md must mention the trusted-proxy restriction for dev bypasses")
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
 var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
@@ -288,6 +340,16 @@ func runGoCmd(dir string, name string, args ...string) ([]byte, error) {
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
+}
+
+func readText(t *testing.T, path string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(content)
 }
 
 func stablePackagesFromVersioning(t *testing.T, path string) []string {

@@ -30,12 +30,21 @@ Core defaults aim to be safe, deterministic, and explicit:
 Some features include explicit bypasses for local development only:
 
 - Rate limit skip header: only honored when `AllowDangerousDevBypasses`
-  is true and the request comes from a trusted proxy.
-- JWT auth skip header: same trusted-proxy restriction.
-- Clerk auth skip header: same proxy restriction.
+  is true and the request comes from a trusted proxy. Env wiring uses
+  `RATE_LIMIT_SKIP_ENABLED`, `RATE_LIMIT_SKIP_HEADER`,
+  `RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES`, and `TRUSTED_PROXIES`.
+- JWT auth skip header: same trusted-proxy restriction. Env wiring uses
+  `JWT_SKIP_HEADER_ENABLED`, `JWT_SKIP_HEADER_NAME`,
+  `JWT_SKIP_TRUSTED_PROXIES`, and `JWT_ALLOW_DANGEROUS_DEV_BYPASSES`.
+- Clerk auth skip header: same proxy restriction. Env wiring uses
+  `CLERK_SKIP_HEADER_ENABLED`, `CLERK_SKIP_HEADER_NAME`,
+  `CLERK_SKIP_TRUSTED_PROXIES`, and `CLERK_ALLOW_DANGEROUS_DEV_BYPASSES`.
 - Dev header auth fallback: requires explicit dangerous-bypass opt-in and only
-  trusts headers from configured trusted proxies.
-- Webhook verification skip in adapters: intended for development only.
+  trusts headers from configured trusted proxies. Env wiring uses
+  `DEV_AUTH_FALLBACK_ENABLED`, `DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES`,
+  and `DEV_AUTH_TRUSTED_PROXIES`.
+- Stripe webhook verification skip in adapters: intended for development only.
+  Env wiring uses `STRIPE_WEBHOOK_SKIP_VERIFY` and `STRIPE_WEBHOOK_DEV_MODE`.
 
 Do not enable dev bypasses in production environments.
 
