@@ -19,6 +19,8 @@ import (
 // Adapter provides environment variable access using the envvar library.
 type Adapter struct{}
 
+var _ ports.EnvVar = (*Adapter)(nil)
+
 // New creates a new envvar adapter that satisfies ports.EnvVar.
 func New() ports.EnvVar { return &Adapter{} }
 
@@ -28,9 +30,23 @@ func (a *Adapter) LoadEnvFiles(paths []string) error {
 	return loaders.LoadOnce(paths)
 }
 
+// TryLoadEnvFiles loads environment variable files and returns an error.
+func (a *Adapter) TryLoadEnvFiles(paths []string) error {
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("load env file %q: %w", path, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("load env file %q: is a directory", path)
+		}
+	}
+	return a.LoadEnvFiles(paths)
+}
+
 // MustLoadEnvFiles panics on errors when loading environment files.
 func (a *Adapter) MustLoadEnvFiles(paths []string) {
-	if err := a.LoadEnvFiles(paths); err != nil {
+	if err := a.TryLoadEnvFiles(paths); err != nil {
 		panic(err)
 	}
 }
@@ -48,7 +64,20 @@ func (a *Adapter) GetOr(key, def string) string {
 
 // MustGet returns the value or panics if not present.
 func (a *Adapter) MustGet(key string) string {
-	return envvar.MustGet(key)
+	v, err := a.TryGet(key)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// TryGet returns the value and an error when missing.
+func (a *Adapter) TryGet(key string) (string, error) {
+	v, ok := envvar.Get(key)
+	if !ok {
+		return "", fmt.Errorf("environment variable %q is required", key)
+	}
+	return v, nil
 }
 
 // GetBoolOr returns the value as boolean or default if not present.
@@ -58,7 +87,24 @@ func (a *Adapter) GetBoolOr(key string, def bool) bool {
 
 // MustGetBool returns the value as boolean or panics if not present.
 func (a *Adapter) MustGetBool(key string) bool {
-	return envvar.MustGetBool(key)
+	v, err := a.TryGetBool(key)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// TryGetBool returns the value as boolean or an error.
+func (a *Adapter) TryGetBool(key string) (bool, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return false, err
+	}
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("environment variable %q is not a valid bool: %s", key, raw)
+	}
+	return b, nil
 }
 
 // GetIntOr returns the value as integer or default if not present.
@@ -75,7 +121,24 @@ func (a *Adapter) GetIntOr(key string, def int) int {
 
 // MustGetInt returns the value as integer or panics if not present.
 func (a *Adapter) MustGetInt(key string) int {
-	return envvar.MustGetInt(key)
+	v, err := a.TryGetInt(key)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// TryGetInt returns the value as integer or an error.
+func (a *Adapter) TryGetInt(key string) (int, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	i, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid int: %s", key, raw)
+	}
+	return i, nil
 }
 
 // GetInt64Or returns the value as int64 or default if not present.
@@ -92,12 +155,24 @@ func (a *Adapter) GetInt64Or(key string, def int64) int64 {
 
 // MustGetInt64 returns the value as int64 or panics if not present.
 func (a *Adapter) MustGetInt64(key string) int64 {
-	v := envvar.MustGet(key)
-	i, err := strconv.ParseInt(v, 10, 64)
+	i, err := a.TryGetInt64(key)
 	if err != nil {
-		panic("environment variable " + key + " is not a valid int64: " + v)
+		panic(err)
 	}
 	return i
+}
+
+// TryGetInt64 returns the value as int64 or an error.
+func (a *Adapter) TryGetInt64(key string) (int64, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	i, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid int64: %s", key, raw)
+	}
+	return i, nil
 }
 
 // GetUintOr returns the value as uint or default if not present.
@@ -114,12 +189,24 @@ func (a *Adapter) GetUintOr(key string, def uint) uint {
 
 // MustGetUint returns the value as uint or panics if not present.
 func (a *Adapter) MustGetUint(key string) uint {
-	v := envvar.MustGet(key)
-	i, err := strconv.ParseUint(v, 10, 32)
+	v, err := a.TryGetUint(key)
 	if err != nil {
-		panic("environment variable " + key + " is not a valid uint: " + v)
+		panic(err)
 	}
-	return uint(i)
+	return v
+}
+
+// TryGetUint returns the value as uint or an error.
+func (a *Adapter) TryGetUint(key string) (uint, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	i, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid uint: %s", key, raw)
+	}
+	return uint(i), nil
 }
 
 // GetUint64Or returns the value as uint64 or default if not present.
@@ -136,12 +223,24 @@ func (a *Adapter) GetUint64Or(key string, def uint64) uint64 {
 
 // MustGetUint64 returns the value as uint64 or panics if not present.
 func (a *Adapter) MustGetUint64(key string) uint64 {
-	v := envvar.MustGet(key)
-	i, err := strconv.ParseUint(v, 10, 64)
+	v, err := a.TryGetUint64(key)
 	if err != nil {
-		panic("environment variable " + key + " is not a valid uint64: " + v)
+		panic(err)
 	}
-	return i
+	return v
+}
+
+// TryGetUint64 returns the value as uint64 or an error.
+func (a *Adapter) TryGetUint64(key string) (uint64, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	i, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid uint64: %s", key, raw)
+	}
+	return i, nil
 }
 
 // GetFloat64Or returns the value as float64 or default if not present.
@@ -158,12 +257,24 @@ func (a *Adapter) GetFloat64Or(key string, def float64) float64 {
 
 // MustGetFloat64 returns the value as float64 or panics if not present.
 func (a *Adapter) MustGetFloat64(key string) float64 {
-	v := envvar.MustGet(key)
-	f, err := strconv.ParseFloat(v, 64)
+	f, err := a.TryGetFloat64(key)
 	if err != nil {
-		panic("environment variable " + key + " is not a valid float64: " + v)
+		panic(err)
 	}
 	return f
+}
+
+// TryGetFloat64 returns the value as float64 or an error.
+func (a *Adapter) TryGetFloat64(key string) (float64, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	f, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid float64: %s", key, raw)
+	}
+	return f, nil
 }
 
 // GetDurationOr returns the value as duration or default if not present.
@@ -181,12 +292,24 @@ func (a *Adapter) GetDurationOr(key string, def time.Duration) time.Duration {
 
 // MustGetDuration returns the value as duration or panics if not present.
 func (a *Adapter) MustGetDuration(key string) time.Duration {
-	v := envvar.MustGet(key)
-	d, err := time.ParseDuration(v)
+	d, err := a.TryGetDuration(key)
 	if err != nil {
-		panic("environment variable " + key + " is not a valid duration: " + v)
+		panic(err)
 	}
 	return d
+}
+
+// TryGetDuration returns the value as duration or an error.
+func (a *Adapter) TryGetDuration(key string) (time.Duration, error) {
+	raw, err := a.TryGet(key)
+	if err != nil {
+		return 0, err
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %q is not a valid duration: %s", key, raw)
+	}
+	return d, nil
 }
 
 // Bind populates a struct from environment variables.
@@ -197,9 +320,14 @@ func (a *Adapter) Bind(dst any) error {
 
 // MustBind panics on binding errors.
 func (a *Adapter) MustBind(dst any) {
-	if err := a.Bind(dst); err != nil {
+	if err := a.TryBind(dst); err != nil {
 		panic(err)
 	}
+}
+
+// TryBind populates a struct from environment variables.
+func (a *Adapter) TryBind(dst any) error {
+	return a.Bind(dst)
 }
 
 // BindWithPrefix binds with a prefix.
@@ -209,9 +337,14 @@ func (a *Adapter) BindWithPrefix(dst any, prefix string) error {
 
 // MustBindWithPrefix panics on binding errors with prefix.
 func (a *Adapter) MustBindWithPrefix(dst any, prefix string) {
-	if err := a.BindWithPrefix(dst, prefix); err != nil {
+	if err := a.TryBindWithPrefix(dst, prefix); err != nil {
 		panic(err)
 	}
+}
+
+// TryBindWithPrefix binds with a prefix and returns errors.
+func (a *Adapter) TryBindWithPrefix(dst any, prefix string) error {
+	return a.BindWithPrefix(dst, prefix)
 }
 
 // DumpRedacted returns environment with secrets redacted.

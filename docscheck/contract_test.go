@@ -2,6 +2,7 @@ package docscheck
 
 import (
 	"context"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -81,12 +82,12 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 	}, "\n")
 	writeFile(t, tmpRoot, "go.mod", goMod)
 
-	out, err := runGoCmd(tmpDir, "go", "mod", "tidy")
+	out, err := runGoCmd(tmpDir, "mod", "tidy")
 	if err != nil {
 		t.Fatalf("getting-started guide dependencies do not resolve:\n%s\nerror: %v", out, err)
 	}
 
-	out, err = runGoCmd(tmpDir, "go", "test", "./...")
+	out, err = runGoCmd(tmpDir, "test", "./...")
 	if err != nil {
 		t.Fatalf("getting-started guide does not build:\n%s\nerror: %v", out, err)
 	}
@@ -134,6 +135,93 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 	}
 }
 
+func TestRootTestsUseContribModulePath(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	fset := token.NewFileSet()
+	forbidden := rootModulePath + "/v2/contrib"
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", "audit", "contrib":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range file.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if importPath == forbidden || strings.HasPrefix(importPath, forbidden+"/") {
+				rel, relErr := filepath.Rel(repoRoot, path)
+				if relErr != nil {
+					rel = path
+				}
+				t.Fatalf("%s imports contrib through root module path %q; use %q", rel, importPath, contribModulePath)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan root test imports: %v", err)
+	}
+}
+
+func TestRootModuleDependencyBoundaryExcludesContribAdapters(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	goMod := readText(t, filepath.Join(repoRoot, "go.mod"))
+	boundaryDocs := readText(t, filepath.Join(repoRoot, "docs", "dependency-boundary.md"))
+
+	for _, forbidden := range []string{
+		contribModulePath,
+		"github.com/alicebob/miniredis/v2",
+		"github.com/redis/go-redis/v9",
+	} {
+		if strings.Contains(goMod, forbidden) {
+			t.Fatalf("root go.mod must not require adapter/test dependency %q", forbidden)
+		}
+		if !strings.Contains(boundaryDocs, "`"+forbidden+"`") {
+			t.Fatalf("docs/dependency-boundary.md missing dependency-boundary rationale for %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"`middleware/idempotency` root tests use the package-local in-memory test store",
+		"`contrib/adapters/idempotencytest` owns reusable adapter release-contract coverage",
+	} {
+		if !strings.Contains(boundaryDocs, required) {
+			t.Fatalf("docs/dependency-boundary.md missing root/contrib test boundary text %q", required)
+		}
+	}
+}
+
+func TestHealthDocsShowSafeDetailedHealthMounting(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	section := markdownSection(t, readme, "## Health endpoint contract")
+
+	for _, required := range []string{
+		"Mount detailed health and pprof routes behind admin/internal access control",
+		"operator-only dependency detail",
+		"adminMux.Handle",
+		"requireAdmin",
+	} {
+		if !strings.Contains(section, required) {
+			t.Fatalf("README health contract missing safe detailed-health guidance %q", required)
+		}
+	}
+}
+
 func TestCompatibilitySensitivePortsManifestIsCurrent(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	manifestPath := filepath.Join(repoRoot, "docs", "ports-surface.md")
@@ -174,8 +262,1257 @@ func TestStableAPISurfaceMatchesAPICheckPackages(t *testing.T) {
 
 	versioningPackages := stablePackagesFromVersioning(t, filepath.Join(repoRoot, "VERSIONING.md"))
 	apiCheckPackages := stablePackagesFromAPICheck(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
+	manifestPackages := stableRootPackagesFromClassification(t, repoRoot)
 
-	assertStringSlicesEqual(t, "stable API surface", versioningPackages, apiCheckPackages)
+	assertStringSlicesEqual(t, "VERSIONING.md stable API surface vs scripts/apicheck.sh", versioningPackages, apiCheckPackages)
+	assertStringSlicesEqual(t, "VERSIONING.md stable API surface vs docs/package-classification.tsv", versioningPackages, manifestPackages)
+}
+
+func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	packages := listedGoPackages(t, repoRoot)
+
+	assertClassifiedPackages(t, "root", packages, classes, rootModulePath+"/v2", map[string]bool{
+		"stable":             true,
+		"compatibility-only": true,
+		"experimental":       true,
+		"test-only":          true,
+		"example-only":       true,
+		"excluded":           true,
+	})
+
+	for _, required := range []struct {
+		importPath string
+		apiStatus  string
+		testStatus string
+	}{
+		{rootModulePath + "/v2/docscheck", "excluded", "direct-tests"},
+		{rootModulePath + "/v2/testutil/authtest", "test-only", "test-support"},
+	} {
+		cls, ok := classes[required.importPath]
+		if !ok {
+			t.Fatalf("docs/package-classification.tsv missing %s", required.importPath)
+		}
+		if cls.APIStatus != required.apiStatus || cls.TestStatus != required.testStatus {
+			t.Fatalf("%s classification = %s/%s, want %s/%s", required.importPath, cls.APIStatus, cls.TestStatus, required.apiStatus, required.testStatus)
+		}
+	}
+}
+
+func TestContribPackageClassificationAndCompatibilityPolicy(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	packages := listedGoPackages(t, filepath.Join(repoRoot, "contrib"))
+
+	assertClassifiedPackages(t, "contrib", packages, classes, contribModulePath, map[string]bool{
+		"experimental": true,
+		"wrapper-only": true,
+		"test-only":    true,
+		"example-only": true,
+		"generated":    true,
+		"tooling":      true,
+		"excluded":     true,
+	})
+
+	var stable []string
+	for _, cls := range classes {
+		if inModule(cls.ImportPath, contribModulePath) && (cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only") {
+			stable = append(stable, cls.ImportPath)
+		}
+	}
+	sort.Strings(stable)
+	if len(stable) != 0 {
+		t.Fatalf("contrib packages are classified as stable without a release-contrib-api-check gate: %v", stable)
+	}
+
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	for _, required := range []string{
+		"The contrib module is outside the stable API compatibility promise",
+		"`make release-api-check` covers only the core module",
+		"`docs/package-classification.tsv`",
+		"release-contrib-api-check",
+		"`make contrib-api-drift-report` is intentionally report-only",
+		"`make contrib-release-notes-check` is a lightweight",
+	} {
+		if !strings.Contains(versioning, required) {
+			t.Fatalf("VERSIONING.md missing contrib compatibility policy text %q", required)
+		}
+	}
+}
+
+func TestContribReviewScriptsAreDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	notes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	manifest := readText(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-packages.txt"))
+
+	for _, required := range []string{
+		"contrib-api-drift-report",
+		"contrib-release-notes-check",
+		"contrib-review-contract",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing contrib review target %q", required)
+		}
+	}
+	for _, required := range []string{
+		"contrib-api-drift-report",
+		"contrib-release-notes-check",
+		"docs/contrib-api-drift-packages.txt",
+		"docs/contrib-api-drift-dispositions.tsv",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README missing contrib review command %q", required)
+		}
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("release runbook missing contrib review command %q", required)
+		}
+		if !strings.Contains(notes, required) {
+			t.Fatalf("release notes checklist missing contrib review command %q", required)
+		}
+	}
+	for _, required := range []string{
+		"contrib-api-drift-report.log",
+		"incompatible report-only contrib drift",
+		"does not make contrib stable",
+	} {
+		if !strings.Contains(runbook, required) && !strings.Contains(notes, required) {
+			t.Fatalf("contrib review docs missing %q", required)
+		}
+	}
+	if !strings.Contains(manifest, contribModulePath+"/middleware/auth/devheaders") {
+		t.Fatal("contrib drift manifest must include the current incompatible report-only devheaders package")
+	}
+}
+
+func TestContribAPIDriftPackageManifest(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	manifestPackages := contribDriftManifestPackages(t, repoRoot)
+	script := readText(t, filepath.Join(repoRoot, "scripts", "contrib_api_drift_report.sh"))
+
+	if len(manifestPackages) == 0 {
+		t.Fatal("docs/contrib-api-drift-packages.txt has no packages")
+	}
+	if !strings.Contains(script, "docs/contrib-api-drift-packages.txt") {
+		t.Fatal("contrib drift script must read docs/contrib-api-drift-packages.txt")
+	}
+	for _, pkg := range manifestPackages {
+		if !inModule(pkg, contribModulePath) {
+			t.Fatalf("drift manifest package %s is outside contrib module", pkg)
+		}
+		cls, ok := classes[pkg]
+		if !ok {
+			t.Fatalf("drift manifest package %s is missing from docs/package-classification.tsv", pkg)
+		}
+		if cls.APIStatus != "experimental" && cls.APIStatus != "wrapper-only" {
+			t.Fatalf("drift manifest package %s has api_status=%s, want experimental or wrapper-only", pkg, cls.APIStatus)
+		}
+	}
+	for _, required := range []string{
+		contribModulePath + "/adapters/pgxpool",
+		contribModulePath + "/adapters/stripe",
+		contribModulePath + "/integrations/auth/devheaders",
+		contribModulePath + "/middleware/auth/devheaders",
+	} {
+		if !containsString(manifestPackages, required) {
+			t.Fatalf("drift manifest missing high-use package %s", required)
+		}
+	}
+}
+
+func TestContribAPIDriftDispositionManifest(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	records := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-dispositions.tsv"))
+	byPackage := recordsByField(t, records, "package")
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	releaseReview := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	notesScript := readText(t, filepath.Join(repoRoot, "scripts", "contrib_release_notes_check.sh"))
+
+	if len(byPackage) == 0 {
+		t.Fatal("docs/contrib-api-drift-dispositions.tsv has no disposition rows")
+	}
+	hasIncompatible := false
+	for pkg, record := range byPackage {
+		if !inModule(pkg, contribModulePath) {
+			t.Fatalf("contrib drift disposition package %s is outside contrib module", pkg)
+		}
+		if record["status"] != "compatible" && record["status"] != "incompatible" {
+			t.Fatalf("%s status = %q, want compatible or incompatible", pkg, record["status"])
+		}
+		if record["status"] == "incompatible" {
+			hasIncompatible = true
+			if record["release_note_acknowledgement"] == "not_required" {
+				t.Fatalf("%s incompatible disposition must require package-tied release notes", pkg)
+			}
+		}
+		for _, field := range []string{"reason", "release_note_acknowledgement", "reviewed_on", "expires_on", "owner"} {
+			if strings.TrimSpace(record[field]) == "" {
+				t.Fatalf("%s disposition missing %s", pkg, field)
+			}
+		}
+		requireISODate(t, "reviewed_on for "+pkg, record["reviewed_on"])
+		requireISODate(t, "expires_on for "+pkg, record["expires_on"])
+	}
+	if !hasIncompatible {
+		t.Fatal("contrib drift disposition manifest must include the current incompatible report-only drift class")
+	}
+	if !strings.Contains(releaseNotes, "contrib/middleware/auth/devheaders") ||
+		!strings.Contains(strings.ToLower(releaseNotes), "incompatible") {
+		t.Fatal("release notes must contain package-tied incompatible contrib drift acknowledgement")
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"docs/release-review.md", releaseReview},
+		{"docs/release-runbook.md", runbook},
+		{"scripts/release_check_summary.sh", summaryScript},
+	} {
+		if !strings.Contains(source.text, "docs/contrib-api-drift-dispositions.tsv") {
+			t.Fatalf("%s missing contrib drift disposition manifest reference", source.name)
+		}
+	}
+	if !strings.Contains(notesScript, "requires release notes tied to package") {
+		t.Fatal("contrib release notes script must require package-tied incompatible drift acknowledgement")
+	}
+	for _, required := range []string{
+		"contrib_drift_packages_from_log",
+		"missing_disposition_count",
+		"expired_disposition_count",
+		"failed_disposition_review",
+	} {
+		if !strings.Contains(summaryScript, required) {
+			t.Fatalf("release summary script missing dynamic contrib disposition enforcement text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"docs/contrib-api-drift-dispositions.tsv",
+		"non-expired disposition coverage",
+	} {
+		if !strings.Contains(notesScript, required) {
+			t.Fatalf("contrib release notes script missing disposition enforcement text %q", required)
+		}
+	}
+}
+
+func TestNoTestPackagesAreExplicitlyClassified(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	packages := append(listedGoPackages(t, repoRoot), listedGoPackages(t, filepath.Join(repoRoot, "contrib"))...)
+
+	acceptedNoTestStatus := map[string]bool{
+		"example-only": true,
+		"test-support": true,
+		"generated":    true,
+		"excluded":     true,
+		"tooling":      true,
+	}
+	var invalid []string
+	var needsTests []string
+	for _, pkg := range packages {
+		if pkg.DirectTestFiles > 0 {
+			continue
+		}
+		cls, ok := classes[pkg.ImportPath]
+		if !ok {
+			invalid = append(invalid, pkg.ImportPath+" is missing from docs/package-classification.tsv")
+			continue
+		}
+		if cls.TestStatus == "needs-tests" {
+			needsTests = append(needsTests, pkg.ImportPath)
+			continue
+		}
+		if !acceptedNoTestStatus[cls.TestStatus] {
+			invalid = append(invalid, pkg.ImportPath+" has no direct tests and test_status="+cls.TestStatus)
+		}
+	}
+	sort.Strings(invalid)
+	sort.Strings(needsTests)
+	if len(needsTests) > 0 {
+		t.Fatalf("packages classified as needs-tests must receive tests before release: %v", needsTests)
+	}
+	if len(invalid) > 0 {
+		t.Fatalf("packages with no direct tests must be classified as example-only, test-support, generated, tooling, or excluded: %v", invalid)
+	}
+}
+
+func TestPackageClassificationTestStatusEvidence(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	packages := append(listedGoPackages(t, repoRoot), listedGoPackages(t, filepath.Join(repoRoot, "contrib"))...)
+	packageByImport := make(map[string]listedPackage, len(packages))
+	for _, pkg := range packages {
+		packageByImport[pkg.ImportPath] = pkg
+	}
+
+	for importPath, cls := range classes {
+		pkg, ok := packageByImport[importPath]
+		if !ok {
+			continue
+		}
+		switch cls.TestStatus {
+		case "direct-tests":
+			if pkg.DirectTestFiles == 0 {
+				t.Fatalf("%s is classified direct-tests but has no direct test files", importPath)
+			}
+		case "wrapper-smoke-tested":
+			if cls.APIStatus != "wrapper-only" {
+				t.Fatalf("%s uses wrapper-smoke-tested with api_status=%s, want wrapper-only", importPath, cls.APIStatus)
+			}
+			if pkg.DirectTestFiles == 0 {
+				t.Fatalf("%s is classified wrapper-smoke-tested but has no direct smoke tests", importPath)
+			}
+		case "example-only":
+			if cls.APIStatus != "example-only" || !strings.Contains(importPath, "/examples/") {
+				t.Fatalf("%s uses example-only test status outside an example-only package", importPath)
+			}
+		case "test-support":
+			if cls.APIStatus != "test-only" || !strings.Contains(importPath, "test") {
+				t.Fatalf("%s uses test-support outside a test-only support package", importPath)
+			}
+		case "generated":
+			if cls.APIStatus != "generated" || !strings.Contains(importPath, "/gen") {
+				t.Fatalf("%s uses generated test status outside generated code", importPath)
+			}
+		case "tooling":
+			if cls.APIStatus != "tooling" || !strings.Contains(importPath, "/cmd/") {
+				t.Fatalf("%s uses tooling test status outside command tooling", importPath)
+			}
+		case "excluded":
+			if cls.APIStatus != "excluded" {
+				t.Fatalf("%s uses excluded test status with api_status=%s", importPath, cls.APIStatus)
+			}
+		case "needs-tests":
+			t.Fatalf("%s is still classified needs-tests", importPath)
+		}
+	}
+}
+
+func TestWrapperSmokeClassificationsRemainThinAndExplained(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+
+	for importPath, cls := range classes {
+		if cls.TestStatus != "wrapper-smoke-tested" {
+			continue
+		}
+		if cls.APIStatus != "wrapper-only" {
+			t.Fatalf("%s uses wrapper-smoke-tested with api_status=%s", importPath, cls.APIStatus)
+		}
+		if !strings.Contains(strings.ToLower(cls.Notes), "smoke coverage is sufficient because") {
+			t.Fatalf("%s wrapper-smoke-tested note must explain why smoke coverage is sufficient: %q", importPath, cls.Notes)
+		}
+		if strings.Contains(importPath, "/integrations/") {
+			t.Fatalf("%s integration wrappers must stay direct-tests unless explicitly re-reviewed", importPath)
+		}
+	}
+}
+
+func TestExampleOnlyPackagesBuildSmoke(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	var examplePackages []string
+	for _, cls := range classes {
+		if cls.TestStatus == "example-only" && inModule(cls.ImportPath, contribModulePath) {
+			examplePackages = append(examplePackages, cls.ImportPath)
+		}
+	}
+	sort.Strings(examplePackages)
+	if len(examplePackages) == 0 {
+		t.Fatal("no contrib example packages are classified for build smoke")
+	}
+	args := append([]string{"test"}, examplePackages...)
+	out, err := runGoCmd(filepath.Join(repoRoot, "contrib"), args...)
+	if err != nil {
+		t.Fatalf("example-only package build smoke failed:\n%s\nerror: %v", out, err)
+	}
+}
+
+func TestMakefileGateIntent(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+
+	finalize := makeTargetRecipe(t, makefile, "finalize")
+	if strings.Contains(finalize, "$(MAKE) api-check") || strings.Contains(finalize, "$(MAKE) release-api-check") {
+		t.Fatal("finalize must not directly call api-check or release-api-check")
+	}
+	releaseCheck := makeTargetRecipe(t, makefile, "release-check")
+	if !strings.Contains(releaseCheck, "$(MAKE) release-api-check") {
+		t.Fatal("release-check must call release-api-check")
+	}
+	if !strings.Contains(releaseCheck, "$(MAKE) contrib-release-notes-check") {
+		t.Fatal("release-check must call contrib-release-notes-check")
+	}
+	contribReport := makeTargetRecipe(t, makefile, "contrib-api-drift-report")
+	if !strings.Contains(contribReport, "scripts/contrib_api_drift_report.sh") {
+		t.Fatal("contrib-api-drift-report must call the report-only contrib API drift script")
+	}
+	contribNotes := makeTargetRecipe(t, makefile, "contrib-release-notes-check")
+	if !strings.Contains(contribNotes, "scripts/contrib_release_notes_check.sh") {
+		t.Fatal("contrib-release-notes-check must call the contrib release notes review script")
+	}
+}
+
+func TestReleaseEvidenceTarget(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	target := makeTargetRecipe(t, makefile, "release-evidence")
+	script := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+
+	for _, required := range []string{
+		"API_BASE_REF is required for release-evidence",
+		"mktemp",
+		"scripts/release_check_summary.sh --run",
+		"release-check-summary.json",
+	} {
+		if !strings.Contains(target, required) {
+			t.Fatalf("release-evidence target missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"ALLOW_DIRTY_RELEASE_EVIDENCE",
+		"skipped_by_provenance_policy",
+		"publication_eligible",
+		"publication_artifact_expectations",
+		"release-evidence-logs.tgz",
+		"provenance_policy",
+		"vulnerability_evidence",
+		"missing_disposition_count",
+		"expired_disposition_count",
+		"contrib_drift_packages_from_log",
+		"publication_artifact_checksums",
+		"release-asset-manifest.tsv",
+		"docs/vulnerability-dispositions.tsv",
+		"docs/contrib-api-drift-dispositions.tsv",
+		"make contrib-release-notes-check",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("release evidence script missing %q", required)
+		}
+	}
+}
+
+func TestReleaseReviewChecklistDiscoverability(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	checklist := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+
+	for _, required := range []string{
+		"docs/release-review.md",
+		"Release review checklist",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README missing release review checklist link/text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"docs/release-runbook.md",
+		"docs/release-notes.md",
+		"VERSIONING.md",
+		"docs/package-classification.tsv",
+		"docs/dependency-risk.md",
+		"docs/vulnerability-dispositions.tsv",
+		"docs/contrib-api-drift-dispositions.tsv",
+		"docs/ports-surface.md",
+		"docs/v3-compatibility-roadmap.md",
+		"release-check-summary.json",
+		"publication_eligible",
+		"release-evidence-logs.tgz",
+		"release-asset-manifest.tsv",
+		"make release-artifact-verify",
+		".ci-result/release-evidence/logs/contrib-api-drift-report.log",
+		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
+		"dirty local evidence is rejected before publishing",
+		"GitHub release workflow evidence is the publication-grade source",
+	} {
+		if !strings.Contains(checklist, required) {
+			t.Fatalf("docs/release-review.md missing %q", required)
+		}
+	}
+}
+
+func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readme},
+		{"VERSIONING.md", versioning},
+		{"docs/release-runbook.md", runbook},
+		{"docs/release-review.md", review},
+	} {
+		for _, required := range []string{
+			"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
+			"local dirty-tree audit",
+			"not acceptable before publishing",
+		} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing release evidence mode policy text %q", source.name, required)
+			}
+		}
+	}
+	for _, required := range []string{
+		"tags:",
+		"draft: true",
+		"make release-evidence",
+		"release-evidence-logs.tgz",
+		"Verify SBOM signatures",
+		"release-asset-manifest.tsv",
+		"make release-artifact-verify",
+		"Upload evidence and assets to draft release",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/release.yml missing pre-publication release workflow text %q", required)
+		}
+	}
+}
+
+func TestReleaseEvidenceSummarySchema(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	cmd := exec.CommandContext(context.Background(), "bash", "scripts/release_check_summary.sh")
+	cmd.Dir = repoRoot
+	cmd.Env = releaseEvidenceEnv("ALLOW_DIRTY_RELEASE_EVIDENCE=1")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("release evidence schema command failed: %v", err)
+	}
+
+	var summary struct {
+		Schema   string `json:"schema"`
+		Commit   string `json:"commit"`
+		GitState struct {
+			Commit         string  `json:"commit"`
+			Branch         *string `json:"branch"`
+			Detached       bool    `json:"detached"`
+			Dirty          bool    `json:"dirty"`
+			StagedCount    int     `json:"staged_count"`
+			UnstagedCount  int     `json:"unstaged_count"`
+			UntrackedCount int     `json:"untracked_count"`
+			DeletedCount   int     `json:"deleted_count"`
+		} `json:"git_state"`
+		ProvenancePolicy struct {
+			Mode                      string `json:"mode"`
+			AllowDirtyReleaseEvidence bool   `json:"allow_dirty_release_evidence"`
+			Status                    string `json:"status"`
+			Message                   string `json:"message"`
+		} `json:"provenance_policy"`
+		APIBaseRef          string `json:"api_base_ref"`
+		QualityCommand      string `json:"quality_command"`
+		EvidenceCommand     string `json:"evidence_command"`
+		Status              string `json:"status"`
+		PublicationEligible bool   `json:"publication_eligible"`
+		Checks              []struct {
+			Name         string `json:"name"`
+			CommandLine  string `json:"command_line"`
+			Status       string `json:"status"`
+			ExitCode     *int   `json:"exit_code"`
+			DurationMS   *int64 `json:"duration_ms"`
+			LogAvailable bool   `json:"log_available"`
+			LogPath      string `json:"log_path"`
+			Artifacts    []any  `json:"artifacts"`
+		} `json:"checks"`
+		ToolVersions []struct {
+			Name        string `json:"name"`
+			CommandLine string `json:"command_line"`
+			Status      string `json:"status"`
+			ExitCode    int    `json:"exit_code"`
+			Version     string `json:"version"`
+		} `json:"tool_versions"`
+		VulnerabilityEvidence struct {
+			SourceLogPath                             string   `json:"source_log_path"`
+			Status                                    string   `json:"status"`
+			ReviewDate                                string   `json:"review_date"`
+			CalledVulnerabilityCount                  *int     `json:"called_vulnerability_count"`
+			ImportedNotCalledVulnerabilityCount       *int     `json:"imported_not_called_vulnerability_count"`
+			RequiredNotCalledModuleVulnerabilityCount *int     `json:"required_not_called_module_vulnerability_count"`
+			ImportedNotCalledIDs                      []string `json:"imported_not_called_ids"`
+			DispositionManifestPath                   string   `json:"disposition_manifest_path"`
+			MissingDispositionCount                   int      `json:"missing_disposition_count"`
+			ExpiredDispositionCount                   int      `json:"expired_disposition_count"`
+			DispositionIssues                         []struct {
+				ID        string `json:"id"`
+				Status    string `json:"status"`
+				ExpiresOn string `json:"expires_on"`
+				Owner     string `json:"owner"`
+				Message   string `json:"message"`
+			} `json:"disposition_issues"`
+			ReviewDisposition string `json:"review_disposition"`
+		} `json:"vulnerability_evidence"`
+		ContribDrift struct {
+			CommandLine             string `json:"command_line"`
+			Status                  string `json:"status"`
+			ExitCode                *int   `json:"exit_code"`
+			DurationMS              *int64 `json:"duration_ms"`
+			LogAvailable            bool   `json:"log_available"`
+			ArtifactPath            string `json:"artifact_path"`
+			DispositionManifestPath string `json:"disposition_manifest_path"`
+			ReviewDate              string `json:"review_date"`
+			DriftPackageCount       *int   `json:"drift_package_count"`
+			SkippedPackageCount     *int   `json:"skipped_package_count"`
+			CompatibleDriftCount    *int   `json:"compatible_drift_count"`
+			IncompatibleDriftCount  *int   `json:"incompatible_drift_count"`
+			Packages                []struct {
+				Package string `json:"package"`
+				Status  string `json:"status"`
+			} `json:"packages"`
+			MissingDispositionCount int `json:"missing_disposition_count"`
+			ExpiredDispositionCount int `json:"expired_disposition_count"`
+			DispositionIssues       []struct {
+				ID        string `json:"id"`
+				Status    string `json:"status"`
+				ExpiresOn string `json:"expires_on"`
+				Owner     string `json:"owner"`
+				Message   string `json:"message"`
+			} `json:"disposition_issues"`
+		} `json:"contrib_drift"`
+		ArtifactTiers                   map[string]any `json:"artifact_tiers"`
+		PublicationArtifactExpectations struct {
+			LocalEvidenceAssets       []string `json:"local_evidence_assets"`
+			GitHubDraftReleaseAssets  []string `json:"github_draft_release_assets"`
+			GitHubAttestationSubjects []string `json:"github_attestation_subjects"`
+			LocalGeneratesSignedSBOMs bool     `json:"local_generates_signed_sboms"`
+		} `json:"publication_artifact_expectations"`
+		SBOMStatus string   `json:"sbom_status"`
+		SBOMAssets []string `json:"sbom_assets"`
+	}
+	if err := json.Unmarshal(out, &summary); err != nil {
+		t.Fatalf("release evidence summary is not valid JSON:\n%s\nerror: %v", out, err)
+	}
+	if summary.Schema != "github.com/aatuh/api-toolkit/release-check-summary/v2" {
+		t.Fatalf("schema = %q, want v2", summary.Schema)
+	}
+	if summary.APIBaseRef != "v2.0.1" {
+		t.Fatalf("api_base_ref = %q, want v2.0.1", summary.APIBaseRef)
+	}
+	if summary.Commit == "" || summary.GitState.Commit != summary.Commit {
+		t.Fatalf("git_state commit = %q, want top-level commit %q", summary.GitState.Commit, summary.Commit)
+	}
+	if summary.GitState.StagedCount < 0 || summary.GitState.UnstagedCount < 0 ||
+		summary.GitState.UntrackedCount < 0 || summary.GitState.DeletedCount < 0 {
+		t.Fatalf("git_state counts must be non-negative: %+v", summary.GitState)
+	}
+	if summary.ProvenancePolicy.Mode == "" || summary.ProvenancePolicy.Status == "" || summary.ProvenancePolicy.Message == "" {
+		t.Fatalf("provenance_policy missing required fields: %+v", summary.ProvenancePolicy)
+	}
+	if !summary.ProvenancePolicy.AllowDirtyReleaseEvidence {
+		t.Fatalf("schema-only test runs in local audit mode and should record dirty override: %+v", summary.ProvenancePolicy)
+	}
+	if summary.PublicationEligible {
+		t.Fatal("schema-only dirty local audit summary must not be publication eligible")
+	}
+	for _, required := range []string{
+		"API_BASE_REF=v2.0.1",
+		"GOTOOLCHAIN=local",
+		"make release-check",
+	} {
+		if !strings.Contains(summary.QualityCommand, required) {
+			t.Fatalf("quality_command missing %q: %s", required, summary.QualityCommand)
+		}
+	}
+	if !strings.Contains(summary.EvidenceCommand, "make release-evidence") {
+		t.Fatalf("evidence_command = %q, want make release-evidence", summary.EvidenceCommand)
+	}
+
+	wantChecks := makeSubtargets(t, readText(t, filepath.Join(repoRoot, "Makefile")), "release-check")
+	var gotChecks []string
+	for _, check := range summary.Checks {
+		gotChecks = append(gotChecks, check.Name)
+		if check.CommandLine == "" {
+			t.Fatalf("check %s missing command_line", check.Name)
+		}
+		if check.Status == "" {
+			t.Fatalf("check %s missing status", check.Name)
+		}
+		if check.Artifacts == nil {
+			t.Fatalf("check %s missing artifacts array", check.Name)
+		}
+	}
+	assertStringSlicesEqual(t, "release evidence checks vs make release-check", gotChecks, wantChecks)
+
+	toolNames := make(map[string]bool)
+	for _, tool := range summary.ToolVersions {
+		toolNames[tool.Name] = true
+		if tool.CommandLine == "" || tool.Status == "" {
+			t.Fatalf("tool version entry for %s missing command or status", tool.Name)
+		}
+		if tool.Name == "govulncheck" && tool.Status == "error" {
+			t.Fatalf("govulncheck tool version must not be recorded as usage-error evidence: %+v", tool)
+		}
+	}
+	for _, required := range []string{"go", "golangci-lint", "govulncheck", "gosec", "apidiff", "syft", "cosign"} {
+		if !toolNames[required] {
+			t.Fatalf("tool_versions missing %s", required)
+		}
+	}
+	if !strings.Contains(summary.ContribDrift.CommandLine, "make contrib-api-drift-report") {
+		t.Fatalf("contrib_drift command_line = %q, want contrib-api-drift-report", summary.ContribDrift.CommandLine)
+	}
+	if summary.VulnerabilityEvidence.SourceLogPath != ".ci-result/release-evidence/logs/vuln.log" {
+		t.Fatalf("vulnerability evidence log path = %q", summary.VulnerabilityEvidence.SourceLogPath)
+	}
+	if !strings.Contains(summary.VulnerabilityEvidence.ReviewDisposition, "docs/dependency-risk.md") {
+		t.Fatalf("vulnerability review disposition missing dependency-risk pointer: %q", summary.VulnerabilityEvidence.ReviewDisposition)
+	}
+	if summary.VulnerabilityEvidence.DispositionManifestPath != "docs/vulnerability-dispositions.tsv" {
+		t.Fatalf("vulnerability disposition manifest = %q", summary.VulnerabilityEvidence.DispositionManifestPath)
+	}
+	if summary.VulnerabilityEvidence.ReviewDate == "" {
+		t.Fatal("vulnerability evidence missing review_date")
+	}
+	if summary.VulnerabilityEvidence.MissingDispositionCount < 0 || summary.VulnerabilityEvidence.ExpiredDispositionCount < 0 {
+		t.Fatalf("vulnerability disposition counts must be non-negative: %+v", summary.VulnerabilityEvidence)
+	}
+	if summary.VulnerabilityEvidence.DispositionIssues == nil {
+		t.Fatal("vulnerability evidence missing disposition_issues array")
+	}
+	if summary.ContribDrift.Status != "not_run" {
+		t.Fatalf("contrib_drift status = %q, want not_run for schema-only summary", summary.ContribDrift.Status)
+	}
+	if summary.ContribDrift.ArtifactPath != ".ci-result/release-evidence/logs/contrib-api-drift-report.log" {
+		t.Fatalf("contrib_drift artifact_path = %q", summary.ContribDrift.ArtifactPath)
+	}
+	if summary.ContribDrift.DispositionManifestPath != "docs/contrib-api-drift-dispositions.tsv" {
+		t.Fatalf("contrib drift disposition manifest = %q", summary.ContribDrift.DispositionManifestPath)
+	}
+	if summary.ContribDrift.ReviewDate == "" {
+		t.Fatal("contrib drift summary missing review_date")
+	}
+	if summary.ContribDrift.Packages == nil {
+		t.Fatal("contrib drift summary missing packages array")
+	}
+	if summary.ContribDrift.MissingDispositionCount < 0 || summary.ContribDrift.ExpiredDispositionCount < 0 {
+		t.Fatalf("contrib disposition counts must be non-negative: %+v", summary.ContribDrift)
+	}
+	if summary.ContribDrift.DispositionIssues == nil {
+		t.Fatal("contrib drift summary missing disposition_issues array")
+	}
+	for _, tier := range []string{"local_release_evidence", "github_release_workflow"} {
+		if _, ok := summary.ArtifactTiers[tier]; !ok {
+			t.Fatalf("artifact_tiers missing %s", tier)
+		}
+	}
+	for _, required := range []string{"release-check-summary.json", "release-evidence-logs.tgz", "sbom-root.spdx.json", "sbom-contrib.spdx.json"} {
+		if !containsString(summary.PublicationArtifactExpectations.GitHubDraftReleaseAssets, required) {
+			t.Fatalf("publication artifact expectations missing draft release asset %s", required)
+		}
+	}
+	if summary.PublicationArtifactExpectations.LocalGeneratesSignedSBOMs {
+		t.Fatal("local release evidence must not claim it generates signed SBOMs")
+	}
+	if len(summary.SBOMAssets) == 0 || summary.SBOMStatus == "" {
+		t.Fatal("release evidence summary missing SBOM status/assets")
+	}
+}
+
+func TestReleaseEvidenceGitStateContract(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	scriptPath := filepath.Join(repoRoot, "scripts", "release_check_summary.sh")
+
+	cleanRepo := newTempGitRepo(t)
+	cleanSummary := releaseEvidenceSummaryForRepo(t, cleanRepo, scriptPath)
+	if cleanSummary.GitState.Dirty {
+		t.Fatalf("clean repo marked dirty: %+v", cleanSummary.GitState)
+	}
+	if cleanSummary.GitState.StagedCount != 0 || cleanSummary.GitState.UnstagedCount != 0 ||
+		cleanSummary.GitState.UntrackedCount != 0 || cleanSummary.GitState.DeletedCount != 0 {
+		t.Fatalf("clean repo git_state counts = %+v, want all zero", cleanSummary.GitState)
+	}
+	if cleanSummary.GitState.Branch == nil || *cleanSummary.GitState.Branch == "" {
+		t.Fatalf("clean repo git_state branch missing: %+v", cleanSummary.GitState)
+	}
+	if cleanSummary.PublicationEligible {
+		t.Fatal("schema-only clean summary without --run must not be publication eligible")
+	}
+
+	dirtyRepo := newTempGitRepo(t)
+	writeTempFile(t, dirtyRepo, "tracked.txt", "changed\n")
+	writeTempFile(t, dirtyRepo, "staged.txt", "staged\n")
+	runGit(t, dirtyRepo, "add", "staged.txt")
+	if err := os.Remove(filepath.Join(dirtyRepo, "deleted.txt")); err != nil {
+		t.Fatalf("remove tracked file: %v", err)
+	}
+	writeTempFile(t, dirtyRepo, "untracked.txt", "untracked\n")
+
+	dirtyFailure := releaseEvidenceFailureForRepo(t, dirtyRepo, scriptPath)
+	if dirtyFailure.Status != "failed" || dirtyFailure.ProvenancePolicy.Status != "failed" {
+		t.Fatalf("dirty repo without override should fail publication evidence: %+v", dirtyFailure.ProvenancePolicy)
+	}
+	if dirtyFailure.PublicationEligible {
+		t.Fatal("dirty failure summary must not be publication eligible")
+	}
+	if !strings.Contains(dirtyFailure.ProvenancePolicy.Message, "ALLOW_DIRTY_RELEASE_EVIDENCE=1") {
+		t.Fatalf("dirty failure message missing local-audit override guidance: %q", dirtyFailure.ProvenancePolicy.Message)
+	}
+
+	dirtySummary := releaseEvidenceSummaryForRepoWithEnv(t, dirtyRepo, scriptPath, "ALLOW_DIRTY_RELEASE_EVIDENCE=1")
+	if !dirtySummary.GitState.Dirty {
+		t.Fatalf("dirty repo marked clean: %+v", dirtySummary.GitState)
+	}
+	if dirtySummary.ProvenancePolicy.Status != "allowed_dirty_local_audit" {
+		t.Fatalf("dirty override provenance status = %q", dirtySummary.ProvenancePolicy.Status)
+	}
+	if dirtySummary.PublicationEligible {
+		t.Fatal("dirty local-audit summary must not be publication eligible")
+	}
+	if dirtySummary.GitState.StagedCount != 1 {
+		t.Fatalf("dirty staged_count = %d, want 1", dirtySummary.GitState.StagedCount)
+	}
+	if dirtySummary.GitState.UnstagedCount != 2 {
+		t.Fatalf("dirty unstaged_count = %d, want 2", dirtySummary.GitState.UnstagedCount)
+	}
+	if dirtySummary.GitState.UntrackedCount != 1 {
+		t.Fatalf("dirty untracked_count = %d, want 1", dirtySummary.GitState.UntrackedCount)
+	}
+	if dirtySummary.GitState.DeletedCount != 1 {
+		t.Fatalf("dirty deleted_count = %d, want 1", dirtySummary.GitState.DeletedCount)
+	}
+}
+
+func TestDependencyRiskDispositionDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	risk := readText(t, filepath.Join(repoRoot, "docs", "dependency-risk.md"))
+	manifestRecords := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv"))
+
+	if !strings.Contains(readme, "docs/dependency-risk.md") {
+		t.Fatal("README missing dependency risk documentation link")
+	}
+	if !strings.Contains(readme, "docs/vulnerability-dispositions.tsv") {
+		t.Fatal("README missing vulnerability disposition manifest link")
+	}
+	if !strings.Contains(review, "dependency-risk.md") {
+		t.Fatal("release review checklist missing dependency risk documentation link")
+	}
+	if !strings.Contains(review, "docs/vulnerability-dispositions.tsv") {
+		t.Fatal("release review checklist missing vulnerability disposition manifest link")
+	}
+	for _, required := range []string{
+		"Current imported-but-not-called count: `3`",
+		"Owner decision",
+		"Upgrade plan",
+		"docs/vulnerability-dispositions.tsv",
+		"release-check-summary.json",
+		".ci-result/release-evidence/logs/vuln.log",
+		"govulncheck",
+		"does not fail solely because findings are imported but not called",
+	} {
+		if !strings.Contains(risk, required) {
+			t.Fatalf("docs/dependency-risk.md missing %q", required)
+		}
+	}
+	if len(manifestRecords) == 0 {
+		t.Fatal("docs/vulnerability-dispositions.tsv has no imported-only vulnerability disposition rows")
+	}
+}
+
+func TestVulnerabilityDispositionManifestSupportsDynamicImportedIDs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	records := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv"))
+	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+
+	for _, record := range records {
+		id := record["vulnerability_id"]
+		if !strings.HasPrefix(id, "GO-") {
+			t.Fatalf("vulnerability_id = %q, want GO-* advisory ID", id)
+		}
+		if record["called_status"] != "imported_not_called" {
+			t.Fatalf("%s called_status = %q, want imported_not_called", id, record["called_status"])
+		}
+		for _, field := range []string{"owning_dependency", "affected_module", "affected_package", "reviewed_on", "expires_on", "owner", "upgrade_trigger"} {
+			if strings.TrimSpace(record[field]) == "" {
+				t.Fatalf("%s disposition missing %s", id, field)
+			}
+		}
+		requireISODate(t, "reviewed_on for "+id, record["reviewed_on"])
+		requireISODate(t, "expires_on for "+id, record["expires_on"])
+	}
+	if !strings.Contains(summaryScript, "docs/vulnerability-dispositions.tsv") {
+		t.Fatal("release summary script must surface vulnerability disposition manifest path")
+	}
+	for _, required := range []string{
+		"vulnerability_ids_from_log",
+		"vulnerability_disposition_issues",
+		"expires_on <= review_date",
+		"missing_disposition_count",
+		"expired_disposition_count",
+	} {
+		if !strings.Contains(summaryScript, required) {
+			t.Fatalf("release summary script missing dynamic vulnerability disposition enforcement text %q", required)
+		}
+	}
+	if regexp.MustCompile(`GO-[0-9]{4}-[0-9]+`).MatchString(summaryScript) {
+		t.Fatal("release summary script must compare current vulnerability evidence dynamically, not hard-code GO advisory IDs")
+	}
+}
+
+func TestAdapterCoveragePolicyReferencesPackageClassification(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	section := markdownSection(t, readme, "### Adapter coverage policy")
+
+	for _, required := range []string{
+		"`docs/package-classification.tsv`",
+		"`wrapper-only`",
+		"`wrapper-smoke-tested`",
+		"`example-only`",
+		"`needs-tests`",
+		"direct tests unless explicitly classified",
+		"interface satisfaction",
+		"constructor/defaults",
+		"disabled or nil behavior",
+		"option propagation",
+		"not behavior-complete",
+	} {
+		if !strings.Contains(section, required) {
+			t.Fatalf("README adapter coverage policy missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"interface satisfaction",
+		"constructor/defaults",
+		"disabled or nil behavior",
+		"option propagation",
+		"not behavior-complete coverage",
+	} {
+		if !strings.Contains(classification, required) {
+			t.Fatalf("docs/package-classification.tsv missing wrapper/example coverage policy %q", required)
+		}
+	}
+}
+
+func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
+
+	for _, required := range []string{
+		"## V3 removal matrix",
+		"## V3 owner checklist",
+		"`ports/billing.go`",
+		"`github.com/aatuh/api-toolkit/v2/compat/billing`",
+		"`ports.DatabasePool.Stat`",
+		"`ports.DatabaseStats`",
+		"`ports.DatabasePoolSnapshotProvider`",
+		"`ports.SnapshotDatabasePoolStats`",
+		"`response_writer`",
+		"`github.com/aatuh/api-toolkit/v2/httpx`",
+		"`ports/idempotency.go` keeps `IdempotencyReleaser.Release(ctx, key)`",
+		"`ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)` is the preferred token-aware release path",
+		"`contrib/adapters/idempotencytest` owns reusable adapter contract coverage",
+		"`middleware/auth/authz.NewRequireRoleMiddleware` keeps the v2-compatible",
+		"`middleware/auth/authz.NewRequireRoleMiddlewareChecked` is the preferred",
+		"`ValidateRequireRoleMiddlewareRoutes`",
+		"`endpoints/list.ParseListQuery`",
+		"`ParseListQueryChecked`",
+		"`DefaultFilterParserChecked`",
+		"`DefaultSortParserChecked`",
+		"Removal trigger",
+		"Required tests",
+		"Release-note requirements",
+		"## V3 implementation tracks",
+		"### Provider-shaped billing ports removal",
+		"### Database stats compatibility removal",
+		"### Legacy response writer removal",
+		"idempotency response capture",
+		"### Compatibility shim removal",
+		"Keep v2 source compatibility intact until the v3 branch",
+	} {
+		if !strings.Contains(roadmap, required) {
+			t.Fatalf("docs/v3-compatibility-roadmap.md missing %q", required)
+		}
+	}
+}
+
+func TestV3DebtChecklistRowsStayExecutable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
+	matrix := markdownSection(t, roadmap, "## V3 removal matrix")
+	checklist := markdownSection(t, roadmap, "## V3 owner checklist")
+
+	for _, surface := range []string{
+		"Provider-shaped billing ports",
+		"Driver-shaped database stats",
+		"Legacy response helpers",
+		"Tokenless idempotency release",
+		"Unchecked authz constructor",
+		"Checked list parser shims",
+	} {
+		matrixRow := markdownTableRowContaining(t, matrix, surface)
+		matrixColumns := markdownTableColumns(matrixRow)
+		if len(matrixColumns) < 6 {
+			t.Fatalf("v3 removal matrix row for %s has too few columns: %q", surface, matrixRow)
+		}
+		if strings.TrimSpace(matrixColumns[4]) == "" || strings.TrimSpace(matrixColumns[5]) == "" {
+			t.Fatalf("v3 removal matrix row for %s must include required tests and removal condition: %q", surface, matrixRow)
+		}
+
+		checklistRow := markdownTableRowContaining(t, checklist, surface)
+		checklistColumns := markdownTableColumns(checklistRow)
+		if len(checklistColumns) < 4 {
+			t.Fatalf("v3 owner checklist row for %s has too few columns: %q", surface, checklistRow)
+		}
+		if strings.TrimSpace(checklistColumns[2]) == "" || strings.TrimSpace(checklistColumns[3]) == "" {
+			t.Fatalf("v3 owner checklist row for %s must include required tests and release-note requirements: %q", surface, checklistRow)
+		}
+		releaseNoteColumn := strings.ToLower(checklistColumns[3])
+		if !strings.Contains(releaseNoteColumn, "release note") &&
+			!strings.Contains(releaseNoteColumn, "release-note") &&
+			!strings.Contains(releaseNoteColumn, "release-notes") {
+			t.Fatalf("v3 owner checklist row for %s must require release notes: %q", surface, checklistRow)
+		}
+	}
+}
+
+func TestCompatibilityRoadmapCoversDocumentedSensitiveSurfaces(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
+	portsSurface := readText(t, filepath.Join(repoRoot, "docs", "ports-surface.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+
+	for _, surface := range []string{
+		"ports/billing.go",
+		"DatabasePool.Stat",
+		"DatabaseStats",
+		"response_writer",
+		"IdempotencyReleaser.Release(ctx, key)",
+		"IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)",
+		"NewRequireRoleMiddleware",
+		"NewRequireRoleMiddlewareChecked",
+		"ParseListQuery",
+		"ParseListQueryChecked",
+	} {
+		if !strings.Contains(roadmap, surface) {
+			t.Fatalf("v3 roadmap missing compatibility-sensitive surface %q", surface)
+		}
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"docs/ports-surface.md", portsSurface},
+		{"VERSIONING.md", versioning},
+	} {
+		for _, surface := range []string{"ports/billing.go", "DatabasePool.Stat", "DatabaseStats", "response_writer"} {
+			if strings.Contains(source.text, surface) && !strings.Contains(roadmap, surface) {
+				t.Fatalf("v3 roadmap missing %s surface %q", source.name, surface)
+			}
+		}
+	}
+}
+
+func TestCompatibilitySensitivePortsGovernanceDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	portsSurface := readText(t, filepath.Join(repoRoot, "docs", "ports-surface.md"))
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+
+	for _, required := range []string{
+		"`docs/ports-surface.md`",
+		"`docs/v3-compatibility-roadmap.md`",
+		"release notes",
+		"upgrade notes",
+	} {
+		if !strings.Contains(releaseNotes, required) {
+			t.Fatalf("release notes checklist missing compatibility governance text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"compatibility-sensitive",
+		"docs/v3-compatibility-roadmap.md",
+		"docs/release-notes.md",
+	} {
+		if !strings.Contains(portsSurface, required) {
+			t.Fatalf("ports surface docs missing governance text %q", required)
+		}
+	}
+	if !strings.Contains(versioning, "docs/package-classification.tsv") || !strings.Contains(versioning, "Compatibility-sensitive") {
+		t.Fatal("VERSIONING.md must keep package classification and compatibility-sensitive policy together")
+	}
+}
+
+func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	requirements := map[string][]string{
+		filepath.Join(repoRoot, "ports", "doc.go"): {
+			"Compatibility-sensitive exceptions",
+			"github.com/aatuh/api-toolkit/v2/compat/billing",
+			"DatabasePoolSnapshotProvider",
+			"SnapshotDatabasePoolStats",
+			"httpx",
+			"docs/v3-compatibility-roadmap.md",
+		},
+		filepath.Join(repoRoot, "compat", "billing", "doc.go"): {
+			"compatibility-sensitive",
+			"provider-neutral",
+			"app-owned port",
+		},
+		filepath.Join(repoRoot, "response_writer", "doc.go"): {
+			"source compatibility",
+			"github.com/aatuh/api-toolkit/v2/httpx",
+			"compatibility-sensitive",
+			"not a template",
+		},
+	}
+
+	for path, required := range requirements {
+		content := readText(t, path)
+		for _, text := range required {
+			if !strings.Contains(content, text) {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Fatalf("%s missing package-doc compatibility guidance %q", rel, text)
+			}
+		}
+	}
+}
+
+func TestStablePortsAvoidNewProviderSpecificNaming(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	blocked := regexp.MustCompile(`(?i)(stripe|pgx|postgres|redis|dynamo|s3|aws|gcp|azure|checkout|invoice|paymentmethod|priceid|customerid)`)
+	allowedFiles := map[string]bool{
+		filepath.Join(repoRoot, "ports", "billing.go"):  true,
+		filepath.Join(repoRoot, "ports", "database.go"): true,
+	}
+
+	paths, err := filepath.Glob(filepath.Join(repoRoot, "ports", "*.go"))
+	if err != nil {
+		t.Fatalf("glob ports files: %v", err)
+	}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") || allowedFiles[path] {
+			continue
+		}
+		for _, ident := range exportedIdentifiersInFile(t, path) {
+			if blocked.MatchString(ident) {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Fatalf("%s exports provider- or driver-shaped name %q outside documented compatibility files", rel, ident)
+			}
+		}
+	}
+}
+
+func TestExamplesAndGuidesPreferCompatibilityReplacements(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	forbidden := []string{
+		"ports.CheckoutSessionRequest",
+		"ports.PaymentProvider",
+		"ports.BillingProvider",
+		"ports.DatabasePool.Stat",
+		"ports.DatabaseStats",
+		"DatabasePool.Stat",
+		"DatabaseStats",
+		"NewRequireRoleMiddleware(",
+		"DefaultFilterParser(",
+		"DefaultSortParser(",
+		"response_writer",
+		"ParseListQuery(",
+	}
+	allowedMarkdown := map[string]bool{
+		filepath.Join(repoRoot, "VERSIONING.md"):                       true,
+		filepath.Join(repoRoot, "docs", "architecture.md"):             true,
+		filepath.Join(repoRoot, "docs", "ports-surface.md"):            true,
+		filepath.Join(repoRoot, "docs", "release-review.md"):           true,
+		filepath.Join(repoRoot, "docs", "release-notes.md"):            true,
+		filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"): true,
+	}
+
+	var files []string
+	docPaths, err := filepath.Glob(filepath.Join(repoRoot, "docs", "*.md"))
+	if err != nil {
+		t.Fatalf("glob docs markdown: %v", err)
+	}
+	for _, path := range append([]string{filepath.Join(repoRoot, "README.md"), filepath.Join(repoRoot, "VERSIONING.md")}, docPaths...) {
+		if !allowedMarkdown[path] {
+			files = append(files, path)
+		}
+	}
+	err = filepath.WalkDir(filepath.Join(repoRoot, "contrib", "examples"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan contrib examples: %v", err)
+	}
+
+	for _, path := range files {
+		content := readText(t, path)
+		for _, pattern := range forbidden {
+			if strings.Contains(content, pattern) {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Fatalf("%s teaches deprecated compatibility API %q outside allowed compatibility docs", rel, pattern)
+			}
+		}
+	}
+}
+
+func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	apiCheck := readText(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
+
+	if !strings.Contains(apiCheck, "API_BASE_REF") {
+		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
+	}
+	for _, required := range []string{
+		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+		"`make finalize` is not release evidence",
+		"`make release-api-check`",
+		"docs/release-runbook.md",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README missing release command intent text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"`make api-check` is a local compatibility helper",
+		"`make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline",
+		"`make release-check` is the release-readiness gate",
+		"`make release-evidence` runs the release-readiness subchecks through the evidence",
+		"`make contrib-api-drift-report` is intentionally report-only",
+		"`make contrib-release-notes-check` is a lightweight",
+	} {
+		if !strings.Contains(versioning, required) {
+			t.Fatalf("VERSIONING.md missing release command intent text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Supported v2 release baseline: `v2.0.1`",
+		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+		"schema v2",
+		"local release evidence",
+		"GitHub release workflow evidence",
+		"Do not publish the release",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing release runbook text %q", required)
+		}
+	}
 }
 
 func TestREADMEStabilitySummaryUsesVersioningSourceOfTruth(t *testing.T) {
@@ -257,9 +1594,13 @@ func TestReleaseNotesIncludeStableSurfaceChecklist(t *testing.T) {
 	for _, required := range []string{
 		"For stable surface changes, deprecations, or compatibility-sensitive updates",
 		"`VERSIONING.md`",
+		"`docs/ports-surface.md`",
+		"`docs/v3-compatibility-roadmap.md`",
 		"`scripts/apicheck.sh`",
 		"docscheck coverage",
 		"release notes and upgrade notes",
+		"contrib-api-drift-report",
+		"contrib-release-notes-check",
 	} {
 		if !strings.Contains(notes, required) {
 			t.Fatalf("docs/release-notes.md missing release checklist text %q", required)
@@ -278,6 +1619,105 @@ func TestDeprecatedBillingPortsPointToCompatPackage(t *testing.T) {
 		if !strings.Contains(code, deprecation) {
 			t.Fatalf("ports/billing.go missing deprecation replacement for %s: %s", name, replacement)
 		}
+	}
+}
+
+func TestDeprecatedBillingPortsStayInCompatibilitySource(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	deprecatedNames := stringSet(exportedTopLevelNames(t, filepath.Join(repoRoot, "ports", "billing.go")))
+	violations := scanGoSourceViolations(t, repoRoot, func(fset *token.FileSet, path string, file *ast.File) []string {
+		if allowedDeprecatedBillingSource(repoRoot, path) {
+			return nil
+		}
+		aliases, dotImport := importAliases(file, rootModulePath+"/v2/ports")
+		if len(aliases) == 0 && !dotImport {
+			return nil
+		}
+		var out []string
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.SelectorExpr:
+				ident, ok := node.X.(*ast.Ident)
+				if ok && aliases[ident.Name] && deprecatedNames[node.Sel.Name] {
+					out = append(out, sourceViolation(repoRoot, path, fset, node.Pos(), "uses deprecated ports."+node.Sel.Name+"; use compat/billing or an app-owned port"))
+				}
+			case *ast.Ident:
+				if dotImport && deprecatedNames[node.Name] {
+					out = append(out, sourceViolation(repoRoot, path, fset, node.Pos(), "uses deprecated dot-imported billing symbol "+node.Name))
+				}
+			}
+			return true
+		})
+		return out
+	})
+	if len(violations) > 0 {
+		t.Fatalf("deprecated billing ports used outside compatibility source:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestDatabaseStatsStayInCompatibilityOrAdapterSource(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	violations := scanGoSourceViolations(t, repoRoot, func(fset *token.FileSet, path string, file *ast.File) []string {
+		if allowedDatabaseStatsSource(repoRoot, path) {
+			return nil
+		}
+		aliases, dotImport := importAliases(file, rootModulePath+"/v2/ports")
+		if len(aliases) == 0 && !dotImport {
+			return nil
+		}
+		var out []string
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.SelectorExpr:
+				ident, ok := node.X.(*ast.Ident)
+				if ok && aliases[ident.Name] && node.Sel.Name == "DatabaseStats" {
+					out = append(out, sourceViolation(repoRoot, path, fset, node.Pos(), "uses direct ports.DatabaseStats; prefer DatabasePoolSnapshotProvider or SnapshotDatabasePoolStats"))
+				}
+			case *ast.CallExpr:
+				selector, ok := node.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, identOK := selector.X.(*ast.Ident)
+				if identOK && selector.Sel.Name == "Stat" && strings.Contains(strings.ToLower(ident.Name), "pool") {
+					out = append(out, sourceViolation(repoRoot, path, fset, selector.Sel.Pos(), "calls Stat directly in code that imports ports; prefer snapshot APIs"))
+				}
+			case *ast.Ident:
+				if dotImport && node.Name == "DatabaseStats" {
+					out = append(out, sourceViolation(repoRoot, path, fset, node.Pos(), "uses dot-imported DatabaseStats; prefer snapshot APIs"))
+				}
+			}
+			return true
+		})
+		return out
+	})
+	if len(violations) > 0 {
+		t.Fatalf("direct database stats usage found outside compatibility or adapter source:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))
+	middleware := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "idempotency.go"))
+
+	if !strings.Contains(capture, "type responseCapture struct") || !strings.Contains(middleware, "newLimitedResponseCapture") {
+		t.Fatal("middleware/idempotency must keep response capture package-local")
+	}
+	violations := scanGoSourceViolations(t, filepath.Join(repoRoot, "middleware", "idempotency"), func(fset *token.FileSet, path string, file *ast.File) []string {
+		for _, imp := range file.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return []string{err.Error()}
+			}
+			if importPath == rootModulePath+"/v2/response_writer" {
+				return []string{sourceViolation(repoRoot, path, fset, imp.Pos(), "imports legacy response_writer from idempotency")}
+			}
+		}
+		return nil
+	})
+	if len(violations) > 0 {
+		t.Fatalf("idempotency response capture must not depend on response_writer:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
@@ -307,6 +1747,9 @@ func forbiddenModuleToken(token string) bool {
 	}
 	if token == rootModulePath {
 		return true
+	}
+	if token == rootModulePath+"/" || strings.HasPrefix(token, rootModulePath+"/.") {
+		return false
 	}
 	if token == rootModulePath+"/v2" {
 		return false
@@ -369,11 +1812,132 @@ func writeFile(t *testing.T, root *os.Root, name, content string) {
 	}
 }
 
-func runGoCmd(dir string, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(context.Background(), name, args...)
+func runGoCmd(dir string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(context.Background(), "go", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
+}
+
+type releaseEvidenceGitStateSummary struct {
+	Commit              string `json:"commit"`
+	Status              string `json:"status"`
+	PublicationEligible bool   `json:"publication_eligible"`
+	ProvenancePolicy    struct {
+		Mode                      string `json:"mode"`
+		AllowDirtyReleaseEvidence bool   `json:"allow_dirty_release_evidence"`
+		Status                    string `json:"status"`
+		Message                   string `json:"message"`
+	} `json:"provenance_policy"`
+	GitState struct {
+		Commit         string  `json:"commit"`
+		Branch         *string `json:"branch"`
+		Detached       bool    `json:"detached"`
+		Dirty          bool    `json:"dirty"`
+		StagedCount    int     `json:"staged_count"`
+		UnstagedCount  int     `json:"unstaged_count"`
+		UntrackedCount int     `json:"untracked_count"`
+		DeletedCount   int     `json:"deleted_count"`
+	} `json:"git_state"`
+}
+
+func releaseEvidenceSummaryForRepo(t *testing.T, dir, scriptPath string) releaseEvidenceGitStateSummary {
+	t.Helper()
+
+	return releaseEvidenceSummaryForRepoWithEnv(t, dir, scriptPath)
+}
+
+func releaseEvidenceSummaryForRepoWithEnv(t *testing.T, dir, scriptPath string, extraEnv ...string) releaseEvidenceGitStateSummary {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "bash", scriptPath)
+	cmd.Dir = dir
+	cmd.Env = releaseEvidenceEnv(extraEnv...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("release evidence summary in %s failed: %v", dir, err)
+	}
+
+	var summary releaseEvidenceGitStateSummary
+	if err := json.Unmarshal(out, &summary); err != nil {
+		t.Fatalf("release evidence summary in %s is not valid JSON:\n%s\nerror: %v", dir, out, err)
+	}
+	if summary.Commit == "" || summary.GitState.Commit != summary.Commit {
+		t.Fatalf("release evidence git_state commit = %q, want %q", summary.GitState.Commit, summary.Commit)
+	}
+	return summary
+}
+
+func releaseEvidenceFailureForRepo(t *testing.T, dir, scriptPath string) releaseEvidenceGitStateSummary {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "bash", scriptPath)
+	cmd.Dir = dir
+	cmd.Env = releaseEvidenceEnv()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("release evidence summary in %s passed, want dirty-tree failure:\n%s", dir, out)
+	}
+
+	var summary releaseEvidenceGitStateSummary
+	if unmarshalErr := json.Unmarshal(out, &summary); unmarshalErr != nil {
+		t.Fatalf("dirty release evidence failure in %s did not emit JSON:\n%s\nerror: %v", dir, out, unmarshalErr)
+	}
+	return summary
+}
+
+func releaseEvidenceEnv(extra ...string) []string {
+	env := make([]string, 0, len(os.Environ())+2+len(extra))
+	for _, value := range os.Environ() {
+		if strings.HasPrefix(value, "ALLOW_DIRTY_RELEASE_EVIDENCE=") {
+			continue
+		}
+		env = append(env, value)
+	}
+	env = append(env, "API_BASE_REF=v2.0.1", "GOTOOLCHAIN=local")
+	env = append(env, extra...)
+	return env
+}
+
+func newTempGitRepo(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-b", "main")
+	writeTempFile(t, dir, "tracked.txt", "initial\n")
+	writeTempFile(t, dir, "deleted.txt", "delete me\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "initial")
+	return dir
+}
+
+func writeTempFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=api-toolkit-tests",
+		"GIT_AUTHOR_EMAIL=api-toolkit-tests@example.com",
+		"GIT_COMMITTER_NAME=api-toolkit-tests",
+		"GIT_COMMITTER_EMAIL=api-toolkit-tests@example.com",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v in %s failed:\n%s\nerror: %v", args, dir, out, err)
+	}
 }
 
 func readText(t *testing.T, path string) string {
@@ -384,6 +1948,82 @@ func readText(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func loadTSVRecords(t *testing.T, path string) []map[string]string {
+	t.Helper()
+
+	content := strings.TrimSpace(readText(t, path))
+	if content == "" {
+		t.Fatalf("%s is empty", path)
+	}
+	lines := strings.Split(content, "\n")
+	headers := strings.Split(lines[0], "\t")
+	var records []map[string]string
+	for lineNumber, line := range lines[1:] {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != len(headers) {
+			t.Fatalf("%s line %d has %d fields, want %d: %q", path, lineNumber+2, len(fields), len(headers), line)
+		}
+		record := make(map[string]string, len(headers))
+		for i, header := range headers {
+			record[header] = fields[i]
+		}
+		records = append(records, record)
+	}
+	if len(records) == 0 {
+		t.Fatalf("%s has no records", path)
+	}
+	return records
+}
+
+func recordsByField(t *testing.T, records []map[string]string, field string) map[string]map[string]string {
+	t.Helper()
+
+	out := make(map[string]map[string]string, len(records))
+	for _, record := range records {
+		value := record[field]
+		if value == "" {
+			t.Fatalf("TSV record missing field %s: %+v", field, record)
+		}
+		if _, exists := out[value]; exists {
+			t.Fatalf("duplicate TSV %s value %s", field, value)
+		}
+		out[value] = record
+	}
+	return out
+}
+
+func requireISODate(t *testing.T, field, value string) {
+	t.Helper()
+
+	if !regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`).MatchString(value) {
+		t.Fatalf("%s = %q, want YYYY-MM-DD", field, value)
+	}
+}
+
+func markdownTableRowContaining(t *testing.T, section, needle string) string {
+	t.Helper()
+
+	for _, line := range strings.Split(section, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "|") && strings.Contains(line, needle) {
+			return line
+		}
+	}
+	t.Fatalf("markdown table missing row containing %q", needle)
+	return ""
+}
+
+func markdownTableColumns(row string) []string {
+	trimmed := strings.Trim(row, "|")
+	parts := strings.Split(trimmed, "|")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts
 }
 
 func stablePackagesFromVersioning(t *testing.T, path string) []string {
@@ -421,6 +2061,286 @@ func stablePackagesFromAPICheck(t *testing.T, path string) []string {
 		t.Fatal("scripts/apicheck.sh package list is empty")
 	}
 	return uniqueSorted(packages)
+}
+
+func stableRootPackagesFromClassification(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	classes := loadPackageClassifications(t, repoRoot)
+	var packages []string
+	for _, cls := range classes {
+		if !inModule(cls.ImportPath, rootModulePath+"/v2") {
+			continue
+		}
+		if cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only" {
+			packages = append(packages, cls.ImportPath)
+		}
+	}
+	if len(packages) == 0 {
+		t.Fatal("docs/package-classification.tsv has no stable root packages")
+	}
+	return uniqueSorted(packages)
+}
+
+type packageClassification struct {
+	ImportPath string
+	APIStatus  string
+	TestStatus string
+	Notes      string
+}
+
+func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packageClassification {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	classes := make(map[string]packageClassification)
+	allowedTestStatuses := map[string]bool{
+		"direct-tests":         true,
+		"wrapper-smoke-tested": true,
+		"test-support":         true,
+		"example-only":         true,
+		"generated":            true,
+		"tooling":              true,
+		"excluded":             true,
+		"needs-tests":          true,
+	}
+
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 4 {
+			t.Fatalf("docs/package-classification.tsv:%d: expected 4 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		cls := packageClassification{
+			ImportPath: strings.TrimSpace(cols[0]),
+			APIStatus:  strings.TrimSpace(cols[1]),
+			TestStatus: strings.TrimSpace(cols[2]),
+			Notes:      strings.TrimSpace(cols[3]),
+		}
+		if cls.ImportPath == "" || cls.APIStatus == "" || cls.TestStatus == "" || cls.Notes == "" {
+			t.Fatalf("docs/package-classification.tsv:%d: empty classification field", lineNo+1)
+		}
+		if !allowedTestStatuses[cls.TestStatus] {
+			t.Fatalf("docs/package-classification.tsv:%d: unknown test_status %q", lineNo+1, cls.TestStatus)
+		}
+		if _, exists := classes[cls.ImportPath]; exists {
+			t.Fatalf("docs/package-classification.tsv:%d: duplicate import path %s", lineNo+1, cls.ImportPath)
+		}
+		classes[cls.ImportPath] = cls
+	}
+	if len(classes) == 0 {
+		t.Fatal("docs/package-classification.tsv has no classifications")
+	}
+	return classes
+}
+
+func contribDriftManifestPackages(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-packages.txt"))
+	var packages []string
+	seen := map[string]bool{}
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.Contains(line, "#") {
+			line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
+		}
+		if line == "" {
+			continue
+		}
+		if seen[line] {
+			t.Fatalf("docs/contrib-api-drift-packages.txt:%d duplicate package %s", lineNo+1, line)
+		}
+		seen[line] = true
+		packages = append(packages, line)
+	}
+	sort.Strings(packages)
+	return packages
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+type listedPackage struct {
+	ImportPath      string
+	DirectTestFiles int
+}
+
+func listedGoPackages(t *testing.T, dir string) []listedPackage {
+	t.Helper()
+
+	out, err := runGoCmd(dir, "list", "-f", "{{.ImportPath}}\t{{len .TestGoFiles}}\t{{len .XTestGoFiles}}", "./...")
+	if err != nil {
+		t.Fatalf("go list packages in %s:\n%s\nerror: %v", dir, out, err)
+	}
+	var packages []listedPackage
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		cols := strings.Split(line, "\t")
+		if len(cols) != 3 {
+			t.Fatalf("unexpected go list output line %q", line)
+		}
+		testFiles, err := strconv.Atoi(cols[1])
+		if err != nil {
+			t.Fatalf("parse TestGoFiles count from %q: %v", line, err)
+		}
+		externalTestFiles, err := strconv.Atoi(cols[2])
+		if err != nil {
+			t.Fatalf("parse XTestGoFiles count from %q: %v", line, err)
+		}
+		packages = append(packages, listedPackage{
+			ImportPath:      cols[0],
+			DirectTestFiles: testFiles + externalTestFiles,
+		})
+	}
+	return packages
+}
+
+func assertClassifiedPackages(t *testing.T, name string, packages []listedPackage, classes map[string]packageClassification, modulePath string, allowedAPIStatuses map[string]bool) {
+	t.Helper()
+
+	seen := make(map[string]struct{}, len(packages))
+	for _, pkg := range packages {
+		seen[pkg.ImportPath] = struct{}{}
+		cls, ok := classes[pkg.ImportPath]
+		if !ok {
+			t.Fatalf("%s package %s is missing from docs/package-classification.tsv", name, pkg.ImportPath)
+		}
+		if !allowedAPIStatuses[cls.APIStatus] {
+			t.Fatalf("%s package %s has invalid api_status %q", name, pkg.ImportPath, cls.APIStatus)
+		}
+	}
+
+	for importPath := range classes {
+		if !inModule(importPath, modulePath) {
+			continue
+		}
+		if _, ok := seen[importPath]; !ok {
+			t.Fatalf("docs/package-classification.tsv contains stale %s package %s", name, importPath)
+		}
+	}
+}
+
+func inModule(importPath, modulePath string) bool {
+	return importPath == modulePath || strings.HasPrefix(importPath, modulePath+"/")
+}
+
+func makeTargetRecipe(t *testing.T, makefile, target string) string {
+	t.Helper()
+
+	lines := strings.Split(makefile, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, target+":") {
+			continue
+		}
+		var recipe []string
+		for _, bodyLine := range lines[i+1:] {
+			if strings.HasPrefix(bodyLine, "\t") {
+				recipe = append(recipe, bodyLine)
+				continue
+			}
+			if strings.TrimSpace(bodyLine) == "" {
+				if len(recipe) > 0 {
+					break
+				}
+				continue
+			}
+			break
+		}
+		return strings.Join(recipe, "\n")
+	}
+	t.Fatalf("Makefile target %s not found", target)
+	return ""
+}
+
+func makeSubtargets(t *testing.T, makefile, target string) []string {
+	t.Helper()
+
+	recipe := makeTargetRecipe(t, makefile, target)
+	pattern := regexp.MustCompile(`\$\(MAKE\)\s+([A-Za-z0-9_.-]+)`)
+	matches := pattern.FindAllStringSubmatch(recipe, -1)
+	var targets []string
+	for _, match := range matches {
+		targets = append(targets, match[1])
+	}
+	if len(targets) == 0 {
+		t.Fatalf("Makefile target %s has no $(MAKE) subtargets", target)
+	}
+	return targets
+}
+
+func exportedIdentifiersInFile(t *testing.T, path string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var names []string
+	for _, decl := range file.Decls {
+		switch decl := decl.(type) {
+		case *ast.FuncDecl:
+			if decl.Name.IsExported() {
+				names = append(names, decl.Name.Name)
+			}
+		case *ast.GenDecl:
+			for _, spec := range decl.Specs {
+				switch spec := spec.(type) {
+				case *ast.TypeSpec:
+					if spec.Name.IsExported() {
+						names = append(names, spec.Name.Name)
+					}
+					names = append(names, exportedMembers(spec.Type)...)
+				case *ast.ValueSpec:
+					for _, name := range spec.Names {
+						if name.IsExported() {
+							names = append(names, name.Name)
+						}
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func exportedMembers(expr ast.Expr) []string {
+	var names []string
+	switch typ := expr.(type) {
+	case *ast.StructType:
+		for _, field := range typ.Fields.List {
+			for _, name := range field.Names {
+				if name.IsExported() {
+					names = append(names, name.Name)
+				}
+			}
+		}
+	case *ast.InterfaceType:
+		for _, method := range typ.Methods.List {
+			for _, name := range method.Names {
+				if name.IsExported() {
+					names = append(names, name.Name)
+				}
+			}
+		}
+	}
+	return names
 }
 
 func markdownSection(t *testing.T, doc, heading string) string {
@@ -549,4 +2469,96 @@ func databaseStatsSymbols(t *testing.T, path string) []string {
 		}
 	}
 	return symbols
+}
+
+func stringSet(values []string) map[string]bool {
+	out := make(map[string]bool, len(values))
+	for _, value := range values {
+		out[value] = true
+	}
+	return out
+}
+
+func scanGoSourceViolations(t *testing.T, root string, check func(fset *token.FileSet, path string, file *ast.File) []string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	var violations []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", "audit", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		violations = append(violations, check(fset, path, file)...)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Go source under %s: %v", root, err)
+	}
+	sort.Strings(violations)
+	return violations
+}
+
+func importAliases(file *ast.File, importPath string) (map[string]bool, bool) {
+	aliases := map[string]bool{}
+	dotImport := false
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || path != importPath {
+			continue
+		}
+		if imp.Name == nil {
+			parts := strings.Split(path, "/")
+			aliases[parts[len(parts)-1]] = true
+			continue
+		}
+		switch imp.Name.Name {
+		case ".":
+			dotImport = true
+		case "_":
+		default:
+			aliases[imp.Name.Name] = true
+		}
+	}
+	return aliases, dotImport
+}
+
+func allowedDeprecatedBillingSource(repoRoot, path string) bool {
+	rel := slashRel(repoRoot, path)
+	return rel == "ports/billing.go" || strings.HasPrefix(rel, "compat/billing/")
+}
+
+func allowedDatabaseStatsSource(repoRoot, path string) bool {
+	rel := slashRel(repoRoot, path)
+	return rel == "ports/database.go" ||
+		strings.HasPrefix(rel, "compat/") ||
+		strings.HasPrefix(rel, "contrib/adapters/") ||
+		strings.HasPrefix(rel, "contrib/integrations/")
+}
+
+func sourceViolation(repoRoot, path string, fset *token.FileSet, pos token.Pos, message string) string {
+	position := fset.Position(pos)
+	rel := slashRel(repoRoot, path)
+	return rel + ":" + strconv.Itoa(position.Line) + ": " + message
+}
+
+func slashRel(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return filepath.ToSlash(path)
+	}
+	return filepath.ToSlash(rel)
 }

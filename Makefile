@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check docs-check fmt lint vuln gosec tidy test test-race fuzz clean finalize audit-check ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-artifact-verify ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -44,12 +44,32 @@ tools: ## Install lint/vuln/API tools into the Go tool cache
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	@$(GO) install golang.org/x/exp/cmd/apidiff@$(APIDIFF_VERSION)
 
-# In api-check you can set API_BASE_REF to compare to specific tag (e.g. API_BASE_REF=2.0.0)
-api-check: ## Run API compatibility check.
+# In api-check you can set API_BASE_REF to compare to a specific tag (for example API_BASE_REF=v2.0.1).
+# Without API_BASE_REF it uses local development fallback behavior and is not release evidence.
+api-check: tools ## Run local API compatibility check with fallback base selection
 	@scripts/apicheck.sh
+
+release-api-check: tools ## Run fail-closed API compatibility check; requires API_BASE_REF
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-api-check; for v2.x releases use API_BASE_REF=v2.0.1"; exit 2; }
+	@API_CHECK_REQUIRE_BASE=1 scripts/apicheck.sh
+
+api-check-contract: ## Run API compatibility script mode contract tests
+	@env -u API_BASE_REF -u API_CHECK_REQUIRE_BASE -u GITHUB_BASE_REF scripts/apicheck_contract_test.sh
+
+contrib-api-drift-report: tools ## Report selected contrib public API drift without making contrib stable
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v2.x releases use API_BASE_REF=v2.0.1"; exit 2; }
+	@API_BASE_REF="$(API_BASE_REF)" scripts/contrib_api_drift_report.sh
+
+contrib-release-notes-check: tools ## Review gate requiring release notes for contrib adapter/integration behavior changes
+	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
+
+contrib-review-contract: ## Run contrib drift/release-note script contract tests
+	@env -u API_BASE_REF -u CONTRIB_API_BASE_REF -u CONTRIB_RELEASE_BASE_REF scripts/contrib_review_contract_test.sh
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) api-check-contract
+	@$(MAKE) contrib-review-contract
 
 fmt: ## Run gofmt and rewrite formatted Go files
 	@set -e; for mod in $(MODULES); do \
@@ -66,7 +86,7 @@ lint: tools ## Run golangci-lint
 vuln: tools ## Run govulncheck
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && govulncheck ./...); \
+		(cd $$mod && govulncheck -show verbose ./...); \
 	done
 
 gosec: tools ## Run gosec
@@ -90,6 +110,10 @@ test: ## Run unit tests
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) test ./...); \
 	done
+
+fast-check: ## Run non-installing local checks without rewriting files
+	@$(MAKE) docs-check
+	@$(MAKE) test
 
 test-race: ## Run unit tests with race detector
 	@set -e; for mod in $(MODULES); do \
@@ -116,7 +140,6 @@ finalize: ## Run QA; installs tools and may rewrite formatted/tidy files
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
-	$(MAKE) api-check
 	$(MAKE) docs-check
 	$(MAKE) tidy
 	$(MAKE) test
@@ -129,11 +152,40 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
-	$(MAKE) api-check
 	$(MAKE) docs-check
 	$(MAKE) test
 	$(MAKE) test-race
 	$(MAKE) fuzz
+
+reviewer-gate: ## Run non-mutating reviewer checks plus release evidence policy preflight
+	$(MAKE) audit-check
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for reviewer-gate; for v2.x releases use API_BASE_REF=v2.0.1"; exit 2; }
+	@API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh >/dev/null
+
+release-check: ## Run release readiness checks; requires explicit API_BASE_REF
+	$(MAKE) tools
+	$(MAKE) lint
+	$(MAKE) vuln
+	$(MAKE) gosec
+	$(MAKE) ci-build-smoke
+	$(MAKE) release-api-check
+	$(MAKE) contrib-release-notes-check
+	$(MAKE) docs-check
+	$(MAKE) test
+	$(MAKE) test-race
+	$(MAKE) fuzz
+	$(MAKE) clean
+
+release-evidence: ## Run release readiness and write release-check-summary.json
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v2.x releases use API_BASE_REF=v2.0.1"; exit 2; }
+	@tmp="$$(mktemp)"; \
+	status=0; \
+	API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh --run > "$$tmp" || status=$$?; \
+	mv "$$tmp" release-check-summary.json || { rm -f "$$tmp"; exit 1; }; \
+	exit $$status
+
+release-artifact-verify: ## Verify downloaded draft release assets, checksums, SBOM signatures, and retained logs
+	@bash scripts/release_artifact_verify.sh "$${RELEASE_ASSET_DIR:-.}"
 
 ci-build-smoke: ## Build root and contrib modules via the local CI build target
 	$(MAKE) .codeql-local-build

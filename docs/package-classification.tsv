@@ -1,0 +1,108 @@
+# Public package classification manifest.
+# Columns: import_path	api_status	test_status	notes
+# api_status values:
+# stable, compatibility-only, experimental, wrapper-only, test-only, example-only,
+# generated, tooling, excluded.
+# stable: covered by the core v2 API compatibility promise and release API gate.
+# compatibility-only: stable for v2 source compatibility, but legacy or migration-shaped.
+# experimental: maintained but not protected by the stable API gate.
+# wrapper-only: thin convenience package; behavior belongs to the delegated adapter.
+# test-only, example-only, generated, tooling, excluded: not public API promises.
+# test_status values:
+# direct-tests, wrapper-smoke-tested, test-support, example-only, generated,
+# tooling, excluded, needs-tests.
+# direct-tests: package has direct Go tests for its own behavior.
+# wrapper-smoke-tested: tests prove constructor/defaults, interface satisfaction,
+# disabled or nil behavior where applicable, and option propagation for thin wrappers.
+# test-support: package supports tests and may be covered by consuming contract tests.
+# example-only: package is build-smoke checked; it is not behavior-complete coverage.
+# generated, tooling, excluded: validated by generation/tooling/docs contracts as applicable.
+# needs-tests: release blocker until replaced with direct tests or a documented exception.
+github.com/aatuh/api-toolkit/v2/authorization	stable	direct-tests	Core authorization context helpers.
+github.com/aatuh/api-toolkit/v2/compat/billing	compatibility-only	direct-tests	Explicit v2 hosted-checkout and billing compatibility package.
+github.com/aatuh/api-toolkit/v2/docscheck	excluded	direct-tests	Repository contract tests, not public API.
+github.com/aatuh/api-toolkit/v2/email	stable	direct-tests	Core email port types.
+github.com/aatuh/api-toolkit/v2/endpoints/docs	stable	direct-tests	Stable core docs endpoint helpers.
+github.com/aatuh/api-toolkit/v2/endpoints/health	stable	direct-tests	Stable core health endpoint helpers.
+github.com/aatuh/api-toolkit/v2/endpoints/list	stable	direct-tests	Stable list endpoint helpers.
+github.com/aatuh/api-toolkit/v2/endpoints/pprof	stable	direct-tests	Stable pprof endpoint mounting helpers.
+github.com/aatuh/api-toolkit/v2/endpoints/version	stable	direct-tests	Stable version endpoint helper.
+github.com/aatuh/api-toolkit/v2/fielderrors	stable	direct-tests	Stable validation field error helpers.
+github.com/aatuh/api-toolkit/v2/httpx	stable	direct-tests	Stable HTTP response and Problem Details helpers.
+github.com/aatuh/api-toolkit/v2/httpx/identity	stable	direct-tests	Stable request identity helpers.
+github.com/aatuh/api-toolkit/v2/httpx/recover	stable	direct-tests	Stable panic recovery helpers.
+github.com/aatuh/api-toolkit/v2/middleware/auth/authz	stable	direct-tests	Stable role authorization middleware.
+github.com/aatuh/api-toolkit/v2/middleware/auth/jwt	stable	direct-tests	Stable JWT middleware.
+github.com/aatuh/api-toolkit/v2/middleware/auth/shared	experimental	direct-tests	Auth middleware implementation-sharing package; not stable API.
+github.com/aatuh/api-toolkit/v2/middleware/auth/tenant	stable	direct-tests	Stable tenant context middleware.
+github.com/aatuh/api-toolkit/v2/middleware/idempotency	stable	direct-tests	Stable idempotency middleware with v2 compatibility shims.
+github.com/aatuh/api-toolkit/v2/middleware/json	stable	direct-tests	Stable JSON content middleware.
+github.com/aatuh/api-toolkit/v2/middleware/maxbody	stable	direct-tests	Stable request body limit middleware.
+github.com/aatuh/api-toolkit/v2/middleware/querylimits	stable	direct-tests	Stable query limit parsing.
+github.com/aatuh/api-toolkit/v2/middleware/ratelimit	stable	direct-tests	Stable rate-limit middleware.
+github.com/aatuh/api-toolkit/v2/middleware/secure	stable	direct-tests	Stable security header middleware.
+github.com/aatuh/api-toolkit/v2/middleware/timeout	stable	direct-tests	Stable timeout middleware.
+github.com/aatuh/api-toolkit/v2/middleware/trace	stable	direct-tests	Stable request trace middleware.
+github.com/aatuh/api-toolkit/v2/ports	stable	direct-tests	Stable core ports, including documented compatibility-sensitive sub-surfaces.
+github.com/aatuh/api-toolkit/v2/response_writer	compatibility-only	direct-tests	Legacy v2 response writer compatibility surface.
+github.com/aatuh/api-toolkit/v2/scheduler	stable	direct-tests	Stable scheduler abstractions.
+github.com/aatuh/api-toolkit/v2/scheduler/migrations	stable	direct-tests	Stable scheduler migration helpers.
+github.com/aatuh/api-toolkit/v2/securityprofile	stable	direct-tests	Stable security profile defaults.
+github.com/aatuh/api-toolkit/v2/specs	stable	direct-tests	Stable spec registry helpers.
+github.com/aatuh/api-toolkit/v2/swagstub	stable	direct-tests	Stable swagger stub helpers.
+github.com/aatuh/api-toolkit/v2/testutil/authtest	test-only	test-support	Root test support package; not stable public API.
+github.com/aatuh/api-toolkit/contrib/v2	excluded	excluded	Module marker package only; no stable API promise.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar	experimental	direct-tests	Third-party policy adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/chi	experimental	direct-tests	HTTP router adapter and authz route validation helpers.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/clock	wrapper-only	wrapper-smoke-tested	Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar	experimental	direct-tests	Environment loading adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient	experimental	direct-tests	Outbound HTTP client, breaker, and SSRF transport adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter for dev/test.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis	experimental	direct-tests	Redis idempotency adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencytest	test-only	test-support	Reusable idempotency adapter contract tests.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap	experimental	direct-tests	Zap logger adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate	experimental	direct-tests	Database migration adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/opa	experimental	direct-tests	OPA policy adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool	experimental	direct-tests	Postgres pool adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis	experimental	direct-tests	Redis rate-limit adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/resend	experimental	direct-tests	Resend email adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe	experimental	direct-tests	Stripe billing adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres	experimental	direct-tests	Postgres transaction adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/ulid	wrapper-only	wrapper-smoke-tested	Thin ULID generator adapter; smoke coverage is sufficient because behavior is delegated to the ULID generator library.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/validation	experimental	direct-tests	Validation adapter.
+github.com/aatuh/api-toolkit/contrib/v2/bootstrap	experimental	direct-tests	Contrib bootstrap composition helpers.
+github.com/aatuh/api-toolkit/contrib/v2/cmd/migrate	tooling	direct-tests	CLI tooling package.
+github.com/aatuh/api-toolkit/contrib/v2/cmd/tester	tooling	direct-tests	CLI tooling package.
+github.com/aatuh/api-toolkit/contrib/v2/config	experimental	direct-tests	Contrib configuration loader.
+github.com/aatuh/api-toolkit/contrib/v2/countrycodes	experimental	direct-tests	Country code helpers.
+github.com/aatuh/api-toolkit/contrib/v2/email/markdown	experimental	direct-tests	Markdown email rendering adapter.
+github.com/aatuh/api-toolkit/contrib/v2/email/noop	wrapper-only	wrapper-smoke-tested	No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.
+github.com/aatuh/api-toolkit/contrib/v2/examples/auth	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/file-upload	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/idempotency	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/minimal	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/outbound	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/pagination	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/policy	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/secure-profile	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/spec-first	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/examples/spec-first/gen	generated	generated	Generated example code.
+github.com/aatuh/api-toolkit/contrib/v2/examples/webhook	example-only	example-only	Example application.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/clerk	wrapper-only	direct-tests	Convenience wrapper around Clerk auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/devheaders	wrapper-only	direct-tests	Convenience wrapper around dev-header auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/jwt	wrapper-only	direct-tests	Convenience wrapper around JWT auth integration.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/pgxpool	wrapper-only	direct-tests	Convenience wrapper around pgxpool adapter.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/resend	wrapper-only	direct-tests	Convenience wrapper around Resend adapter.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/stripe	wrapper-only	direct-tests	Convenience wrapper around Stripe adapter.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/txpostgres	wrapper-only	direct-tests	Convenience wrapper around txpostgres adapter.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk	experimental	direct-tests	Clerk auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	experimental	direct-tests	Dev-header auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/cors	experimental	direct-tests	CORS middleware adapter.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics	experimental	direct-tests	Metrics middleware adapter.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi	experimental	direct-tests	OpenAPI validation middleware.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/oteltrace	experimental	direct-tests	OpenTelemetry trace middleware.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog	experimental	direct-tests	Request logging middleware.
+github.com/aatuh/api-toolkit/contrib/v2/migrator	experimental	direct-tests	Migration orchestration package.
+github.com/aatuh/api-toolkit/contrib/v2/scheduler/postgres	experimental	direct-tests	Postgres scheduler run store.
+github.com/aatuh/api-toolkit/contrib/v2/telemetry	experimental	direct-tests	OpenTelemetry wiring helpers.

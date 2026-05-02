@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	adaptertx "github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -18,6 +19,32 @@ func TestNewReturnsManager(t *testing.T) {
 	}
 	if _, ok := manager.(*Manager); !ok {
 		t.Fatalf("manager type = %T, want *Manager", manager)
+	}
+}
+
+func TestNewNilPoolFailsClosed(t *testing.T) {
+	called := false
+	err := New(nil).WithinTx(context.Background(), func(context.Context) error {
+		called = true
+		return nil
+	})
+	if called {
+		t.Fatal("expected callback not to run when pool is missing")
+	}
+	if !errors.Is(err, adaptertx.ErrPoolNotConfigured) {
+		t.Fatalf("WithinTx() error = %v, want %v", err, adaptertx.ErrPoolNotConfigured)
+	}
+}
+
+func TestFromCtxNilPoolFailsClosed(t *testing.T) {
+	db := FromCtx(context.Background(), nil)
+	if db == nil {
+		t.Fatal("expected DB facade")
+	}
+
+	_, err := db.Exec(context.Background(), "select 1")
+	if !errors.Is(err, adaptertx.ErrPoolNotConfigured) {
+		t.Fatalf("Exec() error = %v, want %v", err, adaptertx.ErrPoolNotConfigured)
 	}
 }
 

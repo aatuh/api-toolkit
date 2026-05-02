@@ -92,7 +92,17 @@ func (b *CircuitBreaker) Execute(fn func() (*http.Response, error), isFailure Fa
 	if err := b.allow(now); err != nil {
 		return nil, err
 	}
-	resp, err := fn()
+	var (
+		resp *http.Response
+		err  error
+	)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			b.report(now, true)
+			panic(recovered)
+		}
+	}()
+	resp, err = fn()
 	failure := isFailure(resp, err)
 	b.report(now, failure)
 	return resp, err

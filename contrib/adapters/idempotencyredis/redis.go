@@ -13,18 +13,45 @@ import (
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
+// LegacyInFlightRecoveryOutcome captures whether a legacy tokenless recovery path
+// was exercised in the adapter.
+type LegacyInFlightRecoveryOutcome string
+
+const (
+	// LegacyInFlightRecoveryRecovered indicates tokenless legacy in-flight state
+	// was intentionally migrated away.
+	LegacyInFlightRecoveryRecovered LegacyInFlightRecoveryOutcome = "legacy_in_flight_recovered"
+	// LegacyInFlightRecoveryTokenMismatch indicates a token was supplied for a
+	// tokenless legacy in-flight record and release was rejected.
+	LegacyInFlightRecoveryTokenMismatch LegacyInFlightRecoveryOutcome = "legacy_in_flight_token_mismatch"
+)
+
+// LegacyInFlightRecoveryEvent carries structured context for legacy token recovery.
+type LegacyInFlightRecoveryEvent struct {
+	Key     string
+	Outcome LegacyInFlightRecoveryOutcome
+}
+
+// LegacyInFlightRecoveryHandler is invoked when a tokenless legacy recovery
+// branch is encountered. Keep handlers fast and non-blocking.
+type LegacyInFlightRecoveryHandler func(context.Context, LegacyInFlightRecoveryEvent)
+
 // Options configures Redis-backed idempotency storage.
 type Options struct {
 	KeyPrefix string
+	// OnLegacyInFlightRecovery receives structured recovery telemetry.
+	OnLegacyInFlightRecovery LegacyInFlightRecoveryHandler
 }
 
 // Store implements ports.IdempotencyStore using Redis.
 type Store struct {
-	client redis.UniversalClient
-	prefix string
+	client                   redis.UniversalClient
+	prefix                   string
+	onLegacyInFlightRecovery LegacyInFlightRecoveryHandler
 }
 
-var _ ports.IdempotencyStore = (*Store)(nil)
+var _ ports.ReleasableIdempotencyStore = (*Store)(nil)
+var _ ports.IdempotencyReservationReleaser = (*Store)(nil)
 
 // New constructs a Redis-backed idempotency store.
 func New(client redis.UniversalClient, opts Options) *Store {
@@ -33,8 +60,9 @@ func New(client redis.UniversalClient, opts Options) *Store {
 		prefix = "idempotency:"
 	}
 	return &Store{
-		client: client,
-		prefix: prefix,
+		client:                   client,
+		prefix:                   prefix,
+		onLegacyInFlightRecovery: opts.OnLegacyInFlightRecovery,
 	}
 }
 
@@ -85,14 +113,71 @@ func (s *Store) Save(ctx context.Context, key string, record ports.IdempotencyRe
 	return s.client.Set(ctx, s.key(key), payload, ttl).Err()
 }
 
-// Release removes a stored idempotency reservation or record.
+// Release removes an in-flight idempotency reservation by key.
+//
+// This method preserves the v2 compatibility contract. New middleware uses
+// ReleaseReservation when available so tokened reservations are not released by
+// unrelated requests.
 func (s *Store) Release(ctx context.Context, key string) error {
+	return s.release(ctx, key, "", false)
+}
+
+// ReleaseReservation removes a stored idempotency reservation when token matches.
+func (s *Store) ReleaseReservation(ctx context.Context, key, token string) error {
+	return s.release(ctx, key, token, true)
+}
+
+func (s *Store) release(ctx context.Context, key, token string, requireToken bool) error {
 	if s == nil || s.client == nil {
 		return nil
+	}
+	raw, err := s.client.Get(ctx, s.key(key)).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+		return err
+	}
+	var record ports.IdempotencyRecord
+	if err := json.Unmarshal([]byte(raw), &record); err != nil {
+		return err
+	}
+	if record.State != ports.IdempotencyStateInFlight {
+		return nil
+	}
+	if !requireToken {
+		return s.client.Del(ctx, s.key(key)).Err()
+	}
+	if record.ReservationToken == "" {
+		// Compatibility path for older records that were created before
+		// ReservationToken was required. Keep this path narrow and temporary
+		// for mixed-version rollout recovery.
+		if token == "" {
+			if err := s.client.Del(ctx, s.key(key)).Err(); err != nil {
+				return err
+			}
+			s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryRecovered)
+			return ports.ErrLegacyInFlightReservationMissingToken
+		}
+		s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryTokenMismatch)
+		return ports.ErrLegacyInFlightTokenMismatch
+	}
+	if record.ReservationToken != token {
+		return ports.ErrLegacyInFlightTokenMismatch
 	}
 	return s.client.Del(ctx, s.key(key)).Err()
 }
 
 func (s *Store) key(key string) string {
 	return s.prefix + key
+}
+
+func (s *Store) emitLegacyInFlightRecovery(ctx context.Context, key string, outcome LegacyInFlightRecoveryOutcome) {
+	if s == nil || s.onLegacyInFlightRecovery == nil {
+		return
+	}
+	s.onLegacyInFlightRecovery(ctx, LegacyInFlightRecoveryEvent{
+		Key:     key,
+		Outcome: outcome,
+	})
 }

@@ -4,10 +4,20 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 )
+
+func TestConfigAndMiddlewareAreIntentionallyNonComparable(t *testing.T) {
+	if reflect.TypeOf(Config{}).Comparable() {
+		t.Fatal("Config should remain non-comparable while TrustedProxies is part of the exported review surface")
+	}
+	if reflect.TypeOf(Middleware{}).Comparable() {
+		t.Fatal("Middleware should remain non-comparable while trusted proxy resolver state is embedded")
+	}
+}
 
 func TestNewRequiresUserHeaderWhenEnabled(t *testing.T) {
 	if _, err := New(Config{Enabled: true}, nil); err == nil {

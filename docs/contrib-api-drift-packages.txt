@@ -1,0 +1,15 @@
+# Selected high-use contrib packages reviewed by make contrib-api-drift-report.
+# This manifest is report-only; contrib remains outside the stable v2 API promise.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool
+github.com/aatuh/api-toolkit/contrib/v2/adapters/resend
+github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe
+github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/clerk
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/devheaders
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/jwt
+github.com/aatuh/api-toolkit/contrib/v2/integrations/pgxpool
+github.com/aatuh/api-toolkit/contrib/v2/integrations/resend
+github.com/aatuh/api-toolkit/contrib/v2/integrations/stripe
+github.com/aatuh/api-toolkit/contrib/v2/integrations/txpostgres
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders

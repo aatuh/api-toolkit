@@ -41,6 +41,22 @@ func (benchReplayStore) Save(context.Context, string, ports.IdempotencyRecord, t
 	return nil
 }
 
+func (benchStore) Release(context.Context, string) error {
+	return nil
+}
+
+func (benchStore) ReleaseReservation(context.Context, string, string) error {
+	return nil
+}
+
+func (benchReplayStore) Release(context.Context, string) error {
+	return nil
+}
+
+func (benchReplayStore) ReleaseReservation(context.Context, string, string) error {
+	return nil
+}
+
 func BenchmarkIdempotencyNew(b *testing.B) {
 	mw, err := New(Options{
 		Store:        benchStore{},

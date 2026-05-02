@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -135,4 +136,17 @@ func TestSnapshotDatabasePoolStatsNil(t *testing.T) {
 	if got != (DatabasePoolSnapshot{}) {
 		t.Fatalf("expected zero snapshot, got %+v", got)
 	}
+}
+
+func ExampleSnapshotDatabasePoolStats() {
+	pool := &snapshotOnlyDatabasePool{
+		snapshot: DatabasePoolSnapshot{
+			IdleConns:  3,
+			TotalConns: 4,
+		},
+	}
+
+	snapshot := SnapshotDatabasePoolStats(pool)
+	fmt.Println(snapshot.IdleConns, snapshot.TotalConns)
+	// Output: 3 4
 }

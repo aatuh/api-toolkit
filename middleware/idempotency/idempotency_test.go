@@ -2,6 +2,8 @@ package idempotency
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -59,6 +61,1213 @@ func TestIdempotencyReplay(t *testing.T) {
 	handler.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusConflict {
 		t.Fatalf("expected conflict on key reuse, got %d", rec3.Code)
+	}
+}
+
+func TestIdempotencyRecoversLegacyTokenlessInflightRecordFromMemoryStore(t *testing.T) {
+	const key = "key-legacy-memory-recovery"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	calls := 0
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req1.Header.Set("Idempotency-Key", key)
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("expected first request to recover legacy and succeed, got %d", rec1.Code)
+	}
+
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req2.Header.Set("Idempotency-Key", key)
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("expected replay after recovery, got %d", rec2.Code)
+	}
+	if calls != 1 {
+		t.Fatalf("expected handler to execute once, got %d", calls)
+	}
+}
+
+func TestIdempotencyEmitsLegacyCompatibilityEventsWithoutStoreCallbacks(t *testing.T) {
+	const key = "key-legacy-no-store-callback"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected first request to recover legacy and succeed, got %d", rec.Code)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected entered+recovered events, got %d", len(events))
+	}
+	if got := events[0].Outcome; got != LegacyInFlightCompatibilityEntered {
+		t.Fatalf("expected first compatibility event = %q, got %q", LegacyInFlightCompatibilityEntered, got)
+	}
+	if got := events[1].Outcome; got != LegacyInFlightCompatibilityRecovered {
+		t.Fatalf("expected second compatibility event = %q, got %q", LegacyInFlightCompatibilityRecovered, got)
+	}
+	if events[0].Method != http.MethodPost {
+		t.Fatalf("expected compatibility event method %q, got %q", http.MethodPost, events[0].Method)
+	}
+	if events[0].Path != "/charge" {
+		t.Fatalf("expected compatibility event path %q, got %q", "/charge", events[0].Path)
+	}
+	if events[0].StoreType == "" {
+		t.Fatal("expected compatibility event to include store type")
+	}
+}
+
+func TestIdempotencyWarnsOnLegacyInflightClockSkewRisk(t *testing.T) {
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	key := "key-legacy-clock-skew"
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(30 * time.Second),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	log := &captureLogger{}
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 1)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		Logger: log,
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 while clock-skew recovery is suppressed, got %d", rec.Code)
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected one clock-skew warning, got %d", log.WarnCount())
+	}
+	if got := log.LastWarnMessage(); got == "" || !strings.Contains(got, "clock-skew-sensitive") {
+		t.Fatalf("expected clock-skew warning message, got %q", got)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected no middleware compatibility event when legacy inflight is rejected for clock skew, got %d", len(events))
+	}
+}
+
+func TestIdempotencyEmitsDefaultLegacyCompatibilitySinkWithHashedKey(t *testing.T) {
+	const key = "key-legacy-no-store-callback"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	log := &captureLogger{}
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		Logger: log,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected first request to recover legacy and succeed, got %d", rec.Code)
+	}
+
+	warns := log.WarnValues()
+	if len(warns) != 2 {
+		t.Fatalf("expected two compatibility warnings from default sink, got %d", len(warns))
+	}
+	entered := warnKeyValue(warns[0])
+	recovered := warnKeyValue(warns[1])
+	if got := entered["outcome"]; got != string(LegacyInFlightCompatibilityEntered) {
+		t.Fatalf("expected first compatibility outcome %q, got %q", LegacyInFlightCompatibilityEntered, got)
+	}
+	if got := recovered["outcome"]; got != string(LegacyInFlightCompatibilityRecovered) {
+		t.Fatalf("expected second compatibility outcome %q, got %q", LegacyInFlightCompatibilityRecovered, got)
+	}
+	expectedKey := hashValue(key)
+	if entered["key"] != expectedKey {
+		t.Fatalf("expected hashed default key for entered event, got %q", entered["key"])
+	}
+	if recovered["key"] != expectedKey {
+		t.Fatalf("expected hashed default key for recovered event, got %q", recovered["key"])
+	}
+}
+
+func TestIdempotencyCanEmitRawLegacyCompatibilityKeyWhenOptedIn(t *testing.T) {
+	const key = "key-legacy-raw-key"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilityRawKey: true,
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected first request to recover legacy and succeed, got %d", rec.Code)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected entered+recovered events, got %d", len(events))
+	}
+	if events[0].Key != key {
+		t.Fatalf("expected raw compatibility key when opted in, got %q", events[0].Key)
+	}
+	if events[1].Key != key {
+		t.Fatalf("expected raw compatibility key when opted in, got %q", events[1].Key)
+	}
+}
+
+func TestIdempotencyWarnsOnClockSkewPreflightInStartupWhenNotStrict(t *testing.T) {
+	log := &captureLogger{}
+	clock := &sequenceClock{timestamps: []time.Time{
+		time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC),
+		time.Date(2026, time.April, 30, 9, 59, 59, 999000000, time.UTC),
+	}}
+	_, err := New(Options{
+		Store:        newMemoryStore(),
+		MaxBodyBytes: 1024,
+		Clock:        clock,
+		Logger:       log,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected startup warning on skew risk, got %d", log.WarnCount())
+	}
+	if got := log.LastWarnMessage(); got == "" || !strings.Contains(got, "clock preflight risk") {
+		t.Fatalf("expected preflight risk warning, got %q", got)
+	}
+}
+
+func TestIdempotencyWarnsOnClockSkewPreflightRiskMatrix(t *testing.T) {
+	log := &captureLogger{}
+	base := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	scenarios := []struct {
+		name      string
+		clock     ports.Clock
+		strict    bool
+		wantWarn  int
+		wantError bool
+	}{
+		{
+			name:     "normal increasing clock",
+			clock:    &sequenceClock{timestamps: []time.Time{base, base.Add(5 * time.Second)}},
+			wantWarn: 0,
+		},
+		{
+			name:     "fixed-resolution duplicate reads",
+			clock:    &sequenceClock{timestamps: []time.Time{base, base}},
+			wantWarn: 0,
+		},
+		{
+			name:      "strict mode rejects slight backward jitter",
+			clock:     &sequenceClock{timestamps: []time.Time{base, base.Add(-50 * time.Millisecond)}},
+			strict:    true,
+			wantWarn:  1,
+			wantError: true,
+		},
+		{
+			name:      "advisory mode tolerates fixed backward jitter once",
+			clock:     &sequenceClock{timestamps: []time.Time{base.Add(250 * time.Millisecond), base}},
+			wantWarn:  1,
+			wantError: false,
+		},
+		{
+			name:      "strict mode rejects hard backward-step clock",
+			clock:     &sequenceClock{timestamps: []time.Time{base, base.Add(-2 * time.Minute)}},
+			strict:    true,
+			wantWarn:  1,
+			wantError: true,
+		},
+		{
+			name:      "advisory mode flags hard backward-step clock",
+			clock:     &sequenceClock{timestamps: []time.Time{base, base.Add(-2 * time.Minute)}},
+			wantWarn:  1,
+			wantError: false,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			log.messages = nil
+			log.warnings = nil
+			_, err := New(Options{
+				Store:                            newMemoryStore(),
+				MaxBodyBytes:                     1024,
+				Clock:                            scenario.clock,
+				Logger:                           log,
+				FailOnInFlightClockSkewPreflight: scenario.strict,
+			})
+			if scenario.wantError {
+				if err == nil {
+					t.Fatalf("expected startup fail-fast on preflight risk in %q", scenario.name)
+				}
+				if !errors.Is(err, ErrLegacyInFlightClockSkewPreflightRisk) {
+					t.Fatalf("expected wrapped preflight risk error in %q, got %v", scenario.name, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected startup error in %q: %v", scenario.name, err)
+			}
+			if got := log.WarnCount(); got != scenario.wantWarn {
+				t.Fatalf("expected %d warning(s) in %q, got %d", scenario.wantWarn, scenario.name, got)
+			}
+		})
+	}
+}
+
+func TestIdempotencyCanFailStartupOnClockSkewPreflightWhenStrictEnabled(t *testing.T) {
+	log := &captureLogger{}
+	clock := &sequenceClock{timestamps: []time.Time{
+		time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC),
+		time.Date(2026, time.April, 30, 9, 59, 59, 999000000, time.UTC),
+	}}
+	_, err := New(Options{
+		Store:                            newMemoryStore(),
+		MaxBodyBytes:                     1024,
+		InFlightTTL:                      2 * time.Minute,
+		Clock:                            clock,
+		Logger:                           log,
+		FailOnInFlightClockSkewPreflight: true,
+	})
+	if err == nil {
+		t.Fatal("expected startup fail-fast on clock preflight")
+	}
+	if !errors.Is(err, ErrLegacyInFlightClockSkewPreflightRisk) {
+		t.Fatalf("expected ErrLegacyInFlightClockSkewPreflightRisk, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "startup clock moved backwards across preflight window") {
+		t.Fatalf("expected remediation-oriented startup error, got %v", err)
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected warning before startup fail-fast, got %d", log.WarnCount())
+	}
+}
+
+func TestIdempotencyDefaultLegacyCompatibilitySinkMatchesExplicitSinkContract(t *testing.T) {
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	seedLegacyInflight := func(key string) *memoryStore {
+		mem := newMemoryStore()
+		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+			State:       ports.IdempotencyStateInFlight,
+			RequestHash: "legacy-hash",
+			CreatedAt:   now.Add(-15 * time.Minute),
+		}, 24*time.Hour); err != nil {
+			t.Fatalf("seed store: %v", err)
+		}
+		return mem
+	}
+
+	runWithSink := func(sink LegacyInFlightCompatibilityEventSink, log *captureLogger) {
+		key := "key-legacy-contract-equivalence"
+		mem := seedLegacyInflight(key)
+		options := Options{
+			Store:        mem,
+			MaxBodyBytes: 1024,
+			InFlightTTL:  10 * time.Minute,
+			Clock:        fixedClock{now: now},
+			HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+				return "legacy-hash", nil
+			},
+			Logger: log,
+		}
+		if sink != nil {
+			options.LegacyInFlightCompatibilitySink = sink
+		}
+
+		mw, err := New(options)
+		if err != nil {
+			t.Fatalf("new middleware: %v", err)
+		}
+		mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+		})).ServeHTTP(httptest.NewRecorder(), func() *http.Request {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+			req.Header.Set("Idempotency-Key", key)
+			return req
+		}())
+	}
+
+	loggerDefault := &captureLogger{}
+	runWithSink(nil, loggerDefault)
+
+	sinkEvents := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+	runWithSink(
+		LegacyInFlightCompatibilitySinkFunc(func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			sinkEvents = append(sinkEvents, event)
+		}),
+		nil,
+	)
+	if len(sinkEvents) != 2 {
+		t.Fatalf("expected two events from explicit compatibility sink, got %d", len(sinkEvents))
+	}
+
+	compatEventsFromLogger := func(log *captureLogger) []LegacyInFlightCompatibilityEvent {
+		warns := log.WarnValues()
+		out := make([]LegacyInFlightCompatibilityEvent, 0, len(warns))
+		for _, warn := range warns {
+			fields := warnKeyValue(warn)
+			method, ok := fields["method"].(string)
+			if !ok || method == "" {
+				continue
+			}
+			out = append(out, LegacyInFlightCompatibilityEvent{
+				Method:    method,
+				Path:      warnValueAsString(fields, "path"),
+				Key:       warnValueAsString(fields, "key"),
+				StoreType: warnValueAsString(fields, "store_type"),
+				Outcome:   LegacyInFlightCompatibilityEventName(warnValueAsString(fields, "outcome")),
+				Error:     warnValueAsString(fields, "error"),
+			})
+		}
+		return out
+	}
+
+	defaultSinkEvents := compatEventsFromLogger(loggerDefault)
+	if len(defaultSinkEvents) != 2 {
+		t.Fatalf("expected two default logger compatibility events, got %d", len(defaultSinkEvents))
+	}
+	if len(defaultSinkEvents) != len(sinkEvents) {
+		t.Fatalf("expected matched default and explicit event counts")
+	}
+
+	for i := range sinkEvents {
+		if defaultSinkEvents[i].Method != sinkEvents[i].Method {
+			t.Fatalf("expected method match at index %d: default=%q explicit=%q", i, defaultSinkEvents[i].Method, sinkEvents[i].Method)
+		}
+		if defaultSinkEvents[i].Path != sinkEvents[i].Path {
+			t.Fatalf("expected path match at index %d: default=%q explicit=%q", i, defaultSinkEvents[i].Path, sinkEvents[i].Path)
+		}
+		if defaultSinkEvents[i].StoreType != sinkEvents[i].StoreType {
+			t.Fatalf("expected store_type match at index %d", i)
+		}
+		if defaultSinkEvents[i].Outcome != sinkEvents[i].Outcome {
+			t.Fatalf("expected outcome match at index %d: default=%q explicit=%q", i, defaultSinkEvents[i].Outcome, sinkEvents[i].Outcome)
+		}
+		if defaultSinkEvents[i].Key != sinkEvents[i].Key {
+			t.Fatalf("expected key match at index %d: default=%q explicit=%q", i, defaultSinkEvents[i].Key, sinkEvents[i].Key)
+		}
+		if defaultSinkEvents[i].Error != sinkEvents[i].Error {
+			t.Fatalf("expected error match at index %d: default=%q explicit=%q", i, defaultSinkEvents[i].Error, sinkEvents[i].Error)
+		}
+	}
+}
+
+func TestIdempotencyCanEmitLegacyCompatibilityMetricSink(t *testing.T) {
+	const key = "key-legacy-metric-sink"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	sinkEvents := make([]LegacyInFlightCompatibilityMetricLabels, 0, 2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilityMetricSink: LegacyInFlightCompatibilityMetricSinkFunc(func(_ context.Context, labels LegacyInFlightCompatibilityMetricLabels) {
+			copied := make(LegacyInFlightCompatibilityMetricLabels, len(labels))
+			for key, value := range labels {
+				copied[key] = value
+			}
+			sinkEvents = append(sinkEvents, copied)
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected first request to recover legacy and succeed, got %d", rec.Code)
+	}
+	if len(sinkEvents) != 2 {
+		t.Fatalf("expected two metric events, got %d", len(sinkEvents))
+	}
+	if sinkEvents[0][legacyInFlightCompatibilityEventMethodLabel] != http.MethodPost {
+		t.Fatalf("expected metric method %q, got %q", http.MethodPost, sinkEvents[0][legacyInFlightCompatibilityEventMethodLabel])
+	}
+	if sinkEvents[0][legacyInFlightCompatibilityEventPathLabel] != "/charge" {
+		t.Fatalf("expected metric path %q, got %q", "/charge", sinkEvents[0][legacyInFlightCompatibilityEventPathLabel])
+	}
+	if sinkEvents[0][legacyInFlightCompatibilityEventStoreTypeLabel] == "" {
+		t.Fatal("expected metric store_type")
+	}
+	if sinkEvents[0][legacyInFlightCompatibilityEventOutcomeLabel] != string(LegacyInFlightCompatibilityEntered) {
+		t.Fatalf("expected entered outcome, got %q", sinkEvents[0][legacyInFlightCompatibilityEventOutcomeLabel])
+	}
+	if sinkEvents[1][legacyInFlightCompatibilityEventOutcomeLabel] != string(LegacyInFlightCompatibilityRecovered) {
+		t.Fatalf("expected recovered outcome, got %q", sinkEvents[1][legacyInFlightCompatibilityEventOutcomeLabel])
+	}
+	if expectedKey := legacyInFlightCompatibilityEventKey(key, false); sinkEvents[0][legacyInFlightCompatibilityEventKeyLabel] != expectedKey {
+		t.Fatalf("expected hashed key %q, got %q", expectedKey, sinkEvents[0][legacyInFlightCompatibilityEventKeyLabel])
+	}
+}
+
+func TestIdempotencyCanSampleCompatibilitySinkTrafficInHighVolumeMode(t *testing.T) {
+	const requests = 8
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	const sampleEvery = 4
+	mem := newMemoryStore()
+
+	for i := 0; i < requests; i++ {
+		key := "key-legacy-volume-" + strconv.Itoa(i)
+		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+			State:       ports.IdempotencyStateInFlight,
+			RequestHash: "legacy-hash",
+			CreatedAt:   now.Add(-15 * time.Minute),
+		}, 24*time.Hour); err != nil {
+			t.Fatalf("seed store: %v", err)
+		}
+	}
+
+	sinkEvents := make([]LegacyInFlightCompatibilityMetricLabels, 0, requests*2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilitySampleEvery: sampleEvery,
+		LegacyInFlightCompatibilityMetricSink: LegacyInFlightCompatibilityMetricSinkFunc(func(_ context.Context, labels LegacyInFlightCompatibilityMetricLabels) {
+			copied := make(LegacyInFlightCompatibilityMetricLabels, len(labels))
+			for key, value := range labels {
+				copied[key] = value
+			}
+			sinkEvents = append(sinkEvents, copied)
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	for i := 0; i < requests; i++ {
+		key := "key-legacy-volume-" + strconv.Itoa(i)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+		req.Header.Set("Idempotency-Key", key)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected request %d to recover legacy and succeed, got %d", i+1, rec.Code)
+		}
+	}
+
+	expectedEvents := (requests * 2) / sampleEvery
+	if len(sinkEvents) != expectedEvents {
+		t.Fatalf("expected %d sampled metric events, got %d", expectedEvents, len(sinkEvents))
+	}
+	for idx, event := range sinkEvents {
+		if event[legacyInFlightCompatibilityEventMethodLabel] != http.MethodPost {
+			t.Fatalf("sampled event %d expected post method, got %q", idx, event[legacyInFlightCompatibilityEventMethodLabel])
+		}
+		if event[legacyInFlightCompatibilityEventPathLabel] != "/charge" {
+			t.Fatalf("sampled event %d expected path %q, got %q", idx, "/charge", event[legacyInFlightCompatibilityEventPathLabel])
+		}
+	}
+}
+
+func TestIdempotencyLegacyCompatibilityAsyncSinkSkipsRequestBackpressure(t *testing.T) {
+	const key = "key-legacy-async-backpressure"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	block := make(chan struct{})
+	received := make(chan struct{}, 1)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilityAsync: true,
+		LegacyInFlightCompatibilitySink: LegacyInFlightCompatibilitySinkFunc(func(_ context.Context, _ LegacyInFlightCompatibilityEvent) {
+			<-block
+			received <- struct{}{}
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+		})).ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected async sink to avoid request backpressure when callback blocks")
+	}
+
+	close(block)
+	select {
+	case <-received:
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected request to succeed, got %d", rec.Code)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected at least one async callback emission")
+	}
+}
+
+func TestIdempotencyLegacyCompatibilitySyncSinkCanApplyRequestBackpressure(t *testing.T) {
+	const key = "key-legacy-sync-backpressure"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	block := make(chan struct{})
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilitySink: LegacyInFlightCompatibilitySinkFunc(func(_ context.Context, _ LegacyInFlightCompatibilityEvent) {
+			<-block
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+
+	go func() {
+		mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+		})).ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("expected blocking sink to delay request completion while callback is blocked")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(block)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected request to complete after sync callback unblocks")
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected request to succeed, got %d", rec.Code)
+	}
+}
+
+func TestIdempotencyLegacyCompatibilitySinkPanicsAreRecovered(t *testing.T) {
+	const key = "key-legacy-compat-sink-panic"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilitySink: LegacyInFlightCompatibilitySinkFunc(func(_ context.Context, _ LegacyInFlightCompatibilityEvent) {
+			panic("compatibility sink failure")
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected request to succeed despite panic in compatibility sink, got %d", rec.Code)
+	}
+}
+
+func TestIdempotencyLegacyCompatibilityAsyncSampledPanicsDoNotBlockRepeatedFallbacks(t *testing.T) {
+	const requests = 6
+	const sampleEvery = 3
+	const expectedSampledEvents = (requests * 2) / sampleEvery
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+
+	for i := 0; i < requests; i++ {
+		key := "key-legacy-async-sampled-panic-" + strconv.Itoa(i)
+		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+			State:       ports.IdempotencyStateInFlight,
+			RequestHash: "legacy-hash",
+			CreatedAt:   now.Add(-15 * time.Minute),
+		}, 24*time.Hour); err != nil {
+			t.Fatalf("seed store: %v", err)
+		}
+	}
+
+	releaseSink := make(chan struct{})
+	events := make(chan LegacyInFlightCompatibilityEventName, requests*2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		LegacyInFlightCompatibilityAsync:       true,
+		LegacyInFlightCompatibilitySampleEvery: sampleEvery,
+		LegacyInFlightCompatibilitySink: LegacyInFlightCompatibilitySinkFunc(func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events <- event.Outcome
+			<-releaseSink
+			panic("sampled async compatibility sink failure")
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	}))
+
+	statuses := make(chan int, requests)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < requests; i++ {
+			key := "key-legacy-async-sampled-panic-" + strconv.Itoa(i)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+			req.Header.Set("Idempotency-Key", key)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			statuses <- rec.Code
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		close(releaseSink)
+		t.Fatal("expected sampled async compatibility telemetry not to block repeated fallback requests")
+	}
+	for i := 0; i < requests; i++ {
+		if code := <-statuses; code != http.StatusCreated {
+			close(releaseSink)
+			t.Fatalf("expected request %d to recover legacy and succeed, got %d", i+1, code)
+		}
+	}
+
+	var received []LegacyInFlightCompatibilityEventName
+	for i := 0; i < expectedSampledEvents; i++ {
+		select {
+		case outcome := <-events:
+			received = append(received, outcome)
+		case <-time.After(time.Second):
+			close(releaseSink)
+			t.Fatalf("expected %d sampled async events, got %d", expectedSampledEvents, len(received))
+		}
+	}
+	close(releaseSink)
+	if len(received) != expectedSampledEvents {
+		t.Fatalf("expected %d sampled async events, got %d", expectedSampledEvents, len(received))
+	}
+}
+
+func TestIdempotencyClockSkewPreflightWarnsAndCanFailFast(t *testing.T) {
+	first := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	second := first.Add(-time.Second)
+
+	log := &captureLogger{}
+	mw, err := New(Options{
+		Store:        newMemoryStore(),
+		MaxBodyBytes: 1024,
+		Clock:        &sequenceClock{timestamps: []time.Time{first, second}},
+		Logger:       log,
+	})
+	if err != nil {
+		t.Fatalf("new middleware warning-only: %v", err)
+	}
+	if mw == nil {
+		t.Fatal("expected middleware to be created in warning-only mode")
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected one clock preflight warning, got %d", log.WarnCount())
+	}
+	if got := log.LastWarnMessage(); got == "" || !strings.Contains(got, "clock preflight risk detected") {
+		t.Fatalf("expected clock preflight warning, got %q", got)
+	}
+
+	strictLog := &captureLogger{}
+	_, err = New(Options{
+		Store:                            newMemoryStore(),
+		MaxBodyBytes:                     1024,
+		Clock:                            &sequenceClock{timestamps: []time.Time{first, second}},
+		Logger:                           strictLog,
+		FailOnInFlightClockSkewPreflight: true,
+	})
+	if !errors.Is(err, ErrLegacyInFlightClockSkewPreflightRisk) {
+		t.Fatalf("strict clock preflight error = %v, want %v", err, ErrLegacyInFlightClockSkewPreflightRisk)
+	}
+	if strictLog.WarnCount() != 1 {
+		t.Fatalf("expected strict mode to log before failing, got %d warnings", strictLog.WarnCount())
+	}
+}
+
+func TestIdempotencyWarnsOnInFlightTTLMismatchAndCanFailFast(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(Options{
+		Store:        newMemoryStore(),
+		MaxBodyBytes: 1024,
+		InFlightTTL:  2 * time.Minute,
+		KnownInFlightTTLs: map[string]time.Duration{
+			"billing-svc:v1":  4 * time.Minute,
+			"payments-svc:v2": 2 * time.Minute,
+		},
+		Logger: log,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	if mw == nil {
+		t.Fatal("expected middleware to be created with advisory TTL mismatch warning")
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected one advisory warning, got %d", log.WarnCount())
+	}
+	if got := log.LastWarnMessage(); got == "" || !strings.Contains(got, "mixed-version in-flight TTL mismatch detected") {
+		t.Fatalf("expected TTL mismatch warning, got %q", got)
+	}
+
+	_, err = New(Options{
+		Store:        newMemoryStore(),
+		MaxBodyBytes: 1024,
+		InFlightTTL:  2 * time.Minute,
+		KnownInFlightTTLs: map[string]time.Duration{
+			"billing-svc:v1":  4 * time.Minute,
+			"payments-svc:v2": 2 * time.Minute,
+		},
+		Logger:                    log,
+		FailOnInFlightTTLMismatch: true,
+	})
+	if err == nil {
+		t.Fatal("expected fail-fast on configured in-flight TTL mismatch")
+	}
+	if log.WarnCount() < 2 {
+		t.Fatalf("expected warning to be emitted even on fail-fast, got %d", log.WarnCount())
+	}
+}
+
+func TestIdempotencyDoesNotWarnOnAlignedInFlightTTLs(t *testing.T) {
+	log := &captureLogger{}
+	_, err := New(Options{
+		Store:        newMemoryStore(),
+		MaxBodyBytes: 1024,
+		InFlightTTL:  3 * time.Minute,
+		KnownInFlightTTLs: map[string]time.Duration{
+			"billing-svc:v1":  3 * time.Minute,
+			"payments-svc:v2": 3 * time.Minute,
+		},
+		Logger: log,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	if log.WarnCount() != 0 {
+		t.Fatalf("expected no warning for aligned InFlightTTL values, got %d", log.WarnCount())
+	}
+}
+
+func TestIdempotencyEmitsLegacyCompatibilityRejectionForTokenMismatch(t *testing.T) {
+	mismatchStore := &legacyRecoveryErrorStore{
+		record: ports.IdempotencyRecord{
+			State:       ports.IdempotencyStateInFlight,
+			RequestHash: "legacy-hash",
+			CreatedAt:   time.Date(2026, time.April, 30, 9, 0, 0, 0, time.UTC),
+		},
+		releaseErr: ports.ErrLegacyInFlightTokenMismatch,
+	}
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+
+	mw, err := New(Options{
+		Store:        mismatchStore,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-legacy-token-mismatch")
+	rec := httptest.NewRecorder()
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected recovery to fail before handler execution")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected mismatch scenario to be retriable, got %d", rec.Code)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected entered+rejected outcomes, got %d", len(events))
+	}
+	if events[0].Outcome != LegacyInFlightCompatibilityEntered {
+		t.Fatalf("expected entered outcome first, got %q", events[0].Outcome)
+	}
+	if events[1].Outcome != LegacyInFlightCompatibilityRejected {
+		t.Fatalf("expected rejected outcome second, got %q", events[1].Outcome)
+	}
+	if events[1].Error != ports.ErrLegacyInFlightTokenMismatch.Error() {
+		t.Fatalf("expected ErrLegacyInFlightTokenMismatch event, got %q", events[1].Error)
+	}
+}
+
+func TestIdempotencyEmitsLegacyCompatibilityUnknownOnUnexpectedReleaseError(t *testing.T) {
+	unknownStore := &legacyRecoveryErrorStore{
+		record: ports.IdempotencyRecord{
+			State:       ports.IdempotencyStateInFlight,
+			RequestHash: "legacy-hash",
+			CreatedAt:   time.Date(2026, time.April, 30, 9, 0, 0, 0, time.UTC),
+		},
+		releaseErr: errors.New("legacy state unavailable"),
+	}
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+
+	mw, err := New(Options{
+		Store:        unknownStore,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)},
+		HashFunc: func(_ *http.Request, _ []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-legacy-unexpected-error")
+	rec := httptest.NewRecorder()
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected unexpected-restore scenario to fail before handler execution")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected unknown scenario to be retriable, got %d", rec.Code)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected entered+unknown outcomes, got %d", len(events))
+	}
+	if events[0].Outcome != LegacyInFlightCompatibilityEntered {
+		t.Fatalf("expected entered outcome first, got %q", events[0].Outcome)
+	}
+	if events[1].Outcome != LegacyInFlightCompatibilityUnknown {
+		t.Fatalf("expected unknown outcome second, got %q", events[1].Outcome)
+	}
+	if events[1].Error == "" {
+		t.Fatal("expected unknown scenario to include error detail")
+	}
+}
+
+func TestIdempotencyDoesNotRecoverFreshLegacyInflightBeforeTTL(t *testing.T) {
+	const key = "key-legacy-fresh-not-recovered"
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-5 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 1)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("expected legacy in-flight to remain active")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 while stale TTL not reached, got %d", rec.Code)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected no legacy compatibility telemetry events before expiry, got %d", len(events))
+	}
+}
+
+func TestIdempotencyLegacyCompatibilityRecommendationsIncludeStartupChecksAndFallbackTelemetry(t *testing.T) {
+	const key = "key-legacy-recommendation-check"
+	log := &captureLogger{}
+	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
+	mem := newMemoryStore()
+	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "legacy-hash",
+		CreatedAt:   now.Add(-15 * time.Minute),
+	}, 24*time.Hour); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	_, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Logger:       log,
+		KnownInFlightTTLs: map[string]time.Duration{
+			"billing-svc:v1": 8 * time.Minute,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected startup advisory to be non-blocking: %v", err)
+	}
+	if log.WarnCount() != 1 {
+		t.Fatalf("expected startup check warning for recommendation mismatch, got %d", log.WarnCount())
+	}
+
+	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		InFlightTTL:  10 * time.Minute,
+		Clock:        fixedClock{now: now},
+		HashFunc: func(*http.Request, []byte) (string, error) {
+			return "legacy-hash", nil
+		},
+		Logger: log,
+		OnLegacyInFlightCompatibility: func(_ context.Context, event LegacyInFlightCompatibilityEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "memory"})
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected recovery via compatibility path, got %d", rec.Code)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected recommendation-check scenario emitted entered+recovered, got %d", len(events))
+	}
+	if events[0].Outcome != LegacyInFlightCompatibilityEntered {
+		t.Fatalf("expected entered outcome first, got %q", events[0].Outcome)
+	}
+	if events[1].Outcome != LegacyInFlightCompatibilityRecovered {
+		t.Fatalf("expected recovered outcome second, got %q", events[1].Outcome)
 	}
 }
 
@@ -409,6 +1618,41 @@ func TestNewRequiresStore(t *testing.T) {
 func TestNewRejectsStoreWithoutReleaseSemantics(t *testing.T) {
 	if _, err := New(Options{Store: &storeWithoutRelease{store: newMemoryStore()}}); err == nil {
 		t.Fatal("expected error for store without release semantics")
+	}
+}
+
+func TestIdempotencySupportsLegacyOnlyReleaserCompatibilityPath(t *testing.T) {
+	store := &legacyOnlyReleaseStore{store: newMemoryStore()}
+	mw, err := New(Options{
+		Store: store,
+		ShouldStore: func(status int) bool {
+			return false
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	calls := 0
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("same"))
+		req.Header.Set("Idempotency-Key", "legacy-release-only")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("request %d status = %d, want %d", i+1, rec.Code, http.StatusNoContent)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("expected legacy release path to reopen key for retry, got %d calls", calls)
+	}
+	if store.releaseCalls != 2 {
+		t.Fatalf("expected legacy Release to be called twice, got %d", store.releaseCalls)
 	}
 }
 
@@ -840,6 +2084,17 @@ type storeWithoutRelease struct {
 	store *memoryStore
 }
 
+type captureLogger struct {
+	mu       sync.Mutex
+	messages []string
+	warnings []warnEntry
+}
+
+type legacyRecoveryErrorStore struct {
+	record     ports.IdempotencyRecord
+	releaseErr error
+}
+
 type memoryEntry struct {
 	record    ports.IdempotencyRecord
 	expiresAt time.Time
@@ -902,12 +2157,41 @@ func (m *memoryStore) Save(ctx context.Context, key string, record ports.Idempot
 }
 
 func (m *memoryStore) Release(ctx context.Context, key string) error {
+	return m.release(ctx, key, "", false)
+}
+
+func (m *memoryStore) ReleaseReservation(ctx context.Context, key, token string) error {
+	return m.release(ctx, key, token, true)
+}
+
+func (m *memoryStore) release(ctx context.Context, key, token string, requireToken bool) error {
 	if m == nil {
 		return nil
 	}
 	_ = ctx
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	entry, ok := m.data[key]
+	if !ok {
+		return nil
+	}
+	if entry.record.State != ports.IdempotencyStateInFlight {
+		return nil
+	}
+	if !requireToken {
+		delete(m.data, key)
+		return nil
+	}
+	if entry.record.ReservationToken == "" {
+		if token == "" {
+			delete(m.data, key)
+			return nil
+		}
+		return errors.New("idempotency reservation token mismatch")
+	}
+	if entry.record.ReservationToken != token {
+		return errors.New("idempotency reservation token mismatch")
+	}
 	delete(m.data, key)
 	return nil
 }
@@ -943,6 +2227,14 @@ func (s *contextSensitiveStore) Save(ctx context.Context, key string, record por
 }
 
 func (s *contextSensitiveStore) Release(ctx context.Context, key string) error {
+	return s.release(ctx, key, "", false)
+}
+
+func (s *contextSensitiveStore) ReleaseReservation(ctx context.Context, key, token string) error {
+	return s.release(ctx, key, token, true)
+}
+
+func (s *contextSensitiveStore) release(ctx context.Context, key, token string, requireToken bool) error {
 	if s == nil {
 		return nil
 	}
@@ -951,6 +2243,9 @@ func (s *contextSensitiveStore) Release(ctx context.Context, key string) error {
 	s.mu.Unlock()
 	if s.requireCleanup && ctx != nil && ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if requireToken {
+		return s.memoryStore.ReleaseReservation(ctx, key, token)
 	}
 	return s.memoryStore.Release(ctx, key)
 }
@@ -983,6 +2278,13 @@ func (s *reservationCollisionStore) Release(ctx context.Context, key string) err
 	return nil
 }
 
+func (s *reservationCollisionStore) ReleaseReservation(ctx context.Context, key, token string) error {
+	_ = ctx
+	_ = key
+	_ = token
+	return nil
+}
+
 func (s *storeWithoutRelease) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
 	if s == nil || s.store == nil {
 		return ports.IdempotencyRecord{}, false, nil
@@ -1002,6 +2304,116 @@ func (s *storeWithoutRelease) Save(ctx context.Context, key string, record ports
 		return nil
 	}
 	return s.store.Save(ctx, key, record, ttl)
+}
+
+func (s *captureLogger) Debug(msg string, _ ...any) {}
+
+func (s *captureLogger) Info(msg string, _ ...any) {}
+
+func (s *captureLogger) Warn(msg string, values ...any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, msg)
+	s.warnings = append(s.warnings, warnEntry{
+		msg:    msg,
+		values: append([]any(nil), values...),
+	})
+}
+
+func (s *captureLogger) Error(msg string, _ ...any) {}
+
+func (s *captureLogger) WarnCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.warnings)
+}
+
+func (s *captureLogger) LastWarnMessage() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.warnings) == 0 {
+		return ""
+	}
+	return s.warnings[len(s.warnings)-1].msg
+}
+
+func (s *captureLogger) WarnValues() [][]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	values := make([][]any, 0, len(s.warnings))
+	for _, warning := range s.warnings {
+		values = append(values, append([]any(nil), warning.values...))
+	}
+	return values
+}
+
+func (s *legacyRecoveryErrorStore) Get(_ context.Context, _ string) (ports.IdempotencyRecord, bool, error) {
+	if s == nil {
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	return s.record, true, nil
+}
+
+func (s *legacyRecoveryErrorStore) TryBegin(_ context.Context, _ string, _ ports.IdempotencyRecord, _ time.Duration) (bool, error) {
+	if s == nil {
+		return false, nil
+	}
+	return false, nil
+}
+
+func (s *legacyRecoveryErrorStore) Save(_ context.Context, _ string, _ ports.IdempotencyRecord, _ time.Duration) error {
+	return nil
+}
+
+func (s *legacyRecoveryErrorStore) Release(_ context.Context, key string) error {
+	_ = key
+	if s == nil {
+		return nil
+	}
+	return s.releaseErr
+}
+
+func (s *legacyRecoveryErrorStore) ReleaseReservation(_ context.Context, key, token string) error {
+	_ = key
+	_ = token
+	if s == nil {
+		return nil
+	}
+	return s.releaseErr
+}
+
+type legacyOnlyReleaseStore struct {
+	store        *memoryStore
+	releaseCalls int
+}
+
+func (s *legacyOnlyReleaseStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+	if s == nil || s.store == nil {
+		return ports.IdempotencyRecord{}, false, nil
+	}
+	return s.store.Get(ctx, key)
+}
+
+func (s *legacyOnlyReleaseStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+	if s == nil || s.store == nil {
+		return false, nil
+	}
+	return s.store.TryBegin(ctx, key, record, ttl)
+}
+
+func (s *legacyOnlyReleaseStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	return s.store.Save(ctx, key, record, ttl)
+}
+
+func (s *legacyOnlyReleaseStore) Release(ctx context.Context, key string) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	s.releaseCalls++
+	return s.store.Release(ctx, key)
 }
 
 func (m *memoryStore) isExpired(entry memoryEntry) bool {
@@ -1055,6 +2467,60 @@ type fixedClock struct {
 
 func (c fixedClock) Now() time.Time {
 	return c.now
+}
+
+type sequenceClock struct {
+	timestamps []time.Time
+	pos        int
+}
+
+func (c *sequenceClock) Now() time.Time {
+	if c == nil || len(c.timestamps) == 0 {
+		return time.Time{}
+	}
+	if c.pos >= len(c.timestamps) {
+		return c.timestamps[len(c.timestamps)-1]
+	}
+	next := c.timestamps[c.pos]
+	c.pos++
+	return next
+}
+
+type warnEntry struct {
+	msg    string
+	values []any
+}
+
+func warnKeyValue(values []any) map[string]any {
+	out := make(map[string]any, len(values)/2)
+	for i := 0; i+1 < len(values); i += 2 {
+		key, ok := values[i].(string)
+		if !ok || key == "" {
+			continue
+		}
+		out[key] = values[i+1]
+	}
+	return out
+}
+
+func warnValueAsString(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	raw, ok := values[key]
+	if !ok {
+		return ""
+	}
+	str, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return str
+}
+
+func hashValue(value string) string {
+	h := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(h[:])
 }
 
 func TestIdempotencyStoresCompletedResponseAfterRequestCancellation(t *testing.T) {

@@ -1,0 +1,6 @@
+package	status	reason	release_note_acknowledgement	reviewed_on	expires_on	owner
+github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool	compatible	StatSnapshot was added to support plain-value database stats migration.	not_required	2026-05-01	2026-08-01	contrib-database-maintainers
+github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe	compatible	GetSubscriptionPrimaryItemID was added as an adapter convenience helper.	not_required	2026-05-01	2026-08-01	contrib-billing-maintainers
+github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres	compatible	ErrPoolNotConfigured was added for clearer adapter startup failures.	not_required	2026-05-01	2026-08-01	contrib-database-maintainers
+github.com/aatuh/api-toolkit/contrib/v2/integrations/pgxpool	compatible	Snapshot was added to expose plain-value database stats through the integration wrapper.	not_required	2026-05-01	2026-08-01	contrib-database-maintainers
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	incompatible	Config and Middleware became non-comparable after lifecycle and trusted-proxy fields were added; contrib remains report-only.	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2026-08-01	contrib-auth-maintainers

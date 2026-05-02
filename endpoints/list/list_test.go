@@ -17,7 +17,7 @@ func TestParseListQuerySort(t *testing.T) {
 		AllowedSorts: []string{"name", "created_at"},
 	}
 
-	q, err := ParseListQuery(req, cfg)
+	q, err := ParseListQueryChecked(req, cfg)
 	if err != nil {
 		t.Fatalf("parse list query: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestParseListQuerySortDefaults(t *testing.T) {
 		},
 	}
 
-	q, err := ParseListQuery(req, cfg)
+	q, err := ParseListQueryChecked(req, cfg)
 	if err != nil {
 		t.Fatalf("parse list query: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestParseListQueryCustomFilterParser(t *testing.T) {
 		},
 	}
 
-	q, err := ParseListQuery(req, cfg)
+	q, err := ParseListQueryChecked(req, cfg)
 	if err != nil {
 		t.Fatalf("parse list query: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestParseListQueryCustomSortParser(t *testing.T) {
 		},
 	}
 
-	q, err := ParseListQuery(req, cfg)
+	q, err := ParseListQueryChecked(req, cfg)
 	if err != nil {
 		t.Fatalf("parse list query: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestParseListQueryCustomSortParser(t *testing.T) {
 func TestParseListQueryReturnsFieldErrorsForInvalidPagination(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/items?limit=abc&offset=-1", nil)
 
-	_, err := ParseListQuery(req, ListQueryConfig{
+	_, err := ParseListQueryChecked(req, ListQueryConfig{
 		DefaultLimit: 10,
 		MaxLimit:     50,
 	})
@@ -127,7 +127,7 @@ func TestParseListQueryReturnsFieldErrorsForInvalidPagination(t *testing.T) {
 func TestParseListQueryReturnsFieldErrorsForUnsupportedFilterAndSort(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/items?filter[status]=active&sort=name", nil)
 
-	_, err := ParseListQuery(req, ListQueryConfig{
+	_, err := ParseListQueryChecked(req, ListQueryConfig{
 		DefaultLimit:   10,
 		MaxLimit:       50,
 		AllowedFilters: []string{"category"},
@@ -135,5 +135,46 @@ func TestParseListQueryReturnsFieldErrorsForUnsupportedFilterAndSort(t *testing.
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestParseListQueryPreservesSingleReturnCompatibility(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/items?limit=abc&filter[status]=active&sort=-created_at", nil)
+
+	q := ParseListQuery(req, ListQueryConfig{
+		DefaultLimit:   10,
+		MaxLimit:       50,
+		AllowedFilters: []string{"status"},
+		AllowedSorts:   []string{"created_at"},
+	})
+
+	if q.Limit != 10 {
+		t.Fatalf("expected default limit through compatibility parser, got %d", q.Limit)
+	}
+	if got := q.First("status"); got != "active" {
+		t.Fatalf("expected filter through compatibility parser, got %q", got)
+	}
+	if len(q.Sort) != 1 || q.Sort[0].Field != "created_at" || !q.Sort[0].Desc {
+		t.Fatalf("expected sort through compatibility parser, got %+v", q.Sort)
+	}
+}
+
+func TestDefaultParsersPreserveSingleReturnCompatibility(t *testing.T) {
+	values := url.Values{
+		"filter[status]": []string{"active"},
+		"sort":           []string{"-created_at"},
+	}
+	cfg := ListQueryConfig{
+		AllowedFilters: []string{"status"},
+		AllowedSorts:   []string{"created_at"},
+	}
+
+	filters := DefaultFilterParser(values, cfg)
+	if got := filters["status"]; len(got) != 1 || got[0] != "active" {
+		t.Fatalf("expected compatible filter parser output, got %#v", filters)
+	}
+	sortFields := DefaultSortParser(values, cfg)
+	if len(sortFields) != 1 || sortFields[0].Field != "created_at" || !sortFields[0].Desc {
+		t.Fatalf("expected compatible sort parser output, got %+v", sortFields)
 	}
 }

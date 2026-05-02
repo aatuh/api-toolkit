@@ -106,15 +106,45 @@ type SystemEndpoints struct {
 	Metrics http.Handler
 }
 
+type SystemEndpointProfile string
+
+const (
+	SystemProfileProduction  SystemEndpointProfile = "production"
+	SystemProfileStaging     SystemEndpointProfile = "staging"
+	SystemProfileDevelopment SystemEndpointProfile = "development"
+	SystemProfileTest        SystemEndpointProfile = "test"
+)
+
+type SystemEndpointOptions struct {
+	EnablePprof bool
+}
+
 // MountSystemEndpoints registers health, docs, version, and metrics endpoints.
 func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
-	MountSystemEndpointsTo(r, se)
+	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{})
 }
 
 // MountSystemEndpointsTo registers system endpoints on a minimal GET-only surface.
 func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
+	MountSystemEndpointsToWithProfile(r, se, string(SystemProfileProduction))
+}
+
+// MountSystemEndpointsToWithProfile mounts system endpoints only if the profile
+// explicitly opts pprof in. This keeps production/staging defaults off by
+// default.
+func MountSystemEndpointsToWithProfile(r ports.MethodRouteRegistrar, se SystemEndpoints, profile string) {
+	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{
+		EnablePprof: isProfilePprofEnabled(profile),
+	})
+}
+
+// MountSystemEndpointsToWithOptions mounts system endpoints with explicit runtime options.
+func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointOptions) {
 	if r == nil {
 		return
+	}
+	if !opts.EnablePprof {
+		se.Pprof = nil
 	}
 	if se.Health != nil {
 		se.Health.RegisterRoutesTo(r)
@@ -135,6 +165,15 @@ func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
 		r.Get(specs.Metrics, func(w http.ResponseWriter, req *http.Request) {
 			se.Metrics.ServeHTTP(w, req)
 		})
+	}
+}
+
+func isProfilePprofEnabled(profile string) bool {
+	switch strings.ToLower(strings.TrimSpace(profile)) {
+	case string(SystemProfileDevelopment), "dev", "localhost", "local":
+		return true
+	default:
+		return false
 	}
 }
 

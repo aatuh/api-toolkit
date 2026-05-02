@@ -50,3 +50,54 @@ func TestCircuitBreakerOpensAndResets(t *testing.T) {
 		t.Fatalf("expected breaker to allow, got %v", err)
 	}
 }
+
+func TestCircuitBreakerCountsPanicsAsFailuresAndClosesHalfOpenInflight(t *testing.T) {
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	current := now
+	cb := NewCircuitBreaker(CircuitBreakerOptions{
+		FailureThreshold:    1,
+		SuccessThreshold:    1,
+		OpenTimeout:         time.Second,
+		HalfOpenMaxInFlight: 1,
+		Now: func() time.Time {
+			return current
+		},
+	})
+
+	fail := func() (*http.Response, error) {
+		return nil, errors.New("fail")
+	}
+	resp, err := cb.Execute(fail, nil)
+	closeResponseBody(resp)
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+
+	current = current.Add(time.Second)
+	panicFn := func() (*http.Response, error) {
+		panic("boom")
+	}
+	func() {
+		defer func() {
+			recovered := recover()
+			if got, ok := recovered.(string); !ok || got != "boom" {
+				t.Fatalf("expected panic, got %v", recovered)
+			}
+		}()
+		resp, _ := cb.Execute(panicFn, nil)
+		closeResponseBody(resp)
+	}()
+
+	current = current.Add(500 * time.Millisecond)
+	resp, err = cb.Execute(fail, nil)
+	closeResponseBody(resp)
+	if !errors.Is(err, ErrBreakerOpen) {
+		t.Fatalf("expected breaker open, got %v", err)
+	}
+}
+
+func closeResponseBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}

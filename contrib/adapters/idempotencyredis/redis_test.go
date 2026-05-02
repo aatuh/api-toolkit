@@ -2,6 +2,7 @@ package idempotencyredis
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"reflect"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencytest"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -113,8 +115,183 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 	if err := store.Release(ctx, key); err != nil {
 		t.Fatalf("Release() error = %v", err)
 	}
+	if !mini.Exists("idem:" + key) {
+		t.Fatal("Release() removed completed Redis key")
+	}
+	got, found, err = store.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get() after completed Release error = %v", err)
+	}
+	if !found || got.State != ports.IdempotencyStateCompleted {
+		t.Fatalf("expected completed record to remain after Release, got found=%v record=%#v", found, got)
+	}
+
+	tokened := ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-tokened",
+		ReservationToken: "reservation-legacy-release",
+		CreatedAt:        inFlight.CreatedAt,
+	}
+	if err := store.Save(ctx, "legacy-release", tokened, inFlightTTL); err != nil {
+		t.Fatalf("Save() tokened error = %v", err)
+	}
+	if err := store.Release(ctx, "legacy-release"); err != nil {
+		t.Fatalf("Release() tokened error = %v", err)
+	}
+	if _, found, err := store.Get(ctx, "legacy-release"); err != nil {
+		t.Fatalf("Get() after legacy Release error = %v", err)
+	} else if found {
+		t.Fatal("expected legacy Release to remove tokened in-flight Redis key")
+	}
+}
+
+func TestStoreReleaseContract(t *testing.T) {
+	t.Parallel()
+
+	idempotencytest.AssertReservationReleaseContract(t, func(t testing.TB) ports.ReservationReleasableIdempotencyStore {
+		t.Helper()
+		mini := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+		t.Cleanup(func() {
+			_ = client.Close()
+		})
+		return New(client, Options{KeyPrefix: "idem:"})
+	})
+}
+
+func TestStoreReleaseRequiresMatchingToken(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	store := New(client, Options{KeyPrefix: "idem:"})
+	ctx := context.Background()
+	key := "order:tokenized"
+	inFlightTTL := 2 * time.Minute
+	inFlight := ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-a",
+		ReservationToken: "token-abc",
+		CreatedAt:        time.Unix(1_700_000_000, 123_000_000).UTC(),
+	}
+
+	ok, err := store.TryBegin(ctx, key, inFlight, inFlightTTL)
+	if err != nil {
+		t.Fatalf("TryBegin() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("TryBegin() = false, want true")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, "token-wrong"); err == nil {
+		t.Fatal("Release() expected token mismatch error, got nil")
+	}
+	if !mini.Exists("idem:" + key) {
+		t.Fatal("expected key to remain after mismatched token")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, inFlight.ReservationToken); err != nil {
+		t.Fatalf("Release() error = %v", err)
+	}
 	if mini.Exists("idem:" + key) {
 		t.Fatal("Release() left Redis key behind")
+	}
+}
+
+func TestStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	events := make([]LegacyInFlightRecoveryEvent, 0, 1)
+	store := New(client, Options{
+		KeyPrefix: "idem:",
+		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+			events = append(events, event)
+		},
+	})
+	ctx := context.Background()
+	key := "order:legacy-recovery"
+	inFlightTTL := 2 * time.Minute
+	inFlight := ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "hash-a",
+		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
+	}
+
+	err := store.Save(ctx, key, inFlight, inFlightTTL)
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if !mini.Exists("idem:" + key) {
+		t.Fatal("expected legacy tokenless record to be saved")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
+		t.Fatalf("Release() error = %v, want %v", err, ports.ErrLegacyInFlightReservationMissingToken)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one legacy recovery event, got %d", len(events))
+	}
+	if events[0].Outcome != LegacyInFlightRecoveryRecovered {
+		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryRecovered, events[0].Outcome)
+	}
+	if mini.Exists("idem:" + key) {
+		t.Fatal("Release() left Redis key behind")
+	}
+}
+
+func TestStoreReleaseReportsLegacyRecoveryTokenMismatch(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	events := make([]LegacyInFlightRecoveryEvent, 0, 1)
+	store := New(client, Options{
+		KeyPrefix: "idem:",
+		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+			events = append(events, event)
+		},
+	})
+	ctx := context.Background()
+	key := "order:legacy-recovery-mismatch"
+	inFlightTTL := 2 * time.Minute
+	inFlight := ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "hash-a",
+		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
+	}
+
+	if err := store.Save(ctx, key, inFlight, inFlightTTL); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if !mini.Exists("idem:" + key) {
+		t.Fatal("expected legacy tokenless record to be saved")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, "wrong-token"); err == nil {
+		t.Fatal("Release() expected token mismatch error, got nil")
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one legacy recovery event, got %d", len(events))
+	}
+	if events[0].Outcome != LegacyInFlightRecoveryTokenMismatch {
+		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryTokenMismatch, events[0].Outcome)
+	}
+	if !mini.Exists("idem:" + key) {
+		t.Fatal("expected legacy tokenless record to remain after mismatch")
 	}
 }
 
