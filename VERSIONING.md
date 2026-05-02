@@ -17,6 +17,7 @@ explicit API and test-coverage classification.
 All exported identifiers in these packages are considered stable:
 
 - `github.com/aatuh/api-toolkit/v2/authorization`
+- `github.com/aatuh/api-toolkit/v2/binding`
 - `github.com/aatuh/api-toolkit/v2/compat/billing`
 - `github.com/aatuh/api-toolkit/v2/email`
 - `github.com/aatuh/api-toolkit/v2/endpoints/docs`
@@ -25,12 +26,15 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/endpoints/pprof`
 - `github.com/aatuh/api-toolkit/v2/endpoints/version`
 - `github.com/aatuh/api-toolkit/v2/fielderrors`
+- `github.com/aatuh/api-toolkit/v2/httpcache`
 - `github.com/aatuh/api-toolkit/v2/httpx`
 - `github.com/aatuh/api-toolkit/v2/httpx/identity`
 - `github.com/aatuh/api-toolkit/v2/httpx/recover`
+- `github.com/aatuh/api-toolkit/v2/middleware/auth/apikey`
 - `github.com/aatuh/api-toolkit/v2/middleware/auth/authz`
 - `github.com/aatuh/api-toolkit/v2/middleware/auth/jwt`
 - `github.com/aatuh/api-toolkit/v2/middleware/auth/tenant`
+- `github.com/aatuh/api-toolkit/v2/middleware/deprecation`
 - `github.com/aatuh/api-toolkit/v2/middleware/idempotency`
 - `github.com/aatuh/api-toolkit/v2/middleware/json`
 - `github.com/aatuh/api-toolkit/v2/middleware/maxbody`
@@ -46,6 +50,7 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/securityprofile`
 - `github.com/aatuh/api-toolkit/v2/specs`
 - `github.com/aatuh/api-toolkit/v2/swagstub`
+- `github.com/aatuh/api-toolkit/v2/webhooks`
 
 ## Compatibility-sensitive stable sub-surfaces
 

@@ -19,6 +19,7 @@
 # generated, tooling, excluded: validated by generation/tooling/docs contracts as applicable.
 # needs-tests: release blocker until replaced with direct tests or a documented exception.
 github.com/aatuh/api-toolkit/v2/authorization	stable	direct-tests	Core authorization context helpers.
+github.com/aatuh/api-toolkit/v2/binding	stable	direct-tests	Stable request binding and validation Problem Details helpers.
 github.com/aatuh/api-toolkit/v2/compat/billing	compatibility-only	direct-tests	Explicit v2 hosted-checkout and billing compatibility package.
 github.com/aatuh/api-toolkit/v2/docscheck	excluded	direct-tests	Repository contract tests, not public API.
 github.com/aatuh/api-toolkit/v2/email	stable	direct-tests	Core email port types.
@@ -28,13 +29,16 @@ github.com/aatuh/api-toolkit/v2/endpoints/list	stable	direct-tests	Stable list e
 github.com/aatuh/api-toolkit/v2/endpoints/pprof	stable	direct-tests	Stable pprof endpoint mounting helpers.
 github.com/aatuh/api-toolkit/v2/endpoints/version	stable	direct-tests	Stable version endpoint helper.
 github.com/aatuh/api-toolkit/v2/fielderrors	stable	direct-tests	Stable validation field error helpers.
+github.com/aatuh/api-toolkit/v2/httpcache	stable	direct-tests	Stable conditional request and validator helpers.
 github.com/aatuh/api-toolkit/v2/httpx	stable	direct-tests	Stable HTTP response and Problem Details helpers.
 github.com/aatuh/api-toolkit/v2/httpx/identity	stable	direct-tests	Stable request identity helpers.
 github.com/aatuh/api-toolkit/v2/httpx/recover	stable	direct-tests	Stable panic recovery helpers.
+github.com/aatuh/api-toolkit/v2/middleware/auth/apikey	stable	direct-tests	Stable API key authentication and scope middleware.
 github.com/aatuh/api-toolkit/v2/middleware/auth/authz	stable	direct-tests	Stable role authorization middleware.
 github.com/aatuh/api-toolkit/v2/middleware/auth/jwt	stable	direct-tests	Stable JWT middleware.
 github.com/aatuh/api-toolkit/v2/middleware/auth/shared	experimental	direct-tests	Auth middleware implementation-sharing package; not stable API.
 github.com/aatuh/api-toolkit/v2/middleware/auth/tenant	stable	direct-tests	Stable tenant context middleware.
+github.com/aatuh/api-toolkit/v2/middleware/deprecation	stable	direct-tests	Stable Deprecation, Sunset, and Link header middleware.
 github.com/aatuh/api-toolkit/v2/middleware/idempotency	stable	direct-tests	Stable idempotency middleware with v2 compatibility shims.
 github.com/aatuh/api-toolkit/v2/middleware/json	stable	direct-tests	Stable JSON content middleware.
 github.com/aatuh/api-toolkit/v2/middleware/maxbody	stable	direct-tests	Stable request body limit middleware.
@@ -50,6 +54,7 @@ github.com/aatuh/api-toolkit/v2/scheduler/migrations	stable	direct-tests	Stable 
 github.com/aatuh/api-toolkit/v2/securityprofile	stable	direct-tests	Stable security profile defaults.
 github.com/aatuh/api-toolkit/v2/specs	stable	direct-tests	Stable spec registry helpers.
 github.com/aatuh/api-toolkit/v2/swagstub	stable	direct-tests	Stable swagger stub helpers.
+github.com/aatuh/api-toolkit/v2/webhooks	stable	direct-tests	Stable webhook verification and receiver helpers.
 github.com/aatuh/api-toolkit/v2/testutil/authtest	test-only	test-support	Root test support package; not stable public API.
 github.com/aatuh/api-toolkit/contrib/v2	excluded	excluded	Module marker package only; no stable API promise.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar	experimental	direct-tests	Third-party policy adapter.
@@ -78,6 +83,7 @@ github.com/aatuh/api-toolkit/contrib/v2/config	experimental	direct-tests	Contrib
 github.com/aatuh/api-toolkit/contrib/v2/countrycodes	experimental	direct-tests	Country code helpers.
 github.com/aatuh/api-toolkit/contrib/v2/email/markdown	experimental	direct-tests	Markdown email rendering adapter.
 github.com/aatuh/api-toolkit/contrib/v2/email/noop	wrapper-only	wrapper-smoke-tested	No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.
+github.com/aatuh/api-toolkit/contrib/v2/examples/api-key	example-only	example-only	Example application.
 github.com/aatuh/api-toolkit/contrib/v2/examples/auth	example-only	example-only	Example application.
 github.com/aatuh/api-toolkit/contrib/v2/examples/file-upload	example-only	example-only	Example application.
 github.com/aatuh/api-toolkit/contrib/v2/examples/idempotency	example-only	example-only	Example application.

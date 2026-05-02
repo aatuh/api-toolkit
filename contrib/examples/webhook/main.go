@@ -2,19 +2,14 @@
 package main
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
+	"context"
 	"errors"
-	"io"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/webhooks"
 )
 
 const (
@@ -30,7 +25,22 @@ type webhookEvent struct {
 
 func main() {
 	r := chi.New()
-	r.Post("/webhooks/payment", handleWebhook)
+	verifier, err := webhooks.NewHMACSHA256Verifier(webhooks.HMACConfig{
+		Secret:     []byte(sharedSecret),
+		HeaderName: signatureHeader,
+	})
+	if err != nil {
+		log.Fatalf("webhook verifier: %v", err)
+	}
+	receiver := webhooks.Receiver[webhookEvent]{Config: webhooks.ReceiverConfig[webhookEvent]{
+		Verifier:     verifier,
+		MaxBodyBytes: maxBodyBytes,
+		Handle: func(ctx context.Context, event webhooks.Event[webhookEvent]) error {
+			log.Printf("accepted webhook event id=%s type=%s", event.Payload.ID, event.Payload.Type)
+			return nil
+		},
+	}}
+	r.Post("/webhooks/payment", receiver.ServeHTTP)
 
 	srv := &http.Server{
 		Addr:              ":8080",
@@ -43,50 +53,4 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("listen: %v", err)
 	}
-}
-
-func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		httpx.WriteProblem(w, http.StatusRequestEntityTooLarge, httpx.Problem{
-			Title:  http.StatusText(http.StatusRequestEntityTooLarge),
-			Detail: "payload too large",
-		})
-		return
-	}
-	if !verifySignature(body, r.Header.Get(signatureHeader), sharedSecret) {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
-			Title:  http.StatusText(http.StatusUnauthorized),
-			Detail: "invalid webhook signature",
-		})
-		return
-	}
-	var evt webhookEvent
-	if err := json.Unmarshal(body, &evt); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
-			Title:  http.StatusText(http.StatusBadRequest),
-			Detail: "invalid json payload",
-		})
-		return
-	}
-	httpx.WriteJSON(w, http.StatusAccepted, map[string]any{
-		"status":   "accepted",
-		"event_id": evt.ID,
-	})
-}
-
-func verifySignature(body []byte, signature, secret string) bool {
-	trimmed := strings.TrimSpace(signature)
-	if trimmed == "" || secret == "" {
-		return false
-	}
-	got, err := hex.DecodeString(trimmed)
-	if err != nil {
-		return false
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
-	expected := mac.Sum(nil)
-	return hmac.Equal(expected, got)
 }

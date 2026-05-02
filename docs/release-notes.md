@@ -24,6 +24,26 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-02
 
+- Added stable core packages `binding` and `middleware/auth/apikey` for typed
+  request binding, Problem Details-compatible validation errors, API key
+  authentication, optional auth, context principals, and scope enforcement.
+- `endpoints/list` now includes signed HMAC cursor pagination helpers alongside
+  the existing limit/offset APIs.
+- `specs.Operation` now supports route contract metadata for parameters,
+  security requirements, scopes, deprecation, sunset metadata, request bodies,
+  responses, and deterministic OpenAPI extensions.
+- `contrib/examples/api-key` demonstrates local-only HMAC-backed API key
+  verification and scoped routes.
+- Added stable core package `httpcache` for ETag and Last-Modified conditional
+  request helpers, including `304 Not Modified` and `412 Precondition Failed`
+  response paths.
+- Added stable core package `middleware/deprecation` for runtime `Deprecation`,
+  `Sunset`, and deprecation-policy `Link` headers.
+- Added stable core package `webhooks` for raw-body-preserving HMAC webhook
+  verification, JSON event decoding, accepted-event handling, and Problem
+  Details failures.
+- `specs` now supports reusable OpenAPI schemas, responses, security schemes,
+  and schema refs for request and response content.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.

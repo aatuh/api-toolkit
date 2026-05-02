@@ -24,6 +24,13 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 		Description: "Creates a widget.",
 		Tags:        []string{"widgets", "write"},
 		Deprecated:  true,
+		Sunset:      "2027-01-01",
+		Parameters: []Parameter{
+			{Name: "limit", In: "query", Description: "page size", Required: false, Schema: map[string]any{"type": "integer"}},
+			{Name: "tenant_id", In: "path", Required: true},
+		},
+		Security: []SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write", "widgets:read"}}},
+		Scopes:   []string{"widgets:write", "widgets:read"},
 		RequestBody: &RequestBody{
 			Description:  "Widget payload",
 			Required:     true,
@@ -38,6 +45,7 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 				ContentTypes: []string{"application/problem+json"},
 			},
 		},
+		Extensions: map[string]any{"x-owner": "platform", "ignored": "not emitted"},
 	})
 
 	doc := decodeOpenAPI(t, registry)
@@ -68,8 +76,45 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 	if operation["deprecated"] != true {
 		t.Fatalf("deprecated = %v", operation["deprecated"])
 	}
+	if operation["x-sunset"] != "2027-01-01" {
+		t.Fatalf("x-sunset = %v", operation["x-sunset"])
+	}
+	if _, ok := operation["ignored"]; ok {
+		t.Fatal("non-extension key should not be emitted")
+	}
+	if operation["x-owner"] != "platform" {
+		t.Fatalf("x-owner = %v", operation["x-owner"])
+	}
 	if tags := asStringSlice(t, operation["tags"]); !reflect.DeepEqual(tags, []string{"widgets", "write"}) {
 		t.Fatalf("tags = %#v", tags)
+	}
+	if scopes := asStringSlice(t, operation["x-scopes"]); !reflect.DeepEqual(scopes, []string{"widgets:read", "widgets:write"}) {
+		t.Fatalf("x-scopes = %#v", scopes)
+	}
+
+	parameters := asSlice(t, operation["parameters"])
+	if len(parameters) != 2 {
+		t.Fatalf("parameters length = %d, want 2", len(parameters))
+	}
+	pathParam := asMap(t, parameters[0])
+	if pathParam["name"] != "tenant_id" || pathParam["in"] != "path" || pathParam["required"] != true {
+		t.Fatalf("path parameter = %#v", pathParam)
+	}
+	queryParam := asMap(t, parameters[1])
+	if queryParam["name"] != "limit" || queryParam["in"] != "query" || queryParam["description"] != "page size" {
+		t.Fatalf("query parameter = %#v", queryParam)
+	}
+	if schema := asMap(t, queryParam["schema"]); schema["type"] != "integer" {
+		t.Fatalf("query parameter schema = %#v", schema)
+	}
+
+	security := asSlice(t, operation["security"])
+	if len(security) != 1 {
+		t.Fatalf("security length = %d, want 1", len(security))
+	}
+	securityReq := asMap(t, security[0])
+	if scopes := asStringSlice(t, securityReq["ApiKeyAuth"]); !reflect.DeepEqual(scopes, []string{"widgets:read", "widgets:write"}) {
+		t.Fatalf("security scopes = %#v", scopes)
 	}
 
 	requestBody := asMap(t, operation["requestBody"])
@@ -91,6 +136,73 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 		t.Fatalf("202 description = %v", accepted["description"])
 	}
 	assertContentType(t, asMap(t, accepted["content"]), "application/problem+json")
+}
+
+func TestRegistryOpenAPIIncludesComponentsAndRefs(t *testing.T) {
+	registry := NewRegistry(Info{Title: "Components", Version: "1"})
+	registry.RegisterSchema("Widget", map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"id": map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSecurityScheme("ApiKeyAuth", SecurityScheme{
+		Type: "apiKey",
+		Name: "X-API-Key",
+		In:   "header",
+	})
+	registry.RegisterResponse("Problem", Response{
+		Description: "Problem Details",
+		Content: map[string]MediaType{
+			"application/problem+json": {SchemaRef: "#/components/schemas/Problem"},
+		},
+	})
+	registry.Register(Operation{
+		Method: http.MethodPut,
+		Path:   "/widgets/{id}",
+		RequestBody: &RequestBody{
+			Required: true,
+			Content: map[string]MediaType{
+				"application/json": {SchemaRef: "#/components/schemas/Widget"},
+			},
+		},
+		Responses: map[int]Response{
+			http.StatusOK: {
+				Content: map[string]MediaType{
+					"application/json": {SchemaRef: "#/components/schemas/Widget"},
+				},
+			},
+			http.StatusBadRequest: {Ref: "#/components/responses/Problem"},
+		},
+	})
+
+	doc := decodeOpenAPI(t, registry)
+	components := asMap(t, doc["components"])
+	schemas := asMap(t, components["schemas"])
+	if _, ok := schemas["Widget"]; !ok {
+		t.Fatalf("schemas = %#v, want Widget", schemas)
+	}
+	securitySchemes := asMap(t, components["securitySchemes"])
+	apiKey := asMap(t, securitySchemes["ApiKeyAuth"])
+	if apiKey["type"] != "apiKey" || apiKey["name"] != "X-API-Key" || apiKey["in"] != "header" {
+		t.Fatalf("ApiKeyAuth = %#v", apiKey)
+	}
+	responses := asMap(t, components["responses"])
+	if problem := asMap(t, responses["Problem"]); problem["description"] != "Problem Details" {
+		t.Fatalf("Problem response = %#v", problem)
+	}
+
+	operation := operationAt(t, doc, "/widgets/{id}", "put")
+	requestBody := asMap(t, operation["requestBody"])
+	requestJSON := asMap(t, asMap(t, requestBody["content"])["application/json"])
+	if schema := asMap(t, requestJSON["schema"]); schema["$ref"] != "#/components/schemas/Widget" {
+		t.Fatalf("request schema = %#v", schema)
+	}
+	operationResponses := asMap(t, operation["responses"])
+	badRequest := asMap(t, operationResponses["400"])
+	if badRequest["$ref"] != "#/components/responses/Problem" {
+		t.Fatalf("400 response = %#v", badRequest)
+	}
 }
 
 func TestRegistryOpenAPIDefaults(t *testing.T) {

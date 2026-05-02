@@ -28,6 +28,47 @@ curl -s -X POST http://localhost:8080/widgets \
 - Expected response shape: `201` JSON with `id`, `name`, and `quantity`.
 - Production caveat: keep strict JSON decoding and field-level errors at the edge so downstream services do not need to guess validation shape.
 
+## Validated JSON and query request
+
+Purpose: bind request input into typed structs while preserving the toolkit's Problem Details validation shape.
+
+- Prerequisites: none.
+- Example source: use `github.com/aatuh/api-toolkit/v2/binding` in any HTTP handler.
+- Request:
+
+```sh
+curl -s -X POST 'http://localhost:8080/widgets?dry_run=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"starter","quantity":1}'
+```
+
+- Handler sketch:
+
+```go
+type createWidgetBody struct {
+	Name     string `json:"name" required:"true"`
+	Quantity int    `json:"quantity" required:"true"`
+}
+
+type createWidgetQuery struct {
+	DryRun bool `query:"dry_run"`
+}
+
+body, err := binding.DecodeJSON[createWidgetBody](r, binding.JSONConfig{})
+if err != nil {
+	binding.WriteValidationProblem(w, err)
+	return
+}
+query, err := binding.DecodeQuery[createWidgetQuery](r, binding.QueryConfig{})
+if err != nil {
+	binding.WriteValidationProblem(w, err)
+	return
+}
+```
+
+- Expected response shape: invalid input returns `application/problem+json` with `validation.fields`.
+- Production caveat: keep route-specific semantic validation in the application layer; binding handles transport shape, conversion, and required-field errors.
+
 ## Hardened middleware profile
 
 Purpose: apply the strict API profile with secure headers, timeout, tracing, and explicit system endpoint choices.
@@ -60,6 +101,46 @@ curl -i http://localhost:8080/admin \
 
 - Expected response shape: `200` JSON `{"role":"admin"}` for an allowed subject, otherwise Problem Details `401` or `403`.
 - Production caveat: do not keep placeholder identity-provider URLs in deployed configuration.
+
+## API key route
+
+Purpose: authenticate service-to-service or automation calls with API keys and explicit scopes.
+
+- Prerequisites: use the demo key only for local testing.
+- Example source: `contrib/examples/api-key`.
+- Run command: `cd contrib && go run ./examples/api-key`.
+- Request:
+
+```sh
+curl -s http://localhost:8080/admin \
+  -H 'Authorization: ApiKey demo-admin-key'
+```
+
+- Route contract: the example registers the `/admin` operation with header parameters, `ApiKeyAuth` security, required scopes, Problem Details responses, and serves the generated document at `/openapi.json`.
+- Expected response shape: `200` JSON with `principal_id` and `scopes`; missing or invalid keys return Problem Details `401`, and missing scopes return Problem Details `403`.
+- Production caveat: keep key storage, hashing, rotation, and revocation in application-owned verifier code; the stable middleware extracts credentials, calls the verifier, writes auth context, and enforces scopes.
+
+## Runtime deprecation headers
+
+Purpose: signal deprecated or sunsetting routes at runtime without changing response behavior.
+
+- Prerequisites: choose the deprecation and sunset dates from your published migration policy.
+- Package: `github.com/aatuh/api-toolkit/v2/middleware/deprecation`.
+- Handler sketch:
+
+```go
+mw, _ := deprecation.New(deprecation.Config{
+	DeprecatedAt: time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC),
+	SunsetAt:     time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC),
+	Links: []deprecation.Link{{
+		URL: "https://developer.example.com/deprecations/widgets-v1",
+	}},
+})
+router.Get("/v1/widgets", mw.Handler(widgetsHandler).ServeHTTP)
+```
+
+- Expected response shape: unchanged route body plus `Deprecation`, `Sunset`, and `Link` headers.
+- Production caveat: headers are only hints; keep the human migration guide accurate and monitor deprecated-route traffic separately.
 
 ## Policy-engine authorization
 
@@ -114,8 +195,8 @@ curl -s -X POST http://localhost:8080/webhooks/payment \
   -d "$body"
 ```
 
-- Expected response shape: `202` JSON with `status` and `event_id`.
-- Production caveat: keep provider secrets in secret storage and reject unsigned or oversized payloads before JSON parsing.
+- Expected response shape: `202` JSON `{"status":"accepted"}` for a valid signature.
+- Production caveat: keep provider secrets in secret storage, reject unsigned or oversized payloads before JSON parsing, and add replay protection in application code.
 
 ## File upload endpoint
 
@@ -151,6 +232,70 @@ curl -s 'http://localhost:8080/items?limit=3&offset=2'
 - Expected response shape: `200` JSON with `items` and optional `next_offset`.
 - Production caveat: keep maximum limits low enough for the backing store and prefer checked parser APIs when validation errors matter.
 
+## Conditional GET and update
+
+Purpose: use ETags and Last-Modified validators for cache-friendly reads and optimistic concurrency on writes.
+
+- Prerequisites: compute a stable representation validator from your resource version or response body.
+- Package: `github.com/aatuh/api-toolkit/v2/httpcache`.
+- Handler sketch:
+
+```go
+validators := httpcache.Validators{
+	ETag:         httpcache.StrongETag(widget.Version),
+	LastModified: widget.UpdatedAt,
+}
+if decision := httpcache.EvaluateRead(r, validators); decision.NotModified {
+	httpcache.WriteNotModified(w, validators)
+	return
+}
+httpcache.SetValidators(w, validators)
+httpx.WriteJSON(w, http.StatusOK, widget)
+```
+
+- Expected response shape: matching `If-None-Match` or `If-Modified-Since` returns `304` with validators and no body; failed write preconditions can return `412` Problem Details.
+- Production caveat: only use strong ETags for write preconditions when they represent the exact mutable resource version.
+
+## Cursor-paginated list
+
+Purpose: return signed cursor metadata for stable forward pagination without exposing database offsets.
+
+- Prerequisites: provide an application secret for HMAC signing; rotate it through your normal secret-management process.
+- Example source: combine `github.com/aatuh/api-toolkit/v2/endpoints/list` with your list handler.
+- Request:
+
+```sh
+curl -s 'http://localhost:8080/items?limit=25&cursor=<cursor>'
+```
+
+- Handler sketch:
+
+```go
+codec, _ := list.NewHMACCursorCodec([]byte("replace-with-secret"))
+query, err := list.ParseCursorQueryChecked(r, list.CursorQueryConfig{
+	DefaultLimit: 25,
+	MaxLimit:     100,
+	Codec:        codec,
+})
+if err != nil {
+	httpx.WriteProblem(w, httpx.Problem{
+		Type:   "https://example.com/problems/invalid-query",
+		Title:  "Invalid query",
+		Status: http.StatusBadRequest,
+	})
+	return
+}
+
+nextCursor, _ := codec.Encode(map[string]string{"after_id": "item_123"}, time.Now().Add(15*time.Minute))
+httpx.WriteJSON(w, http.StatusOK, list.NewCursorResponse(items, list.CursorMeta{
+	Limit:      query.Limit,
+	NextCursor: nextCursor,
+}))
+```
+
+- Expected response shape: `200` JSON with `items` and cursor `meta`, including `limit` and optional `next_cursor`.
+- Production caveat: cursor values are signed but not encrypted; keep sensitive data out of cursor payloads.
+
 ## Spec-first handlers
 
 Purpose: generate handler skeletons from OpenAPI and validate requests and responses.
@@ -168,6 +313,33 @@ curl -s -X POST http://localhost:8080/pets \
 
 - Expected response shape: `201` JSON pet with `id` and `name`; invalid names return `application/problem+json` with a `validation.fields` entry.
 - Production caveat: treat `openapi.json` as the source of truth and review generated-file changes with the implementation change that caused them.
+
+## OpenAPI components and security schemes
+
+Purpose: register reusable schemas, responses, and security schemes for generated route contracts.
+
+- Prerequisites: keep schema names stable once clients consume the generated OpenAPI document.
+- Package: `github.com/aatuh/api-toolkit/v2/specs`.
+- Registry sketch:
+
+```go
+registry := specs.NewRegistry(specs.Info{Title: "Widget API", Version: "v1"})
+registry.RegisterSchema("Widget", map[string]any{"type": "object"})
+registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{
+	Type: "apiKey",
+	Name: "X-API-Key",
+	In:   "header",
+})
+registry.RegisterResponse("Problem", specs.Response{
+	Description: "Problem Details",
+	Content: map[string]specs.MediaType{
+		"application/problem+json": {SchemaRef: "#/components/schemas/Problem"},
+	},
+})
+```
+
+- Expected response shape: `/openapi.json` includes deterministic `components.schemas`, `components.responses`, and `components.securitySchemes`.
+- Production caveat: route registration and runtime middleware still need to be kept in sync by tests or review.
 
 ## Guarded outbound HTTP client
 
