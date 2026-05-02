@@ -38,8 +38,9 @@ Core packages:
 - `binding` decodes validated JSON, query, and path input into typed request structs with Problem Details-compatible field errors.
 - `httpcache` provides conditional request helpers for ETags, Last-Modified, `304`, and `412` flows.
 - `httpx`, `httpx/identity`, and `httpx/recover` provide JSON responses, Problem Details, request identity, and panic recovery.
+- `negotiation` provides Accept and Content-Type negotiation for JSON and vendor media types.
 - `endpoints/*` provides docs, health, pprof, version, and list helpers, including offset and signed cursor pagination.
-- `authorization`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
+- `authorization`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
 - The legacy response helper package is retained for v2 source compatibility; new response code should prefer `httpx`.
 
 Contrib packages:

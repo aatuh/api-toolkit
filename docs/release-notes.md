@@ -44,6 +44,14 @@ source of truth is `docs/release-runbook.md`.
   Details failures.
 - `specs` now supports reusable OpenAPI schemas, responses, security schemes,
   and schema refs for request and response content.
+- Added stable core package `routecontracts` for registering handlers and
+  matching OpenAPI operations together.
+- Added stable core package `negotiation` for `Accept` and `Content-Type`
+  negotiation, including `406` and `415` Problem Details responses.
+- `specs` now generates deterministic OpenAPI schemas from Go structs for
+  route contract components.
+- `httpx` now includes a typed Problem Details catalog for stable
+  machine-readable error codes and catalog-backed error mapping.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.
