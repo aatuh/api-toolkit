@@ -1,6 +1,19 @@
 # Release Compatibility Runbook
 
+Audience: release operators and reviewers who need the canonical command
+sequence, evidence expectations, artifact verification path, and baseline
+maintenance rule.
+
 Supported v2 release baseline: `v2.0.1`.
+
+## Baseline maintenance rule
+
+This runbook owns the supported `API_BASE_REF` baseline for v2 releases. When
+the supported baseline changes, update this line first, then update command
+examples in `README.md`, `VERSIONING.md`, `docs/release-review.md`,
+`docs/release-notes.md`, scripts that mention the supported baseline, and any
+release evidence fixtures in the same change. Do not introduce a second
+baseline table in another document.
 
 ## Commands
 
@@ -73,6 +86,9 @@ Local release evidence is the developer/auditor tier. It contains:
   report-only contrib drift review output; this does not make contrib stable.
 - `docs/contrib-api-drift-dispositions.tsv` for owner, status, review, and
   expiry disposition of current drift packages.
+- `docs/release-manifests.md` for the human review guide covering package
+  classification, contrib drift, contrib dispositions, and vulnerability
+  dispositions.
 - `.ci-result/release-evidence/logs/vuln.log` plus
   `release-check-summary.json` `vulnerability_evidence` for called and
   imported-but-not-called `govulncheck` disposition.

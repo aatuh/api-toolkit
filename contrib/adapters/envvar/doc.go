@@ -1,4 +1,4 @@
-// Package envvar provides envvar utilities.
+// Package envvar loads environment-backed configuration through explicit adapter helpers.
 //
 // Safe startup paths
 // ------------------

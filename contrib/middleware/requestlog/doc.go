@@ -1,4 +1,4 @@
-// Package requestlog provides requestlog utilities.
+// Package requestlog provides contrib HTTP request logging middleware.
 //
 // Header redaction
 // ---------------

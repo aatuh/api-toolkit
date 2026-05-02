@@ -1,4 +1,4 @@
-// Package idempotency provides idempotency utilities.
+// Package idempotency provides stable HTTP idempotency middleware.
 // The middleware buffers responses before replay/storage and is therefore not
 // suitable for streaming, hijacking, HTTP/2 push, or other handlers that rely
 // on optional http.ResponseWriter interfaces. If a completed response cannot be

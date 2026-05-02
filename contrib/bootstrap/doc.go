@@ -1,4 +1,4 @@
-// Package bootstrap provides bootstrap utilities.
+// Package bootstrap composes common contrib adapters and core middleware into application profiles.
 //
 // System endpoints and pprof profiles
 // -----------------------------------

@@ -1,38 +1,26 @@
 # Release Notes
 
+Audience: release consumers and maintainers who need dated behavior changes,
+upgrade notes, and package-tied compatibility acknowledgements.
+
 ## Release checklist
 
-For stable surface changes, deprecations, or compatibility-sensitive updates:
+For stable surface changes, deprecations, or compatibility-sensitive updates,
+keep this file focused on user-visible behavior and upgrade notes. The command
+source of truth is `docs/release-runbook.md`.
 
-- Update `VERSIONING.md`, public docs, and any package docs that describe the
-  affected stability contract.
-- Update `scripts/apicheck.sh` and docscheck coverage when the stable package
-  list or compatibility-sensitive manifest changes.
-- Update `docs/ports-surface.md`, `docs/v3-compatibility-roadmap.md`, release
-  notes, and upgrade notes when compatibility-sensitive ports or legacy stable
-  surfaces change.
-- Add release notes and upgrade notes that describe user-visible behavior,
-  migration paths, and compatibility impact.
-- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` for release
-  evidence. `make finalize` and `make audit-check` are local/reviewer gates,
-  not release evidence because they do not require an explicit API baseline.
-- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report`
-  when contrib adapters or integrations change exported APIs; selected packages
-  come from `docs/contrib-api-drift-packages.txt`, this is report-only, and it
-  does not make contrib stable.
-- Run `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check`
-  when contrib adapter or integration behavior files change.
-- If there is incompatible report-only contrib drift, add an explicit release
-  note or upgrade note acknowledgement tied to the affected package. This does
-  not make contrib stable.
-- Update `docs/vulnerability-dispositions.tsv` when imported-only vulnerability
-  IDs change, expire, or receive upgraded dependencies.
-- Update `docs/contrib-api-drift-dispositions.tsv` when current contrib drift
-  packages or incompatible drift status changes.
-- Use clean publication evidence with
-  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`; reserve
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
-  for local dirty-tree audit evidence that is not acceptable before publishing.
+- Update `VERSIONING.md`, public docs, and package docs that describe the affected stability contract.
+- Update `scripts/apicheck.sh` and docscheck coverage when the stable package list or compatibility-sensitive manifest changes.
+- Update `docs/ports-surface.md`, `docs/v3-compatibility-roadmap.md`, release notes, and upgrade notes when compatibility-sensitive ports or legacy stable surfaces change.
+- Add release notes and upgrade notes that describe user-visible behavior, migration paths, and compatibility impact.
+- Run release evidence through the runbook path; `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` is the release-readiness gate, while `make finalize` and `make audit-check` are local/reviewer gates.
+- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` when selected contrib adapters or integrations change exported APIs; selected packages come from `docs/contrib-api-drift-packages.txt`, this is report-only, and it does not make contrib stable.
+- Run `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` when contrib adapter or integration behavior files change.
+- If there is incompatible report-only contrib drift, add an explicit release note or upgrade note acknowledgement tied to the affected package. This does not make contrib stable.
+- Update `docs/vulnerability-dispositions.tsv` when imported-only vulnerability IDs change, expire, or receive upgraded dependencies.
+- Update `docs/contrib-api-drift-dispositions.tsv` when current contrib drift packages or incompatible drift status changes.
+- Use clean publication evidence with `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`; reserve `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` for local dirty-tree audit evidence that is not acceptable before publishing.
+- Use `docs/release-manifests.md` when interpreting `docs/package-classification.tsv`, `docs/contrib-api-drift-dispositions.tsv`, and `docs/vulnerability-dispositions.tsv`.
 
 ## 2026-05-02
 
