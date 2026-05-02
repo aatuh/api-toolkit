@@ -1,4 +1,4 @@
-// Package health provides health utilities.
+// Package health registers stable liveness, readiness, and detailed health endpoints.
 //
 // HTTP contract:
 //   - Liveness and readiness should reflect configured checker state rather

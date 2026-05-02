@@ -1,5 +1,8 @@
 # Release Review Checklist
 
+Audience: release reviewers who need a short checklist before accepting local
+publication evidence or publishing a draft release.
+
 Use this as the short reviewer path before publishing a release.
 
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
@@ -23,6 +26,10 @@ Use this as the short reviewer path before publishing a release.
   `contrib_drift` summary; compare drift packages with
   `docs/contrib-api-drift-dispositions.tsv`. Contrib drift is report-only and
   does not make contrib stable.
+- Use `docs/release-manifests.md` for the human guide to
+  `docs/package-classification.tsv`, `docs/contrib-api-drift-packages.txt`,
+  `docs/contrib-api-drift-dispositions.tsv`, and
+  `docs/vulnerability-dispositions.tsv`.
 - Check `.ci-result/release-evidence/logs/vuln.log` and
   `docs/dependency-risk.md` plus `docs/vulnerability-dispositions.tsv` when
   `vulnerability_evidence` reports imported-but-not-called findings.

@@ -1,6 +1,7 @@
 # Getting Started (10 minutes)
 
-This guide shows a minimal API with hardened defaults, a simple handler, and a test.
+Audience: new users who want one minimal API, one run command, and one test that
+exercises the same toolkit wiring used by the server.
 
 ## 1) Create a module
 
@@ -24,6 +25,7 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 type widget struct {
@@ -31,14 +33,14 @@ type widget struct {
 	Name string `json:"name"`
 }
 
-func main() {
-	log := logzap.NewProduction()
+func newRouter(log ports.Logger) (http.Handler, error) {
+	if log == nil {
+		log = ports.NopLogger{}
+	}
 	r := chi.New()
-
 	profile, err := bootstrap.ProfileStrictAPI(log)
 	if err != nil {
-		log.Error("profile init failed", "err", err)
-		return
+		return nil, err
 	}
 	profile.Apply(r)
 
@@ -49,10 +51,20 @@ func main() {
 		widget := widget{ID: "w_123", Name: "starter"}
 		httpx.WriteJSON(w, http.StatusCreated, widget)
 	})
+	return r, nil
+}
+
+func main() {
+	log := logzap.NewProduction()
+	handler, err := newRouter(log)
+	if err != nil {
+		log.Error("router init failed", "err", err)
+		return
+	}
 
 	srv := &http.Server{
 		Addr:              ":8080",
-		Handler:           r,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -64,17 +76,30 @@ func main() {
 }
 ```
 
+Expected result: the application starts an HTTP server on `:8080` with the strict
+API profile applied to the same router that owns the routes.
+
 ## 3) Run it
 
 ```sh
 go run ./main.go
 ```
 
-Test quickly:
+Try the health and write endpoints from another shell:
 
 ```sh
 curl -s http://localhost:8080/health
 curl -s -X POST http://localhost:8080/widgets
+```
+
+Expected responses:
+
+```json
+{"status":"ok"}
+```
+
+```json
+{"id":"w_123","name":"starter"}
 ```
 
 ## 4) Add a tiny test
@@ -86,23 +111,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
-func TestHealth(t *testing.T) {
+func TestHealthUsesTutorialRouter(t *testing.T) {
+	handler, err := newRouter(ports.NopLogger{})
+	if err != nil {
+		t.Fatalf("new router: %v", err)
+	}
+
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	})
-
 	handler.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected JSON response, got %q", got)
 	}
 }
 ```
@@ -113,4 +140,6 @@ Run tests:
 go test ./...
 ```
 
-Next: see the cookbook in `docs/cookbook.md` for common patterns.
+Next: use [cookbook.md](cookbook.md) for common patterns and
+[../contrib/examples/README.md](../contrib/examples/README.md) for runnable
+example applications.

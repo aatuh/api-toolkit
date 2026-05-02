@@ -1,5 +1,8 @@
 # V3 Compatibility Roadmap
 
+Audience: maintainers planning major-version cleanup while preserving v2 source
+compatibility until a v3 branch exists.
+
 This document keeps v2 compatibility shims explicit so new code can use the
 preferred APIs while v2 source compatibility remains intact.
 

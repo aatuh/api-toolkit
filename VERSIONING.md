@@ -1,5 +1,8 @@
 # Versioning and Stability
 
+Audience: API consumers and maintainers who need the stable core surface,
+compatibility-sensitive exceptions, and release-command intent.
+
 This project follows semantic versioning for the core module
 `github.com/aatuh/api-toolkit/v2`. From v1 onward, we treat the packages listed
 below as stable: any breaking change requires a major version bump. Stability
@@ -124,37 +127,32 @@ the normal release path.
 CI runs `scripts/apicheck.sh` to detect incompatible changes in the stable
 packages. Breaking changes must coincide with a major version bump.
 
-Command intent is deliberately split. `make api-check` is a local compatibility helper. `make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline. `make release-check` is the release-readiness gate.
-`make release-evidence` runs the release-readiness subchecks through the evidence
-writer and writes `release-check-summary.json` schema v2 with per-check command
-lines, exit codes, durations, log paths, tool versions, git working-tree state,
-contrib drift summary, vulnerability evidence, and artifact tier metadata.
-Publication evidence must come from a clean worktree:
-`API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local dirty-tree audit must opt in with `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
-and is not acceptable before publishing.
-Reviewers can print the key decision fields with
-`RELEASE_SUMMARY=release-check-summary.json make release-review-summary`.
-Auditors who need only local verifier behavior can run
-`make release-artifact-verify-fixture`; this creates synthetic assets and is not
-publication evidence.
-Downloaded draft release assets must be checked in publication mode with
-`RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`
-so missing online attestations fail before publication.
+Command intent is deliberately split, and `docs/release-runbook.md` is the
+command source of truth. `make api-check` is a local compatibility helper.
+`make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline.
+`make release-check` is the release-readiness gate.
+`make release-evidence` runs the release-readiness subchecks through the
+evidence writer and writes `release-check-summary.json` schema v2.
+`make release-evidence` runs the release-readiness subchecks through the evidence writer.
+`make contrib-api-drift-report` is intentionally report-only.
+`make contrib-release-notes-check` is a lightweight review gate for contrib
+adapter and integration behavior notes.
 
-| Command | Intent | Mutates files | Requires explicit release baseline |
-| --- | --- | --- | --- |
-| `make finalize` | Local implementation quality gate before committing code. | Yes: may run formatting and module tidy steps. | No |
-| `make audit-check` | Non-mutating reviewer or audit gate. | No | No |
-| `make api-check` | Local compatibility helper; accepts `API_BASE_REF`, then falls back to `GITHUB_BASE_REF`, then `HEAD~1`, then skip. | No | No |
-| `make release-api-check` | Fail-closed API compatibility check for the stable core package list. | No | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-api-check` |
-| `make release-check` | Full release-readiness gate. | No | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` |
-| `make release-evidence` | Clean-tree publication evidence gate plus local `release-check-summary.json` evidence generation. | Writes `release-check-summary.json` and `.ci-result/release-evidence/logs/*.log`. | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` |
-| `ALLOW_DIRTY_RELEASE_EVIDENCE=1 make release-evidence` | Local dirty-tree audit evidence only. | Writes the same evidence files but records `provenance_policy.mode=local_audit`. | Yes, and not acceptable before publishing. |
-| `make release-review-summary` | Single-command reviewer summary for `release-check-summary.json`. | No | No, but it expects a summary file from release evidence. |
-| `make release-artifact-verify-fixture` | Synthetic local release artifact verifier fixture; not publication evidence. | No | No |
-| `make release-artifact-verify` | Draft release artifact verifier. Publication mode requires `RELEASE_TAG` and checks online GitHub attestations. | No | Yes for publication review: set `RELEASE_ARTIFACT_VERIFY_MODE=publication`, `RELEASE_TAG`, and `GITHUB_REPOSITORY`. |
-| `make contrib-api-drift-report` | Report-only contrib API drift signal for selected high-use contrib packages. | No | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` |
-| `make contrib-release-notes-check` | Review gate requiring release notes when contrib adapter or integration behavior files change. | No | No, but accepts `CONTRIB_RELEASE_BASE_REF` or `API_BASE_REF` |
+Publication evidence must come from a clean worktree with
+`API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local
+dirty-tree audit must opt in with
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
+and is not acceptable before publishing. This is local dirty-tree audit evidence,
+not publication evidence.
+
+For exact commands, artifact verification, manifest review, and baseline
+maintenance rules, use `docs/release-runbook.md`.
+
+Reviewer helpers remain part of the consolidated path: use
+`make release-review-summary` for summary fields,
+`make release-artifact-verify-fixture` for local verifier fixtures, and
+publication artifact verification with `RELEASE_ARTIFACT_VERIFY_MODE=publication`,
+`RELEASE_TAG`, and `GITHUB_REPOSITORY`.
 
 ## Behavioral upgrade guidance
 
@@ -162,7 +160,7 @@ so missing online attestations fail before publication.
   not every runtime contract or operator-facing default.
 - API compatibility checks still cover the full `ports` package, including the
   compatibility-sensitive billing and database-stats exports described above.
-- Review [docs/release-notes.md](/home/aatu/projects/saas/api-toolkit/docs/release-notes.md)
+- Review [docs/release-notes.md](docs/release-notes.md)
   on every upgrade for behavior changes around health endpoint exposure,
   scheduler observability, transaction cleanup, and `contrib` migration state
   handling.

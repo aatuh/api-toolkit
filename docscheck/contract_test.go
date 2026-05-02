@@ -2063,6 +2063,189 @@ func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	}
 }
 
+func TestPublicMarkdownMakeTargetsExist(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	targets := makefileTargetSet(readText(t, filepath.Join(repoRoot, "Makefile")))
+	commandPattern := regexp.MustCompile(`\bmake\s+([A-Za-z0-9_.-]+)`)
+	codeSpanPattern := regexp.MustCompile("`(?:[A-Za-z0-9_./=-]+\\s+)*make\\s+([A-Za-z0-9_.-]+)[^`]*`")
+
+	for _, path := range docsQualityMarkdownFiles(t, repoRoot) {
+		rel := slashRel(repoRoot, path)
+		content := readText(t, path)
+		for _, block := range markdownCodeBlocks(content) {
+			for _, match := range commandPattern.FindAllStringSubmatch(block, -1) {
+				target := strings.TrimRight(match[1], ".,;:)")
+				if target == "" {
+					continue
+				}
+				if likelyProseAfterMake(target) {
+					continue
+				}
+				if !targets[target] {
+					t.Fatalf("%s references absent Makefile target %q", rel, target)
+				}
+			}
+		}
+		for _, match := range codeSpanPattern.FindAllStringSubmatch(content, -1) {
+			target := strings.TrimRight(match[1], ".,;:)")
+			if target == "" {
+				continue
+			}
+			if likelyProseAfterMake(target) {
+				continue
+			}
+			if !targets[target] {
+				t.Fatalf("%s references absent Makefile target %q", rel, target)
+			}
+		}
+	}
+}
+
+func TestPublicMarkdownLocalLinksResolve(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	linkPattern := regexp.MustCompile(`!?\[[^\]\n]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)`)
+
+	for _, path := range docsQualityMarkdownFiles(t, repoRoot) {
+		rel := slashRel(repoRoot, path)
+		content := readText(t, path)
+		for _, match := range linkPattern.FindAllStringSubmatch(content, -1) {
+			rawTarget := strings.Trim(match[1], "<>")
+			if rawTarget == "" || strings.HasPrefix(rawTarget, "#") || externalMarkdownTarget(rawTarget) {
+				continue
+			}
+			targetPath, anchor, _ := strings.Cut(rawTarget, "#")
+			targetFile := targetPath
+			if !filepath.IsAbs(targetFile) {
+				targetFile = filepath.Join(filepath.Dir(path), targetPath)
+			}
+			targetFile = filepath.Clean(targetFile)
+			info, err := os.Stat(targetFile)
+			if err != nil {
+				t.Fatalf("%s has broken local link %q: %v", rel, rawTarget, err)
+			}
+			if info.IsDir() {
+				t.Fatalf("%s links to directory %q; link to a concrete document", rel, rawTarget)
+			}
+			if anchor != "" && strings.HasSuffix(targetFile, ".md") {
+				anchors := markdownAnchors(readText(t, targetFile))
+				if !anchors[anchor] {
+					t.Fatalf("%s links to missing anchor %q in %s", rel, anchor, slashRel(repoRoot, targetFile))
+				}
+			}
+		}
+	}
+}
+
+func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	combined := readme + "\n" + index
+
+	for _, required := range []string{
+		"README.md",
+		"docs/getting-started.md",
+		"docs/cookbook.md",
+		"docs/architecture.md",
+		"docs/security.md",
+		"SECURITY.md",
+		"docs/metrics.md",
+		"VERSIONING.md",
+		"docs/release-runbook.md",
+		"docs/release-review.md",
+		"docs/release-notes.md",
+		"docs/release-manifests.md",
+		"docs/ports-surface.md",
+		"docs/v3-compatibility-roadmap.md",
+		"docs/response-writer-inventory.md",
+		"docs/dependency-boundary.md",
+		"docs/dependency-risk.md",
+		"docs/package-doc-standard.md",
+		"docs/package-classification.tsv",
+		"docs/contrib-api-drift-packages.txt",
+		"docs/contrib-api-drift-dispositions.tsv",
+		"docs/vulnerability-dispositions.tsv",
+		"contrib/examples/README.md",
+		"PANIC_POLICY.md",
+		"release-check-summary.json",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("README.md or docs/README.md must link or name high-centrality document %s", required)
+		}
+	}
+}
+
+func TestExampleCatalogCoversExampleDirectories(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	examplesRoot := filepath.Join(repoRoot, "contrib", "examples")
+	catalog := readText(t, filepath.Join(examplesRoot, "README.md"))
+	for _, required := range []string{
+		"| Example | Task | Command | Required environment | Endpoint | Expected result | Safety caveat |",
+		"Task",
+		"Command",
+		"Expected result",
+	} {
+		if !strings.Contains(catalog, required) {
+			t.Fatalf("contrib/examples/README.md missing catalog metadata %q", required)
+		}
+	}
+
+	entries, err := os.ReadDir(examplesRoot)
+	if err != nil {
+		t.Fatalf("read examples dir: %v", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		name := entry.Name()
+		for _, required := range []string{
+			"`" + name + "`",
+			"go run ./examples/" + name,
+		} {
+			if !strings.Contains(catalog, required) {
+				t.Fatalf("contrib/examples/README.md missing %s metadata %q", name, required)
+			}
+		}
+	}
+}
+
+func TestPublicPackageDocsAvoidPlaceholderUtilities(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	placeholder := regexp.MustCompile(`(?m)^// Package ([A-Za-z0-9_]+) provides ([A-Za-z0-9_]+) utilities\.$`)
+	var violations []string
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", "audit", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Base(path) != "doc.go" {
+			return nil
+		}
+		for _, match := range placeholder.FindAllStringSubmatch(readText(t, path), -1) {
+			if match[1] == match[2] {
+				violations = append(violations, slashRel(repoRoot, path))
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan package docs: %v", err)
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("placeholder package docs remain:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
 var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
 var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
@@ -2081,6 +2264,85 @@ func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
 	}
 	files = append(files, docPaths...)
 	return files
+}
+
+func docsQualityMarkdownFiles(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	files := []string{
+		filepath.Join(repoRoot, "README.md"),
+		filepath.Join(repoRoot, "VERSIONING.md"),
+		filepath.Join(repoRoot, "SECURITY.md"),
+		filepath.Join(repoRoot, "PANIC_POLICY.md"),
+	}
+	files = append(files, markdownFilesUnder(t, filepath.Join(repoRoot, "docs"))...)
+	files = append(files, markdownFilesUnder(t, filepath.Join(repoRoot, "contrib", "examples"))...)
+	return uniqueSorted(files)
+}
+
+func externalMarkdownTarget(target string) bool {
+	lower := strings.ToLower(target)
+	return strings.Contains(lower, "://") ||
+		strings.HasPrefix(lower, "mailto:") ||
+		strings.HasPrefix(lower, "tel:")
+}
+
+func makefileTargetSet(makefile string) map[string]bool {
+	targets := map[string]bool{}
+	pattern := regexp.MustCompile(`^([A-Za-z0-9_.-]+):(?:\s|$)`)
+	for _, line := range strings.Split(makefile, "\n") {
+		match := pattern.FindStringSubmatch(line)
+		if len(match) == 2 {
+			targets[match[1]] = true
+		}
+	}
+	return targets
+}
+
+func likelyProseAfterMake(target string) bool {
+	switch target {
+	case "a", "an", "contrib", "it", "safe", "sure", "that", "the", "this":
+		return true
+	default:
+		return false
+	}
+}
+
+func markdownAnchors(markdown string) map[string]bool {
+	anchors := map[string]bool{}
+	for _, line := range strings.Split(markdown, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		heading := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
+		if heading == "" {
+			continue
+		}
+		anchors[markdownAnchorSlug(heading)] = true
+	}
+	return anchors
+}
+
+func markdownAnchorSlug(heading string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(heading) {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == ' ' || r == '-' || r == '_':
+			if !lastDash && b.Len() > 0 {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func forbiddenModuleToken(token string) bool {

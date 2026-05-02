@@ -1,4 +1,4 @@
-// Package migrator provides migrator utilities.
+// Package migrator orchestrates database migrations for contrib-backed services.
 //
 // When loading from multiple directories or embedded filesystems, duplicate
 // migration version+direction pairs are rejected instead of silently

@@ -1,5 +1,8 @@
 # Metrics Naming and Labels
 
+Audience: operators and developers defining HTTP metrics, labels, dashboards,
+and custom recorder behavior.
+
 Keep HTTP metrics predictable and low-cardinality so dashboards stay usable
 and storage costs remain bounded.
 

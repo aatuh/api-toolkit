@@ -1,4 +1,4 @@
-// Package chi provides chi utilities.
+// Package chi adapts the chi router to api-toolkit HTTP ports.
 //
 // Route bootstrap validation
 // --------------------------

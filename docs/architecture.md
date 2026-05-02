@@ -1,5 +1,8 @@
 # Hexagonal Architecture Mapping
 
+Audience: developers and maintainers who need the boundary map between stable
+core packages and third-party contrib adapters.
+
 This repository follows hexagonal (ports and adapters) architecture:
 
 - Core defines domain contracts and HTTP primitives.

@@ -1,5 +1,8 @@
 # Stable Ports Boundary
 
+Audience: maintainers and advanced API consumers reviewing stable v2 exports
+that remain source-compatible but are not templates for new generic ports.
+
 This note explains which parts of `github.com/aatuh/api-toolkit/v2/ports` are
 meant to stay broadly reusable and which parts remain in v2 only as
 compatibility-sensitive surfaces.

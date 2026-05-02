@@ -1,4 +1,4 @@
-// Package scheduler provides scheduler utilities.
+// Package scheduler provides stable background job scheduling primitives.
 //
 // Runner executes jobs immediately on start and then on their configured
 // intervals. Panics inside scheduled jobs are recovered, logged, and recorded

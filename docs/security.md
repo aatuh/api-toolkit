@@ -1,5 +1,8 @@
 # Security Posture
 
+Audience: application developers and operators configuring secure defaults,
+dangerous bypasses, trusted proxies, health detail, and docs surfaces.
+
 This project ships secure-by-default middleware, opt-in controls, and
 documentation aligned with OWASP API Security guidance.
 

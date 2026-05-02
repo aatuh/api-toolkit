@@ -1,4 +1,4 @@
-// Package docs provides docs utilities.
+// Package docs registers stable API documentation and OpenAPI endpoints.
 //
 // Without a registered provider, the default manager discovers OpenAPI files
 // from fixed relative paths under the service working directory, such as
