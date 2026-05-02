@@ -113,12 +113,41 @@ Purpose: authenticate service-to-service or automation calls with API keys and e
 
 ```sh
 curl -s http://localhost:8080/admin \
-  -H 'Authorization: ApiKey demo-admin-key'
+  -H 'Authorization: ApiKey demo-admin-key' \
+  -H 'Accept: application/json'
 ```
 
-- Route contract: the example registers the `/admin` operation with header parameters, `ApiKeyAuth` security, required scopes, Problem Details responses, and serves the generated document at `/openapi.json`.
+- Route contract: the example registers the `/admin` operation once through `routecontracts`, generates the `AdminResponse` schema from a Go struct, applies `ApiKeyAuth` scope metadata, enforces `Accept` negotiation, decodes query input with `binding`, uses catalog-backed Problem Details for validation errors, and serves the generated document at `/openapi.json`.
 - Expected response shape: `200` JSON with `principal_id` and `scopes`; missing or invalid keys return Problem Details `401`, and missing scopes return Problem Details `403`.
 - Production caveat: keep key storage, hashing, rotation, and revocation in application-owned verifier code; the stable middleware extracts credentials, calls the verifier, writes auth context, and enforces scopes.
+
+## Contract-first route registration
+
+Purpose: keep runtime route registration, OpenAPI operation metadata, schema components, content negotiation, and error behavior in one declaration path.
+
+- Prerequisites: use a router that supports the common `Get`, `Post`, `Put`, and `Delete` registration methods.
+- Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/specs`, `github.com/aatuh/api-toolkit/v2/negotiation`, and `github.com/aatuh/api-toolkit/v2/httpx`.
+- Handler sketch:
+
+```go
+specRegistry := specs.NewRegistry(specs.Info{Title: "Widget API", Version: "v1"})
+_ = specs.RegisterSchemaFrom[widgetResponse](specRegistry, "Widget", specs.SchemaOptions{})
+
+contracts := routecontracts.NewRegistry(router, specRegistry)
+_ = contracts.Get("/widgets/{id}", specs.Operation{
+	Summary: "Read widget",
+	Responses: map[int]specs.Response{
+		http.StatusOK: {
+			Content: map[string]specs.MediaType{
+				"application/json": {SchemaRef: "#/components/schemas/Widget"},
+			},
+		},
+	},
+}, widgetHandler, negotiation.RequireAccept("application/json"))
+```
+
+- Expected response shape: the router serves the handler and `/openapi.json` can describe the same method, path, responses, schemas, and media types.
+- Production caveat: keep generated schemas simple and review OpenAPI diffs when changing public response structs.
 
 ## Runtime deprecation headers
 

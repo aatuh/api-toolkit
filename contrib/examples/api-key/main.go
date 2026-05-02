@@ -12,8 +12,11 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
+	"github.com/aatuh/api-toolkit/v2/binding"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v2/negotiation"
+	"github.com/aatuh/api-toolkit/v2/routecontracts"
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
@@ -31,9 +34,49 @@ func main() {
 		Title:   "API key example",
 		Version: "local",
 	})
-	registry.Register(specs.Operation{
-		Method:  http.MethodGet,
-		Path:    "/admin",
+	if err := specs.RegisterSchemaFrom[adminResponse](registry, "AdminResponse", specs.SchemaOptions{}); err != nil {
+		log.Fatalf("admin response schema: %v", err)
+	}
+	registry.RegisterSchema("Problem", map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"type":   map[string]any{"type": "string"},
+			"title":  map[string]any{"type": "string"},
+			"status": map[string]any{"type": "integer"},
+			"detail": map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{
+		Type: "apiKey",
+		Name: "X-API-Key",
+		In:   "header",
+	})
+	registry.RegisterResponse("Problem", specs.Response{
+		Description: "Problem Details",
+		Content: map[string]specs.MediaType{
+			"application/problem+json": {SchemaRef: "#/components/schemas/Problem"},
+		},
+	})
+
+	adminHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query, err := binding.DecodeQuery[adminQuery](r, binding.QueryConfig{})
+		if err != nil {
+			problem, status := httpx.ProblemFromErrorWithCatalog(err, nil, httpx.ErrorOptions{})
+			httpx.WriteProblem(w, status, problem)
+			return
+		}
+		principal, _ := apikey.PrincipalFromContext(r.Context())
+		response := adminResponse{
+			PrincipalID: principal.ID,
+			Scopes:      principal.Scopes,
+		}
+		if query.Verbose {
+			response.Name = principal.Name
+		}
+		httpx.WriteJSON(w, http.StatusOK, response)
+	})
+	contracts := routecontracts.NewRegistry(router, registry)
+	if err := contracts.Get("/admin", specs.Operation{
 		Summary: "Read admin principal",
 		Tags:    []string{"admin"},
 		Parameters: []specs.Parameter{
@@ -44,6 +87,12 @@ func main() {
 				Required:    true,
 				Schema:      map[string]any{"type": "string"},
 			},
+			{
+				Name:        "verbose",
+				In:          "query",
+				Description: "Include optional display metadata.",
+				Schema:      map[string]any{"type": "boolean"},
+			},
 		},
 		Security: []specs.SecurityRequirement{
 			{Name: "ApiKeyAuth", Scopes: []string{"admin:read"}},
@@ -51,31 +100,22 @@ func main() {
 		Scopes: []string{"admin:read"},
 		Responses: map[int]specs.Response{
 			http.StatusOK: {
-				Description:  "Authenticated admin principal.",
-				ContentTypes: []string{"application/json"},
+				Description: "Authenticated admin principal.",
+				Content: map[string]specs.MediaType{
+					"application/json": {SchemaRef: "#/components/schemas/AdminResponse"},
+				},
 			},
-			http.StatusUnauthorized: {
-				Description:  "Missing or invalid API key.",
-				ContentTypes: []string{"application/problem+json"},
-			},
-			http.StatusForbidden: {
-				Description:  "The API key is missing the required scope.",
-				ContentTypes: []string{"application/problem+json"},
-			},
+			http.StatusBadRequest:    {Ref: "#/components/responses/Problem"},
+			http.StatusUnauthorized:  {Ref: "#/components/responses/Problem"},
+			http.StatusForbidden:     {Ref: "#/components/responses/Problem"},
+			http.StatusNotAcceptable: {Ref: "#/components/responses/Problem"},
 		},
 		Extensions: map[string]any{
 			"x-auth-scheme": "ApiKey",
 		},
-	})
-
-	adminHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, _ := apikey.PrincipalFromContext(r.Context())
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{
-			"principal_id": principal.ID,
-			"scopes":       principal.Scopes,
-		})
-	})
-	router.Get("/admin", auth.Handler(apikey.RequireScopeMiddleware("admin:read")(adminHandler)).ServeHTTP)
+	}, adminHandler, auth.Handler, apikey.RequireScopeMiddleware("admin:read"), negotiation.RequireAccept("application/json")); err != nil {
+		log.Fatalf("admin route contract: %v", err)
+	}
 	router.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		doc, err := registry.OpenAPI()
 		if err != nil {
@@ -103,6 +143,16 @@ func main() {
 type demoVerifier struct {
 	secret []byte
 	keys   map[string]apikey.Principal
+}
+
+type adminQuery struct {
+	Verbose bool `query:"verbose"`
+}
+
+type adminResponse struct {
+	PrincipalID string   `json:"principal_id" required:"true"`
+	Name        string   `json:"name,omitempty"`
+	Scopes      []string `json:"scopes" required:"true"`
 }
 
 func newDemoVerifier(secret []byte, rawKey string) *demoVerifier {

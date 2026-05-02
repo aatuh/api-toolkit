@@ -11,7 +11,7 @@ cd contrib
 
 | Example | Task | Command | Required environment | Endpoint | Expected result | Safety caveat |
 | --- | --- | --- | --- | --- | --- | --- |
-| `api-key` | API key authentication with scoped routes. | `go run ./examples/api-key` | Demo key is `demo-admin-key`. | `GET /admin` with `X-API-Key: demo-admin-key`. | `200` JSON principal and scopes; invalid or missing keys return Problem Details. | Store only hashed keys, rotate keys, and bind scopes/tenants in the verifier. |
+| `api-key` | API key authentication with scoped contract routes. | `go run ./examples/api-key` | Demo key is `demo-admin-key`. | `GET /admin?verbose=true` with `X-API-Key: demo-admin-key` and `Accept: application/json`. | `200` JSON principal and scopes; invalid keys, invalid negotiation, or binding errors return Problem Details. | Store only hashed keys, rotate keys, and bind scopes/tenants in the verifier. |
 | `minimal` | Strict JSON write endpoint with validation errors. | `go run ./examples/minimal` | None. | `POST /widgets` | `201` JSON widget for valid input; Problem Details for invalid input. | Keep strict decoding and validation at the API edge. |
 | `secure-profile` | Hardened middleware profile with secure headers and tracing. | `go run ./examples/secure-profile` | None. | `GET /hello` | `200` JSON `{"status":"ok"}`. | Cross-origin isolation can break embeds or unmanaged assets. |
 | `auth` | Clerk JWT middleware plus explicit admin authorization. | `go run ./examples/auth` | Replace placeholder Clerk issuer, JWKS URL, and audience. | `GET /admin` | `200` JSON role for an authorized JWT; `401` or `403` otherwise. | Placeholder identity-provider values are not production configuration. |
