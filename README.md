@@ -36,11 +36,13 @@ Core packages:
 - `compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
 - `middleware/*` covers JSON enforcement, timeouts, max body limits, query limits, rate limiting, idempotency, secure headers, tracing, tenant context, deprecation headers, API key auth, JWT auth, and role authz.
 - `binding` decodes validated JSON, query, and path input into typed request structs with Problem Details-compatible field errors.
+- `queryparams` parses collection sort, filter, sparse fieldset, and include parameters without storage coupling.
 - `httpcache` provides conditional request helpers for ETags, Last-Modified, `304`, and `412` flows.
 - `httpx`, `httpx/identity`, and `httpx/recover` provide JSON responses, Problem Details, request identity, and panic recovery.
 - `negotiation` provides Accept and Content-Type negotiation for JSON and vendor media types.
 - `endpoints/*` provides docs, health, pprof, version, and list helpers, including offset and signed cursor pagination.
-- `authorization`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
+- `operations` standardizes `202 Accepted` and pollable asynchronous operation resources.
+- `authorization`, `contracttest`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
 - The legacy response helper package is retained for v2 source compatibility; new response code should prefer `httpx`.
 
 Contrib packages:

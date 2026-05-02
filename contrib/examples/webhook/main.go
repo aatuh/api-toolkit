@@ -41,6 +41,7 @@ func main() {
 		},
 	}}
 	r.Post("/webhooks/payment", receiver.ServeHTTP)
+	logDemoSignedRequest()
 
 	srv := &http.Server{
 		Addr:              ":8080",
@@ -53,4 +54,29 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("listen: %v", err)
 	}
+}
+
+func logDemoSignedRequest() {
+	signer, err := webhooks.NewHMACSHA256Signer(webhooks.HMACSignerConfig{Secret: []byte(sharedSecret)})
+	if err != nil {
+		log.Printf("webhook signer: %v", err)
+		return
+	}
+	req, err := webhooks.BuildSignedRequest(context.Background(), webhooks.OutgoingEvent[webhookEvent]{
+		ID:   "evt_demo",
+		Type: "payment.succeeded",
+		Payload: webhookEvent{
+			ID:   "evt_demo",
+			Type: "payment.succeeded",
+		},
+	}, webhooks.SignedRequestConfig{
+		URL:             "http://localhost:8080/webhooks/payment",
+		Signer:          signer,
+		SignatureHeader: signatureHeader,
+	})
+	if err != nil {
+		log.Printf("build signed webhook request: %v", err)
+		return
+	}
+	log.Printf("demo signed webhook request method=%s url=%s signature_header=%s", req.Method, req.URL.String(), signatureHeader)
 }

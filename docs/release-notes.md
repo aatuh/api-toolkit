@@ -52,6 +52,14 @@ source of truth is `docs/release-runbook.md`.
   route contract components.
 - `httpx` now includes a typed Problem Details catalog for stable
   machine-readable error codes and catalog-backed error mapping.
+- Added stable core package `queryparams` for collection sorting, filtering,
+  sparse fieldsets, and include parameter parsing without storage coupling.
+- Added stable core package `operations` for `202 Accepted` responses and
+  pollable asynchronous operation resources.
+- `webhooks` now includes outbound HMAC-SHA256 signing helpers for JSON event
+  requests that remain compatible with the existing receiver verifier.
+- Added stable core package `contracttest` for route contract, OpenAPI,
+  generated contract, and problem catalog assertion helpers.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.
