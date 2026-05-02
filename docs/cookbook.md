@@ -102,6 +102,32 @@ curl -i http://localhost:8080/admin \
 - Expected response shape: `200` JSON `{"role":"admin"}` for an allowed subject, otherwise Problem Details `401` or `403`.
 - Production caveat: do not keep placeholder identity-provider URLs in deployed configuration.
 
+## Safe system endpoint mounting
+
+Purpose: keep public probes separate from operator-only pprof, detailed health,
+and metrics routes. Web, mobile, and desktop clients should never need direct
+access to operator-only endpoints.
+
+- Prerequisites: provide an application-owned `requireAdmin` middleware or
+  internal-network wrapper.
+- Public routes: mount liveness and readiness on the public mux.
+- Admin routes: mount detailed health with `RegisterAdminDetailedHealthRoute`
+  and pprof with `pprof.RegisterAdminRoutes`; mount metrics only on the
+  protected admin mux or behind equivalent upstream network policy.
+
+```go
+publicMux.HandleFunc("/livez", healthHandler.LivenessHandler)
+publicMux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
+
+if err := healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin); err != nil {
+	return err
+}
+if err := pprof.RegisterAdminRoutes(adminRouter, requireAdmin); err != nil {
+	return err
+}
+adminMux.Handle("/metrics", requireAdmin(metricsHandler))
+```
+
 ## API key route
 
 Purpose: authenticate service-to-service or automation calls with API keys and explicit scopes.

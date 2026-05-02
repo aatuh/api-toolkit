@@ -159,7 +159,9 @@ func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, statusCode, response)
 }
 
-// RegisterRoutes registers all health endpoints on the given router.
+// RegisterRoutes registers all enabled health endpoints on the given router.
+// When detailed health is enabled, prefer registering public probes separately
+// and mounting DetailedHealthHandler with RegisterAdminDetailedHealthRoute.
 func (h *Handler) RegisterRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }) {
@@ -169,7 +171,9 @@ func (h *Handler) RegisterRoutes(router interface {
 	h.RegisterRoutesTo(healthRouteRegistrar{register: router.Get})
 }
 
-// RegisterRoutesTo registers all health endpoints on the given registrar.
+// RegisterRoutesTo registers all enabled health endpoints on the given registrar.
+// When detailed health is enabled, prefer registering public probes separately
+// and mounting DetailedHealthHandler with RegisterAdminDetailedHealthRoute.
 func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 	if h == nil || router == nil {
 		return
@@ -201,7 +205,9 @@ func (h *Handler) RegisterAdminDetailedHealthRoute(router ports.MethodRouteRegis
 	return nil
 }
 
-// RegisterCustomRoutes registers health endpoints with custom paths.
+// RegisterCustomRoutes registers health endpoints with custom paths. When
+// DetailedHealth is set, prefer RegisterAdminDetailedHealthRoute for the
+// detailed route unless an upstream internal-only policy already protects it.
 func (h *Handler) RegisterCustomRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
 }, paths HealthPaths) {
@@ -211,7 +217,9 @@ func (h *Handler) RegisterCustomRoutes(router interface {
 	h.RegisterCustomRoutesTo(healthRouteRegistrar{register: router.Get}, paths)
 }
 
-// RegisterCustomRoutesTo registers health endpoints with custom paths.
+// RegisterCustomRoutesTo registers health endpoints with custom paths. When
+// DetailedHealth is set, prefer RegisterAdminDetailedHealthRoute for the
+// detailed route unless an upstream internal-only policy already protects it.
 func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, paths HealthPaths) {
 	if h == nil || router == nil {
 		return

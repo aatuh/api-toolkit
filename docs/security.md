@@ -82,6 +82,11 @@ that ignore `ctx.Done()`. Use `securityprofile.WithHardTimeout`,
 `middleware/timeout.NewHard`, and server read/write deadlines when you need a
 hard wall-clock response limit. Hard timeout wrappers cannot stop CPU work in a
 handler that ignores cancellation, but they do prevent late response writes.
+They buffer responses up to a configured maximum capture size and return a
+Problem Details error instead of silently truncating oversized responses. Do not
+apply hard timeout globally to streaming responses, server-sent events,
+websocket upgrades, or handlers that require optional `http.ResponseWriter`
+interfaces such as `http.Flusher` or `http.Hijacker`.
 
 ## Admin-only endpoints and EU privacy posture
 
@@ -91,9 +96,10 @@ other personal data under an EU baseline privacy posture. Treat these as
 operator-only surfaces.
 
 - Mount pprof with `pprof.RegisterAdminRoutes` and pass an explicit admin or
-  internal-network wrapper.
+  internal-network wrapper; keep legacy `pprof.RegisterRoutes` only for source
+  compatibility or separately protected internal muxes.
 - Mount detailed health with `Handler.RegisterAdminDetailedHealthRoute` when it
-  is enabled.
+  is enabled; avoid teaching policy-free detailed-health mounts in new examples.
 - Keep public liveness/readiness separate from detailed dependency output.
 - Keep request log payloads redacted, keep metrics labels bounded, and avoid raw
   idempotency keys unless a short access-controlled incident review requires

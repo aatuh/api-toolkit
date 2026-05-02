@@ -12,6 +12,8 @@ import (
 )
 
 const defaultHardTimeoutStatus = http.StatusGatewayTimeout
+const defaultHardTimeoutMaxCaptureBytes int64 = 1 << 20
+const defaultHardTimeoutCaptureOverflowStatus = http.StatusInternalServerError
 
 var defaultHardTimeoutProblem = httpx.Problem{
 	Type:   httpx.TypeURI(httpx.DefaultTypeBase, "timeout"),
@@ -19,11 +21,21 @@ var defaultHardTimeoutProblem = httpx.Problem{
 	Detail: "request timed out",
 }
 
+var defaultHardTimeoutCaptureOverflowProblem = httpx.Problem{
+	Type:   httpx.TypeURI(httpx.DefaultTypeBase, "timeout-capture-overflow"),
+	Title:  http.StatusText(defaultHardTimeoutCaptureOverflowStatus),
+	Detail: "response capture exceeded the configured hard-timeout limit",
+}
+
+var ErrHardTimeoutCaptureLimitExceeded = errors.New("hard timeout response capture limit exceeded")
+
 // HardTimeout applies a per-request context deadline and sends a timeout
 // response when the deadline expires before the handler returns. Handler writes
-// after the deadline are discarded.
+// after the deadline are discarded. Responses are buffered up to
+// MaxCaptureBytes, which defaults to 1 MiB when unset.
 type HardTimeout struct {
-	Timeout time.Duration
+	Timeout         time.Duration
+	MaxCaptureBytes int64
 }
 
 // Propagator applies a per-request context deadline without writing timeout
@@ -38,7 +50,8 @@ type Middleware = Propagator
 
 // Options configures the timeout middleware.
 type Options struct {
-	Timeout time.Duration
+	Timeout         time.Duration
+	MaxCaptureBytes int64
 }
 
 // NewPropagator constructs a cooperative request-deadline propagator with the
@@ -63,7 +76,13 @@ func NewHard(opts Options) (*HardTimeout, error) {
 	if opts.Timeout <= 0 {
 		return nil, errors.New("timeout must be greater than zero")
 	}
-	return &HardTimeout{Timeout: opts.Timeout}, nil
+	if opts.MaxCaptureBytes < 0 {
+		return nil, errors.New("max capture bytes must be greater than or equal to zero")
+	}
+	return &HardTimeout{
+		Timeout:         opts.Timeout,
+		MaxCaptureBytes: hardTimeoutCaptureLimit(opts.MaxCaptureBytes),
+	}, nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
@@ -106,7 +125,7 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), m.Timeout)
 		defer cancel()
 
-		capture := newHardTimeoutCapture()
+		capture := newHardTimeoutCapture(m.captureLimit())
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -115,12 +134,30 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 
 		select {
 		case <-done:
+			if capture.overflowed() {
+				httpx.WriteProblem(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem)
+				return
+			}
 			capture.flushTo(w)
 		case <-ctx.Done():
 			capture.timeout()
 			httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
 		}
 	})
+}
+
+func (m *HardTimeout) captureLimit() int64 {
+	if m == nil {
+		return defaultHardTimeoutMaxCaptureBytes
+	}
+	return hardTimeoutCaptureLimit(m.MaxCaptureBytes)
+}
+
+func hardTimeoutCaptureLimit(limit int64) int64 {
+	if limit <= 0 {
+		return defaultHardTimeoutMaxCaptureBytes
+	}
+	return limit
 }
 
 type hardTimeoutCapture struct {
@@ -131,10 +168,12 @@ type hardTimeoutCapture struct {
 	wrote     bool
 	timedOut  bool
 	committed bool
+	maxBytes  int64
+	overflow  bool
 }
 
-func newHardTimeoutCapture() *hardTimeoutCapture {
-	return &hardTimeoutCapture{header: make(http.Header)}
+func newHardTimeoutCapture(maxBytes int64) *hardTimeoutCapture {
+	return &hardTimeoutCapture{header: make(http.Header), maxBytes: hardTimeoutCaptureLimit(maxBytes)}
 }
 
 func (c *hardTimeoutCapture) Header() http.Header {
@@ -161,6 +200,14 @@ func (c *hardTimeoutCapture) Write(p []byte) (int, error) {
 		c.status = http.StatusOK
 		c.wrote = true
 	}
+	if c.overflow {
+		return 0, ErrHardTimeoutCaptureLimitExceeded
+	}
+	remaining := c.maxBytes - int64(c.body.Len())
+	if remaining <= 0 || int64(len(p)) > remaining {
+		c.overflow = true
+		return 0, ErrHardTimeoutCaptureLimitExceeded
+	}
 	return c.body.Write(p)
 }
 
@@ -168,6 +215,12 @@ func (c *hardTimeoutCapture) timeout() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.timedOut = true
+}
+
+func (c *hardTimeoutCapture) overflowed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.overflow
 }
 
 func (c *hardTimeoutCapture) flushTo(w http.ResponseWriter) {

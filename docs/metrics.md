@@ -64,3 +64,27 @@ bootstrap.MountSystemEndpoints(r, bootstrap.SystemEndpoints{
 If you add custom metrics, keep label sets small and bounded. If you need
 higher-cardinality data, emit it to structured logs or tracing instead of
 metrics.
+
+## Idempotency compatibility telemetry
+
+The idempotency mixed-version compatibility metric label contract is bounded:
+
+- `method`: standard HTTP method or `OTHER`
+- `store_class`: `memory`, `redis`, `sql`, `custom`, or `unknown`
+- `outcome`: `legacy_in_flight_fallback_entered`,
+  `legacy_in_flight_fallback_recovered`,
+  `legacy_in_flight_fallback_rejected`,
+  `legacy_in_flight_fallback_unknown`, or `unknown`
+
+Do not add raw paths, query strings, request IDs, tenant IDs, idempotency keys,
+key hashes, or error strings to metric labels. `LegacyInFlightCompatibilityEvent`
+keeps `Path`, `Key`, `StoreType`, and `Error` for structured logs or traces where
+operators can sample, redact, and restrict access.
+
+`LegacyInFlightCompatibilityRawKey` remains disabled by default. Enable raw-key
+output only for short, access-controlled incident review, and prefer hashed keys
+or redacted values for normal operations.
+
+Compatibility telemetry delivery is best-effort. Async mode uses a bounded queue
+and worker pool; when the queue is full, events are dropped and a warning records
+the cumulative drop count and queue size.

@@ -59,24 +59,24 @@ type LegacyInFlightCompatibilityEvent struct {
 }
 
 const (
-	legacyInFlightCompatibilityEventMethodLabel    = "method"
-	legacyInFlightCompatibilityEventPathLabel      = "path"
-	legacyInFlightCompatibilityEventStoreTypeLabel = "store_type"
-	legacyInFlightCompatibilityEventOutcomeLabel   = "outcome"
-	legacyInFlightCompatibilityEventKeyLabel       = "key"
-	legacyInFlightCompatibilityEventErrorLabel     = "error"
+	legacyInFlightCompatibilityEventMethodLabel     = "method"
+	legacyInFlightCompatibilityEventPathLabel       = "path"
+	legacyInFlightCompatibilityEventStoreTypeLabel  = "store_type"
+	legacyInFlightCompatibilityEventStoreClassLabel = "store_class"
+	legacyInFlightCompatibilityEventOutcomeLabel    = "outcome"
+	legacyInFlightCompatibilityEventKeyLabel        = "key"
+	legacyInFlightCompatibilityEventErrorLabel      = "error"
 )
 
 // MetricLabels returns the canonical metric label set for compatibility telemetry.
-// Keep these names stable for dashboard migrations.
+// Metrics intentionally expose only bounded labels. High-cardinality event
+// details such as raw paths, key hashes, raw keys, and error strings remain on
+// LegacyInFlightCompatibilityEvent for structured logs or traces.
 func (event LegacyInFlightCompatibilityEvent) MetricLabels() map[string]string {
 	return map[string]string{
-		legacyInFlightCompatibilityEventMethodLabel:    event.Method,
-		legacyInFlightCompatibilityEventPathLabel:      event.Path,
-		legacyInFlightCompatibilityEventStoreTypeLabel: event.StoreType,
-		legacyInFlightCompatibilityEventOutcomeLabel:   string(event.Outcome),
-		legacyInFlightCompatibilityEventKeyLabel:       event.Key,
-		legacyInFlightCompatibilityEventErrorLabel:     event.Error,
+		legacyInFlightCompatibilityEventMethodLabel:     legacyInFlightCompatibilityMetricMethod(event.Method),
+		legacyInFlightCompatibilityEventStoreClassLabel: legacyInFlightCompatibilityMetricStoreClass(event.StoreType),
+		legacyInFlightCompatibilityEventOutcomeLabel:    legacyInFlightCompatibilityMetricOutcome(event.Outcome),
 	}
 }
 
@@ -305,6 +305,61 @@ func legacyInFlightCompatibilityEventKey(key string, exposeRaw bool) string {
 	}
 	h := sha256.Sum256([]byte(trimmed))
 	return hex.EncodeToString(h[:])
+}
+
+func legacyInFlightCompatibilityMetricMethod(method string) string {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodConnect:
+		return http.MethodConnect
+	case http.MethodDelete:
+		return http.MethodDelete
+	case http.MethodGet:
+		return http.MethodGet
+	case http.MethodHead:
+		return http.MethodHead
+	case http.MethodOptions:
+		return http.MethodOptions
+	case http.MethodPatch:
+		return http.MethodPatch
+	case http.MethodPost:
+		return http.MethodPost
+	case http.MethodPut:
+		return http.MethodPut
+	case http.MethodTrace:
+		return http.MethodTrace
+	default:
+		return "OTHER"
+	}
+}
+
+func legacyInFlightCompatibilityMetricOutcome(outcome LegacyInFlightCompatibilityEventName) string {
+	switch outcome {
+	case LegacyInFlightCompatibilityEntered,
+		LegacyInFlightCompatibilityRecovered,
+		LegacyInFlightCompatibilityRejected,
+		LegacyInFlightCompatibilityUnknown:
+		return string(outcome)
+	default:
+		return "unknown"
+	}
+}
+
+func legacyInFlightCompatibilityMetricStoreClass(storeType string) string {
+	normalized := strings.ToLower(strings.TrimSpace(storeType))
+	switch {
+	case normalized == "":
+		return "unknown"
+	case strings.Contains(normalized, "memory"):
+		return "memory"
+	case strings.Contains(normalized, "redis"):
+		return "redis"
+	case strings.Contains(normalized, "postgres"),
+		strings.Contains(normalized, "pgx"),
+		strings.Contains(normalized, "sql"):
+		return "sql"
+	default:
+		return "custom"
+	}
 }
 
 func legacyInFlightCompatibilityLogger(log ports.Logger) LegacyInFlightCompatibilityEventSink {
