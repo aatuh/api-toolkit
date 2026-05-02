@@ -29,11 +29,14 @@
 //   - Legacy compatibility key values are hashed by default. Set
 //     LegacyInFlightCompatibilityRawKey=true to opt in to raw key emission.
 //   - LegacyInFlightCompatibilityAsync disables request-path coupling to callback
-//     execution in high-volume telemetry windows, at the cost of deferred error
-//     surfacing in the caller path.
-//     It is intentionally fire-and-forget and can start one goroutine per emitted
-//     event after sampling. Use LegacyInFlightCompatibilitySampleEvery or a
-//     bounded custom sink during high-volume mixed-version migrations.
+//     execution in high-volume telemetry windows by using one bounded queue and
+//     four workers per middleware instance. The queue holds 1024 events, drops
+//     new events when full, emits a warning with dropped_events/queue_size, and
+//     drains best-effort while the process is running, and emits queued events
+//     with cancellation stripped from the first enqueue context so request
+//     cancellation does not suppress telemetry delivery. There is no request-path
+//     flush or shutdown wait; use a synchronous sink if every telemetry event
+//     must be durably observed.
 //   - LegacyInFlightCompatibilitySampleEvery emits one event per N emitted events
 //     and is the preferred low-cost throttle for high-volume mixed-version windows.
 //   - Logger and KnownInFlightTTLs can be used to run startup checks for mixed-
@@ -59,11 +62,14 @@
 // Practical guidance:
 //   - Keep event key hashed by default to limit cardinality.
 //   - Set LegacyInFlightCompatibilitySampleEvery when compatibility traffic becomes
-//     noisy during mixed-version windows to lower event volume deterministically.
+//     noisy during mixed-version windows to lower event volume deterministically
+//     before the bounded async queue sees the event.
 //   - Prefer an explicit metric sink for dashboard counters and keep logger sink
 //     in place during transition.
 //   - If you rely on request latency, avoid heavy synchronous callback work unless
 //     LegacyInFlightCompatibilityAsync is enabled.
 //   - Treat async compatibility telemetry as lossy operational evidence. It must
-//     never be the only source of correctness for idempotency recovery decisions.
+//     never be the only source of correctness for idempotency recovery decisions,
+//     and raw keys should stay disabled in production unless a short, access-
+//     controlled incident review requires them.
 package idempotency

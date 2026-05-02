@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Review gate: contrib adapter/integration public behavior changes need release notes.
+# Review gate: supported contrib adapter/integration/middleware behavior changes
+# need release notes or explicit no-user-impact rationale.
 set -euo pipefail
 
 base_ref="${CONTRIB_RELEASE_BASE_REF:-${API_BASE_REF:-HEAD~1}}"
@@ -11,8 +12,15 @@ fi
 changed_contrib="$(git diff --name-only "$base_ref" -- \
   'contrib/adapters' \
   'contrib/integrations' \
+  'contrib/bootstrap' \
   'contrib/middleware/auth/clerk' \
   'contrib/middleware/auth/devheaders' \
+  'contrib/middleware/cors' \
+  'contrib/middleware/metrics' \
+  'contrib/middleware/openapi' \
+  'contrib/middleware/oteltrace' \
+  'contrib/middleware/requestlog' \
+  'contrib/telemetry' \
   | grep -E '\.go$' \
   | grep -Ev '(^|/)([^/]+_test\.go|doc\.go)$' || true)"
 
@@ -23,7 +31,7 @@ fi
 
 release_notes_diff="$(git diff "$base_ref" -- docs/release-notes.md || true)"
 if [ -z "$release_notes_diff" ]; then
-  echo "Contrib adapter/integration files changed without docs/release-notes.md updates:" >&2
+  echo "Contrib supported-tier behavior files changed without docs/release-notes.md updates:" >&2
   printf '%s\n' "$changed_contrib" >&2
   exit 1
 fi

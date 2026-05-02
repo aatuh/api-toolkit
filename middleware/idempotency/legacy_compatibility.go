@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 )
 
 const legacyInFlightCompatibilityUnknownKeyValue = "[redacted]"
+const legacyInFlightCompatibilityAsyncQueueSize = 1024
+const legacyInFlightCompatibilityAsyncWorkers = 4
 
 var (
 	ErrLegacyInFlightTTLMismatch            = errors.New("idempotency in-flight ttl mismatch in rollout contract")
@@ -385,17 +388,56 @@ func legacyInFlightCompatibilitySafeEmit(sink LegacyInFlightCompatibilityEventSi
 }
 
 type legacyInFlightCompatibilityAsyncSink struct {
-	next LegacyInFlightCompatibilityEventSink
+	next    LegacyInFlightCompatibilityEventSink
+	log     ports.Logger
+	queue   chan legacyInFlightCompatibilityAsyncEvent
+	started sync.Once
+	dropped atomic.Uint64
 }
 
-func (s legacyInFlightCompatibilityAsyncSink) Emit(ctx context.Context, event LegacyInFlightCompatibilityEvent) {
-	if s.next == nil {
+type legacyInFlightCompatibilityAsyncEvent struct {
+	event LegacyInFlightCompatibilityEvent
+}
+
+func newLegacyInFlightCompatibilityAsyncSink(next LegacyInFlightCompatibilityEventSink, log ports.Logger) *legacyInFlightCompatibilityAsyncSink {
+	if next == nil {
+		return nil
+	}
+	return &legacyInFlightCompatibilityAsyncSink{
+		next:  next,
+		log:   log,
+		queue: make(chan legacyInFlightCompatibilityAsyncEvent, legacyInFlightCompatibilityAsyncQueueSize),
+	}
+}
+
+func (s *legacyInFlightCompatibilityAsyncSink) Emit(ctx context.Context, event LegacyInFlightCompatibilityEvent) {
+	if s == nil || s.next == nil {
 		return
 	}
-	go func() {
-		defer func() { _ = recover() }()
-		s.next.Emit(ctx, event)
-	}()
+	s.started.Do(func() {
+		workerCtx := context.WithoutCancel(ctx)
+		for i := 0; i < legacyInFlightCompatibilityAsyncWorkers; i++ {
+			go s.drain(workerCtx)
+		}
+	})
+	select {
+	case s.queue <- legacyInFlightCompatibilityAsyncEvent{event: event}:
+	default:
+		dropped := s.dropped.Add(1)
+		if s.log != nil {
+			s.log.Warn(
+				"idempotency legacy in-flight compatibility telemetry dropped",
+				"dropped_events", dropped,
+				"queue_size", legacyInFlightCompatibilityAsyncQueueSize,
+			)
+		}
+	}
+}
+
+func (s *legacyInFlightCompatibilityAsyncSink) drain(ctx context.Context) {
+	for item := range s.queue {
+		legacyInFlightCompatibilitySafeEmit(s.next, ctx, item.event)
+	}
 }
 
 type legacyInFlightCompatibilitySamplingSink struct {

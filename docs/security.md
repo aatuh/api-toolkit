@@ -71,14 +71,35 @@ Goal:
 
 The toolkit provides concrete controls for resource limits:
 
-- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines
+- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines; `securityprofile.WithHardTimeout` and `middleware/timeout.NewHard` add a hard wall-clock response cutoff that writes a 504 Problem Details timeout response and discards late handler writes
 - Payload size: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`
 - Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
 - Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
 - Header limits: `httpx.HeaderLimitsBalanced` + server `MaxHeaderBytes`
 
-`securityprofile.WithTimeout` does not force a timeout response or stop handlers that ignore `ctx.Done()`.
-Use server read/write deadlines or selective wrappers such as `http.TimeoutHandler` when you need a hard wall-clock response limit.
+`securityprofile.WithTimeout` does not force a timeout response or stop handlers
+that ignore `ctx.Done()`. Use `securityprofile.WithHardTimeout`,
+`middleware/timeout.NewHard`, and server read/write deadlines when you need a
+hard wall-clock response limit. Hard timeout wrappers cannot stop CPU work in a
+handler that ignores cancellation, but they do prevent late response writes.
+
+## Admin-only endpoints and EU privacy posture
+
+Pprof, detailed health, trace IDs, metrics labels, and request logs can expose
+operational data, request metadata, dependency names, tenant identifiers, or
+other personal data under an EU baseline privacy posture. Treat these as
+operator-only surfaces.
+
+- Mount pprof with `pprof.RegisterAdminRoutes` and pass an explicit admin or
+  internal-network wrapper.
+- Mount detailed health with `Handler.RegisterAdminDetailedHealthRoute` when it
+  is enabled.
+- Keep public liveness/readiness separate from detailed dependency output.
+- Keep request log payloads redacted, keep metrics labels bounded, and avoid raw
+  idempotency keys unless a short access-controlled incident review requires
+  them.
+- Prefer upstream network policy plus application authorization for admin
+  routes; endpoint helpers do not create legal compliance by themselves.
 
 ## Recommended Production Baseline
 

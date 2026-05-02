@@ -11,7 +11,7 @@ Each public `doc.go` should answer these questions in plain Go doc prose:
 | --- | --- |
 | Purpose | What task or boundary the package owns. |
 | Primary abstractions | The main types, constructors, middleware, helpers, or adapters a caller starts with. |
-| Stability status | Whether the package is stable core, compatibility-only, experimental contrib, wrapper-only, test-only, generated, tooling, or excluded. |
+| Stability status | Whether the package is stable core, compatibility-only, supported-adapter contrib, experimental contrib, wrapper-only, test-only, generated, tooling, or excluded. |
 | Common construction path | The normal constructor or setup path when one exists. |
 | Safety caveats | Fail-closed behavior, dangerous bypasses, compatibility-sensitive surfaces, or production-only constraints. |
 | Examples | Pointer to `docs/cookbook.md`, `contrib/examples/README.md`, or a package-specific example when useful. |

@@ -96,6 +96,68 @@ func TestRouteOverridesTimeout(t *testing.T) {
 	}
 }
 
+func TestWithHardTimeoutWritesTimeoutProblem(t *testing.T) {
+	profile, err := New(
+		WithRequireAuth(false),
+		WithHardTimeout(5*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected hard timeout 504, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "application/problem+json") {
+		t.Fatalf("expected problem response, got content type %q", got)
+	}
+}
+
+func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
+	short := 5 * time.Millisecond
+	hard := true
+	profile, err := New(
+		WithRequireAuth(false),
+		WithTimeout(200*time.Millisecond),
+		WithRouteOverrides(RouteOverride{
+			Pattern:     "/hard",
+			Timeout:     &short,
+			HardTimeout: &hard,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	hardReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/hard", nil)
+	hardRec := httptest.NewRecorder()
+	handler.ServeHTTP(hardRec, hardReq)
+	if hardRec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected hard timeout route to return 504, got %d", hardRec.Code)
+	}
+
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/default", nil)
+	defaultRec := httptest.NewRecorder()
+	handler.ServeHTTP(defaultRec, defaultReq)
+	if defaultRec.Code != http.StatusOK {
+		t.Fatalf("expected cooperative default route to return 200, got %d", defaultRec.Code)
+	}
+}
+
 func TestOWASPBaselineLimits(t *testing.T) {
 	profile, err := OWASPBaseline(WithRequireAuth(false))
 	if err != nil {

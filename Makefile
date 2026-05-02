@@ -56,11 +56,11 @@ release-api-check: tools ## Run fail-closed API compatibility check; requires AP
 api-check-contract: ## Run API compatibility script mode contract tests
 	@env -u API_BASE_REF -u API_CHECK_REQUIRE_BASE -u GITHUB_BASE_REF scripts/apicheck_contract_test.sh
 
-contrib-api-drift-report: tools ## Report selected contrib public API drift without making contrib stable
+contrib-api-drift-report: tools ## Check selected contrib API drift without making contrib stable
 	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v2.x releases use API_BASE_REF=v2.0.1"; exit 2; }
 	@API_BASE_REF="$(API_BASE_REF)" scripts/contrib_api_drift_report.sh
 
-contrib-release-notes-check: tools ## Review gate requiring release notes for contrib adapter/integration behavior changes
+contrib-release-notes-check: tools ## Review gate requiring release notes for supported contrib behavior changes
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
 
 contrib-review-contract: ## Run contrib drift/release-note script contract tests

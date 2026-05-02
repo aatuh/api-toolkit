@@ -47,7 +47,8 @@ type Options struct {
 	// FailOnInFlightClockSkewPreflight promotes startup clock-skew risk checks into hard-fail.
 	FailOnInFlightClockSkewPreflight bool
 	// LegacyInFlightCompatibilityRawKey exposes the raw request key in compatibility events.
-	// Defaults to false (hashed key output).
+	// Defaults to false (hashed key output). Keep this disabled in production
+	// unless a short, access-controlled incident review needs exact keys.
 	LegacyInFlightCompatibilityRawKey bool
 	// LegacyInFlightCompatibilitySink emits compatibility telemetry independently of the
 	// legacy callback contract. Use this for logging adapters or custom integrations.
@@ -56,12 +57,14 @@ type Options struct {
 	// Use this for Prometheus/observability pipelines that prefer canonical label contracts.
 	LegacyInFlightCompatibilityMetricSink LegacyInFlightCompatibilityMetricSink
 	// LegacyInFlightCompatibilityAsync avoids blocking request execution for telemetry
-	// work by dispatching events asynchronously. In high-volume environments, this
-	// prevents request latency coupling to callback execution.
+	// work by enqueueing events to a bounded worker. When the queue is full,
+	// events are dropped and a warning is emitted; request execution is not
+	// backpressured.
 	LegacyInFlightCompatibilityAsync bool
 	// LegacyInFlightCompatibilitySampleEvery emits one event per N emitted events for
-	// high-volume environments. Values <= 1 preserve full event output. Cardinality
-	// remains bounded by key hashing defaults unless RawKey is enabled.
+	// high-volume environments. Values <= 1 preserve full event output. Use this
+	// to reduce async queue pressure and metric/log volume. Cardinality remains
+	// bounded by key hashing defaults unless RawKey is enabled.
 	LegacyInFlightCompatibilitySampleEvery int
 	// OnLegacyInFlightCompatibility receives additive mixed-version telemetry.
 	OnLegacyInFlightCompatibility LegacyInFlightCompatibilityHandler
@@ -147,7 +150,7 @@ func New(opts Options) (*Middleware, error) {
 		opts.Logger,
 	)
 	if opts.LegacyInFlightCompatibilityAsync {
-		sink = legacyInFlightCompatibilityAsyncSink{next: sink}
+		sink = newLegacyInFlightCompatibilityAsyncSink(sink, opts.Logger)
 	}
 	if opts.LegacyInFlightCompatibilitySampleEvery > 1 {
 		sink = &legacyInFlightCompatibilitySamplingSink{next: sink, every: opts.LegacyInFlightCompatibilitySampleEvery}
