@@ -98,7 +98,7 @@ jobs:
             sbom-contrib.spdx.json.pem > release-asset-manifest.tsv
 
       - name: Verify release artifact bundle
-        run: make release-artifact-verify
+        run: RELEASE_ARTIFACT_VERIFY_MODE=local make release-artifact-verify
 
       - name: Upload evidence and assets to draft release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # softprops/action-gh-release v2
@@ -123,3 +123,18 @@ jobs:
             release-check-summary.json
             sbom-root.spdx.json
             sbom-contrib.spdx.json
+
+      - name: Download and verify uploaded draft release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          download_dir="$(mktemp -d)"
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$download_dir" \
+            --clobber
+          RELEASE_ASSET_DIR="$download_dir" \
+            RELEASE_ARTIFACT_VERIFY_MODE=publication \
+            RELEASE_TAG="$GITHUB_REF_NAME" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            make release-artifact-verify

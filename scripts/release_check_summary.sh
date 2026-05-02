@@ -367,6 +367,40 @@ vulnerability_ids_from_log() {
   sed -nE 's/^[[:space:]]*Vulnerability #[0-9]+: (GO-[0-9-]+).*/\1/p' "$log_abs" | sort -u
 }
 
+govulncheck_imported_count_from_log() {
+  local log_path="$1"
+  local log_abs="$repo_root/$log_path"
+  local compact
+  local imported_count
+
+  if [ ! -f "$log_abs" ]; then
+    printf 'null'
+    return 0
+  fi
+  compact="$(tr '\n' ' ' < "$log_abs")"
+  imported_count="$(printf '%s' "$compact" | sed -nE 's/.*found ([0-9]+) vulnerabilities in packages you import.*/\1/p')"
+  if [ -n "$imported_count" ]; then
+    printf '%s' "$imported_count"
+  else
+    printf 'null'
+  fi
+}
+
+vulnerability_parser_issues() {
+  local log_path="$1"
+  local ids="$2"
+  local imported_count
+
+  imported_count="$(govulncheck_imported_count_from_log "$log_path")"
+  case "$imported_count" in
+    ''|null) return 0 ;;
+    *[!0-9]*) return 0 ;;
+  esac
+  if [ "$imported_count" -gt 0 ] && [ -z "$ids" ]; then
+    printf 'govulncheck-imported-id-parser\tmissing\t\t\timported-not-called vulnerability count is positive but no GO advisory IDs were parsed from govulncheck output\n'
+  fi
+}
+
 count_issue_status() {
   local issues="$1"
   local status="$2"
@@ -498,6 +532,10 @@ contrib_drift_packages_from_log() {
         print pkg "\t" status
       }
       pkg = $2
+      status = "unknown"
+      next
+    }
+    /^Compatible changes:/ && pkg != "" {
       status = "compatible"
       next
     }
@@ -624,7 +662,7 @@ vulnerability_evidence_json() {
     status="available"
     compact="$(tr '\n' ' ' < "$log_abs")"
     called_count="$(printf '%s' "$compact" | sed -nE 's/.*Your code is affected by ([0-9]+) vulnerabilities.*/\1/p')"
-    imported_count="$(printf '%s' "$compact" | sed -nE 's/.*found ([0-9]+) vulnerabilities in packages you import.*/\1/p')"
+    imported_count="$(govulncheck_imported_count_from_log "$log_path")"
     required_count="$(printf '%s' "$compact" | sed -nE 's/.*and ([0-9]+) vulnerabilities in modules you require.*/\1/p')"
     ids="$(vulnerability_ids_from_log "$log_path")"
   fi
@@ -639,7 +677,10 @@ vulnerability_evidence_json() {
     required_count="null"
   fi
   review_date="$(release_review_date)"
-  disposition_issues="$(vulnerability_disposition_issues "$ids" "$review_date")"
+  disposition_issues="$({
+    vulnerability_disposition_issues "$ids" "$review_date"
+    vulnerability_parser_issues "$log_path" "$ids"
+  })"
   missing_count="$(count_issue_status "$disposition_issues" "missing")"
   expired_count="$(count_issue_status "$disposition_issues" "expired")"
 
@@ -793,6 +834,10 @@ publication_artifact_checksums_json() {
   printf '}'
 }
 
+if [ "${RELEASE_CHECK_SUMMARY_SOURCE_ONLY:-}" = "1" ]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 sbom_status="not_generated"
 if [ -f "$repo_root/sbom-root.spdx.json" ] && [ -f "$repo_root/sbom-contrib.spdx.json" ] && \
   [ -f "$repo_root/sbom-root.spdx.json.sig" ] && [ -f "$repo_root/sbom-contrib.spdx.json.sig" ]; then
@@ -834,7 +879,10 @@ if [ "$run_checks" = true ]; then
         overall_exit="$contrib_exit"
       else
         vuln_ids="$(vulnerability_ids_from_log "$log_dir/vuln.log")"
-        vuln_issues="$(vulnerability_disposition_issues "$vuln_ids" "$(release_review_date)")"
+        vuln_issues="$({
+          vulnerability_disposition_issues "$vuln_ids" "$(release_review_date)"
+          vulnerability_parser_issues "$log_dir/vuln.log" "$vuln_ids"
+        })"
         contrib_packages="$(contrib_drift_packages_from_log "$log_dir/contrib-api-drift-report.log")"
         contrib_issues="$(contrib_disposition_issues "$contrib_packages" "$(release_review_date)")"
       fi

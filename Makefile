@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-artifact-verify ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -70,6 +70,8 @@ docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
 	@$(MAKE) api-check-contract
 	@$(MAKE) contrib-review-contract
+	@$(MAKE) release-artifact-verify-contract
+	@$(MAKE) release-evidence-parser-contract
 
 fmt: ## Run gofmt and rewrite formatted Go files
 	@set -e; for mod in $(MODULES); do \
@@ -184,8 +186,17 @@ release-evidence: ## Run release readiness and write release-check-summary.json
 	mv "$$tmp" release-check-summary.json || { rm -f "$$tmp"; exit 1; }; \
 	exit $$status
 
+release-review-summary: ## Print reviewer decision fields from release-check-summary.json
+	@bash scripts/release_review_summary.sh "$${RELEASE_SUMMARY:-release-check-summary.json}"
+
 release-artifact-verify: ## Verify downloaded draft release assets, checksums, SBOM signatures, and retained logs
 	@bash scripts/release_artifact_verify.sh "$${RELEASE_ASSET_DIR:-.}"
+
+release-artifact-verify-contract: ## Run release artifact verifier contract tests
+	@bash scripts/release_artifact_verify_contract_test.sh
+
+release-evidence-parser-contract: ## Run release evidence parser contract tests
+	@bash scripts/release_evidence_parser_contract_test.sh
 
 ci-build-smoke: ## Build root and contrib modules via the local CI build target
 	$(MAKE) .codeql-local-build
