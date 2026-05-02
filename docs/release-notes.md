@@ -99,12 +99,14 @@ source of truth is `docs/release-runbook.md`.
   `GITHUB_REPOSITORY`, real Sigstore material, and online attestation checks.
 - The release workflow now prints `make release-review-summary` output after
   clean evidence is generated and before release artifact verification steps.
-- The current
-  `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders`
-  incompatible report-only drift is intentionally kept for v2: exported
-  middleware/config values are no longer comparable because lifecycle and
-  trusted-proxy fields are required for safer behavior. This does not make
-  contrib stable.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders` now
+  requires explicit dangerous-bypass opt-in and trusted-proxy configuration
+  when enabled, while keeping exported config and middleware values comparable
+  for v2 source compatibility.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now keeps the
+  existing `NewPrometheusRecorder` signature for v2 source compatibility and
+  adds `NewPrometheusRecorderChecked` for callers that want collector
+  registration conflicts returned as errors.
 - Idempotency mixed-version compatibility metrics now expose only bounded
   `method`, `store_class`, and `outcome` labels. Raw paths, idempotency keys,
   key hashes, and error strings remain available only on structured events for
@@ -125,9 +127,8 @@ source of truth is `docs/release-runbook.md`.
   guidance helps migration review but does not extend the stable v2 API promise
   to contrib.
 - For `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders`,
-  stop relying on exported config or middleware value comparability. Construct
-  fresh values from configuration and compare explicit semantic fields in tests
-  instead of comparing whole structs.
+  set `AllowDangerousDevBypasses` and `TrustedProxies` explicitly when enabling
+  debug-header auth. `TrustedProxies` is a comma-separated CIDR list.
 - V3 preparation guidance is now consolidated in
   `docs/v3-compatibility-roadmap.md`: use `compat/billing` or app-owned billing
   ports, database stats snapshots, `httpx` or package-local response helpers,

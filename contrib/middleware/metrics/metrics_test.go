@@ -43,14 +43,14 @@ func TestNewDefaults(t *testing.T) {
 	}
 }
 
-func TestNewPrometheusRecorderReusesRegisteredCollectors(t *testing.T) {
+func TestNewPrometheusRecorderCheckedReusesRegisteredCollectors(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	first, err := NewPrometheusRecorder(reg, nil)
+	first, err := NewPrometheusRecorderChecked(reg, nil)
 	if err != nil {
 		t.Fatalf("new prometheus recorder: %v", err)
 	}
-	second, err := NewPrometheusRecorder(reg, nil)
+	second, err := NewPrometheusRecorderChecked(reg, nil)
 	if err != nil {
 		t.Fatalf("new prometheus recorder: %v", err)
 	}
@@ -82,14 +82,14 @@ func TestNewPrometheusRecorderReusesRegisteredCollectors(t *testing.T) {
 	}
 }
 
-func TestNewPrometheusRecorderReusesRegisteredCollectorsWithDefaultRegisterer(t *testing.T) {
+func TestNewPrometheusRecorderCheckedReusesRegisteredCollectorsWithDefaultRegisterer(t *testing.T) {
 	reg := withDefaultPrometheusRegistry(t)
 
-	first, err := NewPrometheusRecorder(nil, nil)
+	first, err := NewPrometheusRecorderChecked(nil, nil)
 	if err != nil {
 		t.Fatalf("new prometheus recorder: %v", err)
 	}
-	second, err := NewPrometheusRecorder(nil, nil)
+	second, err := NewPrometheusRecorderChecked(nil, nil)
 	if err != nil {
 		t.Fatalf("new prometheus recorder: %v", err)
 	}
@@ -120,14 +120,14 @@ func TestNewPrometheusRecorderReusesRegisteredCollectorsWithDefaultRegisterer(t 
 	}
 }
 
-func TestNewPrometheusRecorderReturnsConflictErrorWithCustomRegisterer(t *testing.T) {
+func TestNewPrometheusRecorderCheckedReturnsConflictErrorWithCustomRegisterer(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "http_requests_total",
 		Help: "Total number of HTTP requests",
 	}, []string{"method", "route", "status"}))
 
-	recorder, err := NewPrometheusRecorder(reg, nil)
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
 	if err == nil {
 		t.Fatal("expected registration conflict error")
 	}
@@ -142,14 +142,14 @@ func TestNewPrometheusRecorderReturnsConflictErrorWithCustomRegisterer(t *testin
 	}
 }
 
-func TestNewPrometheusRecorderReturnsConflictErrorWithDefaultRegisterer(t *testing.T) {
+func TestNewPrometheusRecorderCheckedReturnsConflictErrorWithDefaultRegisterer(t *testing.T) {
 	withDefaultPrometheusRegistry(t)
 	prometheus.MustRegister(prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_request_duration_seconds",
 		Help: "HTTP request duration in seconds",
 	}, []string{"method", "route", "status"}))
 
-	recorder, err := NewPrometheusRecorder(nil, nil)
+	recorder, err := NewPrometheusRecorderChecked(nil, nil)
 	if err == nil {
 		t.Fatal("expected registration conflict error")
 	}

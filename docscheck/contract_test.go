@@ -405,7 +405,7 @@ func TestContribReviewScriptsAreDocumented(t *testing.T) {
 		}
 	}
 	if !strings.Contains(manifest, contribModulePath+"/middleware/auth/devheaders") {
-		t.Fatal("contrib drift manifest must include the current incompatible report-only devheaders package")
+		t.Fatal("contrib drift manifest must include the current devheaders drift package")
 	}
 }
 
@@ -524,12 +524,8 @@ func TestContribAPIDriftDispositionManifest(t *testing.T) {
 		requireISODate(t, "reviewed_on for "+pkg, record["reviewed_on"])
 		requireISODate(t, "expires_on for "+pkg, record["expires_on"])
 	}
-	if !hasIncompatible {
-		t.Fatal("contrib drift disposition manifest must include the current incompatible report-only drift class")
-	}
-	if !strings.Contains(releaseNotes, "contrib/middleware/auth/devheaders") ||
-		!strings.Contains(strings.ToLower(releaseNotes), "incompatible") {
-		t.Fatal("release notes must contain package-tied incompatible contrib drift acknowledgement")
+	if hasIncompatible && !strings.Contains(strings.ToLower(releaseNotes), "incompatible") {
+		t.Fatal("release notes must contain package-tied incompatible contrib drift acknowledgement when incompatible drift is present")
 	}
 	for _, source := range []struct {
 		name string

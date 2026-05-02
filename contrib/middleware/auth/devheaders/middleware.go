@@ -22,15 +22,15 @@ type Config struct {
 	DefaultLanguage string
 	// AllowDangerousDevBypasses must be explicitly enabled for debug-header auth.
 	AllowDangerousDevBypasses bool
-	// TrustedProxies lists the direct peers allowed to supply debug auth headers.
-	TrustedProxies []string
+	// TrustedProxies is a comma-separated list of direct peers allowed to supply
+	// debug auth headers.
+	TrustedProxies string
 }
 
 // Middleware injects an auth subject in local environments without a JWT provider.
 type Middleware struct {
-	cfg      Config
-	log      ports.Logger
-	resolver identity.Resolver
+	cfg Config
+	log ports.Logger
 }
 
 // New constructs the middleware.
@@ -43,14 +43,14 @@ func New(cfg Config, log ports.Logger) (*Middleware, error) {
 	cfg.FirstNameHeader = strings.TrimSpace(cfg.FirstNameHeader)
 	cfg.LastNameHeader = strings.TrimSpace(cfg.LastNameHeader)
 	cfg.DefaultLanguage = strings.TrimSpace(cfg.DefaultLanguage)
+	cfg.TrustedProxies = strings.TrimSpace(cfg.TrustedProxies)
 	if cfg.Enabled && cfg.UserIDHeader == "" {
 		return nil, errors.New("user id header is required when dev auth is enabled")
 	}
-	resolver, err := trustedProxyResolver(cfg)
-	if err != nil {
+	if _, err := trustedProxyResolver(cfg); err != nil {
 		return nil, err
 	}
-	return &Middleware{cfg: cfg, log: log, resolver: resolver}, nil
+	return &Middleware{cfg: cfg, log: log}, nil
 }
 
 // Handler attaches a subject from debug headers if JWT auth is disabled.
@@ -74,7 +74,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			})
 			return
 		}
-		if !m.resolver.TrustsRemoteAddr(r.RemoteAddr) {
+		if !m.trustsRemoteAddr(r.RemoteAddr) {
 			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "development auth headers are not allowed from untrusted remote addresses",
@@ -112,7 +112,7 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !m.resolver.TrustsRemoteAddr(r.RemoteAddr) {
+		if !m.trustsRemoteAddr(r.RemoteAddr) {
 			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "development auth headers are not allowed from untrusted remote addresses",
@@ -138,7 +138,7 @@ func trustedProxyResolver(cfg Config) (identity.Resolver, error) {
 	if !cfg.AllowDangerousDevBypasses {
 		return identity.Resolver{}, errors.New("dangerous dev bypasses must be explicitly allowed when dev auth is enabled")
 	}
-	prefixes, err := identity.ParseTrustedProxies(cfg.TrustedProxies)
+	prefixes, err := identity.ParseTrustedProxies(splitTrustedProxies(cfg.TrustedProxies))
 	if err != nil {
 		return identity.Resolver{}, fmt.Errorf("dev auth trusted proxies: %w", err)
 	}
@@ -146,4 +146,27 @@ func trustedProxyResolver(cfg Config) (identity.Resolver, error) {
 		return identity.Resolver{}, errors.New("trusted proxies are required when dev auth is enabled")
 	}
 	return identity.Resolver{TrustedProxies: prefixes}, nil
+}
+
+func (m *Middleware) trustsRemoteAddr(remoteAddr string) bool {
+	resolver, err := trustedProxyResolver(m.cfg)
+	if err != nil {
+		return false
+	}
+	return resolver.TrustsRemoteAddr(remoteAddr)
+}
+
+func splitTrustedProxies(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := parts[:0]
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

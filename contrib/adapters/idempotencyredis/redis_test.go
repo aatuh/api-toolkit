@@ -216,9 +216,9 @@ func TestStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 	events := make([]LegacyInFlightRecoveryEvent, 0, 1)
 	store := New(client, Options{
 		KeyPrefix: "idem:",
-		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+		OnLegacyInFlightRecovery: LegacyInFlightRecoveryHandlerFunc(func(_ context.Context, event LegacyInFlightRecoveryEvent) {
 			events = append(events, event)
-		},
+		}),
 	})
 	ctx := context.Background()
 	key := "order:legacy-recovery"
@@ -269,9 +269,9 @@ func TestStoreReleaseReportsLegacyRecoveryTokenMismatch(t *testing.T) {
 	events := make([]LegacyInFlightRecoveryEvent, 0, 1)
 	store := New(client, Options{
 		KeyPrefix: "idem:",
-		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+		OnLegacyInFlightRecovery: LegacyInFlightRecoveryHandlerFunc(func(_ context.Context, event LegacyInFlightRecoveryEvent) {
 			events = append(events, event)
-		},
+		}),
 	})
 	ctx := context.Background()
 	key := "order:legacy-recovery-mismatch"
@@ -366,9 +366,9 @@ func TestStoreReleaseReservationRawKeyRequiresOptIn(t *testing.T) {
 	store := New(client, Options{
 		KeyPrefix:                    "idem:",
 		LegacyInFlightRecoveryRawKey: true,
-		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+		OnLegacyInFlightRecovery: LegacyInFlightRecoveryHandlerFunc(func(_ context.Context, event LegacyInFlightRecoveryEvent) {
 			events = append(events, event)
-		},
+		}),
 	})
 	ctx := context.Background()
 	key := "order:raw-key"
