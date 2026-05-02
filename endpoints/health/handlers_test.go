@@ -212,6 +212,48 @@ func TestRegisterRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestRegisterAdminDetailedHealthRouteRequiresWrapper(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+	if err := handler.RegisterAdminDetailedHealthRoute(&stubRouteRegistrar{}, nil); err == nil {
+		t.Fatal("expected error for missing admin wrapper")
+	}
+}
+
+func TestRegisterAdminDetailedHealthRouteWrapsDetailedHealth(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+	router := &stubRouteRegistrar{}
+	wrapped := 0
+	err := handler.RegisterAdminDetailedHealthRoute(router, func(next http.Handler) http.Handler {
+		wrapped++
+		return next
+	})
+	if err != nil {
+		t.Fatalf("register admin detailed health: %v", err)
+	}
+	if wrapped != 1 {
+		t.Fatalf("wrapped = %d, want 1", wrapped)
+	}
+	if len(router.patterns) != 1 || router.patterns[0] != specs.HealthDetailed {
+		t.Fatalf("registered patterns = %v, want [%s]", router.patterns, specs.HealthDetailed)
+	}
+}
+
 func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         time.Second,

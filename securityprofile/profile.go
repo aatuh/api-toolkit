@@ -29,6 +29,7 @@ type options struct {
 	enableQueryGuard bool
 	timeout          time.Duration
 	enableTimeout    bool
+	hardTimeout      bool
 	rateLimit        ratelimit.Options
 	enableRateLimit  bool
 	requireAuth      bool
@@ -55,6 +56,7 @@ type RouteOverride struct {
 	QueryLimitsEnabled *bool
 	Timeout            *time.Duration
 	TimeoutEnabled     *bool
+	HardTimeout        *bool
 	RateLimit          *ratelimit.Options
 	RateLimitEnabled   *bool
 }
@@ -87,6 +89,18 @@ func WithTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.timeout = d
 		o.enableTimeout = true
+		o.hardTimeout = false
+	}
+}
+
+// WithHardTimeout sets a hard wall-clock response timeout. It still propagates
+// a request context deadline, and it also sends a 504 Problem Details response
+// when a handler ignores cancellation long enough to exceed the deadline.
+func WithHardTimeout(d time.Duration) Option {
+	return func(o *options) {
+		o.timeout = d
+		o.enableTimeout = true
+		o.hardTimeout = true
 	}
 }
 
@@ -237,6 +251,7 @@ func New(opts ...Option) (Profile, error) {
 		enableQueryGuard: cfg.enableQueryGuard,
 		timeout:          cfg.timeout,
 		enableTimeout:    cfg.enableTimeout,
+		hardTimeout:      cfg.hardTimeout,
 		rateLimit:        cfg.rateLimit,
 		enableRateLimit:  cfg.enableRateLimit,
 		resolver:         cfg.resolver,
@@ -321,6 +336,7 @@ type limitConfig struct {
 	enableQueryGuard bool
 	timeout          time.Duration
 	enableTimeout    bool
+	hardTimeout      bool
 	rateLimit        ratelimit.Options
 	enableRateLimit  bool
 	resolver         identity.Resolver
@@ -408,6 +424,9 @@ func mergeOverride(base limitConfig, override RouteOverride) limitConfig {
 	if override.TimeoutEnabled != nil {
 		cfg.enableTimeout = *override.TimeoutEnabled
 	}
+	if override.HardTimeout != nil {
+		cfg.hardTimeout = *override.HardTimeout
+	}
 	if override.RateLimit != nil {
 		cfg.rateLimit = *override.RateLimit
 		cfg.enableRateLimit = true
@@ -429,7 +448,15 @@ func normalizeLimitConfig(cfg limitConfig) limitConfig {
 func buildLimitChain(cfg limitConfig) (func(http.Handler) http.Handler, error) {
 	chain := make([]func(http.Handler) http.Handler, 0, 4)
 	if cfg.enableTimeout && cfg.timeout > 0 {
-		mw, err := timeoutmw.New(timeoutmw.Options{Timeout: cfg.timeout})
+		var mw interface {
+			Middleware() func(http.Handler) http.Handler
+		}
+		var err error
+		if cfg.hardTimeout {
+			mw, err = timeoutmw.NewHard(timeoutmw.Options{Timeout: cfg.timeout})
+		} else {
+			mw, err = timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
+		}
 		if err != nil {
 			return nil, fmt.Errorf("timeout middleware: %w", err)
 		}

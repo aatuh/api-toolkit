@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -181,6 +182,23 @@ func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 	if h.detailedHealthEnabled() {
 		router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
 	}
+}
+
+// RegisterAdminDetailedHealthRoute registers only the detailed health route
+// behind an explicit authorization or internal-network wrapper. Passing nil
+// fails closed so operator-only dependency detail cannot be mounted without
+// policy.
+func (h *Handler) RegisterAdminDetailedHealthRoute(router ports.MethodRouteRegistrar, requireAdmin func(http.Handler) http.Handler) error {
+	if h == nil || router == nil {
+		return nil
+	}
+	if requireAdmin == nil {
+		return errors.New("detailed health admin route requires an authorization wrapper")
+	}
+	if h.detailedHealthEnabled() {
+		router.Get(specs.HealthDetailed, requireAdmin(http.HandlerFunc(h.DetailedHealthHandler)).ServeHTTP)
+	}
+	return nil
 }
 
 // RegisterCustomRoutes registers health endpoints with custom paths.

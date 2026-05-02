@@ -100,31 +100,36 @@ The contrib module is outside the stable API compatibility promise for v2.
 `github.com/aatuh/api-toolkit/v2`; it does not cover
 `github.com/aatuh/api-toolkit/contrib/v2`.
 
-`docs/package-classification.tsv` classifies contrib packages as experimental,
-wrapper-only, test-only, example-only, generated, tooling, or excluded. Adapters
-and middleware in contrib are supported as maintained implementations, but their
-exported Go API may change in minor releases when adapter dependencies,
-provider behavior, or security requirements make that necessary. Integrations
-are convenience wrappers and have no independent compatibility contract beyond
-the adapter behavior they delegate to. Examples, generated example code,
-commands, and test-support packages are not public API commitments.
+`docs/package-classification.tsv` classifies contrib packages as
+supported-adapter, experimental, wrapper-only, test-only, example-only,
+generated, tooling, or excluded. Supported-adapter packages are maintained
+runtime implementations for common production wiring such as Postgres, Redis,
+Stripe, OpenTelemetry, request logging, metrics, CORS, OpenAPI validation, and
+bootstrap composition. They are still outside the stable core API promise, but
+minor releases should avoid incompatible exported API drift unless a security,
+provider, or dependency requirement makes that unavoidable. Integrations are
+convenience wrappers and have no independent compatibility contract beyond the
+adapter behavior they delegate to. Examples, generated example code, commands,
+and test-support packages are not public API commitments.
 
 If a contrib package is promoted to stable in a future release line, add a
 `release-contrib-api-check` gate before changing its classification to stable.
-Until then, `make contrib-api-drift-report` is intentionally report-only: it
-compares selected high-use contrib adapters and integrations against an explicit
-baseline so maintainers can review drift, release notes, and migration guidance
-without turning contrib into stable API. Local release evidence archives this
-report and summarizes compatible and incompatible drift counts for reviewer
-visibility.
+Until then, `make contrib-api-drift-report` compares selected high-use contrib
+adapters and integrations against an explicit baseline without turning contrib
+into stable API. supported-adapter incompatible drift fails this gate and
+requires a major-release policy decision, reclassification, or an intentional
+compatibility plan. Experimental and wrapper-only drift remains report-only
+review evidence. Local release evidence archives this report and summarizes
+compatible, incompatible, and enforced drift counts for reviewer visibility.
 
-Contrib adapter and integration changes that alter public behavior should update
-`docs/release-notes.md`. `make contrib-release-notes-check` is a lightweight
-review gate for that policy and requires explicit acknowledgement when
-report-only drift is incompatible; it is not a substitute for human
-compatibility judgment. `make release-check` and `make release-evidence` include
-that gate so unacknowledged incompatible report-only drift cannot be published by
-the normal release path.
+Contrib supported-tier adapter, integration, middleware, bootstrap, and
+telemetry changes that alter public behavior should update
+`docs/release-notes.md` with migration notes or an explicit no-user-impact
+rationale. `make contrib-release-notes-check` is a lightweight review gate for
+that policy and requires explicit acknowledgement when report-only drift is
+incompatible; it is not a substitute for human compatibility judgment. `make
+release-check` and `make release-evidence` include that gate so unacknowledged
+incompatible report-only drift cannot be published by the normal release path.
 
 ## Deprecation policy
 
@@ -144,9 +149,9 @@ command source of truth. `make api-check` is a local compatibility helper.
 `make release-evidence` runs the release-readiness subchecks through the
 evidence writer and writes `release-check-summary.json` schema v2.
 `make release-evidence` runs the release-readiness subchecks through the evidence writer.
-`make contrib-api-drift-report` is intentionally report-only.
+`make contrib-api-drift-report` enforces supported-adapter incompatible drift.
 `make contrib-release-notes-check` is a lightweight review gate for contrib
-adapter and integration behavior notes.
+adapter, integration, middleware, bootstrap, and telemetry behavior notes.
 
 Publication evidence must come from a clean worktree with
 `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local

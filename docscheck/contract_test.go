@@ -69,7 +69,7 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 	goMod := strings.Join([]string{
 		"module example.com/my-api",
 		"",
-		"go 1.24.0",
+		"go 1.25.0",
 		"",
 		"require (",
 		"\t" + rootModulePath + "/v2 v2.0.0",
@@ -306,13 +306,14 @@ func TestContribPackageClassificationAndCompatibilityPolicy(t *testing.T) {
 	packages := listedGoPackages(t, filepath.Join(repoRoot, "contrib"))
 
 	assertClassifiedPackages(t, "contrib", packages, classes, contribModulePath, map[string]bool{
-		"experimental": true,
-		"wrapper-only": true,
-		"test-only":    true,
-		"example-only": true,
-		"generated":    true,
-		"tooling":      true,
-		"excluded":     true,
+		"supported-adapter": true,
+		"experimental":      true,
+		"wrapper-only":      true,
+		"test-only":         true,
+		"example-only":      true,
+		"generated":         true,
+		"tooling":           true,
+		"excluded":          true,
 	})
 
 	var stable []string
@@ -331,8 +332,9 @@ func TestContribPackageClassificationAndCompatibilityPolicy(t *testing.T) {
 		"The contrib module is outside the stable API compatibility promise",
 		"`make release-api-check` covers only the core module",
 		"`docs/package-classification.tsv`",
+		"supported-adapter",
 		"release-contrib-api-check",
-		"`make contrib-api-drift-report` is intentionally report-only",
+		"supported-adapter incompatible drift fails this gate",
 		"`make contrib-release-notes-check` is a lightweight",
 	} {
 		if !strings.Contains(versioning, required) {
@@ -408,18 +410,62 @@ func TestContribAPIDriftPackageManifest(t *testing.T) {
 		if !ok {
 			t.Fatalf("drift manifest package %s is missing from docs/package-classification.tsv", pkg)
 		}
-		if cls.APIStatus != "experimental" && cls.APIStatus != "wrapper-only" {
-			t.Fatalf("drift manifest package %s has api_status=%s, want experimental or wrapper-only", pkg, cls.APIStatus)
+		if cls.APIStatus != "supported-adapter" && cls.APIStatus != "experimental" && cls.APIStatus != "wrapper-only" {
+			t.Fatalf("drift manifest package %s has api_status=%s, want supported-adapter, experimental, or wrapper-only", pkg, cls.APIStatus)
 		}
 	}
 	for _, required := range []string{
 		contribModulePath + "/adapters/pgxpool",
+		contribModulePath + "/adapters/idempotencyredis",
 		contribModulePath + "/adapters/stripe",
+		contribModulePath + "/bootstrap",
 		contribModulePath + "/integrations/auth/devheaders",
+		contribModulePath + "/middleware/cors",
+		contribModulePath + "/middleware/metrics",
+		contribModulePath + "/middleware/openapi",
+		contribModulePath + "/middleware/oteltrace",
+		contribModulePath + "/middleware/requestlog",
 		contribModulePath + "/middleware/auth/devheaders",
+		contribModulePath + "/telemetry",
 	} {
 		if !containsString(manifestPackages, required) {
 			t.Fatalf("drift manifest missing high-use package %s", required)
+		}
+	}
+}
+
+func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	rootGo := moduleGoDirective(t, filepath.Join(repoRoot, "go.mod"))
+	contribGo := moduleGoDirective(t, filepath.Join(repoRoot, "contrib", "go.mod"))
+	if rootGo != "1.25.0" || contribGo != rootGo {
+		t.Fatalf("module go directives drifted: root=%s contrib=%s; supported policy is Go 1.25.x", rootGo, contribGo)
+	}
+
+	for _, path := range []string{
+		filepath.Join(repoRoot, ".github", "workflows", "ci.yml"),
+		filepath.Join(repoRoot, ".github", "workflows", "codeql.yml"),
+		filepath.Join(repoRoot, ".github", "workflows", "release.yml"),
+	} {
+		content := readText(t, path)
+		for _, version := range workflowGoVersions(content) {
+			if version != "1.25.x" {
+				t.Fatalf("%s provisions Go %s, want 1.25.x to match module policy", slashRel(repoRoot, path), version)
+			}
+		}
+	}
+
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readText(t, filepath.Join(repoRoot, "README.md"))},
+		{"docs/release-runbook.md", readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))},
+	} {
+		for _, required := range []string{"Go 1.25.x", "`GOTOOLCHAIN=local`", "root and contrib"} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing toolchain policy text %q", source.name, required)
+			}
 		}
 	}
 }
@@ -651,7 +697,7 @@ func TestMakefileGateIntent(t *testing.T) {
 	}
 	contribReport := makeTargetRecipe(t, makefile, "contrib-api-drift-report")
 	if !strings.Contains(contribReport, "scripts/contrib_api_drift_report.sh") {
-		t.Fatal("contrib-api-drift-report must call the report-only contrib API drift script")
+		t.Fatal("contrib-api-drift-report must call the contrib API drift script")
 	}
 	contribNotes := makeTargetRecipe(t, makefile, "contrib-release-notes-check")
 	if !strings.Contains(contribNotes, "scripts/contrib_release_notes_check.sh") {
@@ -1835,7 +1881,7 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		"`make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline",
 		"`make release-check` is the release-readiness gate",
 		"`make release-evidence` runs the release-readiness subchecks through the evidence",
-		"`make contrib-api-drift-report` is intentionally report-only",
+		"`make contrib-api-drift-report` enforces supported-adapter incompatible drift",
 		"`make contrib-release-notes-check` is a lightweight",
 	} {
 		if !strings.Contains(versioning, required) {
@@ -2708,6 +2754,18 @@ func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packag
 		"excluded":             true,
 		"needs-tests":          true,
 	}
+	allowedAPIStatuses := map[string]bool{
+		"stable":             true,
+		"compatibility-only": true,
+		"supported-adapter":  true,
+		"experimental":       true,
+		"wrapper-only":       true,
+		"test-only":          true,
+		"example-only":       true,
+		"generated":          true,
+		"tooling":            true,
+		"excluded":           true,
+	}
 
 	for lineNo, raw := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(raw)
@@ -2730,6 +2788,9 @@ func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packag
 		if !allowedTestStatuses[cls.TestStatus] {
 			t.Fatalf("docs/package-classification.tsv:%d: unknown test_status %q", lineNo+1, cls.TestStatus)
 		}
+		if !allowedAPIStatuses[cls.APIStatus] {
+			t.Fatalf("docs/package-classification.tsv:%d: unknown api_status %q", lineNo+1, cls.APIStatus)
+		}
 		if _, exists := classes[cls.ImportPath]; exists {
 			t.Fatalf("docs/package-classification.tsv:%d: duplicate import path %s", lineNo+1, cls.ImportPath)
 		}
@@ -2739,6 +2800,45 @@ func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packag
 		t.Fatal("docs/package-classification.tsv has no classifications")
 	}
 	return classes
+}
+
+func moduleGoDirective(t *testing.T, path string) string {
+	t.Helper()
+
+	for _, line := range strings.Split(readText(t, path), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "go" {
+			return fields[1]
+		}
+	}
+	t.Fatalf("%s missing go directive", path)
+	return ""
+}
+
+func workflowGoVersions(content string) []string {
+	pattern := regexp.MustCompile(`go-version:\s*(?:\$\{\{\s*matrix\.go-version\s*\}\}|['"]?([0-9]+\.[0-9]+\.x)['"]?)`)
+	matrixPattern := regexp.MustCompile(`go-version:\s*\[([^\]]+)\]`)
+	matrixVersion := ""
+	if match := matrixPattern.FindStringSubmatch(content); len(match) == 2 {
+		for _, value := range strings.Split(match[1], ",") {
+			value = strings.Trim(strings.TrimSpace(value), `"'`)
+			if value != "" {
+				matrixVersion = value
+				break
+			}
+		}
+	}
+	var versions []string
+	for _, match := range pattern.FindAllStringSubmatch(content, -1) {
+		version := match[1]
+		if version == "" {
+			version = matrixVersion
+		}
+		if version != "" {
+			versions = append(versions, version)
+		}
+	}
+	return versions
 }
 
 func contribDriftManifestPackages(t *testing.T, repoRoot string) []string {

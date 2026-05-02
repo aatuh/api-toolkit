@@ -21,6 +21,11 @@ go get github.com/aatuh/api-toolkit/v2
 go get github.com/aatuh/api-toolkit/contrib/v2
 ```
 
+Supported development and CI toolchain policy: root and contrib target Go 1.25.x.
+Local and release gates should run with `GOTOOLCHAIN=local` so drift
+between module `go` directives, GitHub Actions setup, and release evidence is
+visible before publication.
+
 ## Start here
 
 - Tutorial: [docs/getting-started.md](docs/getting-started.md)
@@ -114,7 +119,7 @@ Keep this landing page as a pointer, not a second release runbook.
 - Publication evidence requires `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` from a clean worktree.
 - `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.
-- `make release-api-check`, `make contrib-api-drift-report`, and `make contrib-release-notes-check` are explained in the runbook.
+- `make release-api-check`, `make contrib-api-drift-report`, and `make contrib-release-notes-check` are explained in the runbook. Supported-adapter contrib packages are still outside the stable core API promise, but incompatible public API drift in that tier fails the contrib drift gate.
 
 ### Adapter coverage policy
 

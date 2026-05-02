@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Report-only public API drift check for selected contrib packages.
+# Public API drift check for selected contrib packages. Supported-adapter
+# incompatible drift is gate-enforced; experimental and wrapper-only drift
+# remains report-only review evidence.
 set -euo pipefail
 
 base_ref="${CONTRIB_API_BASE_REF:-${API_BASE_REF:-}}"
@@ -47,6 +49,17 @@ if [ "${#packages[@]}" -eq 0 ]; then
   exit 2
 fi
 
+contrib_api_status() {
+  local repo_root="$1"
+  local pkg="$2"
+  local classification="$repo_root/docs/package-classification.tsv"
+  if [ ! -f "$classification" ]; then
+    printf 'unknown\n'
+    return
+  fi
+  awk -F '\t' -v pkg="$pkg" '$1 == pkg { print $2; found=1; exit } END { if (!found) print "unknown" }' "$classification"
+}
+
 worktree="$(mktemp -d)"
 tmpdir="$(mktemp -d)"
 cleanup() {
@@ -60,15 +73,16 @@ if [ -f "$worktree/contrib/go.mod" ]; then
   (cd "$worktree/contrib" && go mod tidy)
 fi
 
-echo "Contrib API drift report (report-only)"
+echo "Contrib API drift report"
 echo "Baseline: $base_ref"
 echo "Package manifest: $manifest"
-echo "Policy: contrib remains outside the stable v2 API promise; review drift for release notes and migration guidance."
+echo "Policy: contrib remains outside the stable v2 API promise; supported-adapter incompatible drift fails this gate, while experimental and wrapper-only drift remains review evidence."
 
 drift_count=0
 skip_count=0
 compatible_drift_count=0
 incompatible_drift_count=0
+enforced_incompatible_drift_count=0
 for pkg in "${packages[@]}"; do
   rel="${pkg#github.com/aatuh/api-toolkit/contrib/v2}"
   rel="${rel#/}"
@@ -102,6 +116,9 @@ for pkg in "${packages[@]}"; do
   drift_count=$((drift_count + 1))
   if printf '%s\n' "$diff_output" | grep -qi '^Incompatible changes:'; then
     incompatible_drift_count=$((incompatible_drift_count + 1))
+    if [ "$(contrib_api_status "$repo_root" "$pkg")" = "supported-adapter" ]; then
+      enforced_incompatible_drift_count=$((enforced_incompatible_drift_count + 1))
+    fi
   else
     compatible_drift_count=$((compatible_drift_count + 1))
   fi
@@ -109,5 +126,9 @@ for pkg in "${packages[@]}"; do
   printf '%s\n' "$diff_output"
 done
 
-echo "Report complete: drift_packages=$drift_count skipped_packages=$skip_count compatible_drift_packages=$compatible_drift_count incompatible_drift_packages=$incompatible_drift_count"
+echo "Report complete: drift_packages=$drift_count skipped_packages=$skip_count compatible_drift_packages=$compatible_drift_count incompatible_drift_packages=$incompatible_drift_count enforced_incompatible_drift_packages=$enforced_incompatible_drift_count"
+if [ "$enforced_incompatible_drift_count" -gt 0 ]; then
+  echo "Supported contrib adapter incompatible API drift requires a major-release policy decision or explicit reclassification." >&2
+  exit 1
+fi
 exit 0

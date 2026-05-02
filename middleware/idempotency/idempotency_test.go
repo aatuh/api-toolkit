@@ -175,6 +175,45 @@ func TestIdempotencyEmitsLegacyCompatibilityEventsWithoutStoreCallbacks(t *testi
 	}
 }
 
+func TestLegacyCompatibilityAsyncSinkDropsWhenQueueIsFull(t *testing.T) {
+	block := make(chan struct{})
+	log := &captureLogger{}
+	sink := newLegacyInFlightCompatibilityAsyncSink(LegacyInFlightCompatibilitySinkFunc(func(context.Context, LegacyInFlightCompatibilityEvent) {
+		<-block
+	}), log)
+
+	for i := 0; i < legacyInFlightCompatibilityAsyncQueueSize*2; i++ {
+		sink.Emit(context.Background(), LegacyInFlightCompatibilityEvent{
+			Method:  http.MethodPost,
+			Path:    "/charge",
+			Outcome: LegacyInFlightCompatibilityEntered,
+		})
+	}
+
+	if sink.dropped.Load() == 0 {
+		t.Fatal("expected bounded async sink to drop events when queue is full")
+	}
+	if log.WarnCount() == 0 {
+		t.Fatal("expected drop warning")
+	}
+	if got := log.LastWarnMessage(); !strings.Contains(got, "telemetry dropped") {
+		t.Fatalf("expected drop warning, got %q", got)
+	}
+	close(block)
+}
+
+func TestLegacyCompatibilityAsyncSinkRecoversFromSinkPanic(t *testing.T) {
+	sink := newLegacyInFlightCompatibilityAsyncSink(LegacyInFlightCompatibilitySinkFunc(func(context.Context, LegacyInFlightCompatibilityEvent) {
+		panic("boom")
+	}), &captureLogger{})
+
+	sink.Emit(context.Background(), LegacyInFlightCompatibilityEvent{
+		Method:  http.MethodPost,
+		Path:    "/charge",
+		Outcome: LegacyInFlightCompatibilityEntered,
+	})
+}
+
 func TestIdempotencyWarnsOnLegacyInflightClockSkewRisk(t *testing.T) {
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()

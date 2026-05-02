@@ -42,7 +42,7 @@ without scanning the root README.
 | [Release review checklist](release-review.md) | Release reviewers | Short path through summary fields, manifests, dirty-tree decisions, artifacts, and release notes. |
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
-| `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected report-only contrib packages reviewed by drift checks. |
+| `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |
 | `docs/contrib-api-drift-dispositions.tsv` | Release reviewers and automation | Owner, status, review date, expiry, and acknowledgement for current contrib drift. |
 | `docs/vulnerability-dispositions.tsv` | Release reviewers and automation | Owner, review, expiry, and upgrade trigger rows for imported-only vulnerability IDs when present. |
 | `release-check-summary.json` | Release reviewers | Generated local release evidence summary; only clean publication evidence is publishable. |
@@ -60,6 +60,10 @@ Use the narrowest check that matches the change:
 
 Do not treat `make finalize` as release evidence. Release publication evidence is
 owned by [release-runbook.md](release-runbook.md).
+
+If the local Go version is not Go 1.25.x, `GOTOOLCHAIN=local` failures are
+expected. Install the supported toolchain or use the repository CI image before
+running root and contrib gates.
 
 ## Canonical high-centrality paths
 

@@ -6,6 +6,10 @@ maintenance rule.
 
 Supported v2 release baseline: `v2.0.1`.
 
+Supported Go toolchain: Go 1.25.x for root and contrib. Release and reviewer
+commands use `GOTOOLCHAIN=local` to ensure the module `go` directives and
+GitHub Actions setup stay compatible with the provisioned local toolchain.
+
 ## Baseline maintenance rule
 
 This runbook owns the supported `API_BASE_REF` baseline for v2 releases. When
@@ -28,8 +32,8 @@ baseline table in another document.
 | `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Report-only selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable. |
-| `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for contrib adapter/integration behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
+| `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for supported contrib adapter/integration/middleware behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
 | `make release-artifact-verify-fixture` | Synthetic local verifier fixture. | Builds a throwaway release asset bundle and runs the local verifier path; this is not publication verification. |
 | `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations. |
 
@@ -83,7 +87,8 @@ Local release evidence is the developer/auditor tier. It contains:
 - `.ci-result/release-evidence/release-evidence-logs.tgz` for retained log
   review in the GitHub draft release.
 - `.ci-result/release-evidence/logs/contrib-api-drift-report.log` for the
-  report-only contrib drift review output; this does not make contrib stable.
+  contrib drift review output; supported-adapter incompatible drift is
+  gate-enforced, and this does not make contrib stable.
 - `docs/contrib-api-drift-dispositions.tsv` for owner, status, review, and
   expiry disposition of current drift packages.
 - `docs/release-manifests.md` for the human review guide covering package
