@@ -24,8 +24,9 @@ Use this as the short reviewer path before publishing a release.
   synthetic fixture only, not publication evidence.
 - Review `.ci-result/release-evidence/logs/contrib-api-drift-report.log` and the
   `contrib_drift` summary; compare drift packages with
-  `docs/contrib-api-drift-dispositions.tsv`. Contrib drift is report-only and
-  does not make contrib stable.
+  `docs/contrib-api-drift-dispositions.tsv`. Supported-adapter incompatible
+  drift is gate-enforced; experimental and wrapper-only drift remains
+  report-only review evidence. This does not make contrib stable.
 - Use `docs/release-manifests.md` for the human guide to
   `docs/package-classification.tsv`, `docs/contrib-api-drift-packages.txt`,
   `docs/contrib-api-drift-dispositions.tsv`, and
@@ -122,6 +123,6 @@ Verification checklist:
 | --- | --- |
 | `status=passed`, `publication_eligible=true`, `provenance_policy.status=passed`, `git_state.dirty=false` | Accept as local publication evidence after artifact and release-note review. |
 | `status=passed`, `publication_eligible=false`, `provenance_policy.status=allowed_dirty_local_audit` | Use for audit context only; rerun clean before publishing. |
-| `contrib_drift.incompatible_drift_count>0` | Confirm `docs/release-notes.md` explicitly acknowledges incompatible report-only contrib drift. |
+| `contrib_drift.incompatible_drift_count>0` | Confirm supported-adapter incompatible drift was resolved or explicitly accepted by a major-release policy decision; for report-only experimental or wrapper-only drift, confirm `docs/release-notes.md` acknowledges the affected package. |
 | `vulnerability_evidence.imported_not_called_vulnerability_count>0` | Review `docs/dependency-risk.md`, `docs/vulnerability-dispositions.tsv`, and the vuln log; do not fail solely because findings are imported but not called. |
 | `sbom_status=not_generated` in local evidence | Expected locally; verify draft-release SBOMs, signatures, certificates, and attestations in GitHub before publishing. |

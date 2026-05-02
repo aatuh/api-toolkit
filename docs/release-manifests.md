@@ -8,7 +8,7 @@ machine-readable manifests that support release and documentation checks.
 | Manifest | Owner | Review expectation |
 | --- | --- | --- |
 | `docs/package-classification.tsv` | Maintainers of public API and test posture. | Every root and contrib Go package has one row with API status, test status, and a rationale note. Stable and compatibility-only root packages must match `VERSIONING.md` and `scripts/apicheck.sh`. |
-| `docs/contrib-api-drift-packages.txt` | Contrib maintainers. | Lists selected high-use contrib packages reviewed by `make contrib-api-drift-report`; the report is a review signal and does not make contrib stable. |
+| `docs/contrib-api-drift-packages.txt` | Contrib maintainers. | Lists selected high-use contrib packages reviewed by `make contrib-api-drift-report`; supported-adapter incompatible drift is gate-enforced, experimental and wrapper-only drift remains report-only review evidence, and this does not make contrib stable. |
 | `docs/contrib-api-drift-dispositions.tsv` | Release reviewers and package owners. | Current drift packages need status, reason, release-note acknowledgement, review date, expiry date, and owner. Incompatible drift must have a package-tied release note. |
 | `docs/vulnerability-dispositions.tsv` | Security and release reviewers. | Imported-but-not-called vulnerability IDs need owning dependency, affected module/package, called status, review date, expiry date, owner, and upgrade trigger. The file can be header-only when current imported-only evidence is zero. |
 
@@ -31,5 +31,5 @@ machine-readable manifests that support release and documentation checks.
 ## Maintenance notes
 
 - Keep package-classification notes short but specific enough for future reviewers to understand why smoke, generated, tooling, test-support, or excluded status is acceptable.
-- Keep contrib drift package selection focused on high-use adapters and integrations; do not use it to imply a stable contrib API promise.
+- Keep contrib drift package selection focused on high-use adapters and integrations; supported-adapter incompatible drift is gate-enforced, but do not use it to imply a stable contrib API promise.
 - Keep vulnerability dispositions tied to current evidence. Remove stale advisory rows after dependencies are upgraded and current evidence no longer reports the ID.

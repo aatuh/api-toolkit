@@ -14,6 +14,8 @@ type Router interface {
 }
 
 // RegisterRoutes wires the default pprof handlers on the provided router.
+// Deprecated: prefer RegisterAdminRoutes for new admin mounts so an explicit
+// authorization or internal-network wrapper is required.
 func RegisterRoutes(r Router) {
 	registerRoutes(r, nil)
 }

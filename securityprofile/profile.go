@@ -95,7 +95,10 @@ func WithTimeout(d time.Duration) Option {
 
 // WithHardTimeout sets a hard wall-clock response timeout. It still propagates
 // a request context deadline, and it also sends a 504 Problem Details response
-// when a handler ignores cancellation long enough to exceed the deadline.
+// when a handler ignores cancellation long enough to exceed the deadline. The
+// underlying hard-timeout middleware buffers responses and is not appropriate
+// for streaming, websocket upgrades, or handlers that need optional
+// http.ResponseWriter interfaces.
 func WithHardTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.timeout = d

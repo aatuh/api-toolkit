@@ -213,11 +213,30 @@ func TestHealthDocsShowSafeDetailedHealthMounting(t *testing.T) {
 	for _, required := range []string{
 		"Mount detailed health and pprof routes behind admin/internal access control",
 		"operator-only dependency detail",
-		"adminMux.Handle",
+		"RegisterAdminDetailedHealthRoute",
+		"pprof.RegisterAdminRoutes",
 		"requireAdmin",
 	} {
 		if !strings.Contains(section, required) {
 			t.Fatalf("README health contract missing safe detailed-health guidance %q", required)
+		}
+	}
+}
+
+func TestPublicDocsDoNotTeachPolicyFreeAdminMounts(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	for _, mdPath := range append([]string{filepath.Join(repoRoot, "README.md")}, markdownFilesUnder(t, filepath.Join(repoRoot, "docs"))...) {
+		for _, block := range markdownCodeBlocks(readText(t, mdPath)) {
+			if strings.Contains(block, "pprof.RegisterRoutes(") {
+				rel, _ := filepath.Rel(repoRoot, mdPath)
+				t.Fatalf("%s code block teaches policy-free pprof mounting", rel)
+			}
+			if strings.Contains(block, "EnableDetailed: true") &&
+				(strings.Contains(block, ".RegisterRoutes(") || strings.Contains(block, ".RegisterRoutesTo(") || strings.Contains(block, ".RegisterCustomRoutes")) &&
+				!strings.Contains(block, "RegisterAdminDetailedHealthRoute") {
+				rel, _ := filepath.Rel(repoRoot, mdPath)
+				t.Fatalf("%s code block teaches policy-free detailed-health mounting", rel)
+			}
 		}
 	}
 }
@@ -1286,10 +1305,132 @@ func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
 		"idempotency response capture",
 		"### Compatibility shim removal",
 		"Keep v2 source compatibility intact until the v3 branch",
+		"Idempotency compatibility telemetry labels",
+		"Hard-timeout response capture",
+		"Admin endpoint registration ergonomics",
 	} {
 		if !strings.Contains(roadmap, required) {
 			t.Fatalf("docs/v3-compatibility-roadmap.md missing %q", required)
 		}
+	}
+}
+
+func TestIdempotencyCompatibilityMetricDocsStayBounded(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	docs := readText(t, filepath.Join(repoRoot, "docs", "metrics.md"))
+	section := markdownSection(t, docs, "## Idempotency compatibility telemetry")
+	code := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "legacy_compatibility.go"))
+
+	for _, required := range []string{
+		"`method`",
+		"`store_class`",
+		"`outcome`",
+		"Do not add raw paths",
+		"key hashes",
+		"structured logs or traces",
+		"bounded queue",
+	} {
+		if !strings.Contains(section, required) {
+			t.Fatalf("docs/metrics.md missing idempotency metric guidance %q", required)
+		}
+	}
+	if !strings.Contains(code, "legacyInFlightCompatibilityEventStoreClassLabel") {
+		t.Fatal("idempotency compatibility metrics must expose store_class, not raw store types")
+	}
+	for _, forbidden := range []string{
+		"legacyInFlightCompatibilityEventPathLabel:      event.Path",
+		"legacyInFlightCompatibilityEventKeyLabel:       event.Key",
+		"legacyInFlightCompatibilityEventErrorLabel:     event.Error",
+	} {
+		if strings.Contains(code, forbidden) {
+			t.Fatalf("MetricLabels still exposes unbounded compatibility label expression %q", forbidden)
+		}
+	}
+}
+
+func TestHardTimeoutDocsCoverCaptureAndStreamingLimits(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	code := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "timeout.go"))
+	doc := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "doc.go"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+
+	for _, required := range []string{
+		"MaxCaptureBytes",
+		"defaultHardTimeoutMaxCaptureBytes",
+		"ErrHardTimeoutCaptureLimitExceeded",
+		"defaultHardTimeoutCaptureOverflowProblem",
+	} {
+		if !strings.Contains(code, required) {
+			t.Fatalf("middleware/timeout missing capture limit implementation %q", required)
+		}
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"middleware/timeout/doc.go", doc},
+		{"docs/security.md", security},
+	} {
+		for _, required := range []string{"streaming", "server-sent events", "websocket", "http.ResponseWriter"} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing hard-timeout streaming/interface limitation %q", source.name, required)
+			}
+		}
+	}
+}
+
+func TestContribGovernanceDocsDescribeSupportedAdapterDriftConsistently(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	required := []string{
+		"supported-adapter incompatible drift is gate-enforced",
+		"does not make contrib stable",
+	}
+	for _, rel := range []string{
+		"README.md",
+		filepath.Join("docs", "release-runbook.md"),
+		filepath.Join("docs", "release-review.md"),
+		filepath.Join("docs", "release-notes.md"),
+		filepath.Join("docs", "release-manifests.md"),
+	} {
+		text := readText(t, filepath.Join(repoRoot, rel))
+		normalized := strings.ToLower(normalizeWhitespace(text))
+		for _, phrase := range required {
+			if !strings.Contains(normalized, strings.ToLower(phrase)) {
+				t.Fatalf("%s missing contrib governance phrase %q", rel, phrase)
+			}
+		}
+	}
+}
+
+func TestSupportedAdapterPackagesAreInContribDriftManifest(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	manifest := readText(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-packages.txt"))
+	manifestSet := map[string]bool{}
+	for _, line := range strings.Split(manifest, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		manifestSet[line] = true
+	}
+
+	var missing []string
+	for _, line := range strings.Split(classification, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 || fields[1] != "supported-adapter" {
+			continue
+		}
+		if !manifestSet[fields[0]] {
+			missing = append(missing, fields[0])
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("supported-adapter packages missing from docs/contrib-api-drift-packages.txt:\n%s", strings.Join(missing, "\n"))
 	}
 }
 
@@ -1623,6 +1764,10 @@ func markdownTableRows(section string) [][]string {
 		rows = append(rows, parts)
 	}
 	return rows
+}
+
+func normalizeWhitespace(text string) string {
+	return strings.Join(strings.Fields(text), " ")
 }
 
 func TestV3DebtChecklistRowsStayExecutable(t *testing.T) {

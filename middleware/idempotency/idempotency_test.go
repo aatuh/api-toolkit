@@ -664,11 +664,8 @@ func TestIdempotencyCanEmitLegacyCompatibilityMetricSink(t *testing.T) {
 	if sinkEvents[0][legacyInFlightCompatibilityEventMethodLabel] != http.MethodPost {
 		t.Fatalf("expected metric method %q, got %q", http.MethodPost, sinkEvents[0][legacyInFlightCompatibilityEventMethodLabel])
 	}
-	if sinkEvents[0][legacyInFlightCompatibilityEventPathLabel] != "/charge" {
-		t.Fatalf("expected metric path %q, got %q", "/charge", sinkEvents[0][legacyInFlightCompatibilityEventPathLabel])
-	}
-	if sinkEvents[0][legacyInFlightCompatibilityEventStoreTypeLabel] == "" {
-		t.Fatal("expected metric store_type")
+	if sinkEvents[0][legacyInFlightCompatibilityEventStoreClassLabel] == "" {
+		t.Fatal("expected metric store_class")
 	}
 	if sinkEvents[0][legacyInFlightCompatibilityEventOutcomeLabel] != string(LegacyInFlightCompatibilityEntered) {
 		t.Fatalf("expected entered outcome, got %q", sinkEvents[0][legacyInFlightCompatibilityEventOutcomeLabel])
@@ -676,8 +673,51 @@ func TestIdempotencyCanEmitLegacyCompatibilityMetricSink(t *testing.T) {
 	if sinkEvents[1][legacyInFlightCompatibilityEventOutcomeLabel] != string(LegacyInFlightCompatibilityRecovered) {
 		t.Fatalf("expected recovered outcome, got %q", sinkEvents[1][legacyInFlightCompatibilityEventOutcomeLabel])
 	}
-	if expectedKey := legacyInFlightCompatibilityEventKey(key, false); sinkEvents[0][legacyInFlightCompatibilityEventKeyLabel] != expectedKey {
-		t.Fatalf("expected hashed key %q, got %q", expectedKey, sinkEvents[0][legacyInFlightCompatibilityEventKeyLabel])
+	for _, forbidden := range []string{
+		legacyInFlightCompatibilityEventPathLabel,
+		legacyInFlightCompatibilityEventKeyLabel,
+		legacyInFlightCompatibilityEventErrorLabel,
+	} {
+		if _, ok := sinkEvents[0][forbidden]; ok {
+			t.Fatalf("metric labels must not include unbounded label %q", forbidden)
+		}
+	}
+}
+
+func TestLegacyCompatibilityMetricLabelsStayBounded(t *testing.T) {
+	event := LegacyInFlightCompatibilityEvent{
+		Method:    "PROPFIND",
+		Path:      "/tenant/acme/users/123?token=secret",
+		Key:       "raw-or-hashed-key",
+		StoreType: "github.com/example/customTenantStore",
+		Outcome:   LegacyInFlightCompatibilityEventName("tenant-controlled-outcome"),
+		Error:     "user supplied error with account id 123",
+	}
+
+	labels := event.MetricLabels()
+	want := map[string]string{
+		legacyInFlightCompatibilityEventMethodLabel:     "OTHER",
+		legacyInFlightCompatibilityEventStoreClassLabel: "custom",
+		legacyInFlightCompatibilityEventOutcomeLabel:    "unknown",
+	}
+	if len(labels) != len(want) {
+		t.Fatalf("expected only bounded metric labels %v, got %v", want, labels)
+	}
+	for key, value := range want {
+		if labels[key] != value {
+			t.Fatalf("expected metric label %s=%q, got %q", key, value, labels[key])
+		}
+	}
+	for _, forbidden := range []string{
+		legacyInFlightCompatibilityEventPathLabel,
+		legacyInFlightCompatibilityEventKeyLabel,
+		legacyInFlightCompatibilityEventErrorLabel,
+		"request_id",
+		"tenant_id",
+	} {
+		if _, ok := labels[forbidden]; ok {
+			t.Fatalf("metric labels must not include unbounded label %q", forbidden)
+		}
 	}
 }
 
@@ -742,8 +782,8 @@ func TestIdempotencyCanSampleCompatibilitySinkTrafficInHighVolumeMode(t *testing
 		if event[legacyInFlightCompatibilityEventMethodLabel] != http.MethodPost {
 			t.Fatalf("sampled event %d expected post method, got %q", idx, event[legacyInFlightCompatibilityEventMethodLabel])
 		}
-		if event[legacyInFlightCompatibilityEventPathLabel] != "/charge" {
-			t.Fatalf("sampled event %d expected path %q, got %q", idx, "/charge", event[legacyInFlightCompatibilityEventPathLabel])
+		if _, ok := event[legacyInFlightCompatibilityEventPathLabel]; ok {
+			t.Fatalf("sampled event %d included unbounded path metric label", idx)
 		}
 	}
 }

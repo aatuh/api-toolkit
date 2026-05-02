@@ -88,6 +88,16 @@ source of truth is `docs/release-runbook.md`.
   middleware/config values are no longer comparable because lifecycle and
   trusted-proxy fields are required for safer behavior. This does not make
   contrib stable.
+- Idempotency mixed-version compatibility metrics now expose only bounded
+  `method`, `store_class`, and `outcome` labels. Raw paths, idempotency keys,
+  key hashes, and error strings remain available only on structured events for
+  logs or traces.
+- `middleware/timeout.NewHard` now enforces a bounded response capture size with
+  a 1 MiB default. Oversized captured responses return Problem Details instead
+  of silently truncating successful responses.
+- Admin endpoint docs now steer new pprof and detailed-health mounts toward
+  fail-closed registration helpers while preserving legacy source-compatible
+  helpers for v2 callers.
 
 ### Upgrade notes
 
