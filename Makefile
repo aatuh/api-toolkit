@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -191,6 +191,9 @@ release-review-summary: ## Print reviewer decision fields from release-check-sum
 
 release-artifact-verify: ## Verify downloaded draft release assets, checksums, SBOM signatures, and retained logs
 	@bash scripts/release_artifact_verify.sh "$${RELEASE_ASSET_DIR:-.}"
+
+release-artifact-verify-fixture: ## Exercise release artifact verification against a synthetic local fixture
+	@bash scripts/release_artifact_verify_fixture.sh
 
 release-artifact-verify-contract: ## Run release artifact verifier contract tests
 	@bash scripts/release_artifact_verify_contract_test.sh

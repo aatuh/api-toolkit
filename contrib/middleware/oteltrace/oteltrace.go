@@ -13,7 +13,6 @@ import (
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 const (
@@ -77,7 +76,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 		start := m.clock.Now()
-		ww := response_writer.Wrap(w)
+		ww := wrapResponseWriter(w)
 		ctx, span := m.tracer.Start(ctx, spanName(r.Method, ""), trace.WithSpanKind(trace.SpanKindServer))
 		defer span.End()
 

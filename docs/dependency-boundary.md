@@ -22,3 +22,14 @@ These dependencies belong in `contrib/go.mod`, not root `go.mod`:
 - `middleware/idempotency` root tests use the package-local in-memory test store for middleware flow, migration recovery, telemetry, and rollout preflight behavior.
 - `contrib/adapters/idempotencytest` owns reusable adapter release-contract coverage for token-aware release behavior, legacy tokenless recovery, completed-record preservation, ambiguous-record preservation, and token mismatch handling.
 - Redis- and memory-adapter contract tests live under `contrib/adapters/...`, where Redis and miniredis are already legitimate contrib module dependencies.
+- Maintained idempotency stores are `contrib/adapters/idempotency` and
+  `contrib/adapters/idempotencyredis`; both use the shared contract suite for
+  token-aware release, legacy missing-token cleanup, token mismatch handling,
+  completed-record preservation, and ambiguous-record preservation.
+- Store-level migration telemetry labels remain explicit:
+  `legacy_in_flight_recovered` and `legacy_in_flight_token_mismatch`. Middleware
+  rollout telemetry labels remain explicit:
+  `legacy_in_flight_fallback_entered`,
+  `legacy_in_flight_fallback_recovered`,
+  `legacy_in_flight_fallback_rejected`, and
+  `legacy_in_flight_fallback_unknown`.

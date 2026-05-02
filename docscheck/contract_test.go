@@ -1087,7 +1087,7 @@ func TestDependencyRiskDispositionDocs(t *testing.T) {
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
 	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
 	risk := readText(t, filepath.Join(repoRoot, "docs", "dependency-risk.md"))
-	manifestRecords := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv"))
+	manifest := strings.TrimSpace(readText(t, filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv")))
 
 	if !strings.Contains(readme, "docs/dependency-risk.md") {
 		t.Fatal("README missing dependency risk documentation link")
@@ -1102,9 +1102,13 @@ func TestDependencyRiskDispositionDocs(t *testing.T) {
 		t.Fatal("release review checklist missing vulnerability disposition manifest link")
 	}
 	for _, required := range []string{
-		"Current imported-but-not-called count: `3`",
+		"Current imported-but-not-called count: `0`",
 		"Owner decision",
 		"Upgrade plan",
+		"V39 advisory ownership map",
+		"GO-2026-4762",
+		"GO-2026-4771",
+		"GO-2026-4772",
 		"docs/vulnerability-dispositions.tsv",
 		"release-check-summary.json",
 		".ci-result/release-evidence/logs/vuln.log",
@@ -1115,14 +1119,19 @@ func TestDependencyRiskDispositionDocs(t *testing.T) {
 			t.Fatalf("docs/dependency-risk.md missing %q", required)
 		}
 	}
-	if len(manifestRecords) == 0 {
-		t.Fatal("docs/vulnerability-dispositions.tsv has no imported-only vulnerability disposition rows")
+	if strings.Contains(manifest, "\n") {
+		t.Fatal("docs/vulnerability-dispositions.tsv should be header-only while current imported-only count is zero")
 	}
 }
 
 func TestVulnerabilityDispositionManifestSupportsDynamicImportedIDs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	records := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv"))
+	manifestPath := filepath.Join(repoRoot, "docs", "vulnerability-dispositions.tsv")
+	manifest := strings.TrimSpace(readText(t, manifestPath))
+	var records []map[string]string
+	if strings.Contains(manifest, "\n") {
+		records = loadTSVRecords(t, manifestPath)
+	}
 	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
 
 	for _, record := range records {
@@ -1253,6 +1262,8 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	for _, required := range []string{
 		"release-review-summary",
 		"scripts/release_review_summary.sh",
+		"release-artifact-verify-fixture",
+		"scripts/release_artifact_verify_fixture.sh",
 		"release-artifact-verify-contract",
 		"release-evidence-parser-contract",
 	} {
@@ -1270,6 +1281,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	} {
 		for _, required := range []string{
 			"make release-review-summary",
+			"make release-artifact-verify-fixture",
 			"RELEASE_ARTIFACT_VERIFY_MODE=publication",
 			"RELEASE_TAG",
 			"GITHUB_REPOSITORY",
@@ -1333,6 +1345,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"vuln-unexpected.log",
 		"contrib-compatible.log",
 		"contrib-incompatible.log",
+		"contrib-mixed.log",
 		"contrib-none.log",
 		"contrib-skipped.log",
 		"contrib-malformed.log",
@@ -1389,11 +1402,14 @@ func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 	}
 	sort.Strings(importers)
 	if len(importers) == 0 {
-		t.Fatal("response_writer inventory should be removed only after no imports remain")
-	}
-	for _, importer := range importers {
-		if !strings.Contains(inventory, "`"+importer+"`") {
-			t.Fatalf("docs/response-writer-inventory.md missing current importer %s", importer)
+		if !strings.Contains(inventory, "No current root or contrib runtime package imports") {
+			t.Fatal("docs/response-writer-inventory.md must record that current runtime imports are cleared")
+		}
+	} else {
+		for _, importer := range importers {
+			if !strings.Contains(inventory, "`"+importer+"`") {
+				t.Fatalf("docs/response-writer-inventory.md missing current importer %s", importer)
+			}
 		}
 	}
 	for _, required := range []string{

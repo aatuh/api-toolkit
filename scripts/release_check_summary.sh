@@ -667,6 +667,13 @@ vulnerability_evidence_json() {
     imported_count="$(govulncheck_imported_count_from_log "$log_path")"
     required_count="$(printf '%s' "$compact" | sed -nE 's/.*and ([0-9]+) vulnerabilities in modules you require.*/\1/p')"
     ids="$(vulnerability_ids_from_log "$log_path")"
+    if [ -z "$ids" ] && grep -q "No vulnerabilities found." "$log_abs" && ! grep -q "^Vulnerability #" "$log_abs"; then
+      called_count="${called_count:-0}"
+      if [ -z "$imported_count" ] || [ "$imported_count" = "null" ]; then
+        imported_count="0"
+      fi
+      required_count="${required_count:-0}"
+    fi
   fi
 
   if [ -z "$called_count" ]; then

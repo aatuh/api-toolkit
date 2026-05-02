@@ -16,6 +16,9 @@ Use this as the short reviewer path before publishing a release.
 - Run `RELEASE_SUMMARY=release-check-summary.json make release-review-summary`
   to print the same decision fields from one command before walking the detailed
   evidence.
+- If draft release assets are unavailable and you only need to exercise verifier
+  behavior locally, run `make release-artifact-verify-fixture`. Treat it as a
+  synthetic fixture only, not publication evidence.
 - Review `.ci-result/release-evidence/logs/contrib-api-drift-report.log` and the
   `contrib_drift` summary; compare drift packages with
   `docs/contrib-api-drift-dispositions.tsv`. Contrib drift is report-only and

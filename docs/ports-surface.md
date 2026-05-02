@@ -72,6 +72,13 @@ Database stats compatibility symbols:
 - If you do want the current hosted-checkout and invoicing model in v2, import `github.com/aatuh/api-toolkit/v2/compat/billing` instead of the deprecated billing exports in `ports`.
 - If you only need database observability data, depend on `DatabasePoolSnapshotProvider`, adapter `StatSnapshot()` methods, or `SnapshotDatabasePoolStats` instead of the legacy `DatabaseStats` interface.
 - Do not add more provider-specific billing fields or more driver-specific database counters to core `ports` in v2 unless compatibility requires it.
+- New examples must not introduce deprecated `ports` billing symbols; use
+  `compat/billing` when demonstrating the existing hosted-checkout model, or
+  define an app-owned port when the example is provider-neutral.
+- New database examples must prefer `DatabasePoolSnapshotProvider`,
+  `SnapshotDatabasePoolStats`, `SnapshotDatabaseStats`, or adapter
+  `StatSnapshot()` methods. Direct `DatabasePool.Stat` examples belong only in
+  compatibility or adapter internals.
 
 ## V3 cleanup checklist
 

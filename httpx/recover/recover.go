@@ -9,7 +9,6 @@ import (
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 type config struct {
@@ -75,7 +74,7 @@ func New(opts ...Option) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ww := response_writer.Wrap(w)
+			ww := wrapResponseWriter(w)
 			defer func() {
 				if rec := recover(); rec != nil {
 					if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {

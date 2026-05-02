@@ -14,7 +14,6 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	coretrace "github.com/aatuh/api-toolkit/v2/middleware/trace"
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 const (
@@ -198,7 +197,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := m.clock.Now()
-		ww := response_writer.Wrap(w)
+		ww := wrapResponseWriter(w)
 		defer func() {
 			rec := recover()
 			status := ww.Status()
@@ -214,7 +213,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 	})
 }
 
-func (m *Middleware) logRequest(r *http.Request, ww *response_writer.Writer, start time.Time, status int, panicValue any) {
+func (m *Middleware) logRequest(r *http.Request, ww *responseRecorder, start time.Time, status int, panicValue any) {
 	route := ""
 	if m.opts.RoutePattern != nil {
 		route = m.opts.RoutePattern(r)
