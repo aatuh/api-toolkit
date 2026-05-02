@@ -10,12 +10,12 @@ import (
 	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 )
 
-func TestAliasesExposeNonComparableDevHeaderSurface(t *testing.T) {
-	if reflect.TypeOf(Config{}).Comparable() {
-		t.Fatal("integration Config alias should expose the non-comparable devheaders Config surface")
+func TestAliasesExposeComparableDevHeaderSurface(t *testing.T) {
+	if !reflect.TypeOf(Config{}).Comparable() {
+		t.Fatal("integration Config alias should expose the comparable devheaders Config surface")
 	}
-	if reflect.TypeOf((*Middleware)(nil)).Elem().Comparable() {
-		t.Fatal("integration Middleware alias should expose the non-comparable devheaders Middleware surface")
+	if !reflect.TypeOf((*Middleware)(nil)).Elem().Comparable() {
+		t.Fatal("integration Middleware alias should expose the comparable devheaders Middleware surface")
 	}
 }
 
@@ -34,10 +34,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.AllowDangerousDevBypasses {
 		t.Fatal("expected dangerous dev bypasses to default disabled")
 	}
-	if len(cfg.TrustedProxies) != 2 {
-		t.Fatalf("TrustedProxies len = %d, want %d", len(cfg.TrustedProxies), 2)
-	}
-	if cfg.TrustedProxies[0] != "127.0.0.1/32" || cfg.TrustedProxies[1] != "::1/128" {
+	if cfg.TrustedProxies != "127.0.0.1/32,::1/128" {
 		t.Fatalf("TrustedProxies = %#v, want loopback defaults", cfg.TrustedProxies)
 	}
 }
@@ -51,10 +48,7 @@ func TestLoadConfigEnvOverrides(t *testing.T) {
 	if !cfg.AllowDangerousDevBypasses {
 		t.Fatal("expected dangerous dev bypasses enabled from env")
 	}
-	if len(cfg.TrustedProxies) != 2 {
-		t.Fatalf("TrustedProxies len = %d, want %d", len(cfg.TrustedProxies), 2)
-	}
-	if cfg.TrustedProxies[0] != "10.0.0.0/8" || cfg.TrustedProxies[1] != "192.168.0.0/16" {
+	if cfg.TrustedProxies != "10.0.0.0/8, 192.168.0.0/16" {
 		t.Fatalf("TrustedProxies = %#v, want configured values", cfg.TrustedProxies)
 	}
 }
@@ -73,7 +67,7 @@ func TestNewEnabledConfigRequiresDangerousBypassOptIn(t *testing.T) {
 	_, err := New(Config{
 		Enabled:        true,
 		UserIDHeader:   "X-Debug-User",
-		TrustedProxies: []string{"127.0.0.1/32"},
+		TrustedProxies: "127.0.0.1/32",
 	}, nil)
 	if err == nil {
 		t.Fatal("expected enabled dev headers to require dangerous bypass opt-in")
@@ -89,7 +83,7 @@ func TestHandlerPropagatesConfiguredHeaders(t *testing.T) {
 		LastNameHeader:            "X-Last",
 		DefaultLanguage:           "sv",
 		AllowDangerousDevBypasses: true,
-		TrustedProxies:            []string{"127.0.0.1/32"},
+		TrustedProxies:            "127.0.0.1/32",
 	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

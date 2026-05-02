@@ -93,7 +93,17 @@ var ErrIncompatibleCollectorRegistration = errors.New("metrics: incompatible col
 // NewPrometheusRecorder wires counters and histograms with standard names.
 // Consumers may pass a custom registerer (e.g. for testing). When nil, the
 // default Prometheus registerer is used.
-func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) (*PrometheusRecorder, error) {
+func NewPrometheusRecorder(registerer prometheus.Registerer, buckets []float64) *PrometheusRecorder {
+	recorder, err := NewPrometheusRecorderChecked(registerer, buckets)
+	if err != nil {
+		panic(err)
+	}
+	return recorder
+}
+
+// NewPrometheusRecorderChecked wires counters and histograms with standard names
+// and returns registration conflicts instead of panicking.
+func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []float64) (*PrometheusRecorder, error) {
 	reg := registerer
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer

@@ -45,7 +45,20 @@ type LegacyInFlightRecoveryEvent struct {
 
 // LegacyInFlightRecoveryHandler is invoked when a tokenless legacy recovery
 // branch is encountered. Keep handlers fast and non-blocking.
-type LegacyInFlightRecoveryHandler func(context.Context, LegacyInFlightRecoveryEvent)
+type LegacyInFlightRecoveryHandler interface {
+	HandleLegacyInFlightRecovery(context.Context, LegacyInFlightRecoveryEvent)
+}
+
+// LegacyInFlightRecoveryHandlerFunc adapts a function into a
+// LegacyInFlightRecoveryHandler.
+type LegacyInFlightRecoveryHandlerFunc func(context.Context, LegacyInFlightRecoveryEvent)
+
+// HandleLegacyInFlightRecovery calls f when f is not nil.
+func (f LegacyInFlightRecoveryHandlerFunc) HandleLegacyInFlightRecovery(ctx context.Context, event LegacyInFlightRecoveryEvent) {
+	if f != nil {
+		f(ctx, event)
+	}
+}
 
 // Options configures Redis-backed idempotency storage.
 type Options struct {
@@ -253,7 +266,7 @@ func (s *Store) emitLegacyInFlightRecovery(ctx context.Context, key string, outc
 	if s.legacyRecoveryRawKey {
 		rawKey = strings.TrimSpace(key)
 	}
-	s.onLegacyInFlightRecovery(ctx, LegacyInFlightRecoveryEvent{
+	s.onLegacyInFlightRecovery.HandleLegacyInFlightRecovery(ctx, LegacyInFlightRecoveryEvent{
 		Key:     eventKey,
 		KeyHash: legacyInFlightRecoveryEventKey(key, false),
 		RawKey:  rawKey,

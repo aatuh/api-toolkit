@@ -17,8 +17,6 @@ func LoadConfig(loader *config.Loader) Config {
 		LastNameHeader:            loader.String("DEV_AUTH_LAST_NAME_HEADER", "X-Debug-Last-Name"),
 		DefaultLanguage:           loader.String("DEV_AUTH_DEFAULT_LANGUAGE", "fi"),
 		AllowDangerousDevBypasses: loader.Bool("DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES", false),
-		TrustedProxies: config.SplitCSV(
-			loader.String("DEV_AUTH_TRUSTED_PROXIES", defaultTrustedDevAuthProxies),
-		),
+		TrustedProxies:            loader.String("DEV_AUTH_TRUSTED_PROXIES", defaultTrustedDevAuthProxies),
 	}
 }

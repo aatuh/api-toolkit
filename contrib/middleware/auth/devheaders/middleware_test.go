@@ -10,12 +10,12 @@ import (
 	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 )
 
-func TestConfigAndMiddlewareAreIntentionallyNonComparable(t *testing.T) {
-	if reflect.TypeOf(Config{}).Comparable() {
-		t.Fatal("Config should remain non-comparable while TrustedProxies is part of the exported review surface")
+func TestConfigAndMiddlewareRemainComparable(t *testing.T) {
+	if !reflect.TypeOf(Config{}).Comparable() {
+		t.Fatal("Config should remain comparable for v2 source compatibility")
 	}
-	if reflect.TypeOf(Middleware{}).Comparable() {
-		t.Fatal("Middleware should remain non-comparable while trusted proxy resolver state is embedded")
+	if !reflect.TypeOf(Middleware{}).Comparable() {
+		t.Fatal("Middleware should remain comparable for v2 source compatibility")
 	}
 }
 
@@ -29,7 +29,7 @@ func TestNewRequiresExplicitDangerousBypassOptInWhenEnabled(t *testing.T) {
 	_, err := New(Config{
 		Enabled:        true,
 		UserIDHeader:   "X-Debug-User",
-		TrustedProxies: []string{"127.0.0.1/32"},
+		TrustedProxies: "127.0.0.1/32",
 	}, nil)
 	if err == nil {
 		t.Fatal("expected error for missing dangerous bypass opt-in")
@@ -58,7 +58,7 @@ func TestHandlerRejectsUntrustedRemote(t *testing.T) {
 		Enabled:                   true,
 		UserIDHeader:              "X-Debug-User",
 		AllowDangerousDevBypasses: true,
-		TrustedProxies:            []string{"127.0.0.1/32"},
+		TrustedProxies:            "127.0.0.1/32",
 	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -91,7 +91,7 @@ func TestHandlerAttachesSubjectForTrustedRemote(t *testing.T) {
 		LastNameHeader:            "X-Debug-Last-Name",
 		DefaultLanguage:           "en",
 		AllowDangerousDevBypasses: true,
-		TrustedProxies:            []string{"127.0.0.1/32"},
+		TrustedProxies:            "127.0.0.1/32",
 	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -135,7 +135,7 @@ func TestOptionalHandlerRejectsUntrustedDebugHeaders(t *testing.T) {
 		Enabled:                   true,
 		UserIDHeader:              "X-Debug-User",
 		AllowDangerousDevBypasses: true,
-		TrustedProxies:            []string{"127.0.0.1/32"},
+		TrustedProxies:            "127.0.0.1/32",
 	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
