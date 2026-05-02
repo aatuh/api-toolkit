@@ -1,19 +1,39 @@
 name: release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   attestations: write
   contents: write
   id-token: write
 
+env:
+  API_BASE_REF: v2.0.1
+  GOTOOLCHAIN: local
+  COSIGN_CERTIFICATE_IDENTITY_REGEXP: '^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$'
+  COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
+
 jobs:
-  sbom:
+  release-preflight:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.24.x
+          check-latest: true
+
+      - name: Generate clean publication evidence
+        run: make release-evidence
+
+      - name: Verify release evidence logs archive
+        run: test -s .ci-result/release-evidence/release-evidence-logs.tgz
 
       - name: Generate SBOM (root)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # anchore/sbom-action v0
@@ -49,10 +69,46 @@ jobs:
             --output-certificate sbom-contrib.spdx.json.pem \
             sbom-contrib.spdx.json
 
-      - name: Upload SBOMs to release
+      - name: Verify SBOM signatures
+        run: |
+          cosign verify-blob \
+            --certificate sbom-root.spdx.json.pem \
+            --signature sbom-root.spdx.json.sig \
+            --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
+            --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
+            sbom-root.spdx.json
+          cosign verify-blob \
+            --certificate sbom-contrib.spdx.json.pem \
+            --signature sbom-contrib.spdx.json.sig \
+            --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
+            --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
+            sbom-contrib.spdx.json
+
+      - name: Record release asset checksums
+        run: |
+          cp .ci-result/release-evidence/release-evidence-logs.tgz release-evidence-logs.tgz
+          sha256sum \
+            release-check-summary.json \
+            release-evidence-logs.tgz \
+            sbom-root.spdx.json \
+            sbom-contrib.spdx.json \
+            sbom-root.spdx.json.sig \
+            sbom-root.spdx.json.pem \
+            sbom-contrib.spdx.json.sig \
+            sbom-contrib.spdx.json.pem > release-asset-manifest.tsv
+
+      - name: Verify release artifact bundle
+        run: make release-artifact-verify
+
+      - name: Upload evidence and assets to draft release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # softprops/action-gh-release v2
         with:
+          draft: true
+          fail_on_unmatched_files: true
           files: |
+            release-check-summary.json
+            release-evidence-logs.tgz
+            release-asset-manifest.tsv
             sbom-root.spdx.json
             sbom-contrib.spdx.json
             sbom-root.spdx.json.sig
@@ -64,5 +120,6 @@ jobs:
         uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # actions/attest-build-provenance v1
         with:
           subject-path: |
+            release-check-summary.json
             sbom-root.spdx.json
             sbom-contrib.spdx.json

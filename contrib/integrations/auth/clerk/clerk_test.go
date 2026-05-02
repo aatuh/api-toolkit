@@ -2,8 +2,12 @@ package clerk
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestLoadConfigDefaults(t *testing.T) {
@@ -38,5 +42,30 @@ func TestSubjectRoundTripAndDisabledConstructor(t *testing.T) {
 	}
 	if mw == nil {
 		t.Fatal("expected middleware instance")
+	}
+}
+
+func TestHealthCheckerNilWhenDisabledOrMissingURL(t *testing.T) {
+	if checker := HealthChecker(Config{Enabled: false, JWKSURL: "https://example.com/jwks"}, nil); checker != nil {
+		t.Fatal("expected disabled checker to be nil")
+	}
+	if checker := HealthChecker(Config{Enabled: true}, nil); checker != nil {
+		t.Fatal("expected checker with missing JWKS URL to be nil")
+	}
+}
+
+func TestHealthCheckerUsesConfiguredClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL, JWKSRefreshTimeout: time.Second}, server.Client())
+	if checker == nil {
+		t.Fatal("expected health checker")
+	}
+	result := checker.Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy {
+		t.Fatalf("status = %s, want healthy: %s", result.Status, result.Message)
 	}
 }

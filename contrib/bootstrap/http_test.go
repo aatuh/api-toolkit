@@ -307,3 +307,63 @@ func TestMountSystemEndpointsToRegistersMetricsWhenProvided(t *testing.T) {
 		}
 	}
 }
+
+func TestMountSystemEndpointsToDisablesPprofByDefault(t *testing.T) {
+	router := &stubRouteRegistrar{}
+
+	MountSystemEndpointsTo(router, SystemEndpoints{
+		Health:  health.NewHandler(nil),
+		Docs:    docs.NewHandler(nil),
+		Version: version.NewHandler(version.Config{}),
+		Pprof:   pprofStub(),
+	})
+
+	for _, route := range []string{
+		specs.PprofIndex,
+		specs.PprofCmdline,
+		specs.PprofProfile,
+		specs.PprofSymbol,
+		specs.PprofTrace,
+	} {
+		for _, got := range router.patterns {
+			if got == route {
+				t.Fatalf("unexpected pprof route on default mount: %s", route)
+			}
+		}
+	}
+}
+
+func TestMountSystemEndpointsToWithProfileEnablesPprofInDevelopment(t *testing.T) {
+	router := &stubRouteRegistrar{}
+
+	MountSystemEndpointsToWithProfile(router, SystemEndpoints{
+		Health:  health.NewHandler(nil),
+		Docs:    docs.NewHandler(nil),
+		Version: version.NewHandler(version.Config{}),
+		Pprof:   pprofStub(),
+	}, string(SystemProfileDevelopment))
+
+	expected := map[string]bool{
+		specs.PprofIndex:   false,
+		specs.PprofCmdline: false,
+		specs.PprofProfile: false,
+		specs.PprofSymbol:  false,
+		specs.PprofTrace:   false,
+	}
+	for _, route := range router.patterns {
+		if _, ok := expected[route]; ok {
+			expected[route] = true
+		}
+	}
+	for route, seen := range expected {
+		if !seen {
+			t.Fatalf("expected development profile to include pprof route: %s", route)
+		}
+	}
+}
+
+func pprofStub() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+}

@@ -33,6 +33,13 @@ defaults, and predictable wiring.
 - Security policy: `SECURITY.md`
 - Versioning and stability: `VERSIONING.md`
 - Stable ports boundary note: `docs/ports-surface.md`
+- Public package classification: `docs/package-classification.tsv`
+- Contrib drift manifest: `docs/contrib-api-drift-packages.txt`
+- Contrib drift disposition: `docs/contrib-api-drift-dispositions.tsv`
+- Dependency risk disposition: `docs/dependency-risk.md`
+- Vulnerability disposition manifest: `docs/vulnerability-dispositions.tsv`
+- V3 compatibility roadmap: `docs/v3-compatibility-roadmap.md`
+- Release review checklist: `docs/release-review.md`
 - Release notes: `docs/release-notes.md`
 - Panic policy: `PANIC_POLICY.md`
 - Metrics naming + labels policy: `docs/metrics.md`
@@ -45,7 +52,7 @@ defaults, and predictable wiring.
   - HTTPRouter, HTTPMiddleware, HTTPClient, RateLimiter
   - CORS handler, Security headers
   - Database: Pool, Tx, Rows, Row, Result, plain-value stats snapshots via `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods
-  - Database stats compatibility surface: `DatabasePool.Stat` and `DatabaseStats` remain stable in v2 but mirror pgx-style counters and should stay inside compatibility adapters
+  - Database stats compatibility surface: legacy driver-shaped pool stats remain stable in v2 and should stay inside compatibility adapters
   - Health: Manager, Checkers, Results, Summaries
   - Docs: Manager, Info, Version, OpenAPI
   - Validator
@@ -73,7 +80,7 @@ Common env vars:
 
 - HTTP helpers
   - `httpx`, `httpx/identity`, `httpx/recover`
-  - `response_writer` (legacy)
+  - legacy response writer package for v2 compatibility
   - `endpoints/list`, `endpoints/docs`, `endpoints/health`, `endpoints/pprof`, `endpoints/version`
 
 - Security profiles
@@ -130,7 +137,7 @@ Core (`github.com/aatuh/api-toolkit/v2`):
 - `ports` — core interfaces for all boundaries, plus compatibility-sensitive v2 billing and database-stats surfaces
 - `middleware/*` — json, timeout, maxbody, querylimits, ratelimit, idempotency, secure, trace, auth/authz, auth/jwt
 - `httpx`, `httpx/identity`, `httpx/recover` — JSON + error helpers and panic recovery
-- `response_writer` — legacy success JSON writer
+- legacy response writer package — retained for v2 compatibility; prefer `httpx`
 - `endpoints/*` — docs, health, pprof, version, list helpers
 - `authorization`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `fielderrors`
 
@@ -146,14 +153,21 @@ Contrib (`github.com/aatuh/api-toolkit/contrib/v2`):
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/*` are the primary reusable contrib implementations of `ports`.
 - `github.com/aatuh/api-toolkit/contrib/v2/integrations/*` are convenience wrappers for quick wiring; they may change faster than direct adapter usage.
 Recommended: import adapters directly when you need the narrowest dependency surface. The contrib module remains outside the root module's stable compatibility promise.
+- The root module keeps contrib as a test-only dependency for adapter contract coverage. Production imports from root to contrib are blocked by docscheck; run `GOTOOLCHAIN=local make fast-check` to exercise the root and contrib modules together during local development.
 
 ## Stability
 
 - Stable core package list: `VERSIONING.md` is the source of truth, and `scripts/apicheck.sh` must cover the same package list.
+- Release readiness must name the intended baseline explicitly with `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check`. Local development may use `make api-check` and its fallback base selection, but `make finalize` is not release evidence.
+- Publication evidence must be generated from a clean worktree with `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local dirty-tree audit may use `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`, but that output is not acceptable before publishing.
+- Release automation must require `status=passed`, `publication_eligible=true`, `provenance_policy.status=passed`, `git_state.dirty=false`, and zero staged/unstaged/untracked/deleted counts before accepting local publication evidence.
+- Release reviewers should start with `docs/release-review.md`, which links the runbook, release notes, stability policy, package classification, compatibility roadmap, and evidence artifacts in one path.
 - Stable migration target: `github.com/aatuh/api-toolkit/v2/compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
 - Compatibility-sensitive inside stable core: `ports` billing contracts are currently Stripe-shaped and deprecated in favor of `compat/billing`, and `ports` database stats currently mirror pgxpool-style counters. They remain stable in v2, but they should not be treated as provider-neutral interfaces, and new observability code should stay on snapshot APIs. See `docs/ports-surface.md`.
 - Experimental/unstable: the `github.com/aatuh/api-toolkit/contrib/v2` module, `integrations/*`, examples, tooling, and `middleware/auth/shared`
-- Legacy but compatibility-sensitive: `response_writer` remains part of the stable core surface, but new code should prefer `httpx`
+- Contrib drift signal: `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` reports selected contrib API drift from `docs/contrib-api-drift-packages.txt` without changing the contrib compatibility promise.
+- Release evidence includes `make contrib-release-notes-check`; incompatible report-only contrib drift must be acknowledged in release notes, but this does not make contrib stable.
+- Legacy response helpers remain part of the stable core surface for v2 compatibility, but new code should prefer `httpx`.
 
 ## Quickstart (wiring in main)
 
@@ -195,6 +209,18 @@ behaviors:
   surface as unhealthy state rather than as synthetic success.
 - When `EnableCaching` is true, checker results may be reused across health
   endpoints until `CacheDuration` expires.
+
+Safe detailed-health mounting should keep public probes separate from
+operator-only dependency detail:
+
+```go
+publicMux.Handle("/live", health.NewLivenessHandler(checker))
+publicMux.Handle("/ready", health.NewReadinessHandler(checker))
+
+adminMux.Handle("/health/details", requireAdmin(
+	health.NewDetailedHealthHandler(checker),
+))
+```
 
 ## Problem Details (RFC 9457) and success responses
 
@@ -344,6 +370,7 @@ if err != nil { /* handle */ }
 - Replays include `Idempotency-Replayed: true`.
 - `Set-Cookie` is stripped from replayed responses unless explicitly allowed.
 - Use `api-toolkit-contrib/adapters/idempotencyredis` for production storage.
+- Custom stores must keep the v2 `ports.IdempotencyReleaser.Release(ctx, key)` method for compatibility. New stores should also implement `ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)`; middleware prefers the token-aware path when available.
 
 ## Scheduler
 
@@ -605,9 +632,40 @@ See `contrib/examples/` for end-to-end wiring samples.
   - `gosec v2.25.0`
   - `govulncheck v1.2.0`
   - `apidiff v0.0.0-20260410095643-746e56fc9e2f`
-- To reproduce the repository quality gate locally, run `GOTOOLCHAIN=local make finalize`.
+- To reproduce the local implementation quality gate, run `GOTOOLCHAIN=local make finalize`.
+- For a fast non-installing local baseline, run `GOTOOLCHAIN=local make fast-check`.
 - For reviewer or audit contexts where repository files should not be rewritten,
   run `GOTOOLCHAIN=local make audit-check`.
+- `make api-check` is a local compatibility helper. It uses `API_BASE_REF`
+  when set, then `GITHUB_BASE_REF`, then `HEAD~1`, and may skip when no base
+  exists.
+- For release API compatibility only, run
+  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-api-check`.
+- `make release-api-check` is the fail-closed API-only release command.
+- For release readiness, run
+  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check`; this is the
+  command that combines the explicit API baseline with linting, vulnerability
+  checks, security checks, docs contracts, tests, race tests, and fuzz smoke
+  tests. See `docs/release-runbook.md`.
+- To produce local release evidence, run
+  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`; this reruns the
+  release-readiness subchecks and writes `release-check-summary.json` schema v2
+  with per-check command lines, exit codes, durations, log paths, tool versions,
+  artifact tiers, git working-tree state, contrib drift summary, and the same
+  explicit API baseline.
+- Release reviewers can use `docs/release-review.md` as the short checklist for
+  local evidence, workflow evidence, stability, contrib drift, and compatibility
+  review.
+- Local release evidence does not generate or sign SBOMs. Signed SBOMs,
+  certificates, and provenance attestations are GitHub release workflow
+  artifacts; the local summary records whether those release-tier files are
+  present.
+- To review contrib drift without making contrib stable, run
+  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report`.
+- To enforce the contrib release-note checklist in review, run
+  `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check`.
+- `make finalize` is not release evidence because it intentionally avoids the
+  release-only API baseline requirement.
 - `make finalize` may rewrite Go files with `fmt` and module files with `tidy`;
   prefer it before committing implementation changes, not as a read-only audit
   command.
@@ -615,17 +673,28 @@ See `contrib/examples/` for end-to-end wiring samples.
 
 ### Adapter coverage policy
 
+- `docs/package-classification.tsv` classifies packages by API stability and
+  test posture. Packages marked `needs-tests` are release blockers until they
+  receive direct tests or are reclassified with a documented reason.
 - Any adapter that persists or coordinates external state needs direct package tests, not only indirect coverage through examples or middleware.
 - This includes Redis- and database-backed adapters, scheduler run stores, transaction/pool wrappers, and provider adapters that translate third-party responses or errors.
 - Time- and state-sensitive adapter behavior must cover success, failure, and boundary cases such as TTL expiry, retry delay calculation, duplicate protection, serialization, and no-row/not-found paths.
+- New adapters require direct tests unless explicitly classified as `wrapper-only`.
 - Wrapper-only integration packages may rely on underlying adapter tests when they add no new logic; once they add defaults, translation, or lifecycle behavior, they need their own direct tests too.
+- Packages marked `wrapper-smoke-tested` must at least prove constructor/defaults,
+  interface satisfaction when applicable, disabled or nil behavior where
+  applicable, and key option propagation.
+- Packages marked `example-only` are build-smoke checked so examples keep
+  compiling, but that tier is not behavior-complete test coverage.
 - Changes to these adapter categories should not be merged until direct tests exist in the touched package and `GOTOOLCHAIN=local make finalize` is green.
 
 ## Verify releases
 
 Release SBOM signatures are published via Sigstore/cosign; verification steps
-are documented in `SECURITY.md`. Go module consumers also benefit from the
-default Go checksum database verification.
+are documented in `SECURITY.md`. Each release also attaches
+`release-check-summary.json` with the explicit API baseline, per-check command
+provenance, tool versions, log paths, and release artifact tier status. Go module
+consumers also benefit from the default Go checksum database verification.
 
 ## Recommended Usage
 

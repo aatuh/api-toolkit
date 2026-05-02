@@ -67,7 +67,7 @@ func newRouter() (http.Handler, error) {
 }
 
 func listItems(w http.ResponseWriter, r *http.Request) {
-	query, err := listx.ParseListQuery(r, listx.ListQueryConfig{
+	query, err := listx.ParseListQueryChecked(r, listx.ListQueryConfig{
 		DefaultLimit: defaultLimit,
 		MaxLimit:     maxLimit,
 	})

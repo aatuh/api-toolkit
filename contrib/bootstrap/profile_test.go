@@ -379,7 +379,7 @@ func TestProfileStrictAPIPartialWritePanicEmitsAccessLogAndMetrics(t *testing.T)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected recorder status 200, got %d", rec.Code)
 		}
-		assertSingleAccessLog(t, log.entries, http.StatusOK)
+		assertSingleAccessLog(t, log.entries, http.StatusInternalServerError)
 		assertSingleMetricsObservation(t, metrics, "200")
 	}()
 	handler.ServeHTTP(rec, req)

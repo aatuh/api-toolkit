@@ -6,4 +6,8 @@
 // importing those types from ports. All identifiers here are aliases to the
 // existing ports exports so migration stays source-compatible for the rest of
 // v2.
+//
+// This package is compatibility-sensitive, not provider-neutral. Applications
+// that need a different billing model should define an app-owned port or use a
+// dedicated adapter contract instead of widening the stable ports package.
 package billing

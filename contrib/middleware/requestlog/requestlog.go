@@ -23,6 +23,7 @@ const (
 	FieldSpanID          = "span_id"
 	FieldRoute           = "route"
 	FieldStatus          = "status"
+	FieldCommittedStatus = "committed_status"
 	FieldLatencyMS       = "latency_ms"
 	FieldMethod          = "method"
 	FieldPath            = "path"
@@ -42,6 +43,43 @@ var defaultRedactedHeaders = map[string]struct{}{
 	"proxy-authorization": {},
 	"cookie":              {},
 	"set-cookie":          {},
+	"x-access-token":      {},
+	"x-auth-token":        {},
+	"x-api-key":           {},
+	"x-bearer-token":      {},
+	"x-id-token":          {},
+	"x-refresh-token":     {},
+	"x-session-id":        {},
+	"x-session-token":     {},
+	"x-secret":            {},
+	"x-password":          {},
+	"bearer":              {},
+}
+
+var defaultRedactedPayloadFields = map[string]struct{}{
+	"authorization": {},
+	"auth":          {},
+	"x_auth":        {},
+	"api_key":       {},
+	"api_token":     {},
+	"apikey":        {},
+	"api_key_id":    {},
+	"apikeyid":      {},
+	"id_token":      {},
+	"idtoken":       {},
+	"password":      {},
+	"password_hash": {},
+	"refresh_token": {},
+	"refreshtoken":  {},
+	"secret":        {},
+	"session":       {},
+	"session_id":    {},
+	"session_token": {},
+	"sessiontoken":  {},
+	"token":         {},
+	"access_token":  {},
+	"accesstoken":   {},
+	"id":            {},
 }
 
 // Middleware logs structured request summaries.
@@ -164,7 +202,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		defer func() {
 			rec := recover()
 			status := ww.Status()
-			if rec != nil && !ww.Committed() {
+			if rec != nil {
 				status = http.StatusInternalServerError
 			}
 			m.logRequest(r, ww, start, status, rec)
@@ -204,6 +242,9 @@ func (m *Middleware) logRequest(r *http.Request, ww *response_writer.Writer, sta
 		FieldSpanID, spanID,
 	)
 	if panicValue != nil {
+		if ww.Committed() && ww.Status() != 0 {
+			fields = append(fields, FieldCommittedStatus, ww.Status())
+		}
 		fields = append(fields, FieldPanicRecovered, true)
 	}
 	if m.opts.LogRequestHeaders {
@@ -284,7 +325,7 @@ func newHeaderRedactor(opts Options) headerRedactor {
 	extra := make(map[string]struct{}, len(opts.RedactHeaders))
 	for _, name := range opts.RedactHeaders {
 		if norm := normalizeHeaderName(name); norm != "" {
-			extra[norm] = struct{}{}
+			extra[normalizeHeaderForMatch(norm)] = struct{}{}
 		}
 	}
 	return headerRedactor{extra: extra}
@@ -318,18 +359,133 @@ func (r headerRedactor) isSensitive(name string) bool {
 	if norm == "" {
 		return false
 	}
-	if _, ok := defaultRedactedHeaders[norm]; ok {
+	normalized := normalizeHeaderForMatch(norm)
+	if _, ok := defaultRedactedHeaders[normalized]; ok {
 		return true
 	}
-	if isAPIKeyHeader(norm) {
+	if isSensitiveHeaderFamily(normalized) {
 		return true
 	}
-	_, ok := r.extra[norm]
+	if isAPIKeyHeader(normalized) {
+		return true
+	}
+	_, ok := r.extra[normalized]
 	return ok
+}
+
+// RedactPayloadFields returns a copy of fields with common sensitive payload keys
+// replaced by redactedValue.
+func RedactPayloadFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(fields))
+	for k, v := range fields {
+		if IsSensitiveFieldName(k) {
+			out[k] = redactedValue
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// RedactPayloadFieldsDeep returns a copy of fields with sensitive payload keys
+// replaced by redactedValue. Nested maps and slices are sanitized
+// recursively.
+func RedactPayloadFieldsDeep(fields map[string]any) map[string]any {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(fields))
+	for k, v := range fields {
+		out[k] = redactPayloadValue(k, v)
+	}
+	return out
+}
+
+func redactPayloadValue(key string, value any) any {
+	if IsSensitiveFieldName(key) {
+		return redactedValue
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		return redactPayloadStringMap(typed)
+	case map[string]string:
+		return redactPayloadStringMap(typed)
+	case []any:
+		return redactPayloadSlice(typed)
+	case []map[string]any:
+		return redactPayloadSlice(typed)
+	case []map[string]string:
+		return redactPayloadSlice(typed)
+	default:
+		return value
+	}
+}
+
+func redactPayloadStringMap[V any](fields map[string]V) map[string]any {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(fields))
+	for k, v := range fields {
+		out[k] = redactPayloadValue(k, v)
+	}
+	return out
+}
+
+func redactPayloadSlice[V any](values []V) []any {
+	out := make([]any, len(values))
+	for i, item := range values {
+		out[i] = redactPayloadValue("", item)
+	}
+	return out
+}
+
+// IsSensitiveFieldName reports whether the field name should be treated as
+// sensitive for request log payloads.
+func IsSensitiveFieldName(name string) bool {
+	norm := normalizePayloadFieldName(name)
+	if norm == "" {
+		return false
+	}
+	if _, ok := defaultRedactedPayloadFields[norm]; ok {
+		return true
+	}
+	if isSensitivePayloadAPIKey(norm) {
+		return true
+	}
+	if hasSensitivePayloadBoundary(norm, "token") ||
+		hasSensitivePayloadBoundary(norm, "secret") ||
+		hasSensitivePayloadBoundary(norm, "password") ||
+		hasSensitivePayloadBoundary(norm, "auth") ||
+		hasSensitivePayloadBoundary(norm, "session") {
+		return true
+	}
+	return false
 }
 
 func normalizeHeaderName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func normalizeHeaderForMatch(name string) string {
+	return strings.ReplaceAll(normalizeHeaderName(name), "_", "-")
+}
+
+func isSensitiveHeaderFamily(name string) bool {
+	if strings.HasPrefix(name, "x-") {
+		return strings.Contains(name, "token") ||
+			strings.Contains(name, "secret") ||
+			strings.Contains(name, "password") ||
+			strings.Contains(name, "session") ||
+			strings.Contains(name, "auth")
+	}
+	if strings.HasPrefix(name, "authorization") || strings.Contains(name, "-authorization-") {
+		return true
+	}
+	return false
 }
 
 func isAPIKeyHeader(name string) bool {
@@ -337,4 +493,28 @@ func isAPIKeyHeader(name string) bool {
 		strings.Contains(name, "api_key") ||
 		strings.Contains(name, "apikey") ||
 		strings.Contains(name, "api-token")
+}
+
+func isSensitivePayloadAPIKey(name string) bool {
+	return strings.Contains(name, "api_key") ||
+		strings.Contains(name, "apikey") ||
+		strings.Contains(name, "api_token")
+}
+
+func normalizePayloadFieldName(name string) string {
+	return strings.ToLower(strings.TrimSpace(strings.ReplaceAll(name, "-", "_")))
+}
+
+func hasSensitivePayloadBoundary(name, segment string) bool {
+	if segment == "" {
+		return false
+	}
+	if name == segment {
+		return true
+	}
+	if strings.HasPrefix(name, segment+"_") ||
+		strings.HasSuffix(name, "_"+segment) {
+		return true
+	}
+	return strings.Contains(name, "_"+segment+"_")
 }

@@ -1,0 +1,119 @@
+# Release Compatibility Runbook
+
+Supported v2 release baseline: `v2.0.1`.
+
+## Commands
+
+| Command | Intent | Output |
+| --- | --- | --- |
+| `GOTOOLCHAIN=local make finalize` | Local implementation gate before committing changes; may rewrite formatted Go files and module files. | Pass/fail local quality signal, not release evidence. |
+| `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, not release evidence. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
+| `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
+| `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
+| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Report-only selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable. |
+| `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for contrib adapter/integration behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
+| `RELEASE_ASSET_DIR=/path/to/assets make release-artifact-verify` | Draft release artifact verification. | Verifies expected asset names, `release-asset-manifest.tsv` checksums, retained log archive contents, SBOM signatures/certificates, and local provenance subject expectations. |
+
+## Clean-worktree release preflight
+
+Use this command sequence before publishing:
+
+1. `GOTOOLCHAIN=local make finalize` before committing implementation work when it is safe to allow formatting and module tidying.
+2. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
+3. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
+4. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+5. `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` after downloading draft release assets.
+
+`make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
+`make release-evidence` uses `scripts/release_check_summary.sh --run` so the
+summary records exact subcommands, exit codes, durations, log paths, tool
+versions, git working-tree state, `publication_eligible`, contrib drift summary,
+disposition manifest paths, missing/expired disposition counts, publication
+artifact expectations, release log archive checksum evidence, and the explicit
+baseline.
+It fails publication mode when the worktree is dirty. Set
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1` only for a local dirty-tree audit.
+Automation must require `status=passed`, `publication_eligible=true`,
+`provenance_policy.status=passed`, `git_state.dirty=false`, and zero dirty
+counts before accepting local publication evidence.
+
+## Expected release-check behavior
+
+- The command fails immediately if `API_BASE_REF` is missing.
+- The command fails immediately if `API_BASE_REF` does not resolve to a local or fetched supported baseline.
+- The command compares all stable packages listed in `VERSIONING.md` through `scripts/apicheck.sh`.
+- The command also runs linting, vulnerability checks, gosec, build smoke tests, docs contracts, unit tests, race tests, fuzz smoke tests, and cleanup.
+- The command includes `make contrib-release-notes-check`, so incompatible
+  report-only contrib drift must have release-note acknowledgement before
+  publication evidence can pass.
+- For local release evidence, `make release-evidence` runs the same release
+  subchecks through the evidence writer before writing `release-check-summary.json`.
+
+## Evidence artifact tiers
+
+Local release evidence is the developer/auditor tier. It contains:
+
+- `release-check-summary.json` schema v2.
+- One check record per `make release-check` subtarget.
+- Command lines, exit codes, durations, log availability, log paths, tool
+  versions, commit, branch or detached state, dirty flag, staged/unstaged/
+  untracked/deleted counts, and `API_BASE_REF`.
+- `.ci-result/release-evidence/logs/*.log` for the commands run locally.
+- `.ci-result/release-evidence/release-evidence-logs.tgz` for retained log
+  review in the GitHub draft release.
+- `.ci-result/release-evidence/logs/contrib-api-drift-report.log` for the
+  report-only contrib drift review output; this does not make contrib stable.
+- `docs/contrib-api-drift-dispositions.tsv` for owner, status, review, and
+  expiry disposition of current drift packages.
+- `.ci-result/release-evidence/logs/vuln.log` plus
+  `release-check-summary.json` `vulnerability_evidence` for called and
+  imported-but-not-called `govulncheck` disposition.
+- `docs/vulnerability-dispositions.tsv` for owner, review, expiry, and upgrade
+  triggers for imported-only vulnerability IDs.
+- `vulnerability_evidence.missing_disposition_count` and
+  `vulnerability_evidence.expired_disposition_count`, which must both be `0`
+  before release review accepts imported-only vulnerability dispositions.
+- `contrib_drift.packages`, `contrib_drift.missing_disposition_count`, and
+  `contrib_drift.expired_disposition_count`, which dynamically compare the
+  current drift report with `docs/contrib-api-drift-dispositions.tsv`.
+
+Local release evidence does not generate or sign SBOMs. The summary records this
+as an artifact tier distinction, not as missing release work. Dirty local
+evidence is allowed only with `ALLOW_DIRTY_RELEASE_EVIDENCE=1`; dirty local
+evidence is rejected before publishing.
+
+GitHub release workflow evidence is the publication tier. The tag-driven
+workflow creates a draft release after clean evidence, SBOMs, signatures, and
+attestations exist; reviewers publish the draft only after inspecting the assets.
+It contains the local summary plus release assets and should be the
+publication-grade source:
+
+- `sbom-root.spdx.json`
+- `sbom-contrib.spdx.json`
+- `sbom-root.spdx.json.sig`
+- `sbom-root.spdx.json.pem`
+- `sbom-contrib.spdx.json.sig`
+- `sbom-contrib.spdx.json.pem`
+- `release-evidence-logs.tgz`
+- `release-asset-manifest.tsv`
+- provenance attestations for the summary and SBOMs
+
+Before publishing, verify the draft release asset names against
+`release-check-summary.json` `publication_artifact_expectations`, verify
+`release-asset-manifest.tsv` checksums, verify SBOM signatures against their
+certificates, inspect the retained log archive, and confirm provenance
+attestations for the summary and both SBOMs. The repository command for this is
+`RELEASE_ASSET_DIR=/path/to/assets make release-artifact-verify`; set
+`RELEASE_TAG` and `GITHUB_REPOSITORY` to include online GitHub attestation
+verification.
+
+## Failed compatibility check rollback path
+
+- Do not publish the release.
+- If the GitHub release was already drafted, keep it draft-only or delete the draft before assets are published.
+- If a tag was pushed prematurely, leave the previous release as the supported version while the incompatible change is reverted or intentionally moved to a new major version plan.
+- Rerun `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` after the fix and attach the generated release evidence only after it passes.

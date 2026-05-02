@@ -2,7 +2,12 @@ package jwt
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestLoadConfigReadsClaimRequirementsFromEnv(t *testing.T) {
@@ -41,5 +46,47 @@ func TestSubjectRoundTripAndDisabledConstructor(t *testing.T) {
 	}
 	if mw == nil {
 		t.Fatal("expected middleware instance")
+	}
+}
+
+func TestLoadConfigReadsSkipHeaderSettingsFromEnv(t *testing.T) {
+	t.Setenv("JWT_SKIP_HEADER_ENABLED", "true")
+	t.Setenv("JWT_SKIP_HEADER_NAME", "X-Skip-JWT")
+	t.Setenv("JWT_SKIP_TRUSTED_PROXIES", "10.0.0.0/8,127.0.0.1/32")
+
+	cfg := LoadConfig(nil)
+	if !cfg.SkipHeaderEnabled {
+		t.Fatal("expected skip header to be enabled")
+	}
+	if cfg.SkipHeaderName != "X-Skip-JWT" {
+		t.Fatalf("SkipHeaderName = %q, want X-Skip-JWT", cfg.SkipHeaderName)
+	}
+	if len(cfg.SkipTrustedProxies) != 2 {
+		t.Fatalf("SkipTrustedProxies len = %d, want 2", len(cfg.SkipTrustedProxies))
+	}
+}
+
+func TestHealthCheckerNilWhenDisabledOrMissingURL(t *testing.T) {
+	if checker := HealthChecker(Config{Enabled: false, JWKSURL: "https://example.com/jwks"}, nil); checker != nil {
+		t.Fatal("expected disabled checker to be nil")
+	}
+	if checker := HealthChecker(Config{Enabled: true}, nil); checker != nil {
+		t.Fatal("expected checker with missing JWKS URL to be nil")
+	}
+}
+
+func TestHealthCheckerUsesConfiguredClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL, JWKSRefreshTimeout: time.Second}, server.Client())
+	if checker == nil {
+		t.Fatal("expected health checker")
+	}
+	result := checker.Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy {
+		t.Fatalf("status = %s, want healthy: %s", result.Status, result.Message)
 	}
 }

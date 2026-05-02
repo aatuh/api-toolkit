@@ -40,6 +40,7 @@ func TestRequestLogRedactionDefaults(t *testing.T) {
 		WithRoutePattern(func(*http.Request) string { return "/demo" }),
 		WithRequestHeaders(),
 		WithResponseHeaders(),
+		WithRedactedHeaders("X-Extra"),
 	)
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
@@ -55,7 +56,17 @@ func TestRequestLogRedactionDefaults(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer secret")
 	req.Header.Set("Cookie", "a=b")
 	req.Header.Set("X-API-Key", "abc123")
-	req.Header.Set("X-Extra", "ok")
+	req.Header.Set("X-Access-Token", "ok-token")
+	req.Header.Set("X_Access_Token", "underscore-access-token")
+	req.Header.Set("x-auth-token", "abc")
+	req.Header.Set("X_API_TOKEN", "underscore-token")
+	req.Header.Set("Authorization-Token", "prefix-thing")
+	req.Header.Set("X-Session-Id", "abc")
+	req.Header.Set("X-Session-Token", "abc")
+	req.Header.Set("X-Secret", "abc")
+	req.Header.Set("X-Password", "abc")
+	req.Header.Set("X-Refresh-Token", "abc")
+	req.Header.Set("X-Extra", "custom-hidden")
 	req.Header.Set("X-Request-ID", "req-123")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -65,17 +76,42 @@ func TestRequestLogRedactionDefaults(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected request headers in log")
 	}
+	variants := []string{
+		"Authorization",
+		"Cookie",
+		"X-Api-Key",
+		"X-Access-Token",
+		"X-Auth-Token",
+		"X_Access_Token",
+		"X_API_TOKEN",
+		"Authorization-Token",
+		"X-Session-Id",
+		"X-Session-Token",
+		"X-Secret",
+		"X-Password",
+		"X-Refresh-Token",
+		"X-Extra",
+	}
 	if reqHeaders["Authorization"] != redactedValue {
 		t.Fatalf("authorization not redacted: %q", reqHeaders["Authorization"])
+	}
+	for _, h := range variants {
+		if reqHeaders[http.CanonicalHeaderKey(h)] != redactedValue {
+			t.Fatalf("sensitive header not redacted: %s=%q", h, reqHeaders[http.CanonicalHeaderKey(h)])
+		}
+	}
+	if reqHeaders["X-Extra"] != redactedValue {
+		t.Fatalf("custom redacted header not redacted: %q", reqHeaders["X-Extra"])
+	}
+	requestIDKey := http.CanonicalHeaderKey("X-Request-ID")
+	if reqHeaders[requestIDKey] != "req-123" {
+		t.Fatalf("unexpected request id in headers: %q", reqHeaders[requestIDKey])
 	}
 	if reqHeaders["Cookie"] != redactedValue {
 		t.Fatalf("cookie not redacted: %q", reqHeaders["Cookie"])
 	}
-	if reqHeaders["X-Api-Key"] != redactedValue {
-		t.Fatalf("api key not redacted: %q", reqHeaders["X-Api-Key"])
-	}
-	if reqHeaders["X-Extra"] != "ok" {
-		t.Fatalf("unexpected extra header: %q", reqHeaders["X-Extra"])
+	if reqHeaders[requestIDKey] != "req-123" {
+		t.Fatalf("request id changed unexpectedly: %q", reqHeaders[requestIDKey])
 	}
 
 	respHeaders, ok := fields[FieldResponseHeaders].(map[string]string)
@@ -87,6 +123,194 @@ func TestRequestLogRedactionDefaults(t *testing.T) {
 	}
 	if respHeaders["X-Resp"] != "ok" {
 		t.Fatalf("unexpected response header: %q", respHeaders["X-Resp"])
+	}
+}
+
+func TestRequestLogPayloadRedactionHelpers(t *testing.T) {
+	input := map[string]any{
+		"Token":            "abc123",
+		"my_secret":        "shh",
+		"password":         "hunter2",
+		"RequestID":        "id-123",
+		"Auth":             "bearer token",
+		"password_hash":    "abc",
+		"x_api_key":        "xyz",
+		"Correlation-ID":   "corr-1",
+		"nested_secret_id": "id",
+	}
+	redacted := RedactPayloadFields(input)
+	if redacted["Token"] != redactedValue {
+		t.Fatalf("token not redacted: %q", redacted["Token"])
+	}
+	if redacted["my_secret"] != redactedValue {
+		t.Fatalf("secret not redacted: %q", redacted["my_secret"])
+	}
+	if redacted["password"] != redactedValue {
+		t.Fatalf("password not redacted: %q", redacted["password"])
+	}
+	if redacted["password_hash"] != redactedValue {
+		t.Fatalf("password hash not redacted: %q", redacted["password_hash"])
+	}
+	if redacted["RequestID"] != "id-123" {
+		t.Fatalf("non-sensitive field changed: %q", redacted["RequestID"])
+	}
+	if redacted["Correlation-ID"] != "corr-1" {
+		t.Fatalf("non-sensitive header changed: %q", redacted["Correlation-ID"])
+	}
+	if redacted["x_api_key"] != redactedValue {
+		t.Fatal("api key not redacted")
+	}
+	if redacted["Auth"] != redactedValue {
+		t.Fatal("auth not redacted")
+	}
+	if redacted["nested_secret_id"] != redactedValue {
+		t.Fatal("suffixed secret not redacted")
+	}
+}
+
+func TestRequestLogDeepPayloadRedactionHelpers(t *testing.T) {
+	input := map[string]any{
+		"request_id": "id-123",
+		"user": map[string]any{
+			"password": "secret",
+			"profile": map[string]any{
+				"refresh_token": "refresh",
+				"details": map[string]any{
+					"token": "abc",
+					"safe":  true,
+				},
+			},
+		},
+		"tokens": []any{
+			map[string]any{
+				"kind":  "session",
+				"value": "abc",
+			},
+			map[string]any{
+				"api_token": "xyz",
+				"nested": map[string]any{
+					"session_id": "s-1",
+					"meta": map[string]any{
+						"keep":   "visible",
+						"secret": "hidden",
+					},
+				},
+			},
+		},
+	}
+	redacted := RedactPayloadFieldsDeep(input)
+	if got := redacted["request_id"]; got != "id-123" {
+		t.Fatalf("non-sensitive field changed: %#v", got)
+	}
+
+	user, ok := redacted["user"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user map, got %T", redacted["user"])
+	}
+	if user["password"] != redactedValue {
+		t.Fatalf("expected nested password redacted, got %#v", user["password"])
+	}
+	profile, ok := user["profile"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user.profile map, got %T", user["profile"])
+	}
+	if profile["refresh_token"] != redactedValue {
+		t.Fatalf("expected nested refresh_token redacted, got %#v", profile["refresh_token"])
+	}
+	details, ok := profile["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user.profile.details map, got %T", profile["details"])
+	}
+	if details["token"] != redactedValue {
+		t.Fatalf("expected nested details.token redacted, got %#v", details["token"])
+	}
+	if got := details["safe"]; got != true {
+		t.Fatalf("expected non-sensitive nested field to remain, got %#v", got)
+	}
+
+	tokens, ok := redacted["tokens"].([]any)
+	if !ok {
+		t.Fatalf("expected tokens slice, got %T", redacted["tokens"])
+	}
+	if len(tokens) != 2 {
+		t.Fatalf("expected 2 tokens, got %d", len(tokens))
+	}
+	second, ok := tokens[1].(map[string]any)
+	if !ok {
+		t.Fatalf("expected second token to be map, got %T", tokens[1])
+	}
+	if second["api_token"] != redactedValue {
+		t.Fatalf("expected nested api_token redacted, got %#v", second["api_token"])
+	}
+	secondNested, ok := second["nested"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected nested token fields map, got %T", second["nested"])
+	}
+	if secondNested["session_id"] != redactedValue {
+		t.Fatalf("expected session_id redacted, got %#v", secondNested["session_id"])
+	}
+	meta, ok := secondNested["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected meta map, got %T", secondNested["meta"])
+	}
+	if meta["secret"] != redactedValue {
+		t.Fatalf("expected nested secret redacted, got %#v", meta["secret"])
+	}
+	if meta["keep"] != "visible" {
+		t.Fatalf("expected non-sensitive nested field preserved, got %#v", meta["keep"])
+	}
+}
+
+func TestRequestLogDeepPayloadRedactionSupportsTypedShapes(t *testing.T) {
+	input := map[string]any{
+		"profile": map[string]string{
+			"request_id": "r1",
+			"password":   "secret",
+			"role":       "admin",
+		},
+		"tokens": []map[string]string{
+			{
+				"session_id": "session-1",
+				"label":      "primary",
+			},
+			{
+				"kind":      "api",
+				"api_token": "token-123",
+			},
+		},
+	}
+
+	redacted := RedactPayloadFieldsDeep(input)
+
+	profile, ok := redacted["profile"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected profile map, got %T", redacted["profile"])
+	}
+	if profile["password"] != redactedValue {
+		t.Fatalf("expected typed map nested password redacted, got %#v", profile["password"])
+	}
+	if profile["request_id"] != "r1" {
+		t.Fatalf("expected non-sensitive nested typed map field to remain, got %#v", profile["request_id"])
+	}
+
+	tokens, ok := redacted["tokens"].([]any)
+	if !ok {
+		t.Fatalf("expected tokens slice, got %T", redacted["tokens"])
+	}
+	if len(tokens) != 2 {
+		t.Fatalf("expected 2 token entries, got %d", len(tokens))
+	}
+	if first, ok := tokens[0].(map[string]any); !ok {
+		t.Fatalf("expected token map at first index, got %T", tokens[0])
+	} else if got := first["session_id"]; got != redactedValue {
+		t.Fatalf("expected typed slice first session_id redacted, got %#v", got)
+	}
+	if second, ok := tokens[1].(map[string]any); !ok {
+		t.Fatalf("expected token map at second index, got %T", tokens[1])
+	} else if got := second["api_token"]; got != redactedValue {
+		t.Fatalf("expected typed slice nested api_token redacted, got %#v", got)
+	} else if got := second["kind"]; got != "api" {
+		t.Fatalf("expected non-sensitive nested token field to remain, got %#v", got)
 	}
 }
 
@@ -220,6 +444,48 @@ func TestRequestLogEmitsErrorForRecoveredPanicBeforeCommit(t *testing.T) {
 		}
 		if fields[FieldPanicRecovered] != true {
 			t.Fatalf("panic_recovered = %v", fields[FieldPanicRecovered])
+		}
+	}()
+	handler.ServeHTTP(rec, req)
+}
+
+func TestRequestLogEmitsErrorForRecoveredPanicAfterCommit(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(log,
+		WithRoutePattern(func(*http.Request) string { return "/panic-after-commit" }),
+		With5xxStackLogging(true),
+	)
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	handler := mw.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("created"))
+		panic("boom-after-commit")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/panic-after-commit", nil)
+	defer func() {
+		if got := recover(); got != "boom-after-commit" {
+			t.Fatalf("expected panic boom-after-commit, got %v", got)
+		}
+		if log.level != "error" {
+			t.Fatalf("level = %q", log.level)
+		}
+		fields := kvToMap(log.kv)
+		if fields[FieldStatus] != http.StatusInternalServerError {
+			t.Fatalf("status = %v", fields[FieldStatus])
+		}
+		if fields[FieldPanicRecovered] != true {
+			t.Fatalf("panic_recovered = %v", fields[FieldPanicRecovered])
+		}
+		if fields[FieldCommittedStatus] != http.StatusCreated {
+			t.Fatalf("committed_status = %v", fields[FieldCommittedStatus])
+		}
+		if _, ok := fields[FieldStack]; !ok {
+			t.Fatal("expected stack field for recovered panic when 5xx stack logging is enabled")
 		}
 	}()
 	handler.ServeHTTP(rec, req)

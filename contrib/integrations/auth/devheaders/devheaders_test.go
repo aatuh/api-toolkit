@@ -1,6 +1,23 @@
 package devheaders
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+
+	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+)
+
+func TestAliasesExposeNonComparableDevHeaderSurface(t *testing.T) {
+	if reflect.TypeOf(Config{}).Comparable() {
+		t.Fatal("integration Config alias should expose the non-comparable devheaders Config surface")
+	}
+	if reflect.TypeOf((*Middleware)(nil)).Elem().Comparable() {
+		t.Fatal("integration Middleware alias should expose the non-comparable devheaders Middleware surface")
+	}
+}
 
 func TestLoadConfigDefaults(t *testing.T) {
 	cfg := LoadConfig(nil)
@@ -49,5 +66,57 @@ func TestNewDisabledConfig(t *testing.T) {
 	}
 	if mw == nil {
 		t.Fatal("expected middleware instance")
+	}
+}
+
+func TestNewEnabledConfigRequiresDangerousBypassOptIn(t *testing.T) {
+	_, err := New(Config{
+		Enabled:        true,
+		UserIDHeader:   "X-Debug-User",
+		TrustedProxies: []string{"127.0.0.1/32"},
+	}, nil)
+	if err == nil {
+		t.Fatal("expected enabled dev headers to require dangerous bypass opt-in")
+	}
+}
+
+func TestHandlerPropagatesConfiguredHeaders(t *testing.T) {
+	mw, err := New(Config{
+		Enabled:                   true,
+		UserIDHeader:              "X-User",
+		EmailHeader:               "X-Email",
+		FirstNameHeader:           "X-First",
+		LastNameHeader:            "X-Last",
+		DefaultLanguage:           "sv",
+		AllowDangerousDevBypasses: true,
+		TrustedProxies:            []string{"127.0.0.1/32"},
+	}, nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := jwtauth.SubjectFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected subject in context")
+		}
+		if subj.UserID != "user-1" || subj.Email != "user@example.com" ||
+			subj.First != "Ada" || subj.Last != "Lovelace" || subj.Language != "sv" {
+			t.Fatalf("subject = %#v, want configured header values", subj)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-User", " user-1 ")
+	req.Header.Set("X-Email", " user@example.com ")
+	req.Header.Set("X-First", "Ada")
+	req.Header.Set("X-Last", "Lovelace")
+	rr := httptest.NewRecorder()
+
+	mw.Handler(next).ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
 	}
 }

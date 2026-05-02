@@ -249,7 +249,7 @@ func normalizeRetry(opts RetryOptions) retryConfig {
 	}
 	methods := opts.RetryableMethods
 	if len(methods) == 0 {
-		methods = []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete, http.MethodOptions}
+		methods = []string{http.MethodGet, http.MethodHead}
 	}
 	return retryConfig{
 		maxRetries:       maxRetries,

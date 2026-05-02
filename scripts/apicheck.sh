@@ -1,20 +1,33 @@
 #!/usr/bin/env bash
 # Compares public Go APIs against a base git ref using apidiff.
-# Writes exports to a temp dir, skips packages missing in either tree, and fails
-# on incompatible changes.
+#
+# API_BASE_REF selects an explicit base ref. Without API_BASE_REF, local
+# development checks fall back to GITHUB_BASE_REF, then HEAD~1, then skip when no
+# base is available. Set API_CHECK_REQUIRE_BASE=1 for release checks; that mode
+# requires API_BASE_REF and fails closed when the ref is missing or invalid.
+#
+# The script writes exports to a temp dir, skips packages missing in either tree,
+# and fails on incompatible changes.
 set -euo pipefail
 
-if ! command -v apidiff >/dev/null 2>&1; then
-  echo "apidiff not found. Install with: make tools" >&2
-  exit 1
-fi
+required_base=false
+case "${API_CHECK_REQUIRE_BASE:-}" in
+  1|true|TRUE|yes|YES) required_base=true ;;
+esac
 
 base_ref="${API_BASE_REF:-}"
+base_source="api_base_ref"
 if [ -z "$base_ref" ]; then
+  if [ "$required_base" = true ]; then
+    echo "API_BASE_REF is required when API_CHECK_REQUIRE_BASE=1." >&2
+    exit 2
+  fi
   if [ -n "${GITHUB_BASE_REF:-}" ]; then
     base_ref="origin/${GITHUB_BASE_REF}"
+    base_source="github_base_ref"
   elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base_ref="HEAD~1"
+    base_source="head_parent"
   else
     echo "No base ref available. Skipping API check."
     exit 0
@@ -22,14 +35,23 @@ if [ -z "$base_ref" ]; then
 fi
 
 if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
-  if [ -n "${GITHUB_BASE_REF:-}" ]; then
-    git fetch origin "${GITHUB_BASE_REF}" --depth=1 >/dev/null 2>&1 || true
+  if [ "$base_source" = "github_base_ref" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+    git fetch origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" --depth=1 >/dev/null 2>&1 || true
   fi
 fi
 
 if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+  if [ "$required_base" = true ] || [ -n "${API_BASE_REF:-}" ]; then
+    echo "Base ref $base_ref not found; set API_BASE_REF to a fetched supported tag or branch." >&2
+    exit 2
+  fi
   echo "Base ref $base_ref not found. Skipping API check."
   exit 0
+fi
+
+if ! command -v apidiff >/dev/null 2>&1; then
+  echo "apidiff not found. Install with: make tools" >&2
+  exit 1
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"

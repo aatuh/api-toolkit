@@ -8,8 +8,282 @@ For stable surface changes, deprecations, or compatibility-sensitive updates:
   affected stability contract.
 - Update `scripts/apicheck.sh` and docscheck coverage when the stable package
   list or compatibility-sensitive manifest changes.
+- Update `docs/ports-surface.md`, `docs/v3-compatibility-roadmap.md`, release
+  notes, and upgrade notes when compatibility-sensitive ports or legacy stable
+  surfaces change.
 - Add release notes and upgrade notes that describe user-visible behavior,
   migration paths, and compatibility impact.
+- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` for release
+  evidence. `make finalize` and `make audit-check` are local/reviewer gates,
+  not release evidence because they do not require an explicit API baseline.
+- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report`
+  when contrib adapters or integrations change exported APIs; selected packages
+  come from `docs/contrib-api-drift-packages.txt`, this is report-only, and it
+  does not make contrib stable.
+- Run `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check`
+  when contrib adapter or integration behavior files change.
+- If there is incompatible report-only contrib drift, add an explicit release
+  note or upgrade note acknowledgement tied to the affected package. This does
+  not make contrib stable.
+- Update `docs/vulnerability-dispositions.tsv` when imported-only vulnerability
+  IDs change, expire, or receive upgraded dependencies.
+- Update `docs/contrib-api-drift-dispositions.tsv` when current contrib drift
+  packages or incompatible drift status changes.
+- Use clean publication evidence with
+  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`; reserve
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
+  for local dirty-tree audit evidence that is not acceptable before publishing.
+
+## 2026-05-01
+
+- Release evidence now writes `release-check-summary.json` schema v2 with
+  per-check command lines, exit codes, durations, log paths, tool versions, and
+  local-vs-GitHub artifact tier metadata.
+- `make release-evidence` now runs the release-readiness subchecks through the
+  evidence writer so local summaries have detailed provenance instead of a
+  fixed pass list.
+- `docs/package-classification.tsv` now documents API and test quality tiers,
+  and docscheck mechanically validates direct-test, wrapper-smoke, example,
+  generated, tooling, test-support, excluded, and needs-tests classifications.
+- `docs/v3-compatibility-roadmap.md` now contains one removal matrix for
+  provider-shaped billing ports, pgx-shaped database stats, `response_writer`,
+  tokenless idempotency release, unchecked authz construction, and checked list
+  parser shims.
+- `make contrib-api-drift-report` adds a report-only API drift signal for
+  selected high-use contrib adapters and integrations without changing the
+  contrib compatibility policy.
+- `make contrib-release-notes-check` adds a lightweight review gate requiring
+  release-note coverage when contrib adapter or integration behavior files
+  change.
+- Release evidence now records `git_state` with branch/detached state, dirty
+  flag, staged/unstaged/untracked/deleted counts, and the commit checked.
+- Release evidence now records top-level `publication_eligible`; automation must
+  require it to be `true` along with passed status, clean provenance, and clean
+  git state before accepting publication evidence.
+- Release evidence now fails publication mode on dirty worktrees unless
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1` explicitly marks the output as local
+  dirty-tree audit evidence.
+- Release evidence now archives `.ci-result/release-evidence/logs` as
+  `.ci-result/release-evidence/release-evidence-logs.tgz` and records
+  `publication_artifact_expectations` for draft-release asset review.
+- `make release-artifact-verify` now verifies downloaded draft release asset
+  names, `release-asset-manifest.tsv` checksums, retained release logs, SBOM
+  signatures/certificates, and expected provenance subjects before publishing.
+- The tag-driven release workflow now verifies keyless SBOM signatures against
+  the GitHub OIDC certificate identity and issuer before uploading draft
+  release assets.
+- Release evidence now records `vulnerability_evidence` from govulncheck logs
+  so imported-but-not-called vulnerability IDs and counts have reviewer
+  disposition in `docs/dependency-risk.md` and
+  `docs/vulnerability-dispositions.tsv`.
+- Release evidence now dynamically compares imported-only vulnerability IDs
+  with `docs/vulnerability-dispositions.tsv` and fails when dispositions are
+  missing, incomplete, or expired on the release review date.
+- `make release-evidence` now archives report-only contrib drift at
+  `.ci-result/release-evidence/logs/contrib-api-drift-report.log` and summarizes
+  drift, skipped, compatible, and incompatible counts in
+  `release-check-summary.json`.
+- Release evidence now records current contrib drift packages and status,
+  compares them with `docs/contrib-api-drift-dispositions.tsv`, and fails when
+  current drift has missing or expired disposition coverage.
+- Current contrib drift disposition is recorded in
+  `docs/contrib-api-drift-dispositions.tsv`, including the incompatible
+  report-only `contrib/middleware/auth/devheaders` drift.
+- `make release-check` and `make release-evidence` now include
+  `contrib-release-notes-check`, while `contrib-api-drift-report` reads selected
+  report-only packages from `docs/contrib-api-drift-packages.txt`.
+- Incompatible report-only contrib drift is acknowledged for this release:
+  `contrib/middleware/auth/devheaders` changed exported struct comparability
+  because middleware/config types now include non-comparable lifecycle fields.
+  This remains a review signal and does not make contrib stable.
+- `make contrib-release-notes-check` now requires incompatible report-only
+  contrib drift acknowledgement to mention the affected package, not only a
+  generic incompatible-contrib phrase.
+- Docscheck now blocks new production source usage of deprecated billing ports
+  outside `ports`/`compat/billing` and direct database-stat usage outside
+  compatibility or adapter paths.
+- Idempotency middleware response capture now uses a package-local helper
+  instead of importing the legacy `response_writer` compatibility package.
+- `docs/release-review.md` gives release reviewers a shorter path through the
+  runbook, release notes, stability policy, package classification,
+  compatibility roadmap, and evidence artifacts.
+- Wrapper and example coverage policy now distinguishes wrapper smoke minimums
+  from build-smoke-only example coverage.
+- Package docs for `ports`, `compat/billing`, and the legacy response helper
+  package now identify v2 compatibility-sensitive surfaces and preferred
+  replacements for new code.
+- `contrib/middleware/requestlog` expands header redaction defaults for broader
+  authentication/session families and adds payload field redaction helpers for
+  non-header custom fields.
+- `contrib/adapters/httpclient` retry defaults are now conservative: `GET` and
+  `HEAD` only; other methods such as `PUT` and `DELETE` now require explicit
+  opt-in through `RetryableMethods`.
+- `contrib/bootstrap` pprof mounting now defaults to opt-in behavior and requires
+  explicit profile intent to enable `Pprof` routes in production-like defaults.
+- Idempotency in-flight reservations now carry `ReservationToken` and require
+  tokenized releases for healthy non-legacy records, while legacy tokenless
+  records are recovered during mixed-version rollouts when stale past
+  `InFlightTTL`.
+- Idempotency memory and Redis adapters now expose optional legacy-recovery
+  telemetry callbacks for tokenless record migrations (`legacy_in_flight_recovered`
+  and `legacy_in_flight_token_mismatch`).
+- Idempotency middleware now emits compatibility telemetry for mixed-version
+  fallback attempts (`legacy_in_flight_fallback_entered`,
+  `legacy_in_flight_fallback_recovered`,
+  `legacy_in_flight_fallback_rejected`,
+  `legacy_in_flight_fallback_unknown`) and validates cross-service
+  `InFlightTTL` alignment via `KnownInFlightTTLs`/`FailOnInFlightTTLMismatch`.
+- `ports.ErrLegacyInFlightReservationMissingToken` has been added for migration-time
+  observability of legacy in-flight record recovery.
+- `middleware/auth/authz` keeps the v2-compatible single-return constructor and
+  adds `NewRequireRoleMiddlewareChecked` plus bootstrap validation for explicit
+  role requirements and nil resolver detection at route setup.
+- `endpoints/list` keeps the v2-compatible single-return parser helpers and adds
+  checked variants (`ParseListQueryChecked`, `DefaultFilterParserChecked`,
+  `DefaultSortParserChecked`) for callers that need field-level validation
+  errors.
+- `contrib/middleware/requestlog` documents and supports deep payload redaction for
+  common typed container shapes (`map[string]string`, `[]map[string]string`) while
+  preserving legacy shallow behavior.
+- Idempotency middleware now emits mixed-version fallback telemetry by default when no
+  `OnLegacyInFlightCompatibility` callback is configured, defaults legacy
+  compatibility keys to stable SHA-256 redaction, and supports explicit raw-key
+  opt-in through `LegacyInFlightCompatibilityRawKey`.
+- Idempotency startup rollout governance now includes optional strict clock-preflight
+  checks (`FailOnInFlightClockSkewPreflight`) for mixed-version safety, emitting
+  `ErrLegacyInFlightClockSkewPreflightRisk` in strict mode and advisory
+  deprecation-risk warnings in default mode.
+- `contrib/adapters/chi` now ships a route bootstrap helper that maps chi route
+  registration context into authz role specs and validates role coverage in one
+  startup call, including actionable `ANY`/method route context.
+- `contrib/middleware/requestlog` normalizes panic observability by always logging
+  recovered panics at error level with failure classification, including committed-
+  response panics and preserving committed status for optional downstream analytics.
+- Release readiness now has a fail-closed `make release-check` path that requires
+  `API_BASE_REF=v2.0.1`, keeps local `make api-check` fallback behavior separate,
+  and publishes `release-check-summary.json` with release SBOM assets.
+- Root idempotency adapter contract coverage moved to contrib-owned reusable
+  contract tests so root `go.mod` no longer carries contrib, Redis, or miniredis
+  requirements for core middleware tests.
+
+### Upgrade notes
+
+- If your system endpoint wiring relied on implicit pprof exposure in production
+  profiles, use an explicit profile-aware mount helper to re-enable it intentionally.
+- If you require retries for non-idempotent methods, add them explicitly to
+  `RetryableMethods` and confirm the target API contract is idempotent.
+- If you are rolling out idempotency migration with shared Redis across mixed
+  binary versions, ensure all services agree on `InFlightTTL`. Legacy tokenless
+  in-flight entries will be auto-cleared only when stale, and mixed-version
+  cleanup can be delayed by that TTL when no newer version processes the key
+  first.
+- Legacy idempotency cleanup requires aligned timing: set `InFlightTTL` consistently
+  across services and storage layers, including matching `InFlightTTL` and key TTL
+  behavior, keep `SystemClock` sources synchronized, and ensure record
+  `CreatedAt` monotonic assumptions match your deploy latency.
+  Checklist during rollout: (1) run `ValidateRequireRoleMiddleware`-style startup
+  checks for route wiring on all roles-protected endpoints, (2) verify
+  `InFlightTTL` parity and shared store key prefixes across all deploy units,
+  (3) monitor middleware telemetry outcomes (`legacy_in_flight_fallback_entered`,
+  `..._recovered`, `..._rejected`, `..._unknown`) while mixed binaries run,
+  and (4) remove tokenless-compatibility behavior only after mixed-version
+  fallback suppression reaches zero.
+- Recommended rollout telemetry contract:
+  - Labels: `method`, `path`, `store_type`, `outcome`, `key` (optional), and
+    `error`.
+  - For metric collectors, prefer `LegacyInFlightCompatibilityMetricSink` and
+    `LegacyInFlightCompatibilitySampleEvery` during large rollout waves.
+  - Use `LegacyInFlightCompatibilityAsync` when callback latency must not affect
+    request latency. Keep `Logger`/compatibility sink diagnostics during initial
+    rollout windows for deterministic evidence.
+  - Default warning thresholds:
+    - `legacy_in_flight_fallback_unknown > 0` for 5 minutes indicates release risk
+      and should page.
+    - `legacy_in_flight_fallback_rejected / legacy_in_flight_fallback_entered` above
+      `0.5%` over 10 minutes indicates high key-level contention and should be
+      investigated.
+    - `legacy_in_flight_fallback_recovered / fallback_entered` dropping below
+      `99%` indicates likely TTL/clock contract mismatch.
+  - Dashboard query examples:
+  ```promql
+  sum by (store_type) (rate(legacy_in_flight_fallback_unknown[5m])) > 0
+  sum by (store_type) (
+    rate(legacy_in_flight_fallback_rejected[10m])
+  )
+  /
+  sum by (store_type) (rate(legacy_in_flight_fallback_entered[10m]))
+    > 0.005
+  sum by (store_type) (
+    rate(legacy_in_flight_fallback_recovered[10m])
+  )
+  /
+  sum by (store_type) (rate(legacy_in_flight_fallback_entered[10m]))
+  < 0.99
+  ```
+- Backpressure behavior:
+  - Synchronous sinks execute in the request path; if a custom sink is slow or
+    blocking, requests can back up at startup and during mixed-version load.
+  - Enable async emission for high-volume migrations and confirm callback
+    exceptions are tracked by tests or sink-specific observability, since they are
+    intentionally recovered and must not abort request handling.
+- If you rely on zero-config retry behavior in `contrib/adapters/httpclient`, review
+  all non-GET/HEAD consumers and update to explicit `RetryableMethods` only for
+  confirmed replay-safe routes and clients.
+- `NewRequireRoleMiddleware` keeps the v2-compatible single-return constructor.
+  Invalid wiring is still fail-closed at runtime until fixed and will return
+  `401` (no actor) or `403` (actor without role) as applicable. For startup
+  validation, use `NewRequireRoleMiddlewareChecked` or run
+  `ValidateRequireRoleMiddleware(method, route, mw)` for each protected route.
+  ```go
+  authzMw, err := authz.NewRequireRoleMiddlewareChecked("admin", func(ctx context.Context) []string {
+      if actor, ok := authorization.ActorFromContext(ctx); ok {
+          return actor.Roles
+      }
+      return nil
+  })
+  if err != nil { panic(err) }
+  if err := authz.ValidateRequireRoleMiddleware(http.MethodGet, "/admin", authzMw); err != nil {
+      return fmt.Errorf("route contract check failed: %w", err)
+  }
+  ```
+- If you need startup authz migration validation, prefer registry-level validation
+  via `ValidateRequireRoleMiddlewareRoutes` during bootstrap and fail startup on
+  the first startup pass when any route fails this check.
+  ```go
+  checks := []authz.RequireRoleRouteSpec{
+      {Method: http.MethodGet, Route: "/admin", Middleware: adminMw},
+      {Method: http.MethodPost, Route: "/billing", Middleware: billingMw},
+  }
+  if err := authz.ValidateRequireRoleMiddlewareRoutes(checks); err != nil {
+      return fmt.Errorf("route contract scan failed: %w", err)
+  }
+  ```
+- Rollout symptoms of misconfigured authz route wiring are usually a startup
+  failure in CI or process init (`invalid role middleware for route ...`), then
+  runtime `401` for unauthenticated requests and `403` for missing-role users.
+  Rollback sequence when migration checks block startup:
+  (1) restore previous middleware wiring,
+  (2) temporarily disable strict constructor checks only as a temporary guardrail,
+  (3) reapply the startup check after role/route registration is repaired, and
+  (4) rerun staged rollout.
+- `requestlog` payload redaction assumes redaction-sensitive names based on
+  canonical field patterns (`token`, `secret`, `password`, common aliases) before
+  any deep traversal. For typed payloads, normalize unsupported custom shapes to
+  map/slice-of-map shapes before calling
+  `requestlog.RedactPayloadFieldsDeep` (see `contrib/middleware/requestlog/doc.go`).
+
+- For mixed-version idempotency rollouts, run startup with `FailOnInFlightTTLMismatch`
+  and `FailOnInFlightClockSkewPreflight` only after you have parity checks and
+  rollback strategy in place. Keep both off during the first boot of a migration
+  wave if you need warning-only discovery.
+- `ports.IdempotencyReleaser.Release(ctx, key)` remains the v2 compatibility
+  contract for existing custom stores. New stores should also implement
+  `ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)` so
+  middleware can release only the current tokened in-flight reservation.
+- To upgrade authz checks with chi, either build explicit `[]authz.RequireRoleRouteSpec`
+  and validate via `authz.ValidateRequireRoleMiddlewareRoutes` or use
+  `chi.ValidateRequireRoleMiddlewareRoutes` with a route+method resolver closure to
+  map protected handlers.
 
 ## 2026-04-24
 

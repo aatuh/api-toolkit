@@ -71,8 +71,17 @@ type ListQueryConfig struct {
 	SortParser func(values url.Values, cfg ListQueryConfig) []SortField
 }
 
-// ParseListQuery parses pagination and filters from the HTTP request according to cfg.
-func ParseListQuery(r *http.Request, cfg ListQueryConfig) (ListQuery, error) {
+// ParseListQuery parses pagination and filters from the HTTP request according
+// to cfg. It preserves the v2-compatible single-return shape; callers that need
+// validation errors should use ParseListQueryChecked.
+func ParseListQuery(r *http.Request, cfg ListQueryConfig) ListQuery {
+	query, _ := ParseListQueryChecked(r, cfg)
+	return query
+}
+
+// ParseListQueryChecked parses pagination and filters from the HTTP request and
+// returns field-level validation errors.
+func ParseListQueryChecked(r *http.Request, cfg ListQueryConfig) (ListQuery, error) {
 	values := r.URL.Query()
 	limit, limitErrs := parseLimit(values.Get("limit"), cfg.DefaultLimit, cfg.MaxLimit)
 	offset, offsetErrs := parseOffset(values.Get("offset"))
@@ -233,11 +242,20 @@ func filtersFromConfig(values url.Values, cfg ListQueryConfig) (Filters, fielder
 		}
 		return filters, nil
 	}
-	return DefaultFilterParser(values, cfg)
+	return DefaultFilterParserChecked(values, cfg)
 }
 
-// DefaultFilterParser implements the toolkit's standard query syntax.
-func DefaultFilterParser(values url.Values, cfg ListQueryConfig) (Filters, fielderrors.FieldErrors) {
+// DefaultFilterParser implements the toolkit's standard query syntax. It
+// preserves the v2-compatible single-return shape; callers that need validation
+// errors should use DefaultFilterParserChecked.
+func DefaultFilterParser(values url.Values, cfg ListQueryConfig) Filters {
+	filters, _ := DefaultFilterParserChecked(values, cfg)
+	return filters
+}
+
+// DefaultFilterParserChecked implements the toolkit's standard query syntax and
+// returns unsupported-filter validation errors.
+func DefaultFilterParserChecked(values url.Values, cfg ListQueryConfig) (Filters, fielderrors.FieldErrors) {
 	searchKey := effectiveSearchKey(cfg)
 	sortKey := effectiveSortKey(cfg)
 	allowed := buildAllowedSet(cfg.AllowedFilters)
@@ -277,11 +295,20 @@ func sortFromConfig(values url.Values, cfg ListQueryConfig) ([]SortField, fielde
 	if cfg.SortParser != nil {
 		return cloneSort(cfg.SortParser(values, cfg)), nil
 	}
-	return DefaultSortParser(values, cfg)
+	return DefaultSortParserChecked(values, cfg)
 }
 
-// DefaultSortParser implements the toolkit's comma-delimited sort syntax.
-func DefaultSortParser(values url.Values, cfg ListQueryConfig) ([]SortField, fielderrors.FieldErrors) {
+// DefaultSortParser implements the toolkit's comma-delimited sort syntax. It
+// preserves the v2-compatible single-return shape; callers that need validation
+// errors should use DefaultSortParserChecked.
+func DefaultSortParser(values url.Values, cfg ListQueryConfig) []SortField {
+	sortFields, _ := DefaultSortParserChecked(values, cfg)
+	return sortFields
+}
+
+// DefaultSortParserChecked implements the toolkit's comma-delimited sort syntax
+// and returns unsupported-sort validation errors.
+func DefaultSortParserChecked(values url.Values, cfg ListQueryConfig) ([]SortField, fielderrors.FieldErrors) {
 	sortKey := effectiveSortKey(cfg)
 	sortAllowed := buildAllowedSet(cfg.AllowedSorts)
 	return parseSort(values[sortKey], sortAllowed, cfg.DefaultSort)

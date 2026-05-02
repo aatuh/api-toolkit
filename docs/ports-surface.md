@@ -75,8 +75,17 @@ Database stats compatibility symbols:
 
 ## V3 cleanup checklist
 
+The compatibility-sensitive ports cleanup plan is coordinated with
+`docs/v3-compatibility-roadmap.md`, which covers idempotency release semantics
+and authz constructor validation shims. The consolidated removal matrix lives in
+that roadmap and is the executable checklist for current API, preferred v2 API,
+v3 action, required tests, and removal conditions.
+
 - [ ] Keep the current `ports/billing.go`, database-stats, and `response_writer`
   exports source-compatible for the rest of v2.
+- [ ] If this compatibility manifest changes, update `VERSIONING.md`,
+  `docs/v3-compatibility-roadmap.md`, docscheck coverage, and
+  `docs/release-notes.md` in the same change.
 - [ ] Keep `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical
   v2 import path for the existing provider-shaped billing model.
 - [ ] Prefer narrow v2 additions, such as plain-value database snapshot

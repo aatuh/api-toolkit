@@ -3,6 +3,7 @@ package idempotency
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -10,21 +11,15 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 const cleanupTimeout = 5 * time.Second
-
-// KeyFunc extracts an idempotency key from the request.
-type KeyFunc func(*http.Request) string
-
-// HashFunc computes a request hash used to detect key reuse with different payloads.
-type HashFunc func(*http.Request, []byte) (string, error)
 
 // Options configures the idempotency middleware.
 type Options struct {
@@ -44,12 +39,41 @@ type Options struct {
 	ReplayHeaderName    string
 	FailOpen            bool
 	OnError             func(error)
+	Logger              ports.Logger
+	// KnownInFlightTTLs maps discovered peers to their observed in-flight TTL.
+	KnownInFlightTTLs map[string]time.Duration
+	// FailOnInFlightTTLMismatch enables hard-fail on TTL mismatch during startup.
+	FailOnInFlightTTLMismatch bool
+	// FailOnInFlightClockSkewPreflight promotes startup clock-skew risk checks into hard-fail.
+	FailOnInFlightClockSkewPreflight bool
+	// LegacyInFlightCompatibilityRawKey exposes the raw request key in compatibility events.
+	// Defaults to false (hashed key output).
+	LegacyInFlightCompatibilityRawKey bool
+	// LegacyInFlightCompatibilitySink emits compatibility telemetry independently of the
+	// legacy callback contract. Use this for logging adapters or custom integrations.
+	LegacyInFlightCompatibilitySink LegacyInFlightCompatibilityEventSink
+	// LegacyInFlightCompatibilityMetricSink emits metric label sets for compatibility events.
+	// Use this for Prometheus/observability pipelines that prefer canonical label contracts.
+	LegacyInFlightCompatibilityMetricSink LegacyInFlightCompatibilityMetricSink
+	// LegacyInFlightCompatibilityAsync avoids blocking request execution for telemetry
+	// work by dispatching events asynchronously. In high-volume environments, this
+	// prevents request latency coupling to callback execution.
+	LegacyInFlightCompatibilityAsync bool
+	// LegacyInFlightCompatibilitySampleEvery emits one event per N emitted events for
+	// high-volume environments. Values <= 1 preserve full event output. Cardinality
+	// remains bounded by key hashing defaults unless RawKey is enabled.
+	LegacyInFlightCompatibilitySampleEvery int
+	// OnLegacyInFlightCompatibility receives additive mixed-version telemetry.
+	OnLegacyInFlightCompatibility LegacyInFlightCompatibilityHandler
 }
 
 // Middleware enforces Idempotency-Key semantics.
 type Middleware struct {
-	opts     Options
-	releaser ports.IdempotencyReleaser
+	opts                       Options
+	releaser                   ports.IdempotencyReleaser
+	reservationReleaser        ports.IdempotencyReservationReleaser
+	legacyClockSkewWarningOnce sync.Once
+	legacyRecoveryStoreType    string
 }
 
 // New constructs an idempotency middleware.
@@ -61,6 +85,7 @@ func New(opts Options) (*Middleware, error) {
 	if !ok {
 		return nil, errors.New("idempotency store must implement release semantics")
 	}
+	reservationReleaser, _ := opts.Store.(ports.IdempotencyReservationReleaser)
 	if opts.TTL < 0 {
 		return nil, errors.New("ttl must be non-negative")
 	}
@@ -112,9 +137,41 @@ func New(opts Options) (*Middleware, error) {
 	if opts.Clock == nil {
 		opts.Clock = ports.SystemClock{}
 	}
+	if opts.Logger == nil {
+		opts.Logger = ports.NopLogger{}
+	}
+	sink := legacyInFlightCompatibilitySinksFromOptions(
+		opts.OnLegacyInFlightCompatibility,
+		opts.LegacyInFlightCompatibilitySink,
+		opts.LegacyInFlightCompatibilityMetricSink,
+		opts.Logger,
+	)
+	if opts.LegacyInFlightCompatibilityAsync {
+		sink = legacyInFlightCompatibilityAsyncSink{next: sink}
+	}
+	if opts.LegacyInFlightCompatibilitySampleEvery > 1 {
+		sink = &legacyInFlightCompatibilitySamplingSink{next: sink, every: opts.LegacyInFlightCompatibilitySampleEvery}
+	}
+	if sink == nil {
+		sink = legacyInFlightCompatibilityLogger(opts.Logger)
+	}
+	if sink != nil {
+		sink = &legacyInFlightCompatibilitySafeSink{next: sink}
+	}
+	opts.OnLegacyInFlightCompatibility = sink.Emit
+	storeType := resolvedStoreType(opts.Store)
+	if err := validateInFlightTTLAlignment(opts.Logger, opts.InFlightTTL, opts.KnownInFlightTTLs, opts.FailOnInFlightTTLMismatch, storeType); err != nil {
+		return nil, err
+	}
+	if err := validateInFlightClockPreflight(opts.Logger, opts.Clock, opts.FailOnInFlightClockSkewPreflight, storeType); err != nil {
+		return nil, err
+	}
 	return &Middleware{
-		opts:     opts,
-		releaser: releaser,
+		opts:                opts,
+		releaser:            releaser,
+		reservationReleaser: reservationReleaser,
+
+		legacyRecoveryStoreType: storeType,
 	}, nil
 }
 
@@ -185,6 +242,30 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				writeConflict(w)
 				return
 			}
+			if m.isRecoverableLegacyInflight(record) {
+				m.emitLegacyInFlightCompatibility(ctx, r, key, LegacyInFlightCompatibilityEntered, nil)
+				cleanupCtx, cancel := cleanupContext(ctx)
+				err := m.recoverLegacyInflightRecord(cleanupCtx, key)
+				cancel()
+				if err != nil {
+					outcome := legacyInFlightCompatibilityOutcome(err)
+					m.emitLegacyInFlightCompatibility(ctx, r, key, outcome, err)
+					if m.opts.OnError != nil {
+						m.opts.OnError(err)
+					}
+					httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+						Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+						Title:  http.StatusText(http.StatusServiceUnavailable),
+						Detail: "idempotency state is temporarily unavailable; retry with the same key later",
+					})
+					return
+				}
+				m.emitLegacyInFlightCompatibility(ctx, r, key, LegacyInFlightCompatibilityRecovered, nil)
+				found = false
+			}
+		}
+
+		if found {
 			switch record.State {
 			case ports.IdempotencyStateCompleted:
 				writeReplay(w, key, record, m.opts.ReplayHeaderName)
@@ -200,28 +281,47 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			}
 		}
 
-		inFlight := ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
-			RequestHash: hash,
-			CreatedAt:   m.opts.Clock.Now(),
-		}
-		reserved, err := m.opts.Store.TryBegin(ctx, key, inFlight, m.opts.InFlightTTL)
-		if err != nil {
-			if m.opts.OnError != nil {
-				m.opts.OnError(err)
+		reserved := false
+		token := ""
+		for attempt := 0; attempt < 2; attempt++ {
+			inFlight := ports.IdempotencyRecord{
+				State:       ports.IdempotencyStateInFlight,
+				RequestHash: hash,
+				CreatedAt:   m.opts.Clock.Now(),
 			}
-			if m.opts.FailOpen {
-				next.ServeHTTP(w, r)
+			token, err = newReservationToken()
+			if err != nil {
+				if m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
+				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+					Title:  http.StatusText(http.StatusServiceUnavailable),
+					Detail: "idempotency reservation failed",
+				})
 				return
 			}
-			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
-				Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
-				Title:  http.StatusText(http.StatusServiceUnavailable),
-				Detail: "idempotency reservation failed",
-			})
-			return
-		}
-		if !reserved {
+			inFlight.ReservationToken = token
+			reserved, err = m.opts.Store.TryBegin(ctx, key, inFlight, m.opts.InFlightTTL)
+			if err != nil {
+				if m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
+				if m.opts.FailOpen {
+					next.ServeHTTP(w, r)
+					return
+				}
+				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+					Title:  http.StatusText(http.StatusServiceUnavailable),
+					Detail: "idempotency reservation failed",
+				})
+				return
+			}
+			if reserved {
+				break
+			}
+
 			record, found, err := m.opts.Store.Get(ctx, key)
 			if err != nil {
 				if m.opts.OnError != nil {
@@ -243,6 +343,27 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					writeConflict(w)
 					return
 				}
+				if m.isRecoverableLegacyInflight(record) {
+					m.emitLegacyInFlightCompatibility(ctx, r, key, LegacyInFlightCompatibilityEntered, nil)
+					cleanupCtx, cancel := cleanupContext(ctx)
+					err := m.recoverLegacyInflightRecord(cleanupCtx, key)
+					cancel()
+					if err != nil {
+						outcome := legacyInFlightCompatibilityOutcome(err)
+						m.emitLegacyInFlightCompatibility(ctx, r, key, outcome, err)
+						if m.opts.OnError != nil {
+							m.opts.OnError(err)
+						}
+						httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+							Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+							Title:  http.StatusText(http.StatusServiceUnavailable),
+							Detail: "idempotency state is temporarily unavailable; retry with the same key later",
+						})
+						return
+					}
+					m.emitLegacyInFlightCompatibility(ctx, r, key, LegacyInFlightCompatibilityRecovered, nil)
+					continue
+				}
 				switch record.State {
 				case ports.IdempotencyStateCompleted:
 					writeReplay(w, key, record, m.opts.ReplayHeaderName)
@@ -257,6 +378,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					// Fall through to fail closed below.
 				}
 			}
+			break
+		}
+		if !reserved {
 			if m.opts.FailOpen {
 				next.ServeHTTP(w, r)
 				return
@@ -265,12 +389,12 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		capture := response_writer.NewLimitedCapture(m.opts.MaxResponseBytes)
+		capture := newLimitedResponseCapture(m.opts.MaxResponseBytes)
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				cleanupCtx, cancel := cleanupContext(ctx)
 				defer cancel()
-				if err := m.releaseReservation(cleanupCtx, key, hash); err != nil && m.opts.OnError != nil {
+				if err := m.releaseReservation(cleanupCtx, key, token); err != nil && m.opts.OnError != nil {
 					m.opts.OnError(err)
 				}
 				panic(recovered)
@@ -321,7 +445,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			}
 		} else {
 			cleanupCtx, cancel := cleanupContext(ctx)
-			err := m.releaseReservation(cleanupCtx, key, hash)
+			err := m.releaseReservation(cleanupCtx, key, token)
 			cancel()
 			if err != nil && m.opts.OnError != nil {
 				m.opts.OnError(err)
@@ -331,10 +455,12 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 	})
 }
 
-func (m *Middleware) releaseReservation(ctx context.Context, key, hash string) error {
-	_ = hash
+func (m *Middleware) releaseReservation(ctx context.Context, key, token string) error {
 	if key == "" || m == nil || m.releaser == nil {
 		return nil
+	}
+	if m.reservationReleaser != nil {
+		return m.reservationReleaser.ReleaseReservation(ctx, key, token)
 	}
 	return m.releaser.Release(ctx, key)
 }
@@ -533,6 +659,14 @@ func writeReplay(w http.ResponseWriter, key string, record ports.IdempotencyReco
 	}
 	w.WriteHeader(status)
 	_, _ = w.Write(record.Body)
+}
+
+func newReservationToken() (string, error) {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buffer), nil
 }
 
 func writeInFlight(w http.ResponseWriter, ttl time.Duration) {

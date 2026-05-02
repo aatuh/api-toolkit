@@ -46,6 +46,8 @@ jobs:
         run: make lint
   api-check:
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
         with:
@@ -54,8 +56,21 @@ jobs:
         with:
           go-version: 1.24.x
           check-latest: true
-      - name: API compatibility check
-        run: make api-check
+      - name: API compatibility check (pull request base)
+        if: github.event_name == 'pull_request'
+        env:
+          API_BASE_REF: origin/${{ github.base_ref }}
+        run: |
+          git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" --depth=1
+          make release-api-check
+      - name: API compatibility check (push previous commit)
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          API_BASE_REF: ${{ github.event.before }}
+        run: make release-api-check
+      - name: API compatibility check (initial push)
+        if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
+        run: echo "Skipping API compatibility check because this push has no previous commit baseline."
   fuzz:
     runs-on: ubuntu-latest
     steps:
