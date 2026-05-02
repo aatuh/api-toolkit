@@ -17,6 +17,7 @@ Supported v2 release baseline: `v2.0.1`.
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
 | `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Report-only selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable. |
 | `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for contrib adapter/integration behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
+| `make release-artifact-verify-fixture` | Synthetic local verifier fixture. | Builds a throwaway release asset bundle and runs the local verifier path; this is not publication verification. |
 | `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations. |
 
 ## Clean-worktree release preflight
@@ -27,8 +28,9 @@ Use this command sequence before publishing:
 2. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
 3. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
 4. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
-5. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
-6. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+5. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
+6. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+7. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
@@ -87,6 +89,14 @@ Local release evidence does not generate or sign SBOMs. The summary records this
 as an artifact tier distinction, not as missing release work. Dirty local
 evidence is allowed only with `ALLOW_DIRTY_RELEASE_EVIDENCE=1`; dirty local
 evidence is rejected before publishing.
+
+`make release-artifact-verify-fixture` is a synthetic local verifier exercise.
+It creates fake SBOM/signature material and a throwaway summary so the local
+path can be audited without downloaded draft release assets. It must not be used
+as publication evidence. Publication verification still requires downloaded
+GitHub draft release assets, `RELEASE_ARTIFACT_VERIFY_MODE=publication`,
+`RELEASE_TAG`, `GITHUB_REPOSITORY`, real Sigstore certificates, and online
+attestation checks.
 
 GitHub release workflow evidence is the publication tier. The tag-driven
 workflow creates a draft release after clean evidence, SBOMs, signatures, and

@@ -34,6 +34,54 @@ For stable surface changes, deprecations, or compatibility-sensitive updates:
   `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
   for local dirty-tree audit evidence that is not acceptable before publishing.
 
+## 2026-05-02
+
+- Contrib dependencies were upgraded to burn down the imported-only
+  `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
+  `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.
+- `docs/dependency-risk.md` now records the v39 advisory ownership map for
+  `GO-2026-4762`, `GO-2026-4771`, and `GO-2026-4772`; the active
+  `docs/vulnerability-dispositions.tsv` manifest is header-only while current
+  imported-only vulnerability evidence is zero.
+- The release evidence parser contract now includes a mixed same-package contrib
+  drift fixture where one package has both `Incompatible changes:` and
+  `Compatible changes:` and must summarize as incompatible.
+- Runtime use of the legacy `response_writer` package was removed from
+  `httpx/recover` and maintained contrib HTTP middleware. Those packages now use
+  package-local response wrappers while the public `response_writer` package
+  remains source-compatible for v2 callers.
+- `make release-artifact-verify-fixture` now builds a synthetic local release
+  asset bundle and runs the local verifier path. This is only local fixture
+  coverage; publication verification still requires downloaded GitHub draft
+  release assets, `RELEASE_ARTIFACT_VERIFY_MODE=publication`, `RELEASE_TAG`,
+  `GITHUB_REPOSITORY`, real Sigstore material, and online attestation checks.
+- The release workflow now prints `make release-review-summary` output after
+  clean evidence is generated and before release artifact verification steps.
+- The current
+  `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders`
+  incompatible report-only drift is intentionally kept for v2: exported
+  middleware/config values are no longer comparable because lifecycle and
+  trusted-proxy fields are required for safer behavior. This does not make
+  contrib stable.
+
+### Upgrade notes
+
+- If you treated maintained contrib middleware or adapters as semver-stable,
+  review `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report`
+  before upgrading and check `docs/contrib-api-drift-dispositions.tsv` for the
+  current package-tied disposition. Contrib drift remains report-only; this
+  guidance helps migration review but does not extend the stable v2 API promise
+  to contrib.
+- For `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders`,
+  stop relying on exported config or middleware value comparability. Construct
+  fresh values from configuration and compare explicit semantic fields in tests
+  instead of comparing whole structs.
+- V3 preparation guidance is now consolidated in
+  `docs/v3-compatibility-roadmap.md`: use `compat/billing` or app-owned billing
+  ports, database stats snapshots, `httpx` or package-local response helpers,
+  and token-aware idempotency release before the major-version compatibility
+  removals.
+
 ## 2026-05-01
 
 - Release evidence now writes `release-check-summary.json` schema v2 with

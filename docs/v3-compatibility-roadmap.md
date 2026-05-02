@@ -32,6 +32,18 @@ Owners should update `docs/release-notes.md`, this roadmap, and docscheck
 requirements in the same change that removes or de-emphasizes a compatibility
 surface.
 
+## V3 migration notes for compatibility removals
+
+These notes prepare consumers for a future major version. They do not remove v2
+compatibility symbols.
+
+| V2 compatibility surface | Preferred v2 migration target | V3 migration note |
+| --- | --- | --- |
+| Deprecated provider-shaped billing exports in `ports/billing.go`. | Use `github.com/aatuh/api-toolkit/v2/compat/billing` for the existing hosted-checkout model, or define an app-owned billing port for provider-neutral code. | Expect generic `ports` billing exports to move out of core or be removed; map each used symbol to `compat/billing` or to your app-owned port before upgrading. |
+| `DatabasePool.Stat` and `DatabaseStats`. | Use `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, `SnapshotDatabaseStats`, or adapter `StatSnapshot()` methods. | Expect driver-shaped counters to leave the generic pool contract; observability code should consume plain-value snapshots. |
+| `response_writer` helpers and wrappers. | Use `httpx` for JSON and Problem Details responses, and package-local capture wrappers for middleware internals. | Expect the public legacy helper package to be removed or moved behind explicit compatibility; root and contrib runtime code no longer depends on it. |
+| Tokenless idempotency `Release(ctx, key)`. | Implement `ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)` and pass `contrib/adapters/idempotencytest` contracts. | Expect token-aware release to become the primary store contract after mixed-version fallback telemetry reaches zero for the agreed support window. |
+
 ## Executable v3 evidence requirements
 
 The removal matrix above is guarded by docscheck so every listed surface keeps a
@@ -43,8 +55,8 @@ that must exist before a v3 branch removes compatibility code.
 | --- | --- | --- | --- |
 | Provider-shaped billing ports | `compat/billing` tests, docscheck legacy-code-snippet guardrails, and release notes. | Deprecated `ports/billing.go` usage appears only in compatibility aliases/tests or migration prose. | New examples use `compat/billing` or app-owned ports, and release notes map each removed ports symbol. |
 | Driver-shaped database stats | Root snapshot tests, pgxpool adapter tests, docscheck legacy-code-snippet guardrails, and release notes. | Direct `DatabaseStats` usage appears only in compatibility adapters/tests or migration prose. | Maintained adapters expose plain-value snapshots and examples use `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()`. |
-| Legacy response helpers | `docs/response-writer-inventory.md`, response tests, idempotency capture tests, and docscheck inventory checks. | Every root and contrib import of `response_writer` is inventoried as compatibility-only with a replacement path. | No docs/examples import `response_writer` as preferred guidance, and remaining code imports have planned `httpx` or package-local replacements. |
-| Tokenless idempotency release | `contrib/adapters/idempotencytest` contracts, adapter test output, telemetry dashboards, and release notes. | `adapter_contract_status=passed`, every maintained adapter implements token-aware release, and telemetry labels `legacy_in_flight_fallback_entered`, `legacy_in_flight_fallback_recovered`, `legacy_in_flight_fallback_rejected`, and `legacy_in_flight_fallback_unknown` remain available through the rollout. | The support-window signal shows zero tokenless fallback events for the agreed support window, dashboards no longer depend on legacy labels, and release notes document custom-store migration and rollback. |
+| Legacy response helpers | `docs/response-writer-inventory.md`, response tests, idempotency capture tests, and docscheck inventory checks. | No root or contrib runtime imports of `response_writer` remain; the public package is retained only as the v2 compatibility surface. | No docs/examples import `response_writer` as preferred guidance, and package-local or `httpx` replacements cover current internal capture needs. |
+| Tokenless idempotency release | `contrib/adapters/idempotencytest` contracts, adapter test output, telemetry dashboards, and release notes. | `adapter_contract_status=passed`, both maintained stores (`contrib/adapters/idempotency` and `contrib/adapters/idempotencyredis`) implement token-aware release, store telemetry labels `legacy_in_flight_recovered` and `legacy_in_flight_token_mismatch` remain explicit, and middleware telemetry labels `legacy_in_flight_fallback_entered`, `legacy_in_flight_fallback_recovered`, `legacy_in_flight_fallback_rejected`, and `legacy_in_flight_fallback_unknown` remain available through the rollout. | The support-window signal shows zero tokenless fallback events for the agreed support window, dashboards no longer depend on legacy labels, and release notes document custom-store migration and rollback. |
 | Unchecked authz constructor | Checked-constructor tests, route validation tests, docscheck guidance checks, and release notes. | Startup validation examples use checked constructors or route validation helpers. | Primary v3 constructor behavior is validated at startup and fail-closed request behavior remains covered. |
 | Checked list parser shims | Checked parser field-error tests, docs examples, and release notes. | Examples use checked parser APIs where validation errors matter. | Release notes identify unchecked helper de-emphasis or removal and checked replacements. |
 
@@ -82,12 +94,14 @@ execution notes for the major-version branch, not permission to break v2.
 2. Keep `middleware/idempotency` on its package-local response capture helper
    instead of importing `response_writer`. Keep replay semantics, response-size
    limits, ambiguous-state handling, and header allow/deny behavior under tests.
-3. In the v3 branch, remove `response_writer` from the stable core surface or
+3. Keep `httpx/recover` and maintained contrib middleware on package-local
+   response recorders instead of importing `response_writer`.
+4. In the v3 branch, remove `response_writer` from the stable core surface or
    move it into an explicitly named compatibility path.
-4. Map `response_writer.WriteJSON` to `httpx.WriteJSON`, `WriteErr` to
+5. Map `response_writer.WriteJSON` to `httpx.WriteJSON`, `WriteErr` to
    `httpx.WriteProblem`, and capture/wrapper helpers to the equivalent `httpx`
    response helpers in release notes.
-5. Keep `httpx` examples, idempotency replay tests, and response tests as the
+6. Keep `httpx` examples, idempotency replay tests, and response tests as the
    removal gate.
 
 ### Compatibility shim removal
@@ -115,6 +129,10 @@ Current v2 compatibility state:
 - `contrib/adapters/idempotencytest` owns reusable adapter contract coverage for
   token-aware release, completed-record preservation, ambiguous-record
   preservation, legacy tokenless recovery, and token mismatch handling.
+- Maintained contrib stores are `contrib/adapters/idempotency` and
+  `contrib/adapters/idempotencyredis`; both pass the shared contract suite.
+- Store-level migration telemetry labels are `legacy_in_flight_recovered` and
+  `legacy_in_flight_token_mismatch`.
 
 Preferred v2 guidance:
 

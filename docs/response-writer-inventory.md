@@ -6,12 +6,18 @@ capture code instead of teaching this legacy package as the preferred path.
 
 ## Current repository dependents
 
-| Path | Import class | Current use | V3 replacement path |
-| --- | --- | --- | --- |
-| `httpx/recover/recover.go` | Root compatibility bridge | Wraps `http.ResponseWriter` so panic recovery can observe whether a response was already written. | Move the small status-capture wrapper into `httpx/recover` or an internal `httpx` capture helper before retiring the public legacy package. |
-| `contrib/middleware/requestlog/requestlog.go` | Contrib compatibility-only middleware implementation | Captures status and bytes for request logging. | Use a contrib-local capture wrapper or a future `httpx` capture helper that is not exposed as the legacy stable package. |
-| `contrib/middleware/metrics/metrics.go` | Contrib compatibility-only middleware implementation | Captures status and bytes for metrics labels. | Use a contrib-local capture wrapper or a future `httpx` capture helper. |
-| `contrib/middleware/oteltrace/oteltrace.go` | Contrib compatibility-only middleware implementation | Captures status for OpenTelemetry span attributes. | Use a contrib-local capture wrapper or a future `httpx` capture helper. |
+No current root or contrib runtime package imports
+`github.com/aatuh/api-toolkit/v2/response_writer`. The public package remains
+in place as a compatibility-only v2 surface for external callers.
+
+Cleared v39 imports:
+
+| Path | Previous use | Replacement |
+| --- | --- | --- |
+| `httpx/recover/recover.go` | Wrapped `http.ResponseWriter` so panic recovery could observe whether a response was already written. | Package-local response recorder in `httpx/recover`. |
+| `contrib/middleware/requestlog/requestlog.go` | Captured status and bytes for request logging. | Package-local response recorder in `contrib/middleware/requestlog`. |
+| `contrib/middleware/metrics/metrics.go` | Captured status and bytes for metrics labels. | Package-local response recorder in `contrib/middleware/metrics`. |
+| `contrib/middleware/oteltrace/oteltrace.go` | Captured status for OpenTelemetry span attributes. | Package-local response recorder in `contrib/middleware/oteltrace`. |
 
 The `response_writer` package files and tests remain the compatibility surface
 itself. They are allowed to document the legacy API, but examples and new
@@ -22,7 +28,7 @@ helper.
 
 - Keep the package source-compatible for v2 callers.
 - Keep `middleware/idempotency` on its package-local response capture helper.
-- Replace root and contrib imports with package-local or `httpx` capture
+- Keep root and contrib runtime imports on package-local or `httpx` capture
   helpers before removing the public legacy package in v3.
 - Keep docscheck guardrails active so new examples and public code snippets do
   not teach `response_writer` as the preferred helper.

@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/response_writer"
 )
 
 // Labels is a simple key:value map for metric dimensions.
@@ -193,7 +192,7 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := mw.Clock.Now()
-		ww := response_writer.Wrap(w)
+		ww := wrapResponseWriter(w)
 		defer func() {
 			rec := recover()
 			status := ww.Status()

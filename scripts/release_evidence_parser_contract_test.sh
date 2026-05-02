@@ -65,6 +65,12 @@ if imported["missing_disposition_count"] != 0 or imported["expired_disposition_c
     raise SystemExit(f"imported-only fixture should have disposition coverage: {imported}")
 if none["imported_not_called_ids"]:
     raise SystemExit(f"no-vulnerability fixture should not have IDs: {none}")
+if (
+    none["called_vulnerability_count"] != 0
+    or none["imported_not_called_vulnerability_count"] != 0
+    or none["required_not_called_module_vulnerability_count"] != 0
+):
+    raise SystemExit(f"no-vulnerability fixture should report zero counts: {none}")
 if unexpected["missing_disposition_count"] == 0:
     raise SystemExit(f"unexpected govulncheck shape must fail closed: {unexpected}")
 if not any(issue["id"] == "govulncheck-imported-id-parser" for issue in unexpected["disposition_issues"]):
@@ -75,6 +81,7 @@ cat >"$repo_root/docs/contrib-api-drift-dispositions.tsv" <<'TSV'
 package	status	reason	release_note_acknowledgement	reviewed_on	expires_on	owner
 github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
 github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible	incompatible	contract fixture	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
+github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed	incompatible	contract fixture with compatible and incompatible headings in one package	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
 github.com/aatuh/api-toolkit/contrib/v2/pkg/malformed	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
 TSV
 
@@ -91,6 +98,16 @@ Contrib API drift report (report-only)
 DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible
 Incompatible changes:
 - removed method
+Report complete: drift_packages=1 skipped_packages=0 compatible_drift_packages=0 incompatible_drift_packages=1
+LOG
+
+cat >"$repo_root/logs/contrib-mixed.log" <<'LOG'
+Contrib API drift report (report-only)
+DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed
+Incompatible changes:
+- changed exported struct comparability
+Compatible changes:
+- added configuration field
 Report complete: drift_packages=1 skipped_packages=0 compatible_drift_packages=0 incompatible_drift_packages=1
 LOG
 
@@ -116,19 +133,22 @@ LOG
 
 contrib_drift_json "passed" "0" "1" "logs/contrib-compatible.log" "true" >"$tmp/contrib-compatible.json"
 contrib_drift_json "passed" "0" "1" "logs/contrib-incompatible.log" "true" >"$tmp/contrib-incompatible.json"
+contrib_drift_json "passed" "0" "1" "logs/contrib-mixed.log" "true" >"$tmp/contrib-mixed.json"
 contrib_drift_json "passed" "0" "1" "logs/contrib-none.log" "true" >"$tmp/contrib-none.json"
 contrib_drift_json "passed" "0" "1" "logs/contrib-skipped.log" "true" >"$tmp/contrib-skipped.json"
 contrib_drift_json "passed" "0" "1" "logs/contrib-malformed.log" "true" >"$tmp/contrib-malformed.json"
 
-python3 - "$tmp/contrib-compatible.json" "$tmp/contrib-incompatible.json" "$tmp/contrib-none.json" "$tmp/contrib-skipped.json" "$tmp/contrib-malformed.json" <<'PY'
+python3 - "$tmp/contrib-compatible.json" "$tmp/contrib-incompatible.json" "$tmp/contrib-mixed.json" "$tmp/contrib-none.json" "$tmp/contrib-skipped.json" "$tmp/contrib-malformed.json" <<'PY'
 import json
 import sys
 
-compatible, incompatible, none, skipped, malformed = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+compatible, incompatible, mixed, none, skipped, malformed = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
 if compatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible", "status": "compatible"}]:
     raise SystemExit(f"compatible drift fixture parsed incorrectly: {compatible}")
 if incompatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible", "status": "incompatible"}]:
     raise SystemExit(f"incompatible drift fixture parsed incorrectly: {incompatible}")
+if mixed["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed", "status": "incompatible"}]:
+    raise SystemExit(f"mixed same-package drift fixture parsed incorrectly: {mixed}")
 if none["packages"] or none["drift_package_count"] != 0:
     raise SystemExit(f"no-drift fixture parsed incorrectly: {none}")
 if skipped["packages"] or skipped["skipped_package_count"] != 1:
