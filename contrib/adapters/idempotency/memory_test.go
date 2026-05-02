@@ -2,6 +2,8 @@ package idempotency
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
@@ -81,6 +83,12 @@ func TestMemoryStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 	if got := seen[0].Outcome; got != LegacyInFlightRecoveryRecovered {
 		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryRecovered, got)
 	}
+	if seen[0].Key != hashTestValue(key) || seen[0].KeyHash != hashTestValue(key) {
+		t.Fatalf("expected hashed recovery key, got key=%q hash=%q", seen[0].Key, seen[0].KeyHash)
+	}
+	if seen[0].RawKey != "" {
+		t.Fatalf("raw key leaked by default: %q", seen[0].RawKey)
+	}
 	if _, found, err := store.Get(context.Background(), key); err != nil {
 		t.Fatalf("Get() error = %v", err)
 	} else if found {
@@ -116,6 +124,9 @@ func TestMemoryStoreReleaseRejectsTokenlessLegacyRecordWhenTokenSupplied(t *test
 	if got := events[0].Outcome; got != LegacyInFlightRecoveryTokenMismatch {
 		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryTokenMismatch, got)
 	}
+	if events[0].Key == key || events[0].RawKey != "" {
+		t.Fatalf("expected default recovery event to avoid raw key, got key=%q raw=%q", events[0].Key, events[0].RawKey)
+	}
 	if _, found, err := store.Get(context.Background(), key); err != nil {
 		t.Fatalf("Get() error = %v", err)
 	} else if !found {
@@ -146,4 +157,42 @@ func TestMemoryStoreLegacyReleaseRemovesInflightRecordByKey(t *testing.T) {
 	} else if found {
 		t.Fatal("expected legacy Release to remove in-flight record")
 	}
+}
+
+func TestMemoryStoreLegacyRecoveryRawKeyRequiresOptIn(t *testing.T) {
+	t.Parallel()
+
+	var events []LegacyInFlightRecoveryEvent
+	store := NewMemoryStoreWithOptions(MemoryStoreOptions{
+		LegacyInFlightRecoveryRawKey: true,
+		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+			events = append(events, event)
+		},
+	})
+	key := "order:raw-key"
+	if err := store.Save(context.Background(), key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "hash-legacy",
+		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
+	}, time.Minute); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if err := store.ReleaseReservation(context.Background(), key, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
+		t.Fatalf("Release() error = %v, want %v", err, ports.ErrLegacyInFlightReservationMissingToken)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one event, got %d", len(events))
+	}
+	if events[0].Key != key || events[0].RawKey != key {
+		t.Fatalf("expected explicit raw key opt-in, got key=%q raw=%q", events[0].Key, events[0].RawKey)
+	}
+	if events[0].KeyHash != hashTestValue(key) {
+		t.Fatalf("expected hashed key alongside raw opt-in, got %q", events[0].KeyHash)
+	}
+}
+
+func hashTestValue(value string) string {
+	h := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(h[:])
 }

@@ -59,7 +59,7 @@ FAKE
 
 init_repo() {
   local dir="$1"
-  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders"
+  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders" "$dir/contrib/adapters/idempotency"
   cp "$repo_root/scripts/contrib_api_drift_report.sh" "$dir/scripts/contrib_api_drift_report.sh"
   cp "$repo_root/scripts/contrib_release_notes_check.sh" "$dir/scripts/contrib_release_notes_check.sh"
   chmod +x "$dir/scripts/"*.sh
@@ -69,10 +69,23 @@ MANIFEST
   cat >"$dir/docs/release-notes.md" <<'NOTES'
 # Release Notes
 NOTES
+  cat >"$dir/docs/package-classification.tsv" <<'TSV'
+# Public package classification manifest.
+# Columns: import_path	api_status	test_status	notes
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter.
+TSV
   cat >"$dir/contrib/middleware/auth/devheaders/devheaders.go" <<'GO'
 package devheaders
 
 type Config struct {
+	Enabled bool
+}
+GO
+  cat >"$dir/contrib/adapters/idempotency/memory.go" <<'GO'
+package idempotency
+
+type Store struct {
 	Enabled bool
 }
 GO
@@ -128,8 +141,24 @@ case "$no_change_output" in
 esac
 notes_no_change_output="$(require_success no-change-notes run_script_in_dir "$no_change_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$notes_no_change_output" in
-  *"No contrib adapter/integration public behavior files changed."*) ;;
+  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
   *) printf 'no-change notes output changed unexpectedly:\n%s\n' "$notes_no_change_output" >&2; exit 1 ;;
+esac
+
+experimental_dir="$tmp/experimental"
+init_repo "$experimental_dir"
+cat >"$experimental_dir/contrib/adapters/idempotency/memory.go" <<'GO'
+package idempotency
+
+type Store struct {
+	Enabled bool
+	UnsafeExperimentalKnob bool
+}
+GO
+experimental_output="$(require_success experimental-change-notes run_script_in_dir "$experimental_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$experimental_output" in
+  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
+  *) printf 'experimental notes output changed unexpectedly:\n%s\n' "$experimental_output" >&2; exit 1 ;;
 esac
 
 incompatible_dir="$tmp/incompatible"

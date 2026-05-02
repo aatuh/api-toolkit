@@ -3,15 +3,20 @@ package idempotencyredis
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
 
 // LegacyInFlightRecoveryOutcome captures whether a legacy tokenless recovery path
 // was exercised in the adapter.
@@ -28,7 +33,13 @@ const (
 
 // LegacyInFlightRecoveryEvent carries structured context for legacy token recovery.
 type LegacyInFlightRecoveryEvent struct {
-	Key     string
+	// Key is hashed by default. It contains the raw key only when
+	// Options.LegacyInFlightRecoveryRawKey is explicitly enabled.
+	Key string
+	// KeyHash always contains the hashed key value when a key is available.
+	KeyHash string
+	// RawKey is populated only when LegacyInFlightRecoveryRawKey is explicitly enabled.
+	RawKey  string
 	Outcome LegacyInFlightRecoveryOutcome
 }
 
@@ -41,6 +52,9 @@ type Options struct {
 	KeyPrefix string
 	// OnLegacyInFlightRecovery receives structured recovery telemetry.
 	OnLegacyInFlightRecovery LegacyInFlightRecoveryHandler
+	// LegacyInFlightRecoveryRawKey exposes raw idempotency keys in recovery events.
+	// Defaults to false so adapter telemetry receives hashed keys.
+	LegacyInFlightRecoveryRawKey bool
 }
 
 // Store implements ports.IdempotencyStore using Redis.
@@ -48,6 +62,7 @@ type Store struct {
 	client                   redis.UniversalClient
 	prefix                   string
 	onLegacyInFlightRecovery LegacyInFlightRecoveryHandler
+	legacyRecoveryRawKey     bool
 }
 
 var _ ports.ReleasableIdempotencyStore = (*Store)(nil)
@@ -63,8 +78,39 @@ func New(client redis.UniversalClient, opts Options) *Store {
 		client:                   client,
 		prefix:                   prefix,
 		onLegacyInFlightRecovery: opts.OnLegacyInFlightRecovery,
+		legacyRecoveryRawKey:     opts.LegacyInFlightRecoveryRawKey,
 	}
 }
+
+var releaseReservationScript = redis.NewScript(`
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return "missing"
+end
+local ok, record = pcall(cjson.decode, raw)
+if not ok then
+  return "malformed"
+end
+if record["State"] ~= 1 then
+  return "preserve"
+end
+local reservation_token = record["ReservationToken"]
+if reservation_token == nil then
+  reservation_token = ""
+end
+if reservation_token == "" then
+  if ARGV[1] == "" then
+    redis.call("DEL", KEYS[1])
+    return "legacy_deleted"
+  end
+  return "legacy_mismatch"
+end
+if reservation_token ~= ARGV[1] then
+  return "token_mismatch"
+end
+redis.call("DEL", KEYS[1])
+return "deleted"
+`)
 
 // Get returns an idempotency record if present.
 func (s *Store) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
@@ -131,6 +177,9 @@ func (s *Store) release(ctx context.Context, key, token string, requireToken boo
 	if s == nil || s.client == nil {
 		return nil
 	}
+	if requireToken {
+		return s.releaseReservationAtomic(ctx, key, token)
+	}
 	raw, err := s.client.Get(ctx, s.key(key)).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -168,6 +217,29 @@ func (s *Store) release(ctx context.Context, key, token string, requireToken boo
 	return s.client.Del(ctx, s.key(key)).Err()
 }
 
+func (s *Store) releaseReservationAtomic(ctx context.Context, key, token string) error {
+	result, err := releaseReservationScript.Run(ctx, s.client, []string{s.key(key)}, token).Text()
+	if err != nil {
+		return err
+	}
+	switch result {
+	case "missing", "preserve", "deleted":
+		return nil
+	case "legacy_deleted":
+		s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryRecovered)
+		return ports.ErrLegacyInFlightReservationMissingToken
+	case "legacy_mismatch", "token_mismatch":
+		if result == "legacy_mismatch" {
+			s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryTokenMismatch)
+		}
+		return ports.ErrLegacyInFlightTokenMismatch
+	case "malformed":
+		return errors.New("decode idempotency record: malformed redis idempotency record")
+	default:
+		return fmt.Errorf("unexpected redis release result: %s", result)
+	}
+}
+
 func (s *Store) key(key string) string {
 	return s.prefix + key
 }
@@ -176,8 +248,27 @@ func (s *Store) emitLegacyInFlightRecovery(ctx context.Context, key string, outc
 	if s == nil || s.onLegacyInFlightRecovery == nil {
 		return
 	}
+	eventKey := legacyInFlightRecoveryEventKey(key, s.legacyRecoveryRawKey)
+	rawKey := ""
+	if s.legacyRecoveryRawKey {
+		rawKey = strings.TrimSpace(key)
+	}
 	s.onLegacyInFlightRecovery(ctx, LegacyInFlightRecoveryEvent{
-		Key:     key,
+		Key:     eventKey,
+		KeyHash: legacyInFlightRecoveryEventKey(key, false),
+		RawKey:  rawKey,
 		Outcome: outcome,
 	})
+}
+
+func legacyInFlightRecoveryEventKey(key string, exposeRaw bool) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return legacyInFlightRecoveryUnknownKeyValue
+	}
+	if exposeRaw {
+		return trimmed
+	}
+	h := sha256.Sum256([]byte(trimmed))
+	return hex.EncodeToString(h[:])
 }

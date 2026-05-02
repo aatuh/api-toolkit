@@ -9,7 +9,7 @@ if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
   exit 0
 fi
 
-changed_contrib="$(git diff --name-only "$base_ref" -- \
+changed_contrib_candidates="$(git diff --name-only "$base_ref" -- \
   'contrib/adapters' \
   'contrib/integrations' \
   'contrib/bootstrap' \
@@ -24,8 +24,36 @@ changed_contrib="$(git diff --name-only "$base_ref" -- \
   | grep -E '\.go$' \
   | grep -Ev '(^|/)([^/]+_test\.go|doc\.go)$' || true)"
 
+changed_contrib=""
+classification_manifest="docs/package-classification.tsv"
+if [ -n "$changed_contrib_candidates" ]; then
+  if [ ! -f "$classification_manifest" ]; then
+    echo "Contrib release notes check requires $classification_manifest." >&2
+    exit 1
+  fi
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    package_path="${path%/*}"
+    case "$package_path" in
+      contrib/*)
+        import_path="github.com/aatuh/api-toolkit/contrib/v2/${package_path#contrib/}"
+        ;;
+      *)
+        import_path="github.com/aatuh/api-toolkit/${package_path}"
+        ;;
+    esac
+    if awk -F '\t' -v import_path="$import_path" '
+      $1 == import_path && $2 == "supported-adapter" { found = 1 }
+      END { exit found ? 0 : 1 }
+    ' "$classification_manifest"; then
+      changed_contrib="${changed_contrib}${path}"$'\n'
+    fi
+  done <<< "$changed_contrib_candidates"
+  changed_contrib="$(printf '%s' "$changed_contrib" | sed '/^$/d' || true)"
+fi
+
 if [ -z "$changed_contrib" ]; then
-  echo "No contrib adapter/integration public behavior files changed."
+  echo "No supported-tier contrib adapter/integration public behavior files changed."
   exit 0
 fi
 
@@ -41,9 +69,13 @@ drift_output="$(CONTRIB_API_BASE_REF="$base_ref" API_BASE_REF="$base_ref" script
 drift_status=$?
 set -e
 if [ "$drift_status" -ne 0 ]; then
+  if printf '%s\n' "$drift_output" | grep -Fq "Report complete:"; then
+    :
+  else
   echo "Could not generate contrib API drift report for release-note review:" >&2
   printf '%s\n' "$drift_output" >&2
   exit "$drift_status"
+  fi
 fi
 
 incompatible_drift_count="$(printf '%s\n' "$drift_output" | awk '{

@@ -2,6 +2,8 @@ package idempotencyredis
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"reflect"
@@ -244,6 +246,12 @@ func TestStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 	if events[0].Outcome != LegacyInFlightRecoveryRecovered {
 		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryRecovered, events[0].Outcome)
 	}
+	if events[0].Key != hashTestValue(key) || events[0].KeyHash != hashTestValue(key) {
+		t.Fatalf("expected hashed recovery key, got key=%q hash=%q", events[0].Key, events[0].KeyHash)
+	}
+	if events[0].RawKey != "" {
+		t.Fatalf("raw key leaked by default: %q", events[0].RawKey)
+	}
 	if mini.Exists("idem:" + key) {
 		t.Fatal("Release() left Redis key behind")
 	}
@@ -290,8 +298,99 @@ func TestStoreReleaseReportsLegacyRecoveryTokenMismatch(t *testing.T) {
 	if events[0].Outcome != LegacyInFlightRecoveryTokenMismatch {
 		t.Fatalf("expected outcome %q, got %q", LegacyInFlightRecoveryTokenMismatch, events[0].Outcome)
 	}
+	if events[0].Key == key || events[0].RawKey != "" {
+		t.Fatalf("expected default recovery event to avoid raw key, got key=%q raw=%q", events[0].Key, events[0].RawKey)
+	}
 	if !mini.Exists("idem:" + key) {
 		t.Fatal("expected legacy tokenless record to remain after mismatch")
+	}
+}
+
+func TestStoreReleaseReservationDoesNotDeleteSuccessorReservation(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	store := New(client, Options{KeyPrefix: "idem:"})
+	ctx := context.Background()
+	key := "order:successor"
+	now := time.Unix(1_700_000_000, 123_000_000).UTC()
+	if err := store.Save(ctx, key, ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-old",
+		ReservationToken: "token-old",
+		CreatedAt:        now,
+	}, time.Millisecond); err != nil {
+		t.Fatalf("Save() old reservation error = %v", err)
+	}
+	mini.FastForward(2 * time.Millisecond)
+	ok, err := store.TryBegin(ctx, key, ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-new",
+		ReservationToken: "token-new",
+		CreatedAt:        now.Add(time.Second),
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("TryBegin() successor error = %v", err)
+	}
+	if !ok {
+		t.Fatal("TryBegin() successor = false, want true after expiry")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, "token-old"); !errors.Is(err, ports.ErrLegacyInFlightTokenMismatch) {
+		t.Fatalf("ReleaseReservation() stale token error = %v, want %v", err, ports.ErrLegacyInFlightTokenMismatch)
+	}
+	got, found, err := store.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get() successor error = %v", err)
+	}
+	if !found || got.ReservationToken != "token-new" {
+		t.Fatalf("successor reservation was not preserved: found=%v record=%#v", found, got)
+	}
+}
+
+func TestStoreReleaseReservationRawKeyRequiresOptIn(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	events := make([]LegacyInFlightRecoveryEvent, 0, 1)
+	store := New(client, Options{
+		KeyPrefix:                    "idem:",
+		LegacyInFlightRecoveryRawKey: true,
+		OnLegacyInFlightRecovery: func(_ context.Context, event LegacyInFlightRecoveryEvent) {
+			events = append(events, event)
+		},
+	})
+	ctx := context.Background()
+	key := "order:raw-key"
+	if err := store.Save(ctx, key, ports.IdempotencyRecord{
+		State:       ports.IdempotencyStateInFlight,
+		RequestHash: "hash-a",
+		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
+	}, time.Minute); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
+		t.Fatalf("ReleaseReservation() error = %v, want %v", err, ports.ErrLegacyInFlightReservationMissingToken)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one event, got %d", len(events))
+	}
+	if events[0].Key != key || events[0].RawKey != key {
+		t.Fatalf("expected explicit raw key opt-in, got key=%q raw=%q", events[0].Key, events[0].RawKey)
+	}
+	if events[0].KeyHash != hashTestValue(key) {
+		t.Fatalf("expected hashed key alongside raw opt-in, got %q", events[0].KeyHash)
 	}
 }
 
@@ -317,4 +416,9 @@ func TestStoreGetReturnsDecodeErrorForInvalidPayload(t *testing.T) {
 	if got := err.Error(); got != "decode idempotency record: invalid character 'n' looking for beginning of object key string" {
 		t.Fatalf("Get() error = %q", got)
 	}
+}
+
+func hashTestValue(value string) string {
+	h := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(h[:])
 }

@@ -1620,6 +1620,7 @@ func TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces(t *testing.T) {
 		"ports.BillingProvider",
 		"ports.DatabaseStats",
 		"DatabasePool.Stat()",
+		"pprof.RegisterRoutes(",
 	}
 
 	for _, mdPath := range append([]string{filepath.Join(repoRoot, "README.md")}, markdownFilesUnder(t, filepath.Join(repoRoot, "docs"))...) {
@@ -1952,12 +1953,14 @@ func TestExamplesAndGuidesPreferCompatibilityReplacements(t *testing.T) {
 		"DefaultSortParser(",
 		"response_writer",
 		"ParseListQuery(",
+		"pprof.RegisterRoutes(",
 	}
 	allowedMarkdown := map[string]bool{
 		filepath.Join(repoRoot, "VERSIONING.md"):                        true,
 		filepath.Join(repoRoot, "docs", "architecture.md"):              true,
 		filepath.Join(repoRoot, "docs", "ports-surface.md"):             true,
 		filepath.Join(repoRoot, "docs", "response-writer-inventory.md"): true,
+		filepath.Join(repoRoot, "docs", "security.md"):                  true,
 		filepath.Join(repoRoot, "docs", "release-review.md"):            true,
 		filepath.Join(repoRoot, "docs", "release-notes.md"):             true,
 		filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"):  true,
@@ -2226,6 +2229,73 @@ func TestDatabaseStatsStayInCompatibilityOrAdapterSource(t *testing.T) {
 	})
 	if len(violations) > 0 {
 		t.Fatalf("direct database stats usage found outside compatibility or adapter source:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestSecurityDocsCoverHardTimeoutCaptureAndPanicProfileOptions(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	profile := readText(t, filepath.Join(repoRoot, "securityprofile", "profile.go"))
+	timeout := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "timeout.go"))
+
+	for _, required := range []string{
+		"WithHardTimeoutMaxCaptureBytes",
+		"RouteOverride.HardTimeoutMaxCaptureBytes",
+		"large non-streaming responses",
+		"do not make streaming routes safe",
+		"Handler panics inside hard",
+		"timeout are contained",
+	} {
+		if !strings.Contains(security, required) {
+			t.Fatalf("docs/security.md missing hard-timeout profile guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"WithHardTimeoutMaxCaptureBytes",
+		"HardTimeoutMaxCaptureBytes",
+		"MaxCaptureBytes: cfg.hardTimeoutMaxCaptureBytes",
+	} {
+		if !strings.Contains(profile, required) {
+			t.Fatalf("securityprofile/profile.go missing capture option propagation %q", required)
+		}
+	}
+	if !strings.Contains(timeout, "defaultHardTimeoutPanicProblem") || !strings.Contains(timeout, "recover()") {
+		t.Fatal("middleware/timeout must recover child goroutine panics with deterministic Problem Details")
+	}
+}
+
+func TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	metrics := readText(t, filepath.Join(repoRoot, "docs", "metrics.md"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	for _, path := range []string{
+		filepath.Join(repoRoot, "contrib", "adapters", "idempotency", "memory.go"),
+		filepath.Join(repoRoot, "contrib", "adapters", "idempotencyredis", "redis.go"),
+	} {
+		code := readText(t, path)
+		for _, required := range []string{
+			"LegacyInFlightRecoveryRawKey",
+			"KeyHash",
+			"RawKey",
+			"legacyInFlightRecoveryEventKey(key, false)",
+		} {
+			if !strings.Contains(code, required) {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Fatalf("%s missing adapter recovery privacy contract %q", rel, required)
+			}
+		}
+	}
+	for _, required := range []string{
+		"Adapter-level legacy idempotency recovery events",
+		"hash the `Key` field by default",
+		"`RawKey` empty unless",
+	} {
+		if !strings.Contains(metrics, required) {
+			t.Fatalf("docs/metrics.md missing adapter telemetry privacy guidance %q", required)
+		}
+	}
+	if !strings.Contains(security, "Adapter legacy idempotency recovery events hash keys by default") {
+		t.Fatal("docs/security.md missing adapter telemetry privacy guidance")
 	}
 }
 
