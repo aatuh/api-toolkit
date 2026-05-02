@@ -21,6 +21,7 @@
 github.com/aatuh/api-toolkit/v2/authorization	stable	direct-tests	Core authorization context helpers.
 github.com/aatuh/api-toolkit/v2/binding	stable	direct-tests	Stable request binding and validation Problem Details helpers.
 github.com/aatuh/api-toolkit/v2/compat/billing	compatibility-only	direct-tests	Explicit v2 hosted-checkout and billing compatibility package.
+github.com/aatuh/api-toolkit/v2/contracttest	stable	direct-tests	Stable route, OpenAPI, and problem catalog contract test helpers.
 github.com/aatuh/api-toolkit/v2/docscheck	excluded	direct-tests	Repository contract tests, not public API.
 github.com/aatuh/api-toolkit/v2/email	stable	direct-tests	Core email port types.
 github.com/aatuh/api-toolkit/v2/endpoints/docs	stable	direct-tests	Stable core docs endpoint helpers.
@@ -48,7 +49,9 @@ github.com/aatuh/api-toolkit/v2/middleware/secure	stable	direct-tests	Stable sec
 github.com/aatuh/api-toolkit/v2/middleware/timeout	stable	direct-tests	Stable timeout middleware.
 github.com/aatuh/api-toolkit/v2/middleware/trace	stable	direct-tests	Stable request trace middleware.
 github.com/aatuh/api-toolkit/v2/negotiation	stable	direct-tests	Stable content negotiation helpers.
+github.com/aatuh/api-toolkit/v2/operations	stable	direct-tests	Stable asynchronous operation response and polling helpers.
 github.com/aatuh/api-toolkit/v2/ports	stable	direct-tests	Stable core ports, including documented compatibility-sensitive sub-surfaces.
+github.com/aatuh/api-toolkit/v2/queryparams	stable	direct-tests	Stable collection query parameter parsing helpers.
 github.com/aatuh/api-toolkit/v2/response_writer	compatibility-only	direct-tests	Legacy v2 response writer compatibility surface.
 github.com/aatuh/api-toolkit/v2/routecontracts	stable	direct-tests	Stable route and OpenAPI contract registration helpers.
 github.com/aatuh/api-toolkit/v2/scheduler	stable	direct-tests	Stable scheduler abstractions.

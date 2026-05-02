@@ -149,6 +149,25 @@ _ = contracts.Get("/widgets/{id}", specs.Operation{
 - Expected response shape: the router serves the handler and `/openapi.json` can describe the same method, path, responses, schemas, and media types.
 - Production caveat: keep generated schemas simple and review OpenAPI diffs when changing public response structs.
 
+## Contract tests for routes and OpenAPI
+
+Purpose: catch drift between route registration, OpenAPI operations, response metadata, security metadata, and typed problem catalogs.
+
+- Prerequisites: register routes through `routecontracts` and operations through `specs.Registry`.
+- Package: `github.com/aatuh/api-toolkit/v2/contracttest`.
+- Test sketch:
+
+```go
+contracttest.AssertRegistryValid(t, routeRegistry)
+contracttest.AssertRouteCoverage(t, routeRegistry, http.MethodGet, "/widgets")
+contracttest.AssertOperationHasResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusOK)
+contracttest.AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
+contracttest.AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.ProblemCode(httpx.TypeBadRequest))
+```
+
+- Expected result: tests fail when a runtime route, documented response, security requirement, or problem code is missing.
+- Production caveat: golden OpenAPI tests should review diffs intentionally; the helper does not auto-update golden files.
+
 ## Runtime deprecation headers
 
 Purpose: signal deprecated or sunsetting routes at runtime without changing response behavior.
@@ -227,6 +246,29 @@ curl -s -X POST http://localhost:8080/webhooks/payment \
 - Expected response shape: `202` JSON `{"status":"accepted"}` for a valid signature.
 - Production caveat: keep provider secrets in secret storage, reject unsigned or oversized payloads before JSON parsing, and add replay protection in application code.
 
+## Signed outbound webhook request
+
+Purpose: build a JSON event request with an HMAC signature that a `webhooks` receiver can verify.
+
+- Prerequisites: share the demo secret only for local testing.
+- Example source: `contrib/examples/webhook`.
+- Handler sketch:
+
+```go
+signer, _ := webhooks.NewHMACSHA256Signer(webhooks.HMACSignerConfig{Secret: []byte("demo-secret")})
+req, err := webhooks.BuildSignedRequest(ctx, webhooks.OutgoingEvent[paymentEvent]{
+    ID:      "evt_123",
+    Type:    "payment.succeeded",
+    Payload: event,
+}, webhooks.SignedRequestConfig{
+    URL:    "https://api.example.com/webhooks/payment",
+    Signer: signer,
+})
+```
+
+- Expected request shape: `POST` JSON with `X-Signature`, `X-Webhook-Event-ID`, and `X-Webhook-Timestamp` headers.
+- Production caveat: delivery scheduling, retries, replay protection, and idempotency remain application-owned.
+
 ## File upload endpoint
 
 Purpose: cap request size and stream multipart upload metadata without buffering the full file in memory.
@@ -260,6 +302,65 @@ curl -s 'http://localhost:8080/items?limit=3&offset=2'
 
 - Expected response shape: `200` JSON with `items` and optional `next_offset`.
 - Production caveat: keep maximum limits low enough for the backing store and prefer checked parser APIs when validation errors matter.
+
+## Collection query semantics
+
+Purpose: parse list endpoint query parameters for sorting, filtering, sparse fieldsets, and includes before applying application-owned query logic.
+
+- Prerequisites: define allowed sort and filter fields for the route.
+- Package: `github.com/aatuh/api-toolkit/v2/queryparams`.
+- Request:
+
+```sh
+curl -s 'http://localhost:8080/widgets?sort=name,-created_at&filter[status]=active&filter[created_at][gte]=2026-01-01&fields=id,name&include=owner'
+```
+
+- Handler sketch:
+
+```go
+sorts, err := queryparams.ParseSort(r.URL.Query(), queryparams.SortConfig{AllowedFields: []string{"name", "created_at"}})
+if err != nil {
+    binding.WriteValidationProblem(w, err)
+    return
+}
+filters, err := queryparams.ParseFilters(r.URL.Query(), queryparams.FilterConfig{Fields: []queryparams.FilterField{
+    {Name: "status"},
+    {Name: "created_at", Operators: []queryparams.FilterOperator{queryparams.FilterOperatorGreaterThanOrEqual}},
+}})
+if err != nil {
+    binding.WriteValidationProblem(w, err)
+    return
+}
+```
+
+- Expected behavior: unknown sort fields, filter fields, or filter operators return field-level validation errors.
+- Production caveat: parsed query parameters are transport contracts only; translate them to SQL, search, or service-layer requests in application code.
+
+## Async operation polling
+
+Purpose: return `202 Accepted` for long-running work and expose a pollable operation resource.
+
+- Prerequisites: provide an application-owned operation store.
+- Package: `github.com/aatuh/api-toolkit/v2/operations`.
+- Handler sketch:
+
+```go
+operations.WriteAccepted(w, operations.AcceptedConfig{
+    ID:         "op_123",
+    Location:   "/operations/op_123",
+    RetryAfter: 5 * time.Second,
+})
+
+router.Get("/operations/{id}", operations.PollHandler(operations.PollConfig[result]{
+    Store: store,
+    OperationID: func(r *http.Request) string {
+        return chi.URLParam(r, "id")
+    },
+}).ServeHTTP)
+```
+
+- Expected response shape: accepted writes return `202` with `Location`; poll responses return operation state `pending`, `running`, `succeeded`, `failed`, or `canceled`.
+- Production caveat: workers, queues, persistence, cancellation, and retry policy remain application-owned.
 
 ## Conditional GET and update
 

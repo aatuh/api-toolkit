@@ -19,6 +19,7 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/authorization`
 - `github.com/aatuh/api-toolkit/v2/binding`
 - `github.com/aatuh/api-toolkit/v2/compat/billing`
+- `github.com/aatuh/api-toolkit/v2/contracttest`
 - `github.com/aatuh/api-toolkit/v2/email`
 - `github.com/aatuh/api-toolkit/v2/endpoints/docs`
 - `github.com/aatuh/api-toolkit/v2/endpoints/health`
@@ -44,7 +45,9 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/middleware/timeout`
 - `github.com/aatuh/api-toolkit/v2/middleware/trace`
 - `github.com/aatuh/api-toolkit/v2/negotiation`
+- `github.com/aatuh/api-toolkit/v2/operations`
 - `github.com/aatuh/api-toolkit/v2/ports`
+- `github.com/aatuh/api-toolkit/v2/queryparams`
 - `github.com/aatuh/api-toolkit/v2/response_writer`
 - `github.com/aatuh/api-toolkit/v2/routecontracts`
 - `github.com/aatuh/api-toolkit/v2/scheduler`
