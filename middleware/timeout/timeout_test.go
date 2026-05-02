@@ -204,3 +204,110 @@ func TestHardTimeoutDefaultCaptureLimitAllowsSmallResponses(t *testing.T) {
 		t.Fatalf("expected body %q, got %q", "small", rec.Body.String())
 	}
 }
+
+func TestHardTimeoutContainsPanicBeforeTimeout(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode problem: %v", err)
+	}
+	if !strings.Contains(body["type"].(string), "timeout-panic") {
+		t.Fatalf("problem type = %#v, want timeout panic", body["type"])
+	}
+}
+
+func TestHardTimeoutContainsPanicAfterTimeout(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+
+	done := make(chan struct{})
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
+		<-r.Context().Done()
+		panic("late boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+	<-done
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got %d", rec.Code)
+	}
+}
+
+func TestHardTimeoutContainsPanicAfterPartialCapture(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Partial", "true")
+		_, _ = w.Write([]byte("partial"))
+		panic("after partial")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	if rec.Header().Get("X-Partial") != "" {
+		t.Fatalf("partial handler header leaked: %q", rec.Header().Get("X-Partial"))
+	}
+}
+
+func TestHardTimeoutContainsChildPanicBeforeOuterRecover(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+
+	outerRecovered := false
+	outerRecover := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if recover() != nil {
+					outerRecovered = true
+					http.Error(w, "outer recovered", http.StatusTeapot)
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+	handler := outerRecover(mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("child boom")
+	})))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if outerRecovered {
+		t.Fatal("outer recover middleware should not observe child goroutine panic")
+	}
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected hard-timeout panic response, got %d", rec.Code)
+	}
+}

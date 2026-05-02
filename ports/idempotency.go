@@ -59,14 +59,17 @@ type IdempotencyReleaser interface {
 //
 // ReleaseReservation must be a no-op when the key is missing, expired,
 // completed, or ambiguous. It must delete only the current in-flight record when
-// token matches ReservationToken. It must preserve tokened in-flight records
-// when token does not match and return ErrLegacyInFlightTokenMismatch. Legacy
-// tokenless in-flight records may be deleted only when callers also pass an
-// empty token; implementations should return
-// ErrLegacyInFlightReservationMissingToken after deleting that legacy record so
-// mixed-version recovery paths can emit compatibility telemetry. Passing a
-// non-empty token for a legacy tokenless record must preserve the record and
-// return ErrLegacyInFlightTokenMismatch.
+// token matches ReservationToken. Distributed stores must make the
+// compare-and-delete operation atomic so a stale releaser cannot delete a newer
+// reservation that replaced an expired or otherwise interleaved record. It must
+// preserve tokened in-flight records when token does not match and return
+// ErrLegacyInFlightTokenMismatch. Legacy tokenless in-flight records may be
+// deleted only when callers also pass an empty token; implementations should
+// return ErrLegacyInFlightReservationMissingToken after deleting that legacy
+// record so mixed-version recovery paths can emit compatibility telemetry.
+// Passing a non-empty token for a legacy tokenless record must preserve the
+// record and return ErrLegacyInFlightTokenMismatch. Malformed records should be
+// preserved and reported as decode errors.
 type IdempotencyReservationReleaser interface {
 	ReleaseReservation(ctx context.Context, key string, token string) error
 }

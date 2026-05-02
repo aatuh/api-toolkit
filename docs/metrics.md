@@ -85,6 +85,11 @@ operators can sample, redact, and restrict access.
 output only for short, access-controlled incident review, and prefer hashed keys
 or redacted values for normal operations.
 
+Adapter-level legacy idempotency recovery events follow the same privacy
+posture: memory and Redis adapter events hash the `Key` field by default,
+populate `KeyHash` for correlation, and leave `RawKey` empty unless the
+adapter-specific raw-key opt-in is explicitly enabled for incident review.
+
 Compatibility telemetry delivery is best-effort. Async mode uses a bounded queue
 and worker pool; when the queue is full, events are dropped and a warning records
 the cumulative drop count and queue size.

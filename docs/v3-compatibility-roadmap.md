@@ -139,12 +139,18 @@ Current v2 compatibility state:
   `contrib/adapters/idempotencyredis`; both pass the shared contract suite.
 - Store-level migration telemetry labels are `legacy_in_flight_recovered` and
   `legacy_in_flight_token_mismatch`.
+- Redis `ReleaseReservation` uses an atomic compare-and-delete operation so a
+  stale releaser cannot delete a successor in-flight reservation after expiry or
+  replacement.
 
 Preferred v2 guidance:
 
 - New stores should implement `ports.ReservationReleasableIdempotencyStore`.
 - Legacy tokenless records should remain a narrow mixed-version recovery path,
   with hashed-key telemetry enabled by default.
+- Adapter recovery telemetry should keep raw-key output disabled by default and
+  use the explicit raw-key option only for short, access-controlled incident
+  review.
 - Rollouts should align `InFlightTTL` values and use the startup preflight
   checks in `middleware/idempotency` before enabling strict failure behavior.
 

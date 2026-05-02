@@ -72,6 +72,7 @@ Goal:
 The toolkit provides concrete controls for resource limits:
 
 - Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines; `securityprofile.WithHardTimeout` and `middleware/timeout.NewHard` add a hard wall-clock response cutoff that writes a 504 Problem Details timeout response and discards late handler writes
+- Hard-timeout capture limits: `securityprofile.WithHardTimeoutMaxCaptureBytes`, `RouteOverride.HardTimeoutMaxCaptureBytes`, and `middleware/timeout.Options.MaxCaptureBytes` bound buffered non-streaming responses
 - Payload size: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`
 - Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
 - Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
@@ -86,7 +87,13 @@ They buffer responses up to a configured maximum capture size and return a
 Problem Details error instead of silently truncating oversized responses. Do not
 apply hard timeout globally to streaming responses, server-sent events,
 websocket upgrades, or handlers that require optional `http.ResponseWriter`
-interfaces such as `http.Flusher` or `http.Hijacker`.
+interfaces such as `http.Flusher` or `http.Hijacker`. Tune capture size globally
+with `securityprofile.WithHardTimeoutMaxCaptureBytes` or per route with
+`RouteOverride.HardTimeoutMaxCaptureBytes` for large non-streaming responses;
+these knobs do not make streaming routes safe. Handler panics inside hard
+timeout are contained in the child goroutine. Before the timeout response wins,
+the middleware returns a deterministic 500 Problem Details response; after the
+timeout response wins, late panics are dropped with late writes.
 
 ## Admin-only endpoints and EU privacy posture
 
@@ -100,10 +107,18 @@ operator-only surfaces.
   compatibility or separately protected internal muxes.
 - Mount detailed health with `Handler.RegisterAdminDetailedHealthRoute` when it
   is enabled; avoid teaching policy-free detailed-health mounts in new examples.
+- To migrate policy-free pprof, replace `pprof.RegisterRoutes(router)` with
+  `pprof.RegisterAdminRoutes(router, requireAdmin)` and fail startup if it
+  returns an error.
+- To migrate policy-free detailed health, keep `/live` and `/ready` public and
+  mount only the detailed endpoint on an admin router with
+  `healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin)`.
 - Keep public liveness/readiness separate from detailed dependency output.
 - Keep request log payloads redacted, keep metrics labels bounded, and avoid raw
   idempotency keys unless a short access-controlled incident review requires
   them.
+- Adapter legacy idempotency recovery events hash keys by default. Enable the
+  explicit raw-key option only for short, access-controlled incident review.
 - Prefer upstream network policy plus application authorization for admin
   routes; endpoint helpers do not create legal compliance by themselves.
 

@@ -122,6 +122,36 @@ func TestWithHardTimeoutWritesTimeoutProblem(t *testing.T) {
 	}
 }
 
+func TestWithHardTimeoutMaxCaptureBytesControlsOverflow(t *testing.T) {
+	profile, err := New(
+		WithRequireAuth(false),
+		WithHardTimeout(time.Second),
+		WithHardTimeoutMaxCaptureBytes(4),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Result", "oversized")
+		_, _ = w.Write([]byte("too large"))
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected hard-timeout overflow 500, got %d", rec.Code)
+	}
+	if rec.Header().Get("X-Result") != "" {
+		t.Fatalf("oversized handler header leaked: %q", rec.Header().Get("X-Result"))
+	}
+	if !strings.Contains(rec.Body.String(), "timeout-capture-overflow") {
+		t.Fatalf("expected overflow problem response, got %q", rec.Body.String())
+	}
+}
+
 func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
 	short := 5 * time.Millisecond
 	hard := true
@@ -155,6 +185,42 @@ func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
 	handler.ServeHTTP(defaultRec, defaultReq)
 	if defaultRec.Code != http.StatusOK {
 		t.Fatalf("expected cooperative default route to return 200, got %d", defaultRec.Code)
+	}
+}
+
+func TestRouteOverrideCanTuneHardTimeoutCaptureBytes(t *testing.T) {
+	limit := int64(4)
+	profile, err := New(
+		WithRequireAuth(false),
+		WithHardTimeout(time.Second),
+		WithRouteOverrides(RouteOverride{
+			Pattern:                    "/small-capture",
+			HardTimeoutMaxCaptureBytes: &limit,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("small response"))
+	}))
+
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/default", nil)
+	defaultRec := httptest.NewRecorder()
+	handler.ServeHTTP(defaultRec, defaultReq)
+	if defaultRec.Code != http.StatusOK {
+		t.Fatalf("expected default route to use default capture limit, got %d", defaultRec.Code)
+	}
+
+	limitedReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/small-capture", nil)
+	limitedRec := httptest.NewRecorder()
+	handler.ServeHTTP(limitedRec, limitedReq)
+	if limitedRec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected route override overflow 500, got %d", limitedRec.Code)
+	}
+	if !strings.Contains(limitedRec.Body.String(), "timeout-capture-overflow") {
+		t.Fatalf("expected overflow problem response, got %q", limitedRec.Body.String())
 	}
 }
 

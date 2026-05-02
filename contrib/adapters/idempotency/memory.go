@@ -2,11 +2,16 @@ package idempotency
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
 
 // LegacyInFlightRecoveryOutcome captures whether a legacy tokenless recovery path
 // was exercised in the adapter.
@@ -23,7 +28,13 @@ const (
 
 // LegacyInFlightRecoveryEvent carries structured context for legacy token recovery.
 type LegacyInFlightRecoveryEvent struct {
-	Key     string
+	// Key is hashed by default. It contains the raw key only when
+	// MemoryStoreOptions.LegacyInFlightRecoveryRawKey is explicitly enabled.
+	Key string
+	// KeyHash always contains the hashed key value when a key is available.
+	KeyHash string
+	// RawKey is populated only when LegacyInFlightRecoveryRawKey is explicitly enabled.
+	RawKey  string
 	Outcome LegacyInFlightRecoveryOutcome
 }
 
@@ -34,6 +45,9 @@ type LegacyInFlightRecoveryHandler func(context.Context, LegacyInFlightRecoveryE
 // MemoryStoreOptions configures legacy recovery telemetry for memory store usage.
 type MemoryStoreOptions struct {
 	OnLegacyInFlightRecovery LegacyInFlightRecoveryHandler
+	// LegacyInFlightRecoveryRawKey exposes raw idempotency keys in recovery events.
+	// Defaults to false so adapter telemetry receives hashed keys.
+	LegacyInFlightRecoveryRawKey bool
 }
 
 // MemoryStore is an in-memory idempotency store intended for development/testing.
@@ -42,6 +56,7 @@ type MemoryStore struct {
 	data                     map[string]memoryEntry
 	now                      func() time.Time
 	onLegacyInFlightRecovery LegacyInFlightRecoveryHandler
+	legacyRecoveryRawKey     bool
 }
 
 var _ ports.ReleasableIdempotencyStore = (*MemoryStore)(nil)
@@ -64,6 +79,7 @@ func NewMemoryStoreWithOptions(opts MemoryStoreOptions) *MemoryStore {
 		data:                     make(map[string]memoryEntry),
 		now:                      time.Now,
 		onLegacyInFlightRecovery: opts.OnLegacyInFlightRecovery,
+		legacyRecoveryRawKey:     opts.LegacyInFlightRecoveryRawKey,
 	}
 }
 
@@ -174,10 +190,29 @@ func (m *MemoryStore) emitLegacyInFlightRecovery(ctx context.Context, key string
 	if m == nil || m.onLegacyInFlightRecovery == nil {
 		return
 	}
+	eventKey := legacyInFlightRecoveryEventKey(key, m.legacyRecoveryRawKey)
+	rawKey := ""
+	if m.legacyRecoveryRawKey {
+		rawKey = strings.TrimSpace(key)
+	}
 	m.onLegacyInFlightRecovery(ctx, LegacyInFlightRecoveryEvent{
-		Key:     key,
+		Key:     eventKey,
+		KeyHash: legacyInFlightRecoveryEventKey(key, false),
+		RawKey:  rawKey,
 		Outcome: outcome,
 	})
+}
+
+func legacyInFlightRecoveryEventKey(key string, exposeRaw bool) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return legacyInFlightRecoveryUnknownKeyValue
+	}
+	if exposeRaw {
+		return trimmed
+	}
+	h := sha256.Sum256([]byte(trimmed))
+	return hex.EncodeToString(h[:])
 }
 
 func (m *MemoryStore) isExpired(entry memoryEntry) bool {

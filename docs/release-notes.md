@@ -25,6 +25,23 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-02
 
+- `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
+  token-aware compare-and-delete cleanup so stale releasers cannot delete newer
+  in-flight reservations after expiry or replacement.
+- `middleware/timeout.NewHard` now contains handler panics inside the
+  hard-timeout goroutine. Panics before timeout return deterministic Problem
+  Details responses, while panics after timeout are contained after the 504
+  response has already won.
+- `securityprofile.WithHardTimeoutMaxCaptureBytes` and
+  `RouteOverride.HardTimeoutMaxCaptureBytes` expose hard-timeout response
+  capture limits through global and per-route profile configuration.
+- Memory and Redis idempotency adapter legacy recovery events now hash keys by
+  default and expose raw keys only through explicit raw-key opt-in fields for
+  short incident-review windows.
+- The contrib release-note review gate now scopes behavior-change release-note
+  requirements to packages classified as `supported-adapter`, preserving
+  supported-adapter governance without over-requiring notes for experimental or
+  wrapper-only contrib internals.
 - Added stable core packages `binding` and `middleware/auth/apikey` for typed
   request binding, Problem Details-compatible validation errors, API key
   authentication, optional auth, context principals, and scope enforcement.

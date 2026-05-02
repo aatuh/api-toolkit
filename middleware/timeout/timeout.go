@@ -14,6 +14,7 @@ import (
 const defaultHardTimeoutStatus = http.StatusGatewayTimeout
 const defaultHardTimeoutMaxCaptureBytes int64 = 1 << 20
 const defaultHardTimeoutCaptureOverflowStatus = http.StatusInternalServerError
+const defaultHardTimeoutPanicStatus = http.StatusInternalServerError
 
 var defaultHardTimeoutProblem = httpx.Problem{
 	Type:   httpx.TypeURI(httpx.DefaultTypeBase, "timeout"),
@@ -25,6 +26,12 @@ var defaultHardTimeoutCaptureOverflowProblem = httpx.Problem{
 	Type:   httpx.TypeURI(httpx.DefaultTypeBase, "timeout-capture-overflow"),
 	Title:  http.StatusText(defaultHardTimeoutCaptureOverflowStatus),
 	Detail: "response capture exceeded the configured hard-timeout limit",
+}
+
+var defaultHardTimeoutPanicProblem = httpx.Problem{
+	Type:   httpx.TypeURI(httpx.DefaultTypeBase, "timeout-panic"),
+	Title:  http.StatusText(defaultHardTimeoutPanicStatus),
+	Detail: "handler panicked while running under hard timeout",
 }
 
 var ErrHardTimeoutCaptureLimitExceeded = errors.New("hard timeout response capture limit exceeded")
@@ -117,6 +124,10 @@ func (m *HardTimeout) Middleware() func(http.Handler) http.Handler {
 // Handler wraps the next handler with a context deadline and a hard timeout
 // response. It cannot stop CPU work in a handler that ignores ctx.Done, but it
 // does stop that handler from writing the client response after the deadline.
+// Panics from the wrapped handler are recovered inside the child goroutine. A
+// panic before the timeout wins returns a deterministic 500 Problem Details
+// response unless capture overflow already occurred. A panic after the timeout
+// response has been sent is contained and dropped.
 func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next
@@ -126,16 +137,26 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		defer cancel()
 
 		capture := newHardTimeoutCapture(m.captureLimit())
-		done := make(chan struct{})
+		done := make(chan hardTimeoutResult, 1)
 		go func() {
-			defer close(done)
+			result := hardTimeoutResult{}
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					result.panicked = true
+				}
+				done <- result
+			}()
 			next.ServeHTTP(capture, r.WithContext(ctx))
 		}()
 
 		select {
-		case <-done:
+		case result := <-done:
 			if capture.overflowed() {
 				httpx.WriteProblem(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem)
+				return
+			}
+			if result.panicked {
+				httpx.WriteProblem(w, defaultHardTimeoutPanicStatus, defaultHardTimeoutPanicProblem)
 				return
 			}
 			capture.flushTo(w)
@@ -144,6 +165,10 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 			httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
 		}
 	})
+}
+
+type hardTimeoutResult struct {
+	panicked bool
 }
 
 func (m *HardTimeout) captureLimit() int64 {

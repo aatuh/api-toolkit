@@ -24,23 +24,24 @@ type ErrorWriter func(http.ResponseWriter, int, httpx.Problem)
 const defaultDevBypassHeader = "X-Debug-Auth-Bypass"
 
 type options struct {
-	maxBodyBytes     int64
-	queryLimits      querylimits.Options
-	enableQueryGuard bool
-	timeout          time.Duration
-	enableTimeout    bool
-	hardTimeout      bool
-	rateLimit        ratelimit.Options
-	enableRateLimit  bool
-	requireAuth      bool
-	authCheck        func(*http.Request) bool
-	authAllowlist    []string
-	devBypassHeader  string
-	allowDevBypass   bool
-	resolver         identity.Resolver
-	secureOptions    []securemw.Option
-	errorWriter      ErrorWriter
-	routeOverrides   []RouteOverride
+	maxBodyBytes               int64
+	queryLimits                querylimits.Options
+	enableQueryGuard           bool
+	timeout                    time.Duration
+	hardTimeoutMaxCaptureBytes int64
+	enableTimeout              bool
+	hardTimeout                bool
+	rateLimit                  ratelimit.Options
+	enableRateLimit            bool
+	requireAuth                bool
+	authCheck                  func(*http.Request) bool
+	authAllowlist              []string
+	devBypassHeader            string
+	allowDevBypass             bool
+	resolver                   identity.Resolver
+	secureOptions              []securemw.Option
+	errorWriter                ErrorWriter
+	routeOverrides             []RouteOverride
 }
 
 // Option customizes the security profile.
@@ -51,14 +52,15 @@ type RouteOverride struct {
 	Pattern string
 	Methods []string
 
-	MaxBodyBytes       *int64
-	QueryLimits        *querylimits.Options
-	QueryLimitsEnabled *bool
-	Timeout            *time.Duration
-	TimeoutEnabled     *bool
-	HardTimeout        *bool
-	RateLimit          *ratelimit.Options
-	RateLimitEnabled   *bool
+	MaxBodyBytes               *int64
+	QueryLimits                *querylimits.Options
+	QueryLimitsEnabled         *bool
+	Timeout                    *time.Duration
+	TimeoutEnabled             *bool
+	HardTimeout                *bool
+	HardTimeoutMaxCaptureBytes *int64
+	RateLimit                  *ratelimit.Options
+	RateLimitEnabled           *bool
 }
 
 // WithMaxBodyBytes sets the maximum request body size.
@@ -104,6 +106,15 @@ func WithHardTimeout(d time.Duration) Option {
 		o.timeout = d
 		o.enableTimeout = true
 		o.hardTimeout = true
+	}
+}
+
+// WithHardTimeoutMaxCaptureBytes sets the response capture limit used by
+// WithHardTimeout. A value of zero preserves the middleware default. Hard
+// timeout still buffers responses and remains unsuitable for streaming routes.
+func WithHardTimeoutMaxCaptureBytes(n int64) Option {
+	return func(o *options) {
+		o.hardTimeoutMaxCaptureBytes = n
 	}
 }
 
@@ -249,16 +260,17 @@ func New(opts ...Option) (Profile, error) {
 	}, cfg.secureOptions...)
 
 	baseLimits := limitConfig{
-		maxBodyBytes:     cfg.maxBodyBytes,
-		queryLimits:      cfg.queryLimits,
-		enableQueryGuard: cfg.enableQueryGuard,
-		timeout:          cfg.timeout,
-		enableTimeout:    cfg.enableTimeout,
-		hardTimeout:      cfg.hardTimeout,
-		rateLimit:        cfg.rateLimit,
-		enableRateLimit:  cfg.enableRateLimit,
-		resolver:         cfg.resolver,
-		errorWriter:      cfg.errorWriter,
+		maxBodyBytes:               cfg.maxBodyBytes,
+		queryLimits:                cfg.queryLimits,
+		enableQueryGuard:           cfg.enableQueryGuard,
+		timeout:                    cfg.timeout,
+		hardTimeoutMaxCaptureBytes: cfg.hardTimeoutMaxCaptureBytes,
+		enableTimeout:              cfg.enableTimeout,
+		hardTimeout:                cfg.hardTimeout,
+		rateLimit:                  cfg.rateLimit,
+		enableRateLimit:            cfg.enableRateLimit,
+		resolver:                   cfg.resolver,
+		errorWriter:                cfg.errorWriter,
 	}
 	limits, err := buildLimitsMiddleware(baseLimits, cfg.routeOverrides)
 	if err != nil {
@@ -334,16 +346,17 @@ func defaultErrorWriter(w http.ResponseWriter, status int, p httpx.Problem) {
 }
 
 type limitConfig struct {
-	maxBodyBytes     int64
-	queryLimits      querylimits.Options
-	enableQueryGuard bool
-	timeout          time.Duration
-	enableTimeout    bool
-	hardTimeout      bool
-	rateLimit        ratelimit.Options
-	enableRateLimit  bool
-	resolver         identity.Resolver
-	errorWriter      ErrorWriter
+	maxBodyBytes               int64
+	queryLimits                querylimits.Options
+	enableQueryGuard           bool
+	timeout                    time.Duration
+	hardTimeoutMaxCaptureBytes int64
+	enableTimeout              bool
+	hardTimeout                bool
+	rateLimit                  ratelimit.Options
+	enableRateLimit            bool
+	resolver                   identity.Resolver
+	errorWriter                ErrorWriter
 }
 
 type limitsMiddleware struct {
@@ -430,6 +443,9 @@ func mergeOverride(base limitConfig, override RouteOverride) limitConfig {
 	if override.HardTimeout != nil {
 		cfg.hardTimeout = *override.HardTimeout
 	}
+	if override.HardTimeoutMaxCaptureBytes != nil {
+		cfg.hardTimeoutMaxCaptureBytes = *override.HardTimeoutMaxCaptureBytes
+	}
 	if override.RateLimit != nil {
 		cfg.rateLimit = *override.RateLimit
 		cfg.enableRateLimit = true
@@ -456,7 +472,10 @@ func buildLimitChain(cfg limitConfig) (func(http.Handler) http.Handler, error) {
 		}
 		var err error
 		if cfg.hardTimeout {
-			mw, err = timeoutmw.NewHard(timeoutmw.Options{Timeout: cfg.timeout})
+			mw, err = timeoutmw.NewHard(timeoutmw.Options{
+				Timeout:         cfg.timeout,
+				MaxCaptureBytes: cfg.hardTimeoutMaxCaptureBytes,
+			})
 		} else {
 			mw, err = timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
 		}
