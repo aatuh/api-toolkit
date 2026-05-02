@@ -132,6 +132,11 @@ contrib drift summary, vulnerability evidence, and artifact tier metadata.
 Publication evidence must come from a clean worktree:
 `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local dirty-tree audit must opt in with `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
 and is not acceptable before publishing.
+Reviewers can print the key decision fields with
+`RELEASE_SUMMARY=release-check-summary.json make release-review-summary`.
+Downloaded draft release assets must be checked in publication mode with
+`RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`
+so missing online attestations fail before publication.
 
 | Command | Intent | Mutates files | Requires explicit release baseline |
 | --- | --- | --- | --- |
@@ -142,6 +147,8 @@ and is not acceptable before publishing.
 | `make release-check` | Full release-readiness gate. | No | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` |
 | `make release-evidence` | Clean-tree publication evidence gate plus local `release-check-summary.json` evidence generation. | Writes `release-check-summary.json` and `.ci-result/release-evidence/logs/*.log`. | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 make release-evidence` | Local dirty-tree audit evidence only. | Writes the same evidence files but records `provenance_policy.mode=local_audit`. | Yes, and not acceptable before publishing. |
+| `make release-review-summary` | Single-command reviewer summary for `release-check-summary.json`. | No | No, but it expects a summary file from release evidence. |
+| `make release-artifact-verify` | Draft release artifact verifier. Publication mode requires `RELEASE_TAG` and checks online GitHub attestations. | No | Yes for publication review: set `RELEASE_ARTIFACT_VERIFY_MODE=publication`, `RELEASE_TAG`, and `GITHUB_REPOSITORY`. |
 | `make contrib-api-drift-report` | Report-only contrib API drift signal for selected high-use contrib packages. | No | Yes: use `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` |
 | `make contrib-release-notes-check` | Review gate requiring release notes when contrib adapter or integration behavior files change. | No | No, but accepts `CONTRIB_RELEASE_BASE_REF` or `API_BASE_REF` |
 

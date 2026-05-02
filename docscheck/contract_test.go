@@ -1238,6 +1238,331 @@ func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
 	}
 }
 
+func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	verifier := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify.sh"))
+	reviewerSummary := readText(t, filepath.Join(repoRoot, "scripts", "release_review_summary.sh"))
+	artifactContract := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify_contract_test.sh"))
+	parserContract := readText(t, filepath.Join(repoRoot, "scripts", "release_evidence_parser_contract_test.sh"))
+
+	for _, required := range []string{
+		"release-review-summary",
+		"scripts/release_review_summary.sh",
+		"release-artifact-verify-contract",
+		"release-evidence-parser-contract",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing release reviewer/verifier contract target %q", required)
+		}
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"docs/release-runbook.md", runbook},
+		{"docs/release-review.md", review},
+		{"VERSIONING.md", versioning},
+	} {
+		for _, required := range []string{
+			"make release-review-summary",
+			"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+			"RELEASE_TAG",
+			"GITHUB_REPOSITORY",
+		} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing consolidated reviewer path text %q", source.name, required)
+			}
+		}
+	}
+	for _, required := range []string{
+		"Download and verify uploaded draft release assets",
+		"gh release download",
+		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"RELEASE_TAG=\"$GITHUB_REF_NAME\"",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/release.yml missing post-upload verification text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"RELEASE_TAG is required when RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"json.load",
+		"publication_eligible",
+		"provenance_policy",
+		"called_vulnerability_count",
+		"missing_disposition_count",
+		"expired_disposition_count",
+		"checks[].log_path",
+		"contrib_drift.artifact_path",
+		"gh attestation verify",
+	} {
+		if !strings.Contains(verifier, required) {
+			t.Fatalf("release artifact verifier missing invariant %q", required)
+		}
+	}
+	for _, required := range []string{
+		"publication_eligible",
+		"vulnerability_dispositions",
+		"contrib_drift",
+		"artifact_expectations",
+		"review_decision",
+	} {
+		if !strings.Contains(reviewerSummary, required) {
+			t.Fatalf("release reviewer summary script missing field %q", required)
+		}
+	}
+	for _, required := range []string{
+		"failed-summary",
+		"missing-summary-log",
+		"publication-missing-tag",
+		"publication verifier should run three gh attestation checks",
+	} {
+		if !strings.Contains(artifactContract, required) {
+			t.Fatalf("release artifact verifier contract missing fixture %q", required)
+		}
+	}
+	for _, required := range []string{
+		"vuln-called.log",
+		"vuln-imported.log",
+		"vuln-none.log",
+		"vuln-unexpected.log",
+		"contrib-compatible.log",
+		"contrib-incompatible.log",
+		"contrib-none.log",
+		"contrib-skipped.log",
+		"contrib-malformed.log",
+		"govulncheck-imported-id-parser",
+		"status\": \"unknown\"",
+	} {
+		if !strings.Contains(parserContract, required) {
+			t.Fatalf("release evidence parser contract missing fixture %q", required)
+		}
+	}
+}
+
+func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	inventory := readText(t, filepath.Join(repoRoot, "docs", "response-writer-inventory.md"))
+	fset := token.NewFileSet()
+	var importers []string
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", "audit":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range file.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if importPath == rootModulePath+"/v2/response_writer" {
+				rel, relErr := filepath.Rel(repoRoot, path)
+				if relErr != nil {
+					rel = path
+				}
+				importers = append(importers, filepath.ToSlash(rel))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan response_writer imports: %v", err)
+	}
+	sort.Strings(importers)
+	if len(importers) == 0 {
+		t.Fatal("response_writer inventory should be removed only after no imports remain")
+	}
+	for _, importer := range importers {
+		if !strings.Contains(inventory, "`"+importer+"`") {
+			t.Fatalf("docs/response-writer-inventory.md missing current importer %s", importer)
+		}
+	}
+	for _, required := range []string{
+		"compatibility-only",
+		"httpx",
+		"package-local",
+		"v3",
+	} {
+		if !strings.Contains(inventory, required) {
+			t.Fatalf("docs/response-writer-inventory.md missing replacement guidance %q", required)
+		}
+	}
+}
+
+func TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	forbidden := []string{
+		`"github.com/aatuh/api-toolkit/v2/response_writer"`,
+		"ports.CheckoutSessionRequest",
+		"ports.PaymentProvider",
+		"ports.BillingProvider",
+		"ports.DatabaseStats",
+		"DatabasePool.Stat()",
+	}
+
+	for _, mdPath := range append([]string{filepath.Join(repoRoot, "README.md")}, markdownFilesUnder(t, filepath.Join(repoRoot, "docs"))...) {
+		for _, block := range markdownCodeBlocks(readText(t, mdPath)) {
+			for _, token := range forbidden {
+				if strings.Contains(block, token) {
+					rel, err := filepath.Rel(repoRoot, mdPath)
+					if err != nil {
+						rel = mdPath
+					}
+					t.Fatalf("%s code block teaches legacy compatibility surface %q", rel, token)
+				}
+			}
+		}
+	}
+
+	for _, dir := range []string{
+		filepath.Join(repoRoot, "examples"),
+		filepath.Join(repoRoot, "contrib", "examples"),
+	} {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			text := readText(t, path)
+			for _, token := range forbidden {
+				if strings.Contains(text, token) {
+					rel, relErr := filepath.Rel(repoRoot, path)
+					if relErr != nil {
+						rel = path
+					}
+					t.Fatalf("%s teaches legacy compatibility surface %q", rel, token)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan examples in %s: %v", dir, err)
+		}
+	}
+}
+
+func TestV3RemovalMatrixHasExecutableEvidence(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
+	matrix := markdownSection(t, roadmap, "## V3 removal matrix")
+	rows := markdownTableRows(matrix)
+	if len(rows) < 6 {
+		t.Fatalf("v3 removal matrix has %d rows, want at least 6", len(rows))
+	}
+	for _, row := range rows {
+		if len(row) != 6 {
+			t.Fatalf("v3 removal matrix row has %d columns, want 6: %v", len(row), row)
+		}
+		for i, field := range row {
+			if strings.TrimSpace(field) == "" || strings.Contains(strings.ToLower(field), "tbd") {
+				t.Fatalf("v3 removal matrix row %q has incomplete field %d", row[0], i)
+			}
+		}
+	}
+	evidence := markdownSection(t, roadmap, "## Executable v3 evidence requirements")
+	for _, required := range []string{
+		"adapter_contract_status=passed",
+		"legacy_in_flight_fallback_entered",
+		"legacy_in_flight_fallback_recovered",
+		"legacy_in_flight_fallback_rejected",
+		"legacy_in_flight_fallback_unknown",
+		"support-window signal",
+		"docs/response-writer-inventory.md",
+		"docscheck legacy-code-snippet guardrails",
+	} {
+		if !strings.Contains(evidence, required) {
+			t.Fatalf("executable v3 evidence requirements missing %q", required)
+		}
+	}
+}
+
+func markdownFilesUnder(t *testing.T, root string) []string {
+	t.Helper()
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".md") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk markdown files under %s: %v", root, err)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func markdownCodeBlocks(markdown string) []string {
+	var blocks []string
+	var current []string
+	inBlock := false
+	for _, line := range strings.Split(markdown, "\n") {
+		if strings.HasPrefix(line, "```") {
+			if inBlock {
+				blocks = append(blocks, strings.Join(current, "\n"))
+				current = nil
+				inBlock = false
+			} else {
+				inBlock = true
+			}
+			continue
+		}
+		if inBlock {
+			current = append(current, line)
+		}
+	}
+	return blocks
+}
+
+func markdownTableRows(section string) [][]string {
+	var rows [][]string
+	for _, line := range strings.Split(section, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "|") || !strings.HasSuffix(line, "|") {
+			continue
+		}
+		if strings.Contains(line, "---") || strings.Contains(line, "Surface |") {
+			continue
+		}
+		parts := strings.Split(strings.Trim(line, "|"), "|")
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+		}
+		rows = append(rows, parts)
+	}
+	return rows
+}
+
 func TestV3DebtChecklistRowsStayExecutable(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
@@ -1422,12 +1747,13 @@ func TestExamplesAndGuidesPreferCompatibilityReplacements(t *testing.T) {
 		"ParseListQuery(",
 	}
 	allowedMarkdown := map[string]bool{
-		filepath.Join(repoRoot, "VERSIONING.md"):                       true,
-		filepath.Join(repoRoot, "docs", "architecture.md"):             true,
-		filepath.Join(repoRoot, "docs", "ports-surface.md"):            true,
-		filepath.Join(repoRoot, "docs", "release-review.md"):           true,
-		filepath.Join(repoRoot, "docs", "release-notes.md"):            true,
-		filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"): true,
+		filepath.Join(repoRoot, "VERSIONING.md"):                        true,
+		filepath.Join(repoRoot, "docs", "architecture.md"):              true,
+		filepath.Join(repoRoot, "docs", "ports-surface.md"):             true,
+		filepath.Join(repoRoot, "docs", "response-writer-inventory.md"): true,
+		filepath.Join(repoRoot, "docs", "release-review.md"):            true,
+		filepath.Join(repoRoot, "docs", "release-notes.md"):             true,
+		filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"):  true,
 	}
 
 	var files []string

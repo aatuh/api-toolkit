@@ -13,6 +13,9 @@ Use this as the short reviewer path before publishing a release.
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`, and artifact tier
   status.
+- Run `RELEASE_SUMMARY=release-check-summary.json make release-review-summary`
+  to print the same decision fields from one command before walking the detailed
+  evidence.
 - Review `.ci-result/release-evidence/logs/contrib-api-drift-report.log` and the
   `contrib_drift` summary; compare drift packages with
   `docs/contrib-api-drift-dispositions.tsv`. Contrib drift is report-only and
@@ -31,9 +34,8 @@ Use this as the short reviewer path before publishing a release.
 - Check `docs/ports-surface.md` and `docs/v3-compatibility-roadmap.md` for
   compatibility-sensitive v2 surfaces and pending major-version cleanup.
 - Download the GitHub draft release assets into one directory and run
-  `RELEASE_ASSET_DIR=/path/to/assets make release-artifact-verify`. Set
-  `RELEASE_TAG` and `GITHUB_REPOSITORY` as well when verifying GitHub provenance
-  attestations online.
+  `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+  Publication mode requires online GitHub provenance attestation verification.
 
 ## Dirty-tree decision
 
@@ -77,7 +79,8 @@ Verification checklist:
 - Confirm GitHub provenance attestations exist for `release-check-summary.json`,
   `sbom-root.spdx.json`, and `sbom-contrib.spdx.json`.
 - Download `release-evidence-logs.tgz` and confirm it contains the logs named by
-  the summary check records.
+  the summary check records. `make release-artifact-verify` now enforces every
+  `checks[].log_path` and `contrib_drift.artifact_path` from the summary.
 
 ## Vulnerability and contrib disposition review
 

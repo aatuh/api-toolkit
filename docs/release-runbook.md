@@ -14,9 +14,10 @@ Supported v2 release baseline: `v2.0.1`.
 | `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
 | `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
+| `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
 | `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Report-only selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable. |
 | `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for contrib adapter/integration behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
-| `RELEASE_ASSET_DIR=/path/to/assets make release-artifact-verify` | Draft release artifact verification. | Verifies expected asset names, `release-asset-manifest.tsv` checksums, retained log archive contents, SBOM signatures/certificates, and local provenance subject expectations. |
+| `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations. |
 
 ## Clean-worktree release preflight
 
@@ -25,8 +26,9 @@ Use this command sequence before publishing:
 1. `GOTOOLCHAIN=local make finalize` before committing implementation work when it is safe to allow formatting and module tidying.
 2. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
 3. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
-4. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
-5. `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` after downloading draft release assets.
+4. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
+5. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+6. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
@@ -107,9 +109,11 @@ Before publishing, verify the draft release asset names against
 `release-asset-manifest.tsv` checksums, verify SBOM signatures against their
 certificates, inspect the retained log archive, and confirm provenance
 attestations for the summary and both SBOMs. The repository command for this is
-`RELEASE_ASSET_DIR=/path/to/assets make release-artifact-verify`; set
-`RELEASE_TAG` and `GITHUB_REPOSITORY` to include online GitHub attestation
-verification.
+`RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+Publication mode fails if `RELEASE_TAG` is missing, parses
+`release-check-summary.json` for publication-grade invariants, and confirms
+every `checks[].log_path` plus `contrib_drift.artifact_path` exists in
+`release-evidence-logs.tgz`.
 
 ## Failed compatibility check rollback path
 

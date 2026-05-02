@@ -32,6 +32,22 @@ Owners should update `docs/release-notes.md`, this roadmap, and docscheck
 requirements in the same change that removes or de-emphasizes a compatibility
 surface.
 
+## Executable v3 evidence requirements
+
+The removal matrix above is guarded by docscheck so every listed surface keeps a
+current v2 API, preferred v2 API, v3 action, required tests, and removal
+condition. The following evidence names are the minimum release-review signals
+that must exist before a v3 branch removes compatibility code.
+
+| Surface | Evidence source | Required signal | Acceptance gate |
+| --- | --- | --- | --- |
+| Provider-shaped billing ports | `compat/billing` tests, docscheck legacy-code-snippet guardrails, and release notes. | Deprecated `ports/billing.go` usage appears only in compatibility aliases/tests or migration prose. | New examples use `compat/billing` or app-owned ports, and release notes map each removed ports symbol. |
+| Driver-shaped database stats | Root snapshot tests, pgxpool adapter tests, docscheck legacy-code-snippet guardrails, and release notes. | Direct `DatabaseStats` usage appears only in compatibility adapters/tests or migration prose. | Maintained adapters expose plain-value snapshots and examples use `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()`. |
+| Legacy response helpers | `docs/response-writer-inventory.md`, response tests, idempotency capture tests, and docscheck inventory checks. | Every root and contrib import of `response_writer` is inventoried as compatibility-only with a replacement path. | No docs/examples import `response_writer` as preferred guidance, and remaining code imports have planned `httpx` or package-local replacements. |
+| Tokenless idempotency release | `contrib/adapters/idempotencytest` contracts, adapter test output, telemetry dashboards, and release notes. | `adapter_contract_status=passed`, every maintained adapter implements token-aware release, and telemetry labels `legacy_in_flight_fallback_entered`, `legacy_in_flight_fallback_recovered`, `legacy_in_flight_fallback_rejected`, and `legacy_in_flight_fallback_unknown` remain available through the rollout. | The support-window signal shows zero tokenless fallback events for the agreed support window, dashboards no longer depend on legacy labels, and release notes document custom-store migration and rollback. |
+| Unchecked authz constructor | Checked-constructor tests, route validation tests, docscheck guidance checks, and release notes. | Startup validation examples use checked constructors or route validation helpers. | Primary v3 constructor behavior is validated at startup and fail-closed request behavior remains covered. |
+| Checked list parser shims | Checked parser field-error tests, docs examples, and release notes. | Examples use checked parser APIs where validation errors matter. | Release notes identify unchecked helper de-emphasis or removal and checked replacements. |
+
 ## V3 implementation tracks
 
 Keep v2 source compatibility intact until the v3 branch. These tracks are
