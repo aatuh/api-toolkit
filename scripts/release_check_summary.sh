@@ -536,7 +536,9 @@ contrib_drift_packages_from_log() {
       next
     }
     /^Compatible changes:/ && pkg != "" {
-      status = "compatible"
+      if (status != "incompatible") {
+        status = "compatible"
+      }
       next
     }
     /^Incompatible changes:/ && pkg != "" {
