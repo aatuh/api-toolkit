@@ -93,6 +93,18 @@ source of truth is `docs/release-runbook.md`.
 - `webhooks` now includes replay-window checks, required event-id contracts,
   timestamp/event-id header constants, and delivery attempt/result contract
   types without adding retry persistence or provider-specific schemas.
+- Added stable core package `upload` for multipart form decoding, required file
+  checks, per-file and aggregate size limits, content-type allowlists, and
+  Problem Details-compatible field errors.
+- Added stable core package `oauth2` for provider-neutral bearer token claims,
+  validators, scope checks, JWKS configuration values, OpenAPI security scheme
+  registration, and `authorization.Actor`/scope mapping.
+- Added stable core package `apitest` for deterministic HTTP API assertions over
+  Problem Details, validation fields, headers, pagination, operation-accepted
+  responses, webhook signatures, and OpenAPI golden output.
+- Added stable core package `apiclient` for client-side Problem Details
+  decoding, cursor iteration, `Retry-After` parsing, precondition headers, API
+  key transports, webhook signing transports, and JSON request/response helpers.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.

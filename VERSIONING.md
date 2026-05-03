@@ -16,6 +16,8 @@ explicit API and test-coverage classification.
 
 All exported identifiers in these packages are considered stable:
 
+- `github.com/aatuh/api-toolkit/v2/apiclient`
+- `github.com/aatuh/api-toolkit/v2/apitest`
 - `github.com/aatuh/api-toolkit/v2/authorization`
 - `github.com/aatuh/api-toolkit/v2/binding`
 - `github.com/aatuh/api-toolkit/v2/compat/billing`
@@ -46,6 +48,7 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/middleware/timeout`
 - `github.com/aatuh/api-toolkit/v2/middleware/trace`
 - `github.com/aatuh/api-toolkit/v2/negotiation`
+- `github.com/aatuh/api-toolkit/v2/oauth2`
 - `github.com/aatuh/api-toolkit/v2/operations`
 - `github.com/aatuh/api-toolkit/v2/ports`
 - `github.com/aatuh/api-toolkit/v2/queryparams`
@@ -57,6 +60,7 @@ All exported identifiers in these packages are considered stable:
 - `github.com/aatuh/api-toolkit/v2/securityprofile`
 - `github.com/aatuh/api-toolkit/v2/specs`
 - `github.com/aatuh/api-toolkit/v2/swagstub`
+- `github.com/aatuh/api-toolkit/v2/upload`
 - `github.com/aatuh/api-toolkit/v2/webhooks`
 
 ## Compatibility-sensitive stable sub-surfaces
