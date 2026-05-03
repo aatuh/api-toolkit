@@ -170,6 +170,7 @@ type fakePgxTx struct {
 	rows        pgx.Rows
 	row         pgx.Row
 	tag         pgconn.CommandTag
+	err         error
 }
 
 func (t *fakePgxTx) Begin(context.Context) (pgx.Tx, error) { return t, nil }
@@ -185,10 +186,16 @@ func (t *fakePgxTx) Prepare(context.Context, string, string) (*pgconn.StatementD
 }
 func (t *fakePgxTx) Exec(_ context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
 	t.execSQL = sql
+	if t.err != nil {
+		return pgconn.CommandTag{}, t.err
+	}
 	return t.tag, nil
 }
 func (t *fakePgxTx) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
 	t.querySQL = sql
+	if t.err != nil {
+		return nil, t.err
+	}
 	return t.rows, nil
 }
 func (t *fakePgxTx) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {

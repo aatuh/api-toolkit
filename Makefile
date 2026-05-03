@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -112,6 +112,12 @@ test: ## Run unit tests
 		echo "==> $$mod"; \
 		(cd $$mod && $(GO) test ./...); \
 	done
+
+coverage: ## Run unit tests with coverage reporting
+	@GO="$(GO)" scripts/coverage_check.sh
+
+coverage-check: ## Run unit tests with coverage thresholds
+	@GO="$(GO)" scripts/coverage_check.sh --check
 
 fast-check: ## Run non-installing local checks without rewriting files
 	@$(MAKE) docs-check
