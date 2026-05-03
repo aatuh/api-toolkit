@@ -507,3 +507,56 @@ Purpose: show SSRF host allowlisting, retry budget controls, circuit breaking, a
 - Request example: the program issues a guarded `GET https://api.example.com/health`.
 - Expected response shape: no local HTTP endpoint; success means the outbound call returns and the response body closes.
 - Production caveat: do not broaden `AllowedHosts`, `AllowedPorts`, or retryable methods without reviewing replay and SSRF risk.
+
+## Operation-derived route policies
+
+Purpose: keep runtime middleware aligned with the route contract instead of repeating deprecation, negotiation, auth, and quota metadata in handlers.
+
+- Prerequisites: register routes through `routecontracts.NewRegistryWithOptions`.
+- Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/routepolicy`, and `github.com/aatuh/api-toolkit/v2/specs`.
+- Handler sketch:
+
+```go
+policy := routepolicy.New(routepolicy.Config{
+	EnableDeprecation: true,
+	EnableNegotiation: true,
+	EmitPolicyExtension: true,
+	Auth: func(op specs.Operation) (func(http.Handler) http.Handler, error) {
+		return requireScopes(op.Scopes...), nil
+	},
+})
+contracts := routecontracts.NewRegistryWithOptions(router, specRegistry, routecontracts.Options{
+	Policies: []routecontracts.Policy{policy},
+})
+err := contracts.Get("/widgets", specs.Operation{
+	Summary:    "List widgets",
+	Scopes:     []string{"widgets:read"},
+	Deprecated: true,
+	Responses: map[int]specs.Response{
+		200: {Content: map[string]specs.MediaType{"application/json": {SchemaRef: "#/components/schemas/WidgetList"}}},
+	},
+}, listWidgets)
+```
+
+- Expected behavior: policy middleware is derived from the operation and route-specific middleware can still wrap it when needed.
+- Production caveat: keep storage-backed auth, idempotency, and quota decisions in application-owned middleware factories; `routepolicy` only derives when to apply them.
+
+## Reusable Problem Details components
+
+Purpose: publish the same typed Problem Details catalog in runtime error handling and OpenAPI components.
+
+- Prerequisites: create or use an `httpx.ProblemCatalog`.
+- Packages: `github.com/aatuh/api-toolkit/v2/httpx` and `github.com/aatuh/api-toolkit/v2/specs`.
+- Registry sketch:
+
+```go
+registry := specs.NewRegistry(specs.Info{Title: "Widget API", Version: "v1"})
+specs.RegisterProblemCatalog(registry, httpx.DefaultProblemCatalog())
+operation := specs.Operation{Responses: map[int]specs.Response{
+	400: specs.ValidationProblemResponse("Invalid request"),
+	500: specs.ProblemResponse("Internal error"),
+}}
+```
+
+- Expected behavior: `components.schemas.Problem`, `components.schemas.ValidationProblem`, and catalog-backed response components appear deterministically only after explicit registration.
+- Production caveat: keep stable machine-readable problem codes in the catalog before exposing them in published client contracts.

@@ -78,6 +78,12 @@ source of truth is `docs/release-runbook.md`.
   requests that remain compatible with the existing receiver verifier.
 - Added stable core package `contracttest` for route contract, OpenAPI,
   generated contract, and problem catalog assertion helpers.
+- Added stable core package `routepolicy` and opt-in `routecontracts` policy
+  hooks for deriving deprecation headers, content negotiation, auth,
+  idempotency, and rate-limit middleware from route operation metadata.
+- `specs` can now register reusable Problem Details and validation problem
+  components from an `httpx.ProblemCatalog` while preserving unchanged OpenAPI
+  output until the catalog helper is used.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.

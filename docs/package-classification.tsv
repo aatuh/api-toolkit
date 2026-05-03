@@ -54,6 +54,7 @@ github.com/aatuh/api-toolkit/v2/ports	stable	direct-tests	Stable core ports, inc
 github.com/aatuh/api-toolkit/v2/queryparams	stable	direct-tests	Stable collection query parameter parsing helpers.
 github.com/aatuh/api-toolkit/v2/response_writer	compatibility-only	direct-tests	Legacy v2 response writer compatibility surface.
 github.com/aatuh/api-toolkit/v2/routecontracts	stable	direct-tests	Stable route and OpenAPI contract registration helpers.
+github.com/aatuh/api-toolkit/v2/routepolicy	stable	direct-tests	Stable operation-derived runtime policy middleware helpers.
 github.com/aatuh/api-toolkit/v2/scheduler	stable	direct-tests	Stable scheduler abstractions.
 github.com/aatuh/api-toolkit/v2/scheduler/migrations	stable	direct-tests	Stable scheduler migration helpers.
 github.com/aatuh/api-toolkit/v2/securityprofile	stable	direct-tests	Stable security profile defaults.

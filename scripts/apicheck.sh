@@ -103,6 +103,7 @@ packages=(
   "github.com/aatuh/api-toolkit/v2/queryparams"
   "github.com/aatuh/api-toolkit/v2/response_writer"
   "github.com/aatuh/api-toolkit/v2/routecontracts"
+  "github.com/aatuh/api-toolkit/v2/routepolicy"
   "github.com/aatuh/api-toolkit/v2/scheduler"
   "github.com/aatuh/api-toolkit/v2/scheduler/migrations"
   "github.com/aatuh/api-toolkit/v2/securityprofile"

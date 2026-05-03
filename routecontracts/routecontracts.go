@@ -1,3 +1,5 @@
+// Package routecontracts keeps runtime route registration and OpenAPI operation
+// registration in one place.
 package routecontracts
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
-// Router is the route registration surface required by this package.
+// Router is the minimal router contract used by Registry.
 type Router interface {
 	Get(pattern string, h http.HandlerFunc)
 	Post(pattern string, h http.HandlerFunc)
@@ -22,174 +24,195 @@ type patchRouter interface {
 	Patch(pattern string, h http.HandlerFunc)
 }
 
-// Route describes one runtime route and its OpenAPI operation.
+// Route binds an HTTP route to its OpenAPI operation.
 type Route struct {
 	Method     string
 	Pattern    string
-	Handler    http.Handler
+	Handler    http.HandlerFunc
 	Middleware []func(http.Handler) http.Handler
 	Operation  specs.Operation
 }
 
-// Registry registers routes and keeps route contract metadata for validation.
+// Policy derives automatic middleware and operation metadata from a route operation.
+type Policy interface {
+	Apply(specs.Operation) (specs.Operation, []func(http.Handler) http.Handler, error)
+}
+
+// PolicyFunc adapts a function to Policy.
+type PolicyFunc func(specs.Operation) (specs.Operation, []func(http.Handler) http.Handler, error)
+
+// Apply derives middleware and operation metadata from an operation.
+func (f PolicyFunc) Apply(operation specs.Operation) (specs.Operation, []func(http.Handler) http.Handler, error) {
+	if f == nil {
+		return operation, nil, nil
+	}
+	return f(operation)
+}
+
+// Options configures Registry behavior.
+type Options struct {
+	Policies []Policy
+}
+
+// Registry registers runtime routes and matching OpenAPI operations.
 type Registry struct {
 	router Router
 	specs  *specs.Registry
+	opts   Options
 	mu     sync.RWMutex
 	routes []Route
 }
 
-// CoverageError reports route contract validation failures.
-type CoverageError struct {
-	Problems []string
-}
-
-func (e *CoverageError) Error() string {
-	if e == nil || len(e.Problems) == 0 {
-		return ""
-	}
-	return strings.Join(e.Problems, "; ")
-}
-
-// NewRegistry creates a route contract registry.
+// NewRegistry constructs a registry with default behavior.
 func NewRegistry(router Router, specRegistry *specs.Registry) *Registry {
-	return &Registry{router: router, specs: specRegistry}
+	return NewRegistryWithOptions(router, specRegistry, Options{})
 }
 
-// Register registers a route handler and matching OpenAPI operation.
-func (r *Registry) Register(route Route) error {
-	if r == nil {
-		return fmt.Errorf("route contract registry is nil")
+// NewRegistryWithOptions constructs a registry with policy options.
+func NewRegistryWithOptions(router Router, specRegistry *specs.Registry, opts Options) *Registry {
+	copied := Options{Policies: append([]Policy(nil), opts.Policies...)}
+	return &Registry{router: router, specs: specRegistry, opts: copied}
+}
+
+// Register registers a route and matching operation.
+func (registry *Registry) Register(route Route) error {
+	if registry == nil || registry.router == nil {
+		return fmt.Errorf("route registry router is not configured")
 	}
-	if r.router == nil {
-		return fmt.Errorf("route router is nil")
-	}
-	route.Method = normalizeMethod(route.Method)
-	if route.Method == "" {
-		route.Method = normalizeMethod(route.Operation.Method)
-	}
-	route.Pattern = strings.TrimSpace(route.Pattern)
-	if route.Pattern == "" {
-		route.Pattern = strings.TrimSpace(route.Operation.Path)
-	}
-	if route.Method == "" {
-		return fmt.Errorf("route method is required")
-	}
-	if route.Pattern == "" {
-		return fmt.Errorf("route pattern is required")
+	method := strings.ToUpper(strings.TrimSpace(route.Method))
+	pattern := strings.TrimSpace(route.Pattern)
+	if method == "" || pattern == "" {
+		return fmt.Errorf("route method and pattern are required")
 	}
 	if route.Handler == nil {
 		return fmt.Errorf("route handler is required")
 	}
-	if route.Operation.Method == "" {
-		route.Operation.Method = route.Method
+	operation := route.Operation
+	if operation.Method == "" {
+		operation.Method = method
+	} else if strings.ToUpper(strings.TrimSpace(operation.Method)) != method {
+		return fmt.Errorf("operation method must match route method")
 	}
-	if route.Operation.Path == "" {
-		route.Operation.Path = route.Pattern
+	if operation.Path == "" {
+		operation.Path = pattern
+	} else if strings.TrimSpace(operation.Path) != pattern {
+		return fmt.Errorf("operation path must match route pattern")
 	}
-	if normalizeMethod(route.Operation.Method) != route.Method {
-		return fmt.Errorf("operation method %q does not match route method %q", route.Operation.Method, route.Method)
+	var policyMiddleware []func(http.Handler) http.Handler
+	for _, policy := range registry.opts.Policies {
+		if policy == nil {
+			continue
+		}
+		updated, middleware, err := policy.Apply(operation)
+		if err != nil {
+			return fmt.Errorf("route policy: %w", err)
+		}
+		operation = updated
+		policyMiddleware = append(policyMiddleware, middleware...)
 	}
-	if strings.TrimSpace(route.Operation.Path) != route.Pattern {
-		return fmt.Errorf("operation path %q does not match route pattern %q", route.Operation.Path, route.Pattern)
-	}
-	wrapped := applyMiddleware(route.Handler, route.Middleware)
-	switch route.Method {
+	middleware := append(append([]func(http.Handler) http.Handler{}, route.Middleware...), policyMiddleware...)
+	wrapped := applyMiddleware(route.Handler, middleware)
+	switch method {
 	case http.MethodGet:
-		r.router.Get(route.Pattern, wrapped.ServeHTTP)
+		registry.router.Get(pattern, wrapped.ServeHTTP)
 	case http.MethodPost:
-		r.router.Post(route.Pattern, wrapped.ServeHTTP)
+		registry.router.Post(pattern, wrapped.ServeHTTP)
 	case http.MethodPut:
-		r.router.Put(route.Pattern, wrapped.ServeHTTP)
+		registry.router.Put(pattern, wrapped.ServeHTTP)
 	case http.MethodDelete:
-		r.router.Delete(route.Pattern, wrapped.ServeHTTP)
+		registry.router.Delete(pattern, wrapped.ServeHTTP)
 	case http.MethodPatch:
-		patcher, ok := r.router.(patchRouter)
+		patcher, ok := registry.router.(patchRouter)
 		if !ok {
 			return fmt.Errorf("router does not support PATCH")
 		}
-		patcher.Patch(route.Pattern, wrapped.ServeHTTP)
+		patcher.Patch(pattern, wrapped.ServeHTTP)
 	default:
-		return fmt.Errorf("unsupported route method %q", route.Method)
+		return fmt.Errorf("unsupported route method %q", method)
 	}
-	if r.specs != nil {
-		r.specs.Register(route.Operation)
+	if registry.specs != nil {
+		registry.specs.Register(operation)
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	route.Method = method
+	route.Pattern = pattern
+	route.Operation = operation
 	route.Middleware = append([]func(http.Handler) http.Handler(nil), route.Middleware...)
-	r.routes = append(r.routes, route)
+	registry.routes = append(registry.routes, route)
 	return nil
 }
 
-// Get registers a GET route contract.
-func (r *Registry) Get(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
-	return r.Register(Route{Method: http.MethodGet, Pattern: pattern, Operation: operation, Handler: handler, Middleware: middleware})
+// Get registers a GET route.
+func (registry *Registry) Get(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+	return registry.Register(Route{Method: http.MethodGet, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
-// Post registers a POST route contract.
-func (r *Registry) Post(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
-	return r.Register(Route{Method: http.MethodPost, Pattern: pattern, Operation: operation, Handler: handler, Middleware: middleware})
+// Post registers a POST route.
+func (registry *Registry) Post(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+	return registry.Register(Route{Method: http.MethodPost, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
-// Put registers a PUT route contract.
-func (r *Registry) Put(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
-	return r.Register(Route{Method: http.MethodPut, Pattern: pattern, Operation: operation, Handler: handler, Middleware: middleware})
+// Put registers a PUT route.
+func (registry *Registry) Put(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+	return registry.Register(Route{Method: http.MethodPut, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
-// Delete registers a DELETE route contract.
-func (r *Registry) Delete(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
-	return r.Register(Route{Method: http.MethodDelete, Pattern: pattern, Operation: operation, Handler: handler, Middleware: middleware})
+// Delete registers a DELETE route.
+func (registry *Registry) Delete(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+	return registry.Register(Route{Method: http.MethodDelete, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
-// Patch registers a PATCH route contract when the router supports PATCH.
-func (r *Registry) Patch(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
-	return r.Register(Route{Method: http.MethodPatch, Pattern: pattern, Operation: operation, Handler: handler, Middleware: middleware})
+// Patch registers a PATCH route when the router supports Patch.
+func (registry *Registry) Patch(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+	return registry.Register(Route{Method: http.MethodPatch, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
-// Routes returns registered route contracts in deterministic method/path order.
-func (r *Registry) Routes() []Route {
-	if r == nil {
+// Routes returns the registered routes in deterministic order.
+func (registry *Registry) Routes() []Route {
+	if registry == nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := append([]Route(nil), r.routes...)
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Pattern == out[j].Pattern {
-			return out[i].Method < out[j].Method
+	registry.mu.RLock()
+	defer registry.mu.RUnlock()
+	out := make([]Route, len(registry.routes))
+	copy(out, registry.routes)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Pattern != out[j].Pattern {
+			return out[i].Pattern < out[j].Pattern
 		}
-		return out[i].Pattern < out[j].Pattern
+		return out[i].Method < out[j].Method
 	})
 	return out
 }
 
-// Validate checks for duplicate or incomplete route contracts.
-func (r *Registry) Validate() error {
-	if r == nil {
-		return &CoverageError{Problems: []string{"route contract registry is nil"}}
+// CoverageError describes a route-contract coverage problem.
+type CoverageError struct {
+	Problems []string
+}
+
+// Error returns a human-readable error.
+func (err CoverageError) Error() string {
+	return strings.Join(err.Problems, "; ")
+}
+
+// Validate verifies registered routes have matching operations.
+func (registry *Registry) Validate() error {
+	if registry == nil {
+		return nil
 	}
-	routes := r.Routes()
-	seen := map[string]struct{}{}
+	routes := registry.Routes()
 	var problems []string
+	seen := map[string]struct{}{}
 	for _, route := range routes {
-		method := normalizeMethod(route.Method)
-		pattern := strings.TrimSpace(route.Pattern)
-		key := method + " " + pattern
-		if method == "" || pattern == "" {
-			problems = append(problems, "route method and pattern are required")
-			continue
-		}
-		if route.Handler == nil {
-			problems = append(problems, key+" missing handler")
-		}
-		if normalizeMethod(route.Operation.Method) != method || strings.TrimSpace(route.Operation.Path) != pattern {
-			problems = append(problems, key+" missing matching operation")
-		}
+		key := route.Method + " " + route.Pattern
 		if _, ok := seen[key]; ok {
-			problems = append(problems, key+" registered more than once")
+			problems = append(problems, "route registered more than once: "+key)
 		}
 		seen[key] = struct{}{}
+		if strings.ToUpper(strings.TrimSpace(route.Operation.Method)) != route.Method || strings.TrimSpace(route.Operation.Path) != route.Pattern {
+			problems = append(problems, "missing matching operation for "+key)
+		}
 	}
 	if len(problems) > 0 {
 		return &CoverageError{Problems: problems}
@@ -197,16 +220,12 @@ func (r *Registry) Validate() error {
 	return nil
 }
 
-func applyMiddleware(handler http.Handler, middleware []func(http.Handler) http.Handler) http.Handler {
-	wrapped := handler
+func applyMiddleware(handler http.HandlerFunc, middleware []func(http.Handler) http.Handler) http.Handler {
+	var wrapped http.Handler = handler
 	for i := len(middleware) - 1; i >= 0; i-- {
 		if middleware[i] != nil {
 			wrapped = middleware[i](wrapped)
 		}
 	}
 	return wrapped
-}
-
-func normalizeMethod(method string) string {
-	return strings.ToUpper(strings.TrimSpace(method))
 }
