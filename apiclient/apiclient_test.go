@@ -20,9 +20,12 @@ func TestAPIKeyTransportAndRetryAfter(t *testing.T) {
 		}
 		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader("")), Header: http.Header{}}, nil
 	})}
-	_, err := transport.RoundTrip(&http.Request{Header: http.Header{}})
+	resp, err := transport.RoundTrip(&http.Request{Header: http.Header{}})
 	if err != nil {
 		t.Fatalf("RoundTrip() error = %v", err)
+	}
+	if resp.Body != nil {
+		_ = resp.Body.Close()
 	}
 	header := http.Header{"Retry-After": []string{"2"}}
 	if duration, ok := RetryAfter(header); !ok || duration != 2*time.Second {

@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,7 @@ func TestDecodeMultipart(t *testing.T) {
 	_, _ = part.Write([]byte("hello"))
 	_ = writer.Close()
 
-	request := httptest.NewRequest(http.MethodPost, "/upload", body)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/upload", body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	form, err := DecodeMultipart(request, Config{RequiredFiles: []string{"file"}, MaxFileBytes: MaxFileBytes(10)})
 	if err != nil {
@@ -43,7 +44,7 @@ func TestDecodeMultipartValidationErrors(t *testing.T) {
 	_, _ = part.Write([]byte("hello"))
 	_ = writer.Close()
 
-	request := httptest.NewRequest(http.MethodPost, "/upload", body)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/upload", body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	_, err = DecodeMultipart(request, Config{RequiredFiles: []string{"avatar"}, MaxFileBytes: 1, AllowedContentTypes: AllowedContentTypes("image/png")})
 	if err == nil {

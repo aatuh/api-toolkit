@@ -1,6 +1,7 @@
 package routepolicy
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,13 +33,13 @@ func TestPolicyDerivesDeprecationNegotiationAndExtension(t *testing.T) {
 		handler = middleware[i](handler)
 	}
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 	if got := recorder.Header().Get("Deprecation"); got != "@0" {
 		t.Fatalf("Deprecation = %q, want @0", got)
 	}
 
 	recorder = httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	request.Header.Set("Accept", "text/plain")
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNotAcceptable {

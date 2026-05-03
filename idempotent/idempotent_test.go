@@ -1,6 +1,7 @@
 package idempotent
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,13 +9,14 @@ import (
 )
 
 func TestRequireKeyAndRequestHash(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/widgets?a=1", nil)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets?a=1", nil)
 	request.Header.Set("Idempotency-Key", " abc ")
 	key, err := RequireKey(request, "")
 	if err != nil || key != "abc" {
 		t.Fatalf("RequireKey() = %q, %v", key, err)
 	}
-	if RequestHash(request, []byte(`{"name":"a"}`)) != RequestHash(request, []byte(`{"name":"a"}`)) {
+	hash := RequestHash(request, []byte(`{"name":"a"}`))
+	if hash == "" || hash != RequestHash(request, []byte(`{"name":"a"}`)) {
 		t.Fatalf("request hash is not deterministic")
 	}
 }
