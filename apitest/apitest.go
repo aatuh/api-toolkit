@@ -1,4 +1,3 @@
-// Package apitest provides deterministic HTTP response assertions for API tests.
 package apitest
 
 import (

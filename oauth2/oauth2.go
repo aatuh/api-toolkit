@@ -1,4 +1,3 @@
-// Package oauth2 provides provider-neutral OAuth2 bearer-token claim helpers.
 package oauth2
 
 import (

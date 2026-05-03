@@ -13,17 +13,19 @@ source of truth is `docs/release-runbook.md`.
 - Update `scripts/apicheck.sh` and docscheck coverage when the stable package list or compatibility-sensitive manifest changes.
 - Update `docs/ports-surface.md`, `docs/v3-compatibility-roadmap.md`, release notes, and upgrade notes when compatibility-sensitive ports or legacy stable surfaces change.
 - Add release notes and upgrade notes that describe user-visible behavior, migration paths, and compatibility impact.
-- Run release evidence through the runbook path; `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` is the release-readiness gate, while `make finalize` and `make audit-check` are local/reviewer gates.
-- Run `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` when selected contrib adapters or integrations change exported APIs; selected packages come from `docs/contrib-api-drift-packages.txt`, supported-adapter incompatible drift is gate-enforced, and this does not make contrib stable.
-- Run `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` when supported contrib adapter, integration, middleware, bootstrap, or telemetry behavior files change.
+- Run release evidence through the runbook path; `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` is the release-readiness gate, while `make finalize` and `make audit-check` are local/reviewer gates.
+- Run `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report` when selected contrib adapters or integrations change exported APIs; selected packages come from `docs/contrib-api-drift-packages.txt`, supported-adapter incompatible drift is gate-enforced, and this does not make contrib stable.
+- Run `CONTRIB_RELEASE_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-release-notes-check` when supported contrib adapter, integration, middleware, bootstrap, or telemetry behavior files change.
 - Supported-adapter contrib packages remain outside the stable core API promise, but incompatible public API drift in that tier must be treated as gate-enforced and resolved with compatibility, reclassification, or a major-release policy decision.
 - If there is incompatible report-only contrib drift, add an explicit release note or upgrade note acknowledgement tied to the affected package. This does not make contrib stable.
 - Update `docs/vulnerability-dispositions.tsv` when imported-only vulnerability IDs change, expire, or receive upgraded dependencies.
 - Update `docs/contrib-api-drift-dispositions.tsv` when current contrib drift packages or incompatible drift status changes.
-- Use clean publication evidence with `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`; reserve `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` for local dirty-tree audit evidence that is not acceptable before publishing.
+- Use clean publication evidence with `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`; reserve `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` for local dirty-tree audit evidence that is not acceptable before publishing.
 - Use `docs/release-manifests.md` when interpreting `docs/package-classification.tsv`, `docs/contrib-api-drift-dispositions.tsv`, and `docs/vulnerability-dispositions.tsv`.
 
 ## 2026-05-02
+
+### Correctness, security, and release governance
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer
@@ -42,6 +44,9 @@ source of truth is `docs/release-runbook.md`.
   requirements to packages classified as `supported-adapter`, preserving
   supported-adapter governance without over-requiring notes for experimental or
   wrapper-only contrib internals.
+
+### Stable core API additions
+
 - Added stable core packages `binding` and `middleware/auth/apikey` for typed
   request binding, Problem Details-compatible validation errors, API key
   authentication, optional auth, context principals, and scope enforcement.
@@ -105,6 +110,9 @@ source of truth is `docs/release-runbook.md`.
 - Added stable core package `apiclient` for client-side Problem Details
   decoding, cursor iteration, `Retry-After` parsing, precondition headers, API
   key transports, webhook signing transports, and JSON request/response helpers.
+
+### Dependency and release evidence updates
+
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.
@@ -126,6 +134,9 @@ source of truth is `docs/release-runbook.md`.
   `GITHUB_REPOSITORY`, real Sigstore material, and online attestation checks.
 - The release workflow now prints `make release-review-summary` output after
   clean evidence is generated and before release artifact verification steps.
+
+### Contrib behavior and compatibility notes
+
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders` now
   requires explicit dangerous-bypass opt-in and trusted-proxy configuration
   when enabled, while keeping exported config and middleware values comparable
@@ -148,7 +159,7 @@ source of truth is `docs/release-runbook.md`.
 ### Upgrade notes
 
 - If you treated maintained contrib middleware or adapters as semver-stable,
-  review `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report`
+  review `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report`
   before upgrading and check `docs/contrib-api-drift-dispositions.tsv` for the
   current package-tied disposition. Contrib drift remains report-only; this
   guidance helps migration review but does not extend the stable v2 API promise
@@ -288,7 +299,7 @@ source of truth is `docs/release-runbook.md`.
   recovered panics at error level with failure classification, including committed-
   response panics and preserving committed status for optional downstream analytics.
 - Release readiness now has a fail-closed `make release-check` path that requires
-  `API_BASE_REF=v2.0.1`, keeps local `make api-check` fallback behavior separate,
+  `API_BASE_REF=v2.1.0`, keeps local `make api-check` fallback behavior separate,
   and publishes `release-check-summary.json` with release SBOM assets.
 - Root idempotency adapter contract coverage moved to contrib-owned reusable
   contract tests so root `go.mod` no longer carries contrib, Redis, or miniredis

@@ -1,18 +1,34 @@
 # Cookbook
 
-Audience: developers applying api-toolkit to common HTTP API tasks. Full source
-for each recipe lives under `contrib/examples`.
+Audience: developers applying api-toolkit to common HTTP API tasks. Recipes are
+either runnable contrib examples or inline package sketches. Runnable examples
+name a `contrib/examples/...` source and a run command; inline sketches show the
+minimum package usage to adapt inside an application.
 
-Run examples from the contrib module unless a recipe says otherwise:
+Run runnable examples from the contrib module unless a recipe says otherwise:
 
 ```sh
 cd contrib
 go run ./examples/<name>
 ```
 
+## Recipe index
+
+| Task area | Recipes |
+| --- | --- |
+| Getting started | [Minimal JSON write endpoint](#minimal-json-write-endpoint), [Hardened middleware profile](#hardened-middleware-profile), [Safe system endpoint mounting](#safe-system-endpoint-mounting) |
+| Request validation and uploads | [Validated JSON and query request](#validated-json-and-query-request), [File upload endpoint](#file-upload-endpoint), [Multipart upload validation](#multipart-upload-validation) |
+| Authentication and authorization | [Authenticated admin route](#authenticated-admin-route), [API key route](#api-key-route), [Provider-neutral OAuth2 scopes](#provider-neutral-oauth2-scopes), [Policy-engine authorization](#policy-engine-authorization) |
+| Route contracts and OpenAPI | [Contract-first route registration](#contract-first-route-registration), [Operation-derived route policies](#operation-derived-route-policies), [OpenAPI components and security schemes](#openapi-components-and-security-schemes), [Reusable Problem Details components](#reusable-problem-details-components), [Contract tests for routes and OpenAPI](#contract-tests-for-routes-and-openapi) |
+| Collection and async semantics | [Pagination with limit and offset](#pagination-with-limit-and-offset), [Collection query semantics](#collection-query-semantics), [Cursor-paginated list](#cursor-paginated-list), [Async operation polling](#async-operation-polling), [Idempotent write endpoint](#idempotent-write-endpoint), [Idempotent create and async replay contracts](#idempotent-create-and-async-replay-contracts) |
+| Webhooks, outbound calls, and HTTP semantics | [Webhook receiver with signature verification](#webhook-receiver-with-signature-verification), [Signed outbound webhook request](#signed-outbound-webhook-request), [Webhook replay and delivery contracts](#webhook-replay-and-delivery-contracts), [Guarded outbound HTTP client](#guarded-outbound-http-client), [Conditional GET and update](#conditional-get-and-update), [Runtime deprecation headers](#runtime-deprecation-headers), [Standard rate-limit headers](#standard-rate-limit-headers) |
+| Tests and clients | [HTTP API test assertions](#http-api-test-assertions), [API client helpers](#api-client-helpers) |
+
 ## Minimal JSON write endpoint
 
 Purpose: accept JSON, validate fields, and return Problem Details for bad input.
+
+- Source type: Runnable contrib example (`contrib/examples/minimal`).
 
 - Prerequisites: none.
 - Example source: `contrib/examples/minimal`.
@@ -31,6 +47,8 @@ curl -s -X POST http://localhost:8080/widgets \
 ## Validated JSON and query request
 
 Purpose: bind request input into typed structs while preserving the toolkit's Problem Details validation shape.
+
+- Source type: Inline sketch using the stable `binding` package.
 
 - Prerequisites: none.
 - Example source: use `github.com/aatuh/api-toolkit/v2/binding` in any HTTP handler.
@@ -73,6 +91,8 @@ if err != nil {
 
 Purpose: apply the strict API profile with secure headers, timeout, tracing, and explicit system endpoint choices.
 
+- Source type: Runnable contrib example (`contrib/examples/secure-profile`).
+
 - Prerequisites: none.
 - Example source: `contrib/examples/secure-profile`.
 - Run command: `cd contrib && go run ./examples/secure-profile`.
@@ -88,6 +108,8 @@ curl -i http://localhost:8080/hello
 ## Authenticated admin route
 
 Purpose: wire Clerk JWT middleware and an explicit authorizer check.
+
+- Source type: Runnable contrib example (`contrib/examples/auth`).
 
 - Prerequisites: replace the placeholder Clerk issuer, JWKS URL, and audience with a real tenant before using the route successfully.
 - Example source: `contrib/examples/auth`.
@@ -105,6 +127,8 @@ curl -i http://localhost:8080/admin \
 ## Safe system endpoint mounting
 
 Purpose: keep public probes separate from operator-only pprof, detailed health,
+
+- Source type: Inline sketch.
 and metrics routes. Web, mobile, and desktop clients should never need direct
 access to operator-only endpoints.
 
@@ -132,6 +156,8 @@ adminMux.Handle("/metrics", requireAdmin(metricsHandler))
 
 Purpose: authenticate service-to-service or automation calls with API keys and explicit scopes.
 
+- Source type: Runnable contrib example (`contrib/examples/api-key`).
+
 - Prerequisites: use the demo key only for local testing.
 - Example source: `contrib/examples/api-key`.
 - Run command: `cd contrib && go run ./examples/api-key`.
@@ -150,6 +176,8 @@ curl -s http://localhost:8080/admin \
 ## Contract-first route registration
 
 Purpose: keep runtime route registration, OpenAPI operation metadata, schema components, content negotiation, and error behavior in one declaration path.
+
+- Source type: Inline sketch.
 
 - Prerequisites: use a router that supports the common `Get`, `Post`, `Put`, and `Delete` registration methods.
 - Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/specs`, `github.com/aatuh/api-toolkit/v2/negotiation`, and `github.com/aatuh/api-toolkit/v2/httpx`.
@@ -179,6 +207,8 @@ _ = contracts.Get("/widgets/{id}", specs.Operation{
 
 Purpose: catch drift between route registration, OpenAPI operations, response metadata, security metadata, and typed problem catalogs.
 
+- Source type: Inline test sketch.
+
 - Prerequisites: register routes through `routecontracts` and operations through `specs.Registry`.
 - Package: `github.com/aatuh/api-toolkit/v2/contracttest`.
 - Test sketch:
@@ -197,6 +227,8 @@ contracttest.AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.Pro
 ## Runtime deprecation headers
 
 Purpose: signal deprecated or sunsetting routes at runtime without changing response behavior.
+
+- Source type: Inline sketch.
 
 - Prerequisites: choose the deprecation and sunset dates from your published migration policy.
 - Package: `github.com/aatuh/api-toolkit/v2/middleware/deprecation`.
@@ -220,6 +252,8 @@ router.Get("/v1/widgets", mw.Handler(widgetsHandler).ServeHTTP)
 
 Purpose: authorize a route through a Cedar policy engine with request context.
 
+- Source type: Runnable contrib example (`contrib/examples/policy`).
+
 - Prerequisites: none; the example embeds a demo policy.
 - Example source: `contrib/examples/policy`.
 - Run command: `cd contrib && go run ./examples/policy`.
@@ -235,6 +269,8 @@ curl -s http://localhost:8080/docs/doc_123
 ## Idempotent write endpoint
 
 Purpose: use the idempotency middleware to make safe retries for POST, PUT, or PATCH operations.
+
+- Source type: Runnable contrib example (`contrib/examples/idempotency`).
 
 - Prerequisites: none; the example uses an in-memory store and a fake billing provider.
 - Example source: `contrib/examples/idempotency`.
@@ -254,6 +290,8 @@ curl -s -X POST http://localhost:8080/checkout \
 ## Webhook receiver with signature verification
 
 Purpose: verify HMAC signatures, cap body size, parse the event, and return an acknowledgement.
+
+- Source type: Runnable contrib example (`contrib/examples/webhook`).
 
 - Prerequisites: use the demo secret only for local testing.
 - Example source: `contrib/examples/webhook`.
@@ -275,6 +313,8 @@ curl -s -X POST http://localhost:8080/webhooks/payment \
 ## Signed outbound webhook request
 
 Purpose: build a JSON event request with an HMAC signature that a `webhooks` receiver can verify.
+
+- Source type: Inline sketch with receiver code related to `contrib/examples/webhook`.
 
 - Prerequisites: share the demo secret only for local testing.
 - Example source: `contrib/examples/webhook`.
@@ -299,6 +339,8 @@ req, err := webhooks.BuildSignedRequest(ctx, webhooks.OutgoingEvent[paymentEvent
 
 Purpose: cap request size and stream multipart upload metadata without buffering the full file in memory.
 
+- Source type: Runnable contrib example (`contrib/examples/file-upload`).
+
 - Prerequisites: a local file to upload.
 - Example source: `contrib/examples/file-upload`.
 - Run command: `cd contrib && go run ./examples/file-upload`.
@@ -317,6 +359,8 @@ curl -s -X POST http://localhost:8080/upload \
 
 Purpose: bound list queries and return field-level validation errors for invalid limits.
 
+- Source type: Runnable contrib example (`contrib/examples/pagination`).
+
 - Prerequisites: none.
 - Example source: `contrib/examples/pagination`.
 - Run command: `cd contrib && go run ./examples/pagination`.
@@ -332,6 +376,8 @@ curl -s 'http://localhost:8080/items?limit=3&offset=2'
 ## Collection query semantics
 
 Purpose: parse list endpoint query parameters for sorting, filtering, sparse fieldsets, and includes before applying application-owned query logic.
+
+- Source type: Inline sketch.
 
 - Prerequisites: define allowed sort and filter fields for the route.
 - Package: `github.com/aatuh/api-toolkit/v2/queryparams`.
@@ -366,6 +412,8 @@ if err != nil {
 
 Purpose: return `202 Accepted` for long-running work and expose a pollable operation resource.
 
+- Source type: Inline sketch.
+
 - Prerequisites: provide an application-owned operation store.
 - Package: `github.com/aatuh/api-toolkit/v2/operations`.
 - Handler sketch:
@@ -392,6 +440,8 @@ router.Get("/operations/{id}", operations.PollHandler(operations.PollConfig[resu
 
 Purpose: use ETags and Last-Modified validators for cache-friendly reads and optimistic concurrency on writes.
 
+- Source type: Inline sketch.
+
 - Prerequisites: compute a stable representation validator from your resource version or response body.
 - Package: `github.com/aatuh/api-toolkit/v2/httpcache`.
 - Handler sketch:
@@ -415,6 +465,8 @@ httpx.WriteJSON(w, http.StatusOK, widget)
 ## Cursor-paginated list
 
 Purpose: return signed cursor metadata for stable forward pagination without exposing database offsets.
+
+- Source type: Inline sketch.
 
 - Prerequisites: provide an application secret for HMAC signing; rotate it through your normal secret-management process.
 - Example source: combine `github.com/aatuh/api-toolkit/v2/endpoints/list` with your list handler.
@@ -456,6 +508,8 @@ httpx.WriteJSON(w, http.StatusOK, list.NewCursorResponse(items, list.CursorMeta{
 
 Purpose: generate handler skeletons from OpenAPI and validate requests and responses.
 
+- Source type: Runnable contrib example (`contrib/examples/spec-first`).
+
 - Prerequisites: run generation from the example directory before changing generated code.
 - Example source: `contrib/examples/spec-first`.
 - Run command: `cd contrib/examples/spec-first && go generate ./... && go run .`.
@@ -473,6 +527,8 @@ curl -s -X POST http://localhost:8080/pets \
 ## OpenAPI components and security schemes
 
 Purpose: register reusable schemas, responses, and security schemes for generated route contracts.
+
+- Source type: Inline sketch.
 
 - Prerequisites: keep schema names stable once clients consume the generated OpenAPI document.
 - Package: `github.com/aatuh/api-toolkit/v2/specs`.
@@ -501,6 +557,8 @@ registry.RegisterResponse("Problem", specs.Response{
 
 Purpose: show SSRF host allowlisting, retry budget controls, circuit breaking, and bulkhead limits.
 
+- Source type: Runnable contrib example (`contrib/examples/outbound`).
+
 - Prerequisites: replace `api.example.com` with an allowed real upstream before expecting a successful request.
 - Example source: `contrib/examples/outbound`.
 - Run command: `cd contrib && go run ./examples/outbound`.
@@ -511,6 +569,8 @@ Purpose: show SSRF host allowlisting, retry budget controls, circuit breaking, a
 ## Operation-derived route policies
 
 Purpose: keep runtime middleware aligned with the route contract instead of repeating deprecation, negotiation, auth, and quota metadata in handlers.
+
+- Source type: Inline sketch.
 
 - Prerequisites: register routes through `routecontracts.NewRegistryWithOptions`.
 - Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/routepolicy`, and `github.com/aatuh/api-toolkit/v2/specs`.
@@ -545,6 +605,8 @@ err := contracts.Get("/widgets", specs.Operation{
 
 Purpose: publish the same typed Problem Details catalog in runtime error handling and OpenAPI components.
 
+- Source type: Inline sketch.
+
 - Prerequisites: create or use an `httpx.ProblemCatalog`.
 - Packages: `github.com/aatuh/api-toolkit/v2/httpx` and `github.com/aatuh/api-toolkit/v2/specs`.
 - Registry sketch:
@@ -564,6 +626,8 @@ operation := specs.Operation{Responses: map[int]specs.Response{
 ## Standard rate-limit headers
 
 Purpose: expose quota information to API clients without changing limiter storage or decision ownership.
+
+- Source type: Inline sketch.
 
 - Prerequisites: use `middleware/ratelimit`.
 - Package: `github.com/aatuh/api-toolkit/v2/middleware/ratelimit`.
@@ -587,6 +651,8 @@ handler := limiter.Handler(next)
 ## Idempotent create and async replay contracts
 
 Purpose: standardize idempotency-key validation, request hashing, conflict responses, and replayed `202 Accepted` responses.
+
+- Source type: Inline sketch.
 
 - Prerequisites: use application-owned storage or `middleware/idempotency` for reservation/replay ownership.
 - Package: `github.com/aatuh/api-toolkit/v2/idempotent`.
@@ -613,6 +679,8 @@ idempotent.WriteAcceptedReplay(w, idempotent.AsyncConfig{ID: "op_123", Location:
 
 Purpose: require event ids, reject timestamps outside a replay window, and document outbound delivery attempts/results.
 
+- Source type: Inline sketch.
+
 - Prerequisites: configure a webhook verifier and timestamp-producing sender.
 - Package: `github.com/aatuh/api-toolkit/v2/webhooks`.
 - Receiver sketch:
@@ -634,6 +702,8 @@ receiver := webhooks.Receiver[myEvent]{Config: webhooks.ReceiverConfig[myEvent]{
 ## Multipart upload validation
 
 Purpose: decode multipart forms with required files, size limits, content-type allowlists, and Problem Details field errors.
+
+- Source type: Inline sketch.
 
 - Prerequisites: clients send `multipart/form-data`.
 - Package: `github.com/aatuh/api-toolkit/v2/upload`.
@@ -664,6 +734,8 @@ if err != nil {
 
 Purpose: keep provider-specific token validation outside core while standardizing claims, scope checks, and OpenAPI security schemes.
 
+- Source type: Inline sketch.
+
 - Prerequisites: provide an application-owned `oauth2.Validator` implementation.
 - Package: `github.com/aatuh/api-toolkit/v2/oauth2`.
 - Handler sketch:
@@ -690,6 +762,8 @@ ctx = authorization.WithScope(ctx, claims.AuthorizationScope())
 
 Purpose: make application tests assert API contracts without reimplementing Problem Details, pagination, and OpenAPI golden checks.
 
+- Source type: Inline test sketch.
+
 - Prerequisites: use `httptest.ResponseRecorder`.
 - Package: `github.com/aatuh/api-toolkit/v2/apitest`.
 - Test sketch:
@@ -709,6 +783,8 @@ apitest.AssertOpenAPIGolden(t, generated, golden)
 ## API client helpers
 
 Purpose: consume api-toolkit-shaped APIs without generating a service-specific SDK.
+
+- Source type: Inline client sketch.
 
 - Prerequisites: use `net/http` clients.
 - Package: `github.com/aatuh/api-toolkit/v2/apiclient`.

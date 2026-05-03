@@ -62,15 +62,15 @@ summary = {
         "status": "passed",
         "message": "synthetic fixture for local verifier behavior",
     },
-    "api_base_ref": "v2.0.1",
-    "quality_command": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
-    "evidence_command": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+    "api_base_ref": "v2.1.0",
+    "quality_command": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
+    "evidence_command": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
     "status": "passed",
     "publication_eligible": True,
     "checks": [
         {
             "name": name,
-            "command_line": f"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make {name}",
+            "command_line": f"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make {name}",
             "status": "passed",
             "exit_code": 0,
             "duration_ms": 1,
@@ -96,7 +96,7 @@ summary = {
         "review_disposition": "synthetic fixture",
     },
     "contrib_drift": {
-        "command_line": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report",
+        "command_line": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report",
         "status": "passed",
         "exit_code": 0,
         "duration_ms": 1,
@@ -186,7 +186,7 @@ done
 )
 
 PATH="$fake_bin:$PATH" \
-  API_BASE_REF="${API_BASE_REF:-v2.0.1}" \
+  API_BASE_REF="${API_BASE_REF:-v2.1.0}" \
   RELEASE_ARTIFACT_VERIFY_MODE=local \
   bash "$repo_root/scripts/release_artifact_verify.sh" "$asset_dir"
 

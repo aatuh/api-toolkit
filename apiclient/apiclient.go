@@ -1,4 +1,3 @@
-// Package apiclient provides small client-side helpers for APIs built with api-toolkit.
 package apiclient
 
 import (

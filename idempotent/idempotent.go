@@ -1,4 +1,3 @@
-// Package idempotent standardizes HTTP contracts for idempotent API workflows.
 package idempotent
 
 import (

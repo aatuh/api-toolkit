@@ -8,7 +8,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export API_BASE_REF=v2.0.1
+export API_BASE_REF=v2.1.0
 export ALLOW_DIRTY_RELEASE_EVIDENCE=1
 export RELEASE_CHECK_SUMMARY_SOURCE_ONLY=1
 source "$repo_root/scripts/release_check_summary.sh"

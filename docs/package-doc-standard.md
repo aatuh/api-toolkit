@@ -19,59 +19,26 @@ Each public `doc.go` should answer these questions in plain Go doc prose:
 Keep the package comment concise. Do not turn package docs into a second README.
 Use links to canonical docs when the topic is already covered elsewhere.
 
-## Placeholder inventory remediated in this pass
+## Inventory policy
 
-The v1 documentation audit found placeholder comments such as `Package X
-provides X utilities`. This remediation replaced or added package docs for the
-following groups.
+Do not keep a historical inventory as the source of truth. The current package
+classification lives in `docs/package-classification.tsv`, the stable package
+surface lives in `VERSIONING.md`, and `GOTOOLCHAIN=local make docs-check`
+enforces placeholder-doc regressions.
 
-Stable core and compatibility packages:
+When adding or promoting a public package:
 
-- `authorization/doc.go`
-- `email/doc.go`
-- `endpoints/list/doc.go`
-- `endpoints/version/doc.go`
-- `fielderrors/doc.go`
-- `httpx/identity/doc.go`
-- `middleware/auth/jwt/doc.go`
-- `middleware/auth/tenant/doc.go`
-- `middleware/json/doc.go`
-- `middleware/maxbody/doc.go`
-- `middleware/ratelimit/doc.go`
-- `middleware/secure/doc.go`
-- `middleware/trace/doc.go`
-- `scheduler/migrations/doc.go`
-- `securityprofile/doc.go`
-- `swagstub/doc.go`
+- add or update `doc.go` in the package.
+- update `docs/package-classification.tsv` and `VERSIONING.md` when stability
+  changes.
+- link to `docs/cookbook.md` or `contrib/examples/README.md` when the package
+  has a task recipe or runnable example.
+- avoid changelog-style package-doc inventory here; release notes own dated
+  history.
 
-High-use contrib adapters, middleware, integrations, and wrappers:
-
-- `contrib/adapters/cedar/doc.go`
-- `contrib/adapters/clock/doc.go`
-- `contrib/adapters/idempotency/doc.go`
-- `contrib/adapters/logzap/doc.go`
-- `contrib/adapters/migrate/doc.go`
-- `contrib/adapters/pgxpool/doc.go`
-- `contrib/adapters/resend/doc.go`
-- `contrib/adapters/stripe/doc.go`
-- `contrib/adapters/ulid/doc.go`
-- `contrib/adapters/uuid/doc.go`
-- `contrib/countrycodes/doc.go`
-- `contrib/email/markdown/doc.go`
-- `contrib/email/noop/doc.go`
-- `contrib/integrations/auth/clerk/doc.go`
-- `contrib/integrations/auth/devheaders/doc.go`
-- `contrib/integrations/auth/jwt/doc.go`
-- `contrib/integrations/pgxpool/doc.go`
-- `contrib/integrations/resend/doc.go`
-- `contrib/integrations/stripe/doc.go`
-- `contrib/integrations/txpostgres/doc.go`
-- `contrib/middleware/auth/devheaders/doc.go`
-- `contrib/middleware/cors/doc.go`
-- `contrib/middleware/metrics/doc.go`
-- `contrib/middleware/oteltrace/doc.go`
-- `contrib/scheduler/postgres/doc.go`
-- `contrib/telemetry/doc.go`
+The 2026-05-03 documentation remediation added full package docs for recent
+stable packages that were missing richer package comments: `apiclient`,
+`apitest`, `idempotent`, `oauth2`, `routepolicy`, and `upload`.
 
 ## Quality gate
 

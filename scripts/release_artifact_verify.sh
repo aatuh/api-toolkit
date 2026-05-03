@@ -8,7 +8,7 @@ issuer="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubuserconten
 release_tag="${RELEASE_TAG:-}"
 github_repo="${GITHUB_REPOSITORY:-aatuh/api-toolkit}"
 verify_mode="${RELEASE_ARTIFACT_VERIFY_MODE:-local}"
-expected_api_base_ref="${API_BASE_REF:-v2.0.1}"
+expected_api_base_ref="${API_BASE_REF:-v2.1.0}"
 
 case "$verify_mode" in
   local|publication) ;;

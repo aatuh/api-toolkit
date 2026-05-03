@@ -160,9 +160,9 @@ evidence writer and writes `release-check-summary.json` schema v2.
 adapter, integration, middleware, bootstrap, and telemetry behavior notes.
 
 Publication evidence must come from a clean worktree with
-`API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`. A local
+`API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`. A local
 dirty-tree audit must opt in with
-`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`
 and is not acceptable before publishing. This is local dirty-tree audit evidence,
 not publication evidence.
 

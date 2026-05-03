@@ -4,7 +4,9 @@ Audience: release operators and reviewers who need the canonical command
 sequence, evidence expectations, artifact verification path, and baseline
 maintenance rule.
 
-Supported v2 release baseline: `v2.0.1`.
+Supported v2 release baseline: `v2.1.0`. This post-`v2.1.0` development line
+compares the next v2 release candidate against the most recent published stable
+core tag.
 
 Supported Go toolchain: Go 1.25.x for root and contrib. Release and reviewer
 commands use `GOTOOLCHAIN=local` to ensure the module `go` directives and
@@ -25,15 +27,15 @@ baseline table in another document.
 | --- | --- | --- |
 | `GOTOOLCHAIN=local make finalize` | Local implementation gate before committing changes; may rewrite formatted Go files and module files. | Pass/fail local quality signal, not release evidence. |
 | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, not release evidence. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
+| `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
-| `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
+| `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
+| `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
+| `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
+| `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
-| `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
-| `CONTRIB_RELEASE_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for supported contrib adapter/integration/middleware behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
+| `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
+| `CONTRIB_RELEASE_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for supported contrib adapter/integration/middleware behavior notes. | Fails when behavior files changed without `docs/release-notes.md`. |
 | `make release-artifact-verify-fixture` | Synthetic local verifier fixture. | Builds a throwaway release asset bundle and runs the local verifier path; this is not publication verification. |
 | `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations. |
 
@@ -42,11 +44,11 @@ baseline table in another document.
 Use this command sequence before publishing:
 
 1. `GOTOOLCHAIN=local make finalize` before committing implementation work when it is safe to allow formatting and module tidying.
-2. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
-3. `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
+2. `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
+3. `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
 4. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
 5. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
-6. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+6. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
 7. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
@@ -151,4 +153,4 @@ every `checks[].log_path` plus `contrib_drift.artifact_path` exists in
 - Do not publish the release.
 - If the GitHub release was already drafted, keep it draft-only or delete the draft before assets are published.
 - If a tag was pushed prematurely, leave the previous release as the supported version while the incompatible change is reverted or intentionally moved to a new major version plan.
-- Rerun `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check` after the fix and attach the generated release evidence only after it passes.
+- Rerun `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` after the fix and attach the generated release evidence only after it passes.

@@ -39,17 +39,26 @@ Core packages:
 
 - `ports` defines toolkit-wide boundary contracts.
 - `compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
-- `middleware/*` covers JSON enforcement, timeouts, max body limits, query limits, rate limiting, idempotency, secure headers, tracing, tenant context, deprecation headers, API key auth, JWT auth, and role authz.
-- `binding` decodes validated JSON, query, and path input into typed request structs with Problem Details-compatible field errors.
-- `queryparams` parses collection sort, filter, sparse fieldset, and include parameters without storage coupling.
-- `httpcache` provides conditional request helpers for ETags, Last-Modified, `304`, and `412` flows.
-- `httpx`, `httpx/identity`, and `httpx/recover` provide JSON responses, Problem Details, request identity, and panic recovery.
-- `negotiation` provides Accept and Content-Type negotiation for JSON and vendor media types.
-- `upload` decodes multipart forms and maps upload validation failures to Problem Details.
-- `oauth2` provides provider-neutral bearer token claims, validators, scope checks, and OpenAPI security scheme helpers.
-- `endpoints/*` provides docs, health, pprof, version, and list helpers, including offset and signed cursor pagination.
-- `operations` standardizes `202 Accepted` and pollable asynchronous operation resources.
-- `idempotent`, `routepolicy`, `authorization`, `contracttest`, `apitest`, `apiclient`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
+- Runtime middleware: `middleware/*` covers JSON enforcement, timeouts,
+  body/query limits, rate limiting, idempotency, secure headers, tracing,
+  tenant context, deprecation headers, API key auth, JWT auth, and role authz.
+- Request and response helpers: `binding`, `queryparams`, `upload`,
+  `httpcache`, `negotiation`, `httpx`, `httpx/identity`, `httpx/recover`, and
+  `fielderrors` cover validation, collection queries, multipart uploads,
+  conditional requests, content negotiation, JSON responses, Problem Details,
+  request identity, panic recovery, and field errors.
+- Contract and OpenAPI workflow: `routecontracts`, `routepolicy`, `specs`,
+  `contracttest`, `swagstub`, and `authorization` keep runtime route
+  registration, policy metadata, generated OpenAPI, tests, and authorization
+  context aligned.
+- Operations and integrations primitives: `endpoints/*`, `operations`,
+  `idempotent`, `webhooks`, `oauth2`, `securityprofile`, `scheduler`,
+  `scheduler/migrations`, and `email` cover system endpoints, pagination,
+  async operation contracts, idempotent HTTP contracts, webhook contracts,
+  OAuth2 scope helpers, security profiles, jobs, migrations, and email ports.
+- Testing and client helpers: `apitest` and `apiclient` provide application
+  test assertions and small client-side helpers without becoming a generated
+  SDK.
 - The legacy response helper package is retained for v2 source compatibility; new response code should prefer `httpx`.
 
 Contrib packages:
@@ -117,9 +126,9 @@ Keep this landing page as a pointer, not a second release runbook.
 - Contrib drift package manifest: `docs/contrib-api-drift-packages.txt`
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
 - Current supported v2 API baseline: see `docs/release-runbook.md`.
-- Release readiness requires `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check`.
-- Publication evidence requires `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` from a clean worktree.
-- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
+- Release readiness requires `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check`.
+- Publication evidence requires `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` from a clean worktree.
+- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.
 - `make release-api-check`, `make contrib-api-drift-report`, and `make contrib-release-notes-check` are explained in the runbook. Supported-adapter contrib packages are still outside the stable core API promise; supported-adapter incompatible drift is gate-enforced and does not make contrib stable.
 

@@ -8,9 +8,9 @@ Use this as the short reviewer path before publishing a release.
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
 - Accept only clean publication evidence before publishing:
-  `API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`.
+  `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`.
 - A local dirty-tree audit may use
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence`,
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
