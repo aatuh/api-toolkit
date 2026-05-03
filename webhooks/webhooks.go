@@ -93,6 +93,7 @@ func NewHMACSHA256Verifier(config HMACConfig) (Verifier, error) {
 type ReceiverConfig[T any] struct {
 	Verifier     Verifier
 	MaxBodyBytes int64
+	Replay       ReplayConfig
 	Decode       func([]byte) (T, error)
 	Handle       func(context.Context, Event[T]) error
 	ErrorWriter  func(http.ResponseWriter, int, httpx.Problem)
@@ -134,6 +135,14 @@ func (receiver Receiver[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Type:   httpx.DefaultTypeURI(httpx.TypePayloadTooLarge),
 			Title:  http.StatusText(http.StatusRequestEntityTooLarge),
 			Detail: "webhook payload too large",
+		})
+		return
+	}
+	if decision := CheckReplayWindow(r, config.Replay); !decision.Allowed {
+		writeProblem(w, http.StatusUnauthorized, httpx.Problem{
+			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
+			Title:  http.StatusText(http.StatusUnauthorized),
+			Detail: decision.Reason,
 		})
 		return
 	}

@@ -34,6 +34,7 @@ github.com/aatuh/api-toolkit/v2/httpcache	stable	direct-tests	Stable conditional
 github.com/aatuh/api-toolkit/v2/httpx	stable	direct-tests	Stable HTTP response and Problem Details helpers.
 github.com/aatuh/api-toolkit/v2/httpx/identity	stable	direct-tests	Stable request identity helpers.
 github.com/aatuh/api-toolkit/v2/httpx/recover	stable	direct-tests	Stable panic recovery helpers.
+github.com/aatuh/api-toolkit/v2/idempotent	stable	direct-tests	Stable idempotent HTTP contract and response helpers.
 github.com/aatuh/api-toolkit/v2/middleware/auth/apikey	stable	direct-tests	Stable API key authentication and scope middleware.
 github.com/aatuh/api-toolkit/v2/middleware/auth/authz	stable	direct-tests	Stable role authorization middleware.
 github.com/aatuh/api-toolkit/v2/middleware/auth/jwt	stable	direct-tests	Stable JWT middleware.

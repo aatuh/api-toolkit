@@ -84,6 +84,15 @@ source of truth is `docs/release-runbook.md`.
 - `specs` can now register reusable Problem Details and validation problem
   components from an `httpx.ProblemCatalog` while preserving unchanged OpenAPI
   output until the catalog helper is used.
+- `middleware/ratelimit` can now emit standard `RateLimit-Limit`,
+  `RateLimit-Remaining`, `RateLimit-Reset`, and `Retry-After` headers when
+  header emission is explicitly enabled.
+- Added stable core package `idempotent` for idempotency-key requirements,
+  deterministic request hashes, conflict/replay Problem Details, accepted
+  replay responses, and OpenAPI operation extensions.
+- `webhooks` now includes replay-window checks, required event-id contracts,
+  timestamp/event-id header constants, and delivery attempt/result contract
+  types without adding retry persistence or provider-specific schemas.
 - Contrib dependencies were upgraded to burn down the imported-only
   `govulncheck` findings from v39: `github.com/jackc/pgx/v5` is now on
   `v5.9.0`, and `google.golang.org/grpc` is now on `v1.79.3`.

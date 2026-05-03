@@ -126,11 +126,11 @@ func BuildSignedRequest[T any](ctx context.Context, event OutgoingEvent[T], conf
 	}
 	eventIDHeader := strings.TrimSpace(config.EventIDHeader)
 	if eventIDHeader == "" {
-		eventIDHeader = "X-Webhook-Event-ID"
+		eventIDHeader = EventIDHeader
 	}
 	timestampHeader := strings.TrimSpace(config.TimestampHeader)
 	if timestampHeader == "" {
-		timestampHeader = "X-Webhook-Timestamp"
+		timestampHeader = TimestampHeader
 	}
 	timestamp := config.Timestamp
 	if timestamp.IsZero() {
