@@ -18,6 +18,8 @@
 # example-only: package is build-smoke checked; it is not behavior-complete coverage.
 # generated, tooling, excluded: validated by generation/tooling/docs contracts as applicable.
 # needs-tests: release blocker until replaced with direct tests or a documented exception.
+github.com/aatuh/api-toolkit/v2/apiclient	stable	direct-tests	Stable client-side API helper utilities.
+github.com/aatuh/api-toolkit/v2/apitest	stable	direct-tests	Stable HTTP API response assertion helpers.
 github.com/aatuh/api-toolkit/v2/authorization	stable	direct-tests	Core authorization context helpers.
 github.com/aatuh/api-toolkit/v2/binding	stable	direct-tests	Stable request binding and validation Problem Details helpers.
 github.com/aatuh/api-toolkit/v2/compat/billing	compatibility-only	direct-tests	Explicit v2 hosted-checkout and billing compatibility package.
@@ -50,6 +52,7 @@ github.com/aatuh/api-toolkit/v2/middleware/secure	stable	direct-tests	Stable sec
 github.com/aatuh/api-toolkit/v2/middleware/timeout	stable	direct-tests	Stable timeout middleware.
 github.com/aatuh/api-toolkit/v2/middleware/trace	stable	direct-tests	Stable request trace middleware.
 github.com/aatuh/api-toolkit/v2/negotiation	stable	direct-tests	Stable content negotiation helpers.
+github.com/aatuh/api-toolkit/v2/oauth2	stable	direct-tests	Stable provider-neutral OAuth2 claim and scope helpers.
 github.com/aatuh/api-toolkit/v2/operations	stable	direct-tests	Stable asynchronous operation response and polling helpers.
 github.com/aatuh/api-toolkit/v2/ports	stable	direct-tests	Stable core ports, including documented compatibility-sensitive sub-surfaces.
 github.com/aatuh/api-toolkit/v2/queryparams	stable	direct-tests	Stable collection query parameter parsing helpers.
@@ -61,6 +64,7 @@ github.com/aatuh/api-toolkit/v2/scheduler/migrations	stable	direct-tests	Stable 
 github.com/aatuh/api-toolkit/v2/securityprofile	stable	direct-tests	Stable security profile defaults.
 github.com/aatuh/api-toolkit/v2/specs	stable	direct-tests	Stable spec registry helpers.
 github.com/aatuh/api-toolkit/v2/swagstub	stable	direct-tests	Stable swagger stub helpers.
+github.com/aatuh/api-toolkit/v2/upload	stable	direct-tests	Stable multipart upload decoding and validation helpers.
 github.com/aatuh/api-toolkit/v2/webhooks	stable	direct-tests	Stable webhook verification and receiver helpers.
 github.com/aatuh/api-toolkit/v2/testutil/authtest	test-only	test-support	Root test support package; not stable public API.
 github.com/aatuh/api-toolkit/contrib/v2	excluded	excluded	Module marker package only; no stable API promise.

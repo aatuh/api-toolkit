@@ -45,9 +45,11 @@ Core packages:
 - `httpcache` provides conditional request helpers for ETags, Last-Modified, `304`, and `412` flows.
 - `httpx`, `httpx/identity`, and `httpx/recover` provide JSON responses, Problem Details, request identity, and panic recovery.
 - `negotiation` provides Accept and Content-Type negotiation for JSON and vendor media types.
+- `upload` decodes multipart forms and maps upload validation failures to Problem Details.
+- `oauth2` provides provider-neutral bearer token claims, validators, scope checks, and OpenAPI security scheme helpers.
 - `endpoints/*` provides docs, health, pprof, version, and list helpers, including offset and signed cursor pagination.
 - `operations` standardizes `202 Accepted` and pollable asynchronous operation resources.
-- `authorization`, `contracttest`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
+- `idempotent`, `routepolicy`, `authorization`, `contracttest`, `apitest`, `apiclient`, `routecontracts`, `securityprofile`, `specs`, `swagstub`, `scheduler`, `email`, `webhooks`, and `fielderrors` cover common API support contracts.
 - The legacy response helper package is retained for v2 source compatibility; new response code should prefer `httpx`.
 
 Contrib packages:

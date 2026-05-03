@@ -630,3 +630,100 @@ receiver := webhooks.Receiver[myEvent]{Config: webhooks.ReceiverConfig[myEvent]{
 
 - Expected behavior: missing event ids, missing timestamps, invalid timestamps, and timestamps outside the configured skew window return Problem Details before the event is handled.
 - Production caveat: replay databases, duplicate suppression, delivery queues, and retry persistence remain outside core.
+
+## Multipart upload validation
+
+Purpose: decode multipart forms with required files, size limits, content-type allowlists, and Problem Details field errors.
+
+- Prerequisites: clients send `multipart/form-data`.
+- Package: `github.com/aatuh/api-toolkit/v2/upload`.
+- Handler sketch:
+
+```go
+form, err := upload.DecodeMultipart(r, upload.Config{
+	MaxRequestBytes:     20 << 20,
+	MaxFileBytes:        upload.MaxFileBytes(5 << 20),
+	RequiredFiles:       []string{"avatar"},
+	AllowedContentTypes: upload.AllowedContentTypes("image/png", "image/jpeg"),
+})
+if err != nil {
+	upload.WriteValidationProblem(w, err)
+	return
+}
+file, err := upload.RequireFile(form, "avatar")
+if err != nil {
+	upload.WriteValidationProblem(w, err)
+	return
+}
+```
+
+- Expected behavior: missing, oversized, malformed, or disallowed files return `application/problem+json` with validation field errors.
+- Production caveat: virus scanning, object storage, image transcoding, and persistence stay in application code.
+
+## Provider-neutral OAuth2 scopes
+
+Purpose: keep provider-specific token validation outside core while standardizing claims, scope checks, and OpenAPI security schemes.
+
+- Prerequisites: provide an application-owned `oauth2.Validator` implementation.
+- Package: `github.com/aatuh/api-toolkit/v2/oauth2`.
+- Handler sketch:
+
+```go
+token, ok := oauth2.BearerToken(r)
+if !ok {
+	httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: "Unauthorized"})
+	return
+}
+claims, err := validator.ValidateToken(r.Context(), token)
+if err != nil || oauth2.RequireScopes(claims, "widgets:write") != nil {
+	httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: "Forbidden"})
+	return
+}
+ctx := authorization.WithActor(r.Context(), claims.Actor())
+ctx = authorization.WithScope(ctx, claims.AuthorizationScope())
+```
+
+- Expected behavior: OAuth2 scope enforcement and route contract security metadata can share the same provider-neutral scope strings.
+- Production caveat: JWKS fetching, provider quirks, token caching, and issuer-specific validation remain application or adapter concerns.
+
+## HTTP API test assertions
+
+Purpose: make application tests assert API contracts without reimplementing Problem Details, pagination, and OpenAPI golden checks.
+
+- Prerequisites: use `httptest.ResponseRecorder`.
+- Package: `github.com/aatuh/api-toolkit/v2/apitest`.
+- Test sketch:
+
+```go
+recorder := httptest.NewRecorder()
+handler.ServeHTTP(recorder, request)
+apitest.AssertProblem(t, recorder, http.StatusBadRequest)
+apitest.AssertValidationFields(t, recorder, "name")
+apitest.AssertRateLimitHeaders(t, recorder)
+apitest.AssertOpenAPIGolden(t, generated, golden)
+```
+
+- Expected behavior: failed assertions report the mismatched HTTP contract directly in the test failure.
+- Production caveat: these helpers are for tests only; runtime code should use `httpx`, `binding`, `upload`, `operations`, and the middleware packages directly.
+
+## API client helpers
+
+Purpose: consume api-toolkit-shaped APIs without generating a service-specific SDK.
+
+- Prerequisites: use `net/http` clients.
+- Package: `github.com/aatuh/api-toolkit/v2/apiclient`.
+- Client sketch:
+
+```go
+client := &http.Client{Transport: apiclient.APIKeyTransport{Key: apiKey}}
+result, resp, err := apiclient.DoJSON[widgetResponse](ctx, client, http.MethodPost, endpoint, createWidgetRequest{Name: "starter"})
+if problem, ok := err.(*apiclient.ProblemError); ok {
+	log.Printf("api problem: %s", problem.Problem.Title)
+}
+if retryAfter, ok := apiclient.RetryAfter(resp.Header); ok {
+	_ = retryAfter
+}
+```
+
+- Expected behavior: clients can decode Problem Details, set precondition headers, sign webhook requests, add API keys, and iterate cursor pages with small composable helpers.
+- Production caveat: retries, persistence, service-specific resources, and generated SDKs remain outside core.
