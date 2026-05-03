@@ -560,3 +560,73 @@ operation := specs.Operation{Responses: map[int]specs.Response{
 
 - Expected behavior: `components.schemas.Problem`, `components.schemas.ValidationProblem`, and catalog-backed response components appear deterministically only after explicit registration.
 - Production caveat: keep stable machine-readable problem codes in the catalog before exposing them in published client contracts.
+
+## Standard rate-limit headers
+
+Purpose: expose quota information to API clients without changing limiter storage or decision ownership.
+
+- Prerequisites: use `middleware/ratelimit`.
+- Package: `github.com/aatuh/api-toolkit/v2/middleware/ratelimit`.
+- Middleware sketch:
+
+```go
+limiter, err := ratelimit.New(ratelimit.Options{
+	Capacity:     100,
+	RefillRate:   10,
+	HeaderConfig: ratelimit.DefaultHeaderConfig(),
+})
+if err != nil {
+	return err
+}
+handler := limiter.Handler(next)
+```
+
+- Expected behavior: allowed and denied responses include standard quota headers when header emission is enabled; existing limiter behavior is unchanged when `HeaderConfig` is left empty.
+- Production caveat: distributed quota accounting still belongs in an app-owned or adapter-owned limiter.
+
+## Idempotent create and async replay contracts
+
+Purpose: standardize idempotency-key validation, request hashing, conflict responses, and replayed `202 Accepted` responses.
+
+- Prerequisites: use application-owned storage or `middleware/idempotency` for reservation/replay ownership.
+- Package: `github.com/aatuh/api-toolkit/v2/idempotent`.
+- Handler sketch:
+
+```go
+key, err := idempotent.RequireKey(r, "")
+if err != nil {
+	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: "Missing idempotency key", Detail: err.Error()})
+	return
+}
+hash := idempotent.RequestHash(r, body)
+if conflictsExistingRequest(key, hash) {
+	idempotent.WriteConflict(w, "idempotency key was reused with a different request")
+	return
+}
+idempotent.WriteAcceptedReplay(w, idempotent.AsyncConfig{ID: "op_123", Location: "/operations/op_123", RetryAfter: 2 * time.Second})
+```
+
+- Expected behavior: clients can distinguish new accepts, replayed accepts, and conflicting request reuse with consistent headers and Problem Details.
+- Production caveat: persistence, key TTLs, and response replay storage remain application or middleware concerns.
+
+## Webhook replay and delivery contracts
+
+Purpose: require event ids, reject timestamps outside a replay window, and document outbound delivery attempts/results.
+
+- Prerequisites: configure a webhook verifier and timestamp-producing sender.
+- Package: `github.com/aatuh/api-toolkit/v2/webhooks`.
+- Receiver sketch:
+
+```go
+receiver := webhooks.Receiver[myEvent]{Config: webhooks.ReceiverConfig[myEvent]{
+	Verifier: verifier,
+	Replay: webhooks.ReplayConfig{
+		Tolerance:      5 * time.Minute,
+		RequireEventID: true,
+	},
+	Handle: handleEvent,
+}}
+```
+
+- Expected behavior: missing event ids, missing timestamps, invalid timestamps, and timestamps outside the configured skew window return Problem Details before the event is handled.
+- Production caveat: replay databases, duplicate suppression, delivery queues, and retry persistence remain outside core.

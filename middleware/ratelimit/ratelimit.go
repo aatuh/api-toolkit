@@ -43,6 +43,8 @@ type Options struct {
 	FailOpen bool
 	// OnError receives limiter errors, when present.
 	OnError func(error)
+	// HeaderConfig enables standard RateLimit-* response headers when configured.
+	HeaderConfig HeaderConfig
 }
 
 // Middleware enforces in-memory token bucket rate limits.
@@ -164,6 +166,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				if ra <= 0 {
 					ra = time.Second
 				}
+				SetRateLimitHeaders(w, Quota{RetryAfter: ra, Reset: m.opts.Clock.Now().Add(ra)}, m.opts.HeaderConfig)
 				w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
 				httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
@@ -198,6 +201,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			if ra <= 0 {
 				ra = time.Second
 			}
+			SetRateLimitHeaders(w, Quota{Limit: int(m.opts.Capacity), Remaining: 0, Reset: now.Add(ra), RetryAfter: ra}, m.opts.HeaderConfig)
 			w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
 			httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
@@ -207,7 +211,14 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			return
 		}
 		b.tokens--
+		remaining := int(math.Floor(b.tokens))
+		reset := now
+		if m.opts.RefillRate > 0 && b.tokens < m.opts.Capacity {
+			reset = now.Add(time.Duration(((m.opts.Capacity - b.tokens) / m.opts.RefillRate) * float64(time.Second)))
+		}
 		m.mu.Unlock()
+
+		SetRateLimitHeaders(w, Quota{Limit: int(m.opts.Capacity), Remaining: remaining, Reset: reset}, m.opts.HeaderConfig)
 
 		next.ServeHTTP(w, r)
 	})

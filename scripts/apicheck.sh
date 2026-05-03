@@ -84,6 +84,7 @@ packages=(
   "github.com/aatuh/api-toolkit/v2/httpx"
   "github.com/aatuh/api-toolkit/v2/httpx/identity"
   "github.com/aatuh/api-toolkit/v2/httpx/recover"
+  "github.com/aatuh/api-toolkit/v2/idempotent"
   "github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
   "github.com/aatuh/api-toolkit/v2/middleware/auth/authz"
   "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
