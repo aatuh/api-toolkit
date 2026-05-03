@@ -83,7 +83,7 @@ checks = [
 check_records = [
     {
         "name": name,
-        "command_line": f"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make {name}",
+        "command_line": f"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make {name}",
         "status": "passed",
         "exit_code": 0,
         "duration_ms": 1,
@@ -126,9 +126,9 @@ summary = {
         "status": "passed",
         "message": "Publication release evidence requires a clean git worktree.",
     },
-    "api_base_ref": "v2.0.1",
-    "quality_command": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
-    "evidence_command": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+    "api_base_ref": "v2.1.0",
+    "quality_command": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
+    "evidence_command": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
     "status": status,
     "publication_eligible": status == "passed",
     "checks": check_records,
@@ -148,7 +148,7 @@ summary = {
         "review_disposition": "fixture",
     },
     "contrib_drift": {
-        "command_line": "API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make contrib-api-drift-report",
+        "command_line": "API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report",
         "status": "passed",
         "exit_code": 0,
         "duration_ms": 1,
@@ -252,9 +252,9 @@ make_fake_tools "$fake_bin"
 
 ok_dir="$tmp/ok"
 make_bundle "$ok_dir"
-require_success local-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
+require_success local-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
 
-missing_tag_output="$(require_failure publication-missing-tag env PATH="$fake_bin:$PATH" API_BASE_REF=v2.0.1 RELEASE_ARTIFACT_VERIFY_MODE=publication bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
+missing_tag_output="$(require_failure publication-missing-tag env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 RELEASE_ARTIFACT_VERIFY_MODE=publication bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
 case "$missing_tag_output" in
   *"RELEASE_TAG is required when RELEASE_ARTIFACT_VERIFY_MODE=publication"*) ;;
   *) printf 'publication mode did not require RELEASE_TAG:\n%s\n' "$missing_tag_output" >&2; exit 1 ;;
@@ -262,7 +262,7 @@ esac
 
 bad_summary_dir="$tmp/bad-summary"
 make_bundle "$bad_summary_dir" "failed"
-bad_summary_output="$(require_failure failed-summary env PATH="$fake_bin:$PATH" API_BASE_REF=v2.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$bad_summary_dir")"
+bad_summary_output="$(require_failure failed-summary env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$bad_summary_dir")"
 case "$bad_summary_output" in
   *"status='failed', want passed"*) ;;
   *) printf 'failed summary invariant did not fail clearly:\n%s\n' "$bad_summary_output" >&2; exit 1 ;;
@@ -270,7 +270,7 @@ esac
 
 missing_summary_log_dir="$tmp/missing-summary-log"
 make_bundle "$missing_summary_log_dir" "passed" "no" "custom-extra.log"
-missing_summary_log_output="$(require_failure missing-summary-log env PATH="$fake_bin:$PATH" API_BASE_REF=v2.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$missing_summary_log_dir")"
+missing_summary_log_output="$(require_failure missing-summary-log env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$missing_summary_log_dir")"
 case "$missing_summary_log_output" in
   *"release-evidence-logs.tgz missing checks[].log_path .ci-result/release-evidence/logs/custom-extra.log"*) ;;
   *) printf 'summary-driven retained log verification did not fail clearly:\n%s\n' "$missing_summary_log_output" >&2; exit 1 ;;
@@ -281,7 +281,7 @@ make_bundle "$publication_dir"
 GH_CALLS="$tmp/gh-calls" require_success publication-verify env \
   PATH="$fake_bin:$PATH" \
   GH_CALLS="$tmp/gh-calls" \
-  API_BASE_REF=v2.0.1 \
+  API_BASE_REF=v2.1.0 \
   RELEASE_ARTIFACT_VERIFY_MODE=publication \
   RELEASE_TAG=v2.1.0 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \

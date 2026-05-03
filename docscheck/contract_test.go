@@ -816,7 +816,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+			"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
 			"not acceptable before publishing",
@@ -956,8 +956,8 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	if summary.Schema != "github.com/aatuh/api-toolkit/release-check-summary/v2" {
 		t.Fatalf("schema = %q, want v2", summary.Schema)
 	}
-	if summary.APIBaseRef != "v2.0.1" {
-		t.Fatalf("api_base_ref = %q, want v2.0.1", summary.APIBaseRef)
+	if summary.APIBaseRef != "v2.1.0" {
+		t.Fatalf("api_base_ref = %q, want v2.1.0", summary.APIBaseRef)
 	}
 	if summary.Commit == "" || summary.GitState.Commit != summary.Commit {
 		t.Fatalf("git_state commit = %q, want top-level commit %q", summary.GitState.Commit, summary.Commit)
@@ -976,7 +976,7 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 		t.Fatal("schema-only dirty local audit summary must not be publication eligible")
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v2.0.1",
+		"API_BASE_REF=v2.1.0",
 		"GOTOOLCHAIN=local",
 		"make release-check",
 	} {
@@ -2010,8 +2010,8 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
 		"docs/release-runbook.md",
@@ -2033,9 +2033,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v2 release baseline: `v2.0.1`",
-		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v2.0.1 GOTOOLCHAIN=local make release-evidence",
+		"Supported v2 release baseline: `v2.1.0`",
+		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
 		"schema v2",
 		"local release evidence",
 		"GitHub release workflow evidence",
@@ -2755,7 +2755,7 @@ func releaseEvidenceEnv(extra ...string) []string {
 		}
 		env = append(env, value)
 	}
-	env = append(env, "API_BASE_REF=v2.0.1", "GOTOOLCHAIN=local")
+	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local")
 	env = append(env, extra...)
 	return env
 }

@@ -1,4 +1,3 @@
-// Package upload decodes multipart upload requests and maps validation failures to Problem Details.
 package upload
 
 import (

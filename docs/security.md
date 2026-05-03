@@ -21,6 +21,9 @@ Core defaults aim to be safe, deterministic, and explicit:
 - Query limits via `middleware/querylimits`.
 - Security headers via `middleware/secure`.
 - Trace context validation via `middleware/trace`.
+- API key middleware, OAuth2 helpers, upload decoding, and webhook verification
+  provide transport contracts; applications still own secret storage, provider
+  validation, content scanning, replay databases, and authorization policy.
 - HTTP health-check URLs are trusted application configuration; do not derive
   them from request parameters or tenant-controlled input. Use an SSRF-guarded
   outbound client from `github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient`
@@ -66,6 +69,20 @@ Goal:
 - Preserve cleanup and operator visibility even during timeout, cancellation,
   or partial infrastructure failure paths.
 - Keep auditability via structured logs and stable errors.
+
+## Security-sensitive helper ownership
+
+- API key auth extracts credentials and enforces verifier decisions. Store,
+  hash, rotate, and revoke keys in application-owned verifier code.
+- OAuth2 helpers standardize claims and scopes only after an app-owned validator
+  verifies issuer, audience, expiry, JWKS material, and tenant mapping.
+- Upload helpers reject malformed, oversized, missing, or disallowed multipart
+  files. Scan and persist untrusted content outside core helpers.
+- Webhook helpers verify signatures and optional replay windows. Keep replay
+  stores, duplicate suppression, delivery retries, and provider schemas in
+  application code.
+- Cookbook recipes for these helpers live in `docs/cookbook.md`; keep this
+  security document focused on ownership boundaries and production caveats.
 
 ## OWASP Mapping (Resource Consumption)
 
@@ -151,5 +168,7 @@ srv := bootstrap.HardenedServer(":8080", r, func(s *http.Server) {
 - [ ] Set MaxHeaderBytes with `httpx.HeaderLimitsBalanced` or stricter
 - [ ] Require authentication by default and deny by default
 - [ ] Avoid dev-only bypass headers in production
+- [ ] Keep API key storage, OAuth2 provider validation, upload scanning, and
+      webhook replay stores application-owned
 - [ ] Use TLS in production and prefer TLS 1.3
 - [ ] Monitor for rate limiting and validation errors

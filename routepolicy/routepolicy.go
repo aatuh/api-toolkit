@@ -1,4 +1,3 @@
-// Package routepolicy derives runtime middleware from OpenAPI route contracts.
 package routepolicy
 
 import (
