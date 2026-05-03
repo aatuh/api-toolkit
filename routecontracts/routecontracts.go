@@ -221,7 +221,7 @@ func (registry *Registry) Validate() error {
 }
 
 func applyMiddleware(handler http.Handler, middleware []func(http.Handler) http.Handler) http.Handler {
-	var wrapped http.Handler = handler
+	wrapped := handler
 	for i := len(middleware) - 1; i >= 0; i-- {
 		if middleware[i] != nil {
 			wrapped = middleware[i](wrapped)
