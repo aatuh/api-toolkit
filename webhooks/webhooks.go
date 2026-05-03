@@ -17,7 +17,10 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
-const defaultMaxBodyBytes int64 = 1 << 20
+const (
+	defaultMaxBodyBytes              int64 = 1 << 20
+	defaultVerificationFailureDetail       = "webhook verification failed"
+)
 
 var (
 	// ErrMissingSignature reports a request without the configured signature header.
@@ -97,6 +100,9 @@ type ReceiverConfig[T any] struct {
 	Decode       func([]byte) (T, error)
 	Handle       func(context.Context, Event[T]) error
 	ErrorWriter  func(http.ResponseWriter, int, httpx.Problem)
+	// VerificationErrorDetail formats a safe client-facing detail for verifier
+	// failures. When nil or empty, a generic detail is returned.
+	VerificationErrorDetail func(error) string
 }
 
 // Receiver is an http.Handler for verified webhook events.
@@ -150,7 +156,7 @@ func (receiver Receiver[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusUnauthorized, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
 			Title:  http.StatusText(http.StatusUnauthorized),
-			Detail: err.Error(),
+			Detail: verificationErrorDetail(config.VerificationErrorDetail, err),
 		})
 		return
 	}
@@ -179,6 +185,16 @@ func (receiver Receiver[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
+func verificationErrorDetail(format func(error) string, err error) string {
+	if format == nil {
+		return defaultVerificationFailureDetail
+	}
+	if detail := strings.TrimSpace(format(err)); detail != "" {
+		return detail
+	}
+	return defaultVerificationFailureDetail
 }
 
 // DecodeJSON decodes a webhook payload as JSON.

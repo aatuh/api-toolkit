@@ -119,12 +119,24 @@ type SystemEndpointOptions struct {
 	EnablePprof bool
 }
 
+// SystemEndpointAdminOptions configures safe admin mounting for operator-only
+// system endpoints.
+type SystemEndpointAdminOptions struct {
+	RequireAdmin func(http.Handler) http.Handler
+	EnablePprof  bool
+}
+
 // MountSystemEndpoints registers health, docs, version, and metrics endpoints.
+// It preserves v2 convenience behavior; prefer MountSystemEndpointsToWithAdmin
+// when mounting metrics, pprof, or detailed health from new wiring.
 func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
 	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{})
 }
 
-// MountSystemEndpointsTo registers system endpoints on a minimal GET-only surface.
+// MountSystemEndpointsTo registers system endpoints on a minimal GET-only
+// surface. It preserves v2 convenience behavior; prefer
+// MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
+// health from new wiring.
 func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
 	MountSystemEndpointsToWithProfile(r, se, string(SystemProfileProduction))
 }
@@ -138,7 +150,10 @@ func MountSystemEndpointsToWithProfile(r ports.MethodRouteRegistrar, se SystemEn
 	})
 }
 
-// MountSystemEndpointsToWithOptions mounts system endpoints with explicit runtime options.
+// MountSystemEndpointsToWithOptions mounts system endpoints with explicit
+// runtime options. It preserves v2 convenience behavior; prefer
+// MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
+// health from new wiring.
 func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointOptions) {
 	if r == nil {
 		return
@@ -166,6 +181,42 @@ func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEn
 			se.Metrics.ServeHTTP(w, req)
 		})
 	}
+}
+
+// MountSystemEndpointsToWithAdmin mounts public health, docs, and version
+// routes normally while mounting operator-only detailed health, metrics, and
+// optional pprof routes behind an explicit authorization or internal-network
+// wrapper.
+func MountSystemEndpointsToWithAdmin(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
+	if opts.RequireAdmin == nil {
+		return errors.New("system endpoint admin routes require an authorization wrapper")
+	}
+	if r == nil {
+		return nil
+	}
+	if se.Health != nil {
+		se.Health.RegisterPublicRoutesTo(r)
+		if err := se.Health.RegisterAdminDetailedHealthRoute(r, opts.RequireAdmin); err != nil {
+			return err
+		}
+	}
+	if se.Docs != nil {
+		se.Docs.RegisterRoutesTo(r)
+	}
+	if se.Version != nil {
+		se.Version.RegisterRoutesTo(r)
+	}
+	if opts.EnablePprof && se.Pprof != nil {
+		pprofx.RegisterRoutes(pprofRouter{
+			router: r,
+			h:      opts.RequireAdmin(se.Pprof),
+		})
+	}
+	if se.Metrics != nil {
+		metricsHandler := opts.RequireAdmin(se.Metrics)
+		r.Get(specs.Metrics, metricsHandler.ServeHTTP)
+	}
+	return nil
 }
 
 func isProfilePprofEnabled(profile string) bool {

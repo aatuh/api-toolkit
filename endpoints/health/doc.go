@@ -5,10 +5,11 @@
 //     than silently succeeding on empty probe sets.
 //   - Detailed health output is intended for explicitly enabled operational
 //     use and may expose dependency-level status details. Prefer
-//     RegisterAdminDetailedHealthRoute for admin mounts so an explicit wrapper
-//     is required at construction time. Treat policy-free RegisterRoutes,
-//     RegisterRoutesTo, RegisterCustomRoutes, and RegisterCustomRoutesTo
-//     detailed-health mounts as v2 source-compatible legacy behavior.
+//     RegisterPublicRoutesTo for public probes and RegisterAdminDetailedHealthRoute
+//     for admin mounts so an explicit wrapper is required at construction time.
+//     Treat policy-free RegisterRoutes, RegisterRoutesTo, RegisterCustomRoutes,
+//     and RegisterCustomRoutesTo detailed-health mounts as v2 source-compatible
+//     legacy behavior.
 //   - Custom managers can opt into detailed route exposure and cached snapshot
 //     middleware behavior by implementing ports.DetailedHealthManager and
 //     ports.CachedHealthManager in addition to ports.HealthManager.

@@ -46,17 +46,25 @@ The contrib bootstrap helpers keep metrics opt-in:
 
 - `bootstrap.ProfileStrictAPI` and `bootstrap.ProfileDev` use a No-op metrics
   recorder unless you pass `bootstrap.WithMetricsRecorder(...)`.
-- `bootstrap.MountSystemEndpoints` only mounts `specs.Metrics` when you set
-  `SystemEndpoints.Metrics` explicitly.
+- `bootstrap.MountSystemEndpoints` preserves v2 convenience behavior and only
+  mounts `specs.Metrics` when you set `SystemEndpoints.Metrics` explicitly.
+- Prefer `bootstrap.MountSystemEndpointsToWithAdmin` for new system endpoint
+  wiring so metrics are mounted behind an explicit admin or internal-network
+  wrapper.
 - `bootstrap.PrometheusMetricsHandler()` is the convenience helper for the
   standard Prometheus HTTP handler.
 
 Example:
 
 ```go
-bootstrap.MountSystemEndpoints(r, bootstrap.SystemEndpoints{
+err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
 	Metrics: bootstrap.PrometheusMetricsHandler(),
+}, bootstrap.SystemEndpointAdminOptions{
+	RequireAdmin: requireAdmin,
 })
+if err != nil {
+	return err
+}
 ```
 
 ## Custom metrics

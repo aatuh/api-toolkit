@@ -133,6 +133,50 @@ func TestReceiverWritesProblemDetailsForFailureCases(t *testing.T) {
 	}
 }
 
+func TestReceiverDoesNotExposeVerifierErrorDetailByDefault(t *testing.T) {
+	receiver := Receiver[testPayload]{Config: ReceiverConfig[testPayload]{
+		Verifier: VerifierFunc(func(context.Context, *http.Request, []byte) error {
+			return errors.New("provider token leaked in verifier detail")
+		}),
+	}}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"id":"evt_1"}`))
+	rec := httptest.NewRecorder()
+
+	receiver.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "provider token leaked") {
+		t.Fatalf("verifier detail leaked in response body: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "webhook verification failed") {
+		t.Fatalf("response body missing safe detail: %s", rec.Body.String())
+	}
+}
+
+func TestReceiverAllowsSafeVerifierErrorDetailOverride(t *testing.T) {
+	receiver := Receiver[testPayload]{Config: ReceiverConfig[testPayload]{
+		Verifier: VerifierFunc(func(context.Context, *http.Request, []byte) error {
+			return ErrMissingSignature
+		}),
+		VerificationErrorDetail: func(error) string {
+			return "missing webhook signature"
+		},
+	}}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"id":"evt_1"}`))
+	rec := httptest.NewRecorder()
+
+	receiver.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "missing webhook signature") {
+		t.Fatalf("response body missing override detail: %s", rec.Body.String())
+	}
+}
+
 func signHex(body []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)

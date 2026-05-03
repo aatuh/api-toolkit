@@ -175,6 +175,19 @@ func (h *Handler) RegisterRoutes(router interface {
 // When detailed health is enabled, prefer registering public probes separately
 // and mounting DetailedHealthHandler with RegisterAdminDetailedHealthRoute.
 func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+	h.RegisterPublicRoutesTo(router)
+	if h == nil || router == nil {
+		return
+	}
+	if h.detailedHealthEnabled() {
+		router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
+	}
+}
+
+// RegisterPublicRoutesTo registers only public health probe endpoints on the
+// given registrar. It never mounts detailed dependency health, even when
+// detailed health is enabled on the manager.
+func (h *Handler) RegisterPublicRoutesTo(router ports.MethodRouteRegistrar) {
 	if h == nil || router == nil {
 		return
 	}
@@ -183,9 +196,6 @@ func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 	router.Get(specs.Readyz, h.ReadinessHandler)
 	router.Get(specs.Healthz, h.HealthHandler)
 	router.Get(specs.Health, h.HealthHandler)
-	if h.detailedHealthEnabled() {
-		router.Get(specs.HealthDetailed, h.DetailedHealthHandler)
-	}
 }
 
 // RegisterAdminDetailedHealthRoute registers only the detailed health route

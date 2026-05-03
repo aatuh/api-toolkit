@@ -79,21 +79,32 @@ behaviors:
 - Liveness and readiness are expected to reflect configured checker state and should not silently report healthy when no probe checks are configured.
 - Detailed health output is an operator-focused surface because it can include dependency-level status and check details.
 - `ports.HealthCheckConfig.EnableDetailed` controls whether HTTP packages should expose detailed health responses.
-- Mount detailed health and pprof routes behind admin/internal access control or upstream network policy; prefer `Handler.RegisterAdminDetailedHealthRoute` and `pprof.RegisterAdminRoutes` for new admin mounts because they fail closed without an explicit wrapper.
+- Mount detailed health, pprof, and metrics behind admin/internal access control or upstream network policy; prefer `Handler.RegisterPublicRoutesTo`, `Handler.RegisterAdminDetailedHealthRoute`, `pprof.RegisterAdminRoutes`, and `bootstrap.MountSystemEndpointsToWithAdmin` for new mounts because operator-only routes require an explicit wrapper.
 - HTTP dependency check URLs are application configuration. Do not derive them from request parameters or tenant-controlled input.
 - Missing checker registrations or invalid probe wiring should fail closed and surface as unhealthy state rather than synthetic success.
 - When `EnableCaching` is true, checker results may be reused across health endpoints until `CacheDuration` expires.
 
-Safe detailed-health mounting should keep public probes separate from
-operator-only dependency detail. Web, mobile, and desktop clients should use
-public probes only; they should never call operator-only endpoints directly.
+Safe system endpoint mounting should keep public probes separate from
+operator-only dependency detail, metrics, and pprof. Web, mobile, and desktop
+clients should use public probes only; they should never call operator-only
+endpoints directly. If you mount pprof outside the bootstrap helper, use
+`pprof.RegisterAdminRoutes`. If you split routers manually, use
+`healthHandler.RegisterPublicRoutesTo(publicRouter)` for public probes and
+`healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin)` for
+operator detail.
 
 ```go
-publicMux.Handle("/live", health.NewLivenessHandler(checker))
-publicMux.Handle("/ready", health.NewReadinessHandler(checker))
-
-_ = healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin)
-_ = pprof.RegisterAdminRoutes(adminRouter, requireAdmin)
+err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
+	Health:  healthHandler,
+	Metrics: bootstrap.PrometheusMetricsHandler(),
+	Pprof:   pprof.Handler(),
+}, bootstrap.SystemEndpointAdminOptions{
+	RequireAdmin: requireAdmin,
+	EnablePprof:  true,
+})
+if err != nil {
+	return err
+}
 ```
 
 ## Security and operations

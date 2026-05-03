@@ -31,10 +31,15 @@ type stubServerRunner struct {
 
 type stubRouteRegistrar struct {
 	patterns []string
+	handlers map[string]http.HandlerFunc
 }
 
-func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
+func (s *stubRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
+	if s.handlers == nil {
+		s.handlers = make(map[string]http.HandlerFunc)
+	}
 	s.patterns = append(s.patterns, pattern)
+	s.handlers[pattern] = h
 }
 
 func newStubServerRunner() *stubServerRunner {
@@ -359,6 +364,82 @@ func TestMountSystemEndpointsToWithProfileEnablesPprofInDevelopment(t *testing.T
 		if !seen {
 			t.Fatalf("expected development profile to include pprof route: %s", route)
 		}
+	}
+}
+
+func TestMountSystemEndpointsToWithAdminRequiresWrapper(t *testing.T) {
+	err := MountSystemEndpointsToWithAdmin(&stubRouteRegistrar{}, SystemEndpoints{}, SystemEndpointAdminOptions{})
+	if err == nil {
+		t.Fatal("expected missing admin wrapper error")
+	}
+}
+
+func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *testing.T) {
+	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(health.NewBasicChecker())
+	router := &stubRouteRegistrar{}
+	wrapped := 0
+	requireAdmin := func(next http.Handler) http.Handler {
+		wrapped++
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Admin-Wrapper", "true")
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	err := MountSystemEndpointsToWithAdmin(router, SystemEndpoints{
+		Health:  health.NewHandler(manager),
+		Docs:    docs.NewHandler(nil),
+		Version: version.NewHandler(version.Config{}),
+		Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}),
+		Pprof: pprofStub(),
+	}, SystemEndpointAdminOptions{
+		RequireAdmin: requireAdmin,
+		EnablePprof:  true,
+	})
+	if err != nil {
+		t.Fatalf("mount admin system endpoints: %v", err)
+	}
+
+	for _, pattern := range []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+		specs.Docs,
+		specs.DocsOpenAPI,
+		specs.DocsVersion,
+		specs.DocsInfo,
+		specs.Version,
+		specs.HealthDetailed,
+		specs.Metrics,
+		specs.PprofIndex,
+		specs.PprofCmdline,
+		specs.PprofProfile,
+		specs.PprofSymbol,
+		specs.PprofTrace,
+	} {
+		if router.handlers[pattern] == nil {
+			t.Fatalf("expected mounted route %s; got %v", pattern, router.patterns)
+		}
+	}
+	for _, pattern := range []string{specs.HealthDetailed, specs.Metrics, specs.PprofIndex} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, pattern, nil)
+		router.handlers[pattern](rec, req)
+		if got := rec.Header().Get("X-Admin-Wrapper"); got != "true" {
+			t.Fatalf("%s admin wrapper header = %q", pattern, got)
+		}
+	}
+	if wrapped < 3 {
+		t.Fatalf("wrapped = %d, want at least 3", wrapped)
 	}
 }
 
