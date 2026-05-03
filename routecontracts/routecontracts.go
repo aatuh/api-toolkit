@@ -28,7 +28,7 @@ type patchRouter interface {
 type Route struct {
 	Method     string
 	Pattern    string
-	Handler    http.HandlerFunc
+	Handler    http.Handler
 	Middleware []func(http.Handler) http.Handler
 	Operation  specs.Operation
 }
@@ -144,27 +144,27 @@ func (registry *Registry) Register(route Route) error {
 }
 
 // Get registers a GET route.
-func (registry *Registry) Get(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+func (registry *Registry) Get(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
 	return registry.Register(Route{Method: http.MethodGet, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
 // Post registers a POST route.
-func (registry *Registry) Post(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+func (registry *Registry) Post(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
 	return registry.Register(Route{Method: http.MethodPost, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
 // Put registers a PUT route.
-func (registry *Registry) Put(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+func (registry *Registry) Put(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
 	return registry.Register(Route{Method: http.MethodPut, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
 // Delete registers a DELETE route.
-func (registry *Registry) Delete(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+func (registry *Registry) Delete(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
 	return registry.Register(Route{Method: http.MethodDelete, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
 // Patch registers a PATCH route when the router supports Patch.
-func (registry *Registry) Patch(pattern string, operation specs.Operation, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) error {
+func (registry *Registry) Patch(pattern string, operation specs.Operation, handler http.Handler, middleware ...func(http.Handler) http.Handler) error {
 	return registry.Register(Route{Method: http.MethodPatch, Pattern: pattern, Handler: handler, Operation: operation, Middleware: middleware})
 }
 
@@ -220,7 +220,7 @@ func (registry *Registry) Validate() error {
 	return nil
 }
 
-func applyMiddleware(handler http.HandlerFunc, middleware []func(http.Handler) http.Handler) http.Handler {
+func applyMiddleware(handler http.Handler, middleware []func(http.Handler) http.Handler) http.Handler {
 	var wrapped http.Handler = handler
 	for i := len(middleware) - 1; i >= 0; i-- {
 		if middleware[i] != nil {
