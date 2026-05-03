@@ -155,6 +155,13 @@ source of truth is `docs/release-runbook.md`.
 - Admin endpoint docs now steer new pprof and detailed-health mounts toward
   fail-closed registration helpers while preserving legacy source-compatible
   helpers for v2 callers.
+- `endpoints/health.Handler.RegisterPublicRoutesTo` and
+  `contrib/bootstrap.MountSystemEndpointsToWithAdmin` now give new system
+  endpoint wiring a source-compatible path that keeps public probes separate
+  from admin-only detailed health, metrics, and pprof routes.
+- `webhooks.Receiver` now returns a generic verifier failure detail by default
+  so custom verifier errors are not echoed to clients. Use
+  `ReceiverConfig.VerificationErrorDetail` only for explicitly safe text.
 
 ### Upgrade notes
 

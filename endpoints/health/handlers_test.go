@@ -212,6 +212,36 @@ func TestRegisterRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestRegisterPublicRoutesToSkipsDetailedHealthWhenEnabled(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(NewBasicChecker())
+
+	handler := NewHandler(manager)
+	router := &stubRouteRegistrar{}
+
+	handler.RegisterPublicRoutesTo(router)
+
+	expected := []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+	}
+	if len(router.patterns) != len(expected) {
+		t.Fatalf("expected %d routes, got %d", len(expected), len(router.patterns))
+	}
+	for i := range expected {
+		if router.patterns[i] != expected[i] {
+			t.Fatalf("route %d = %q", i, router.patterns[i])
+		}
+	}
+}
+
 func TestRegisterAdminDetailedHealthRouteRequiresWrapper(t *testing.T) {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         time.Second,

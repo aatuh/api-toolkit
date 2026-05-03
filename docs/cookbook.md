@@ -127,29 +127,33 @@ curl -i http://localhost:8080/admin \
 ## Safe system endpoint mounting
 
 Purpose: keep public probes separate from operator-only pprof, detailed health,
-
-- Source type: Inline sketch.
 and metrics routes. Web, mobile, and desktop clients should never need direct
 access to operator-only endpoints.
 
+- Source type: Inline sketch.
+
 - Prerequisites: provide an application-owned `requireAdmin` middleware or
   internal-network wrapper.
-- Public routes: mount liveness and readiness on the public mux.
-- Admin routes: mount detailed health with `RegisterAdminDetailedHealthRoute`
-  and pprof with `pprof.RegisterAdminRoutes`; mount metrics only on the
-  protected admin mux or behind equivalent upstream network policy.
+- Public routes: `bootstrap.MountSystemEndpointsToWithAdmin` mounts public
+  health, docs, and version routes normally on the provided router.
+- Admin routes: the same helper mounts detailed health, metrics, and pprof
+  behind the wrapper at startup.
+- Manual split-router wiring: use `RegisterPublicRoutesTo(publicRouter)` for
+  public probes and `RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin)`
+  for detailed dependency output.
 
 ```go
-publicMux.HandleFunc("/livez", healthHandler.LivenessHandler)
-publicMux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
-
-if err := healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin); err != nil {
+err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
+	Health:  healthHandler,
+	Metrics: bootstrap.PrometheusMetricsHandler(),
+	Pprof:   pprof.Handler(),
+}, bootstrap.SystemEndpointAdminOptions{
+	RequireAdmin: requireAdmin,
+	EnablePprof:  true,
+})
+if err != nil {
 	return err
 }
-if err := pprof.RegisterAdminRoutes(adminRouter, requireAdmin); err != nil {
-	return err
-}
-adminMux.Handle("/metrics", requireAdmin(metricsHandler))
 ```
 
 ## API key route
@@ -696,7 +700,10 @@ receiver := webhooks.Receiver[myEvent]{Config: webhooks.ReceiverConfig[myEvent]{
 }}
 ```
 
-- Expected behavior: missing event ids, missing timestamps, invalid timestamps, and timestamps outside the configured skew window return Problem Details before the event is handled.
+- Expected behavior: missing event ids, missing timestamps, invalid timestamps,
+  verifier failures, and timestamps outside the configured skew window return
+  Problem Details before the event is handled. Verifier failures use a generic
+  client-facing detail unless `VerificationErrorDetail` supplies safe text.
 - Production caveat: replay databases, duplicate suppression, delivery queues, and retry persistence remain outside core.
 
 ## Multipart upload validation

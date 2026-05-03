@@ -152,9 +152,7 @@ Command intent is deliberately split, and `docs/release-runbook.md` is the
 command source of truth. `make api-check` is a local compatibility helper.
 `make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline.
 `make release-check` is the release-readiness gate.
-`make release-evidence` runs the release-readiness subchecks through the
-evidence writer and writes `release-check-summary.json` schema v2.
-`make release-evidence` runs the release-readiness subchecks through the evidence writer.
+`make release-evidence` runs the release-readiness subchecks through the evidence writer and writes `release-check-summary.json` schema v2.
 `make contrib-api-drift-report` enforces supported-adapter incompatible drift.
 `make contrib-release-notes-check` is a lightweight review gate for contrib
 adapter, integration, middleware, bootstrap, and telemetry behavior notes.

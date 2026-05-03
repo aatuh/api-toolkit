@@ -124,6 +124,9 @@ operator-only surfaces.
   compatibility or separately protected internal muxes.
 - Mount detailed health with `Handler.RegisterAdminDetailedHealthRoute` when it
   is enabled; avoid teaching policy-free detailed-health mounts in new examples.
+- Mount combined system endpoints with `bootstrap.MountSystemEndpointsToWithAdmin`
+  when detailed health, pprof, or metrics are present so operator-only routes
+  require an explicit wrapper.
 - To migrate policy-free pprof, replace `pprof.RegisterRoutes(router)` with
   `pprof.RegisterAdminRoutes(router, requireAdmin)` and fail startup if it
   returns an error.

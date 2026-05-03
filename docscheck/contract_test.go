@@ -211,10 +211,13 @@ func TestHealthDocsShowSafeDetailedHealthMounting(t *testing.T) {
 	section := markdownSection(t, readme, "## Health endpoint contract")
 
 	for _, required := range []string{
-		"Mount detailed health and pprof routes behind admin/internal access control",
+		"Mount detailed health, pprof, and metrics behind admin/internal access control",
 		"operator-only dependency detail",
+		"RegisterPublicRoutesTo",
 		"RegisterAdminDetailedHealthRoute",
 		"pprof.RegisterAdminRoutes",
+		"MountSystemEndpointsToWithAdmin",
+		"metrics",
 		"requireAdmin",
 	} {
 		if !strings.Contains(section, required) {
@@ -236,6 +239,18 @@ func TestPublicDocsDoNotTeachPolicyFreeAdminMounts(t *testing.T) {
 				!strings.Contains(block, "RegisterAdminDetailedHealthRoute") {
 				rel, _ := filepath.Rel(repoRoot, mdPath)
 				t.Fatalf("%s code block teaches policy-free detailed-health mounting", rel)
+			}
+			if strings.Contains(block, "Metrics:") &&
+				strings.Contains(block, "MountSystemEndpoints") &&
+				!strings.Contains(block, "MountSystemEndpointsToWithAdmin") {
+				rel, _ := filepath.Rel(repoRoot, mdPath)
+				t.Fatalf("%s code block teaches policy-free metrics mounting", rel)
+			}
+			if strings.Contains(block, `"/metrics"`) &&
+				strings.Contains(block, "metricsHandler") &&
+				!strings.Contains(block, "requireAdmin") {
+				rel, _ := filepath.Rel(repoRoot, mdPath)
+				t.Fatalf("%s code block teaches policy-free metrics handler mounting", rel)
 			}
 		}
 	}
