@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,13 +29,13 @@ func TestMiddlewareEmitsQuotaHeadersWhenEnabled(t *testing.T) {
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 	if recorder.Header().Get("RateLimit-Limit") != "1" || recorder.Header().Get("RateLimit-Remaining") != "0" {
 		t.Fatalf("allowed headers = %#v", recorder.Header())
 	}
 
 	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 	if recorder.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusTooManyRequests)
 	}

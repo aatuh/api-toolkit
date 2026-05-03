@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ func TestRequireScopesAndBearerToken(t *testing.T) {
 	if err := RequireScopes(claims, "admin"); err == nil {
 		t.Fatalf("expected missing scope")
 	}
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	request.Header.Set("Authorization", "Bearer token")
 	if token, ok := BearerToken(request); !ok || token != "token" {
 		t.Fatalf("BearerToken() = %q, %v", token, ok)

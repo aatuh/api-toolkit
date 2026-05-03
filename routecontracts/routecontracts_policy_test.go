@@ -1,6 +1,7 @@
 package routecontracts
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +45,7 @@ func TestRegistryPolicyMiddlewareIsWrappedByRouteMiddleware(t *testing.T) {
 	}
 
 	recorder := httptest.NewRecorder()
-	router.handlers["GET /widgets"].ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/widgets", nil))
+	router.handlers["GET /widgets"].ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/widgets", nil))
 	if got := recorder.Header().Values("X-Order"); len(got) != 3 || got[0] != "route" || got[1] != "policy" || got[2] != "handler" {
 		t.Fatalf("middleware order = %v", got)
 	}

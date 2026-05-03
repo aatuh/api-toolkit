@@ -15,7 +15,10 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx"
 )
 
-const defaultMaxMemory int64 = 32 << 20
+const (
+	defaultMaxMemory       int64 = 32 << 20
+	defaultMaxRequestBytes int64 = 32 << 20
+)
 
 // File describes an uploaded multipart file.
 type File struct {
@@ -74,20 +77,23 @@ func DecodeMultipart(r *http.Request, config Config) (Form, error) {
 	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
 		return Form{}, fieldError("content_type", "invalid", "Content-Type must be multipart/form-data")
 	}
-	if config.MaxRequestBytes > 0 {
-		body, err := io.ReadAll(io.LimitReader(r.Body, config.MaxRequestBytes+1))
-		if err != nil {
-			return Form{}, fieldError("body", "read_failed", "multipart request body could not be read")
-		}
-		if int64(len(body)) > config.MaxRequestBytes {
-			return Form{}, fieldError("body", "too_large", "multipart request exceeds maximum size")
-		}
-		r.Body = io.NopCloser(bytes.NewReader(body))
+	maxRequestBytes := config.MaxRequestBytes
+	if maxRequestBytes <= 0 {
+		maxRequestBytes = defaultMaxRequestBytes
 	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBytes+1))
+	if err != nil {
+		return Form{}, fieldError("body", "read_failed", "multipart request body could not be read")
+	}
+	if int64(len(body)) > maxRequestBytes {
+		return Form{}, fieldError("body", "too_large", "multipart request exceeds maximum size")
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
 	maxMemory := config.MaxMemory
 	if maxMemory <= 0 {
 		maxMemory = defaultMaxMemory
 	}
+	// #nosec G120 -- r.Body is bounded to MaxRequestBytes, or the package default, before parsing.
 	if err := r.ParseMultipartForm(maxMemory); err != nil {
 		return Form{}, fieldError("body", "invalid_multipart", "multipart form could not be parsed")
 	}
