@@ -37,9 +37,9 @@ func TestRegistryPolicyMiddlewareIsWrappedByRouteMiddleware(t *testing.T) {
 		return operation, []func(http.Handler) http.Handler{appendOrder("policy")}, nil
 	})}})
 
-	err := registry.Get("/widgets", specs.Operation{}, func(w http.ResponseWriter, r *http.Request) {
+	err := registry.Get("/widgets", specs.Operation{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-Order", "handler")
-	}, appendOrder("route"))
+	}), appendOrder("route"))
 	if err != nil {
 		t.Fatalf("register route: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestRegistryPolicyErrorStopsRegistration(t *testing.T) {
 		return operation, nil, expected
 	})}})
 
-	err := registry.Get("/widgets", specs.Operation{}, func(http.ResponseWriter, *http.Request) {})
+	err := registry.Get("/widgets", specs.Operation{}, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	if !errors.Is(err, expected) {
 		t.Fatalf("error = %v, want %v", err, expected)
 	}
