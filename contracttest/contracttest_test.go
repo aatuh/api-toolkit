@@ -283,6 +283,58 @@ func TestOpenAPICompatibilityFindingsReportResponseContentBreakingChanges(t *tes
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportParameterBreakingChanges(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"parameters": [
+						{"name": "cursor", "in": "query", "required": false, "schema": {"type": "string"}},
+						{"name": "filter", "in": "query", "required": false, "schema": {"type": "string"}}
+					],
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"parameters": [
+						{"name": "filter", "in": "query", "required": true, "schema": {"type": "string"}},
+						{"name": "X-Client-Version", "in": "header", "required": true, "schema": {"type": "string"}},
+						{"name": "expand", "in": "query", "required": false, "schema": {"type": "string"}}
+					],
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"parameter_removed GET /widgets query:cursor",
+		"parameter_required_added GET /widgets query:filter",
+		"required_parameter_added GET /widgets header:X-Client-Version",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}
