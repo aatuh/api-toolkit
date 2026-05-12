@@ -484,6 +484,54 @@ func TestContractsDiffFailsForResponseContentBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestContractsDiffFailsForParameterBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"parameters": [
+					{"name": "cursor", "in": "query", "required": false, "schema": {"type": "string"}},
+					{"name": "filter", "in": "query", "required": false, "schema": {"type": "string"}}
+				],
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"parameters": [
+					{"name": "filter", "in": "query", "required": true, "schema": {"type": "string"}},
+					{"name": "X-Client-Version", "in": "header", "required": true, "schema": {"type": "string"}},
+					{"name": "expand", "in": "query", "required": false, "schema": {"type": "string"}}
+				],
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected parameter breaking diff to fail")
+	}
+	for _, want := range []string{
+		"parameter_removed GET /widgets query:cursor",
+		"parameter_required_added GET /widgets query:filter",
+		"required_parameter_added GET /widgets header:X-Client-Version",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
 	t.Helper()
 	spec := `{

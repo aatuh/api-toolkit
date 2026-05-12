@@ -216,8 +216,9 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // OpenAPICompatibilityFindings reports conservative compatibility findings
 // between two OpenAPI JSON documents. Additive operations and responses are
 // compatible; removed operations, changed operation IDs, removed documented
-// responses, request-body tightening or content removal, response content
-// removal, and changed security requirements are findings.
+// parameters, added required parameters, removed documented responses,
+// request-body tightening or content removal, response content removal, and
+// changed security requirements are findings.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -241,6 +242,7 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		if strings.TrimSpace(baseOperation.OperationID) != "" && strings.TrimSpace(baseOperation.OperationID) != strings.TrimSpace(headOperation.OperationID) {
 			findings = append(findings, fmt.Sprintf("operation_id_changed %s %s", baseOperation.Method, baseOperation.Path))
 		}
+		findings = append(findings, parameterCompatibilityFindings(baseOperation, headOperation)...)
 		for _, status := range baseOperation.ResponseStatuses {
 			if !containsValue(headOperation.ResponseStatuses, status) {
 				findings = append(findings, fmt.Sprintf("response_removed %s %s %s", baseOperation.Method, baseOperation.Path, status))
@@ -333,6 +335,7 @@ type openAPIOperationSnapshot struct {
 	Method                  string
 	Path                    string
 	OperationID             string
+	Parameters              []openAPIParameterSnapshot
 	RequestBodyPresent      bool
 	RequestBodyRequired     bool
 	RequestBodyContentTypes []string
@@ -369,6 +372,7 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 				Method:                  strings.ToUpper(method),
 				Path:                    path,
 				OperationID:             fmtString(rawOperation["operationId"]),
+				Parameters:              operationParameters(pathItem["parameters"], rawOperation["parameters"]),
 				RequestBodyPresent:      hasRequestBody(rawOperation["requestBody"]),
 				RequestBodyRequired:     requestBodyRequired(rawOperation["requestBody"]),
 				RequestBodyContentTypes: requestBodyContentTypes(rawOperation["requestBody"]),
@@ -409,6 +413,89 @@ func responseStatuses(raw any) []string {
 	}
 	sort.Strings(statuses)
 	return statuses
+}
+
+type openAPIParameterSnapshot struct {
+	Name     string
+	In       string
+	Required bool
+}
+
+func (parameter openAPIParameterSnapshot) key() string {
+	return parameterLabel(parameter.In, parameter.Name)
+}
+
+func parameterCompatibilityFindings(baseOperation, headOperation openAPIOperationSnapshot) []string {
+	headByKey := make(map[string]openAPIParameterSnapshot, len(headOperation.Parameters))
+	for _, parameter := range headOperation.Parameters {
+		headByKey[parameter.key()] = parameter
+	}
+	baseByKey := make(map[string]openAPIParameterSnapshot, len(baseOperation.Parameters))
+	var findings []string
+	for _, baseParameter := range baseOperation.Parameters {
+		baseByKey[baseParameter.key()] = baseParameter
+		headParameter, ok := headByKey[baseParameter.key()]
+		if !ok {
+			findings = append(findings, fmt.Sprintf("parameter_removed %s %s %s", baseOperation.Method, baseOperation.Path, baseParameter.key()))
+			continue
+		}
+		if !baseParameter.Required && headParameter.Required {
+			findings = append(findings, fmt.Sprintf("parameter_required_added %s %s %s", baseOperation.Method, baseOperation.Path, baseParameter.key()))
+		}
+	}
+	for _, headParameter := range headOperation.Parameters {
+		if _, ok := baseByKey[headParameter.key()]; !ok && headParameter.Required {
+			findings = append(findings, fmt.Sprintf("required_parameter_added %s %s %s", baseOperation.Method, baseOperation.Path, headParameter.key()))
+		}
+	}
+	return findings
+}
+
+func operationParameters(rawPathParameters, rawOperationParameters any) []openAPIParameterSnapshot {
+	return mergeParameterSnapshots(parameterSnapshots(rawPathParameters), parameterSnapshots(rawOperationParameters))
+}
+
+func parameterSnapshots(raw any) []openAPIParameterSnapshot {
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]openAPIParameterSnapshot, 0, len(values))
+	for _, value := range values {
+		parameter, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := fmtString(parameter["name"])
+		in := strings.ToLower(fmtString(parameter["in"]))
+		if name == "" || in == "" {
+			continue
+		}
+		required, _ := parameter["required"].(bool)
+		out = append(out, openAPIParameterSnapshot{Name: name, In: in, Required: required})
+	}
+	return out
+}
+
+func mergeParameterSnapshots(groups ...[]openAPIParameterSnapshot) []openAPIParameterSnapshot {
+	indexByKey := map[string]int{}
+	var out []openAPIParameterSnapshot
+	for _, group := range groups {
+		for _, parameter := range group {
+			key := parameter.key()
+			if index, ok := indexByKey[key]; ok {
+				out[index] = parameter
+				continue
+			}
+			indexByKey[key] = len(out)
+			out = append(out, parameter)
+		}
+	}
+	return out
+}
+
+func parameterLabel(in, name string) string {
+	return strings.ToLower(strings.TrimSpace(in)) + ":" + strings.TrimSpace(name)
 }
 
 func responseContentTypes(raw any) map[string][]string {

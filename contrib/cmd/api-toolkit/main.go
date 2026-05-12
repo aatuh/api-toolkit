@@ -460,6 +460,7 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 				Responses:   map[int]specs.Response{},
 				Extensions:  map[string]any{},
 			}
+			operation.Parameters = mergeParameters(parametersFromOpenAPI(item.Parameters), parametersFromOpenAPI(op.Parameters))
 			if op.RequestBody != nil {
 				operation.RequestBody = &specs.RequestBody{}
 				if op.RequestBody.Ref != "" {
@@ -600,6 +601,7 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				Detail: fmt.Sprintf("%q -> %q", strings.TrimSpace(baseOperation.OperationID), strings.TrimSpace(headOperation.OperationID)),
 			})
 		}
+		findings = append(findings, diffParameters(baseOperation, headOperation)...)
 		for _, status := range sortedResponseStatuses(baseOperation.Responses) {
 			headResponse, ok := headOperation.Responses[status]
 			if !ok {
@@ -622,6 +624,57 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				Method: baseOperation.Method,
 				Path:   baseOperation.Path,
 				Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
+			})
+		}
+	}
+	return findings
+}
+
+func diffParameters(baseOperation, headOperation specs.Operation) []openAPIDiffFinding {
+	headByKey := make(map[string]specs.Parameter, len(headOperation.Parameters))
+	for _, parameter := range headOperation.Parameters {
+		if key := parameterKey(parameter); key != "" {
+			headByKey[key] = parameter
+		}
+	}
+	baseByKey := make(map[string]specs.Parameter, len(baseOperation.Parameters))
+	var findings []openAPIDiffFinding
+	for _, baseParameter := range baseOperation.Parameters {
+		key := parameterKey(baseParameter)
+		if key == "" {
+			continue
+		}
+		baseByKey[key] = baseParameter
+		headParameter, ok := headByKey[key]
+		if !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "parameter_removed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: key,
+			})
+			continue
+		}
+		if !baseParameter.Required && headParameter.Required {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "parameter_required_added",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: key,
+			})
+		}
+	}
+	for _, headParameter := range headOperation.Parameters {
+		key := parameterKey(headParameter)
+		if key == "" {
+			continue
+		}
+		if _, ok := baseByKey[key]; !ok && headParameter.Required {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "required_parameter_added",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: key,
 			})
 		}
 	}
@@ -691,6 +744,57 @@ func sortedResponseStatuses(responses map[int]specs.Response) []int {
 	}
 	sort.Ints(statuses)
 	return statuses
+}
+
+func parametersFromOpenAPI(parameters openapi3.Parameters) []specs.Parameter {
+	out := make([]specs.Parameter, 0, len(parameters))
+	for _, parameterRef := range parameters {
+		if parameterRef == nil || parameterRef.Value == nil {
+			continue
+		}
+		parameter := parameterRef.Value
+		name := strings.TrimSpace(parameter.Name)
+		in := strings.ToLower(strings.TrimSpace(parameter.In))
+		if name == "" || in == "" {
+			continue
+		}
+		out = append(out, specs.Parameter{
+			Name:        name,
+			In:          in,
+			Description: parameter.Description,
+			Required:    parameter.Required,
+		})
+	}
+	return out
+}
+
+func mergeParameters(groups ...[]specs.Parameter) []specs.Parameter {
+	indexByKey := map[string]int{}
+	var out []specs.Parameter
+	for _, group := range groups {
+		for _, parameter := range group {
+			key := parameterKey(parameter)
+			if key == "" {
+				continue
+			}
+			if index, ok := indexByKey[key]; ok {
+				out[index] = parameter
+				continue
+			}
+			indexByKey[key] = len(out)
+			out = append(out, parameter)
+		}
+	}
+	return out
+}
+
+func parameterKey(parameter specs.Parameter) string {
+	name := strings.TrimSpace(parameter.Name)
+	in := strings.ToLower(strings.TrimSpace(parameter.In))
+	if name == "" || in == "" {
+		return ""
+	}
+	return in + ":" + name
 }
 
 func responseContentTypes(response specs.Response) []string {
