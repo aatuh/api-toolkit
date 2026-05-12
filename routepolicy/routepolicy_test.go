@@ -67,6 +67,8 @@ func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
 	operation := ApplyMetadata(specs.Operation{Method: http.MethodPost, Path: "/widgets"},
 		WithOperationID("createWidget"),
 		WithAuth("ApiKeyAuth", "widgets:write"),
+		WithDeprecated(),
+		WithSunset("Wed, 01 Jul 2026 00:00:00 GMT"),
 		WithTenantRequired("header"),
 		WithIdempotencyRequired(),
 		WithRateLimit("write-standard"),
@@ -78,6 +80,12 @@ func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
 	}
 	if len(operation.Security) != 1 || operation.Security[0].Name != "ApiKeyAuth" {
 		t.Fatalf("security = %#v", operation.Security)
+	}
+	if !operation.Deprecated {
+		t.Fatal("deprecated flag was not set")
+	}
+	if operation.Sunset != "Wed, 01 Jul 2026 00:00:00 GMT" {
+		t.Fatalf("sunset = %q", operation.Sunset)
 	}
 	if _, ok := operation.Extensions[ExtensionTenant]; !ok {
 		t.Fatalf("tenant extension missing: %#v", operation.Extensions)

@@ -30,9 +30,10 @@ source of truth is `docs/release-runbook.md`.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
-- `routepolicy` now includes typed metadata helpers for auth, tenant,
-  idempotency, rate-limit, admin-policy, and Problem Details response contracts,
-  plus operation linting for missing production policy metadata.
+- `routepolicy` now includes typed metadata helpers for auth, deprecation,
+  sunset, tenant, idempotency, rate-limit, admin-policy, and Problem Details
+  response contracts, plus operation linting for missing production policy
+  metadata.
 - `routepolicy.LintOperations` and `api-toolkit contracts lint` now fail
   non-public operations without security metadata and unsafe write operations
   without tenant, idempotency, rate-limit, and Problem Details policy metadata,
