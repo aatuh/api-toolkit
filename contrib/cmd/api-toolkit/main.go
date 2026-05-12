@@ -113,9 +113,13 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		}
 		findings := routepolicy.LintOperations(operations, routepolicy.LintOptions{
 			RequireOperationID:                true,
+			RequireSecurity:                   true,
 			RequireUnsafeWriteAuth:            true,
+			RequireUnsafeWriteTenant:          true,
 			RequireUnsafeWriteIdempotency:     true,
+			RequireUnsafeWriteRateLimit:       true,
 			RequireUnsafeWriteProblemResponse: true,
+			PublicPaths:                       defaultContractLintPublicPaths(),
 			AdminPaths:                        []string{"/debug/pprof/", "/debug/pprof/*", "/metrics", "/health/detailed"},
 		})
 		if len(findings) > 0 {
@@ -143,6 +147,21 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	default:
 		fmt.Fprintf(stderr, "unknown contracts command %q\n", args[0])
 		return 2
+	}
+}
+
+func defaultContractLintPublicPaths() []string {
+	return []string{
+		specs.Livez,
+		specs.Readyz,
+		specs.Healthz,
+		specs.Health,
+		specs.Docs,
+		specs.Docs + "/*",
+		specs.DocsOpenAPI,
+		specs.DocsVersion,
+		specs.DocsInfo,
+		specs.Version,
 	}
 }
 

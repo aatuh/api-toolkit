@@ -84,8 +84,59 @@ func TestContractsLintFailsForMissingPolicy(t *testing.T) {
 	if code == 0 {
 		t.Fatal("expected lint to fail")
 	}
-	if !strings.Contains(errOut.String(), "operation_id_required") {
+	for _, want := range []string{
+		"operation_id_required",
+		"security_required",
+		"unsafe_write_tenant_required",
+		"unsafe_write_rate_limit_required",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func TestContractsLintFailsForPrivateReadWithoutSecurity(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {"200": {"description": "ok"}}
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	if !strings.Contains(errOut.String(), "security_required") {
 		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
+func TestContractsLintAllowsPublicReadinessWithoutSecurity(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/readyz": {
+			"get": {
+				"operationId": "getReadiness",
+				"responses": {"200": {"description": "ok"}}
+			}
+		}
+	}`)
+
+	var out strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected public readiness lint to pass: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "contracts lint passed") {
+		t.Fatalf("stdout = %q", out.String())
 	}
 }
 
