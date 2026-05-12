@@ -125,6 +125,8 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			RequireUnsafeWriteTenant:          true,
 			RequireUnsafeWriteIdempotency:     true,
 			RequireUnsafeWriteRateLimit:       true,
+			RequireUnsafeWriteRequestBody:     true,
+			RequireUnsafeWriteSuccessResponse: true,
 			RequireUnsafeWriteProblemResponse: true,
 			PublicPaths:                       publicPaths.Values(),
 			AdminPaths:                        adminPaths.Values(),
@@ -457,6 +459,20 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 				Path:        routePath,
 				Responses:   map[int]specs.Response{},
 				Extensions:  map[string]any{},
+			}
+			if op.RequestBody != nil {
+				operation.RequestBody = &specs.RequestBody{}
+				if op.RequestBody.Ref != "" {
+					operation.RequestBody.Description = op.RequestBody.Ref
+				}
+				if op.RequestBody.Value != nil {
+					operation.RequestBody.Description = op.RequestBody.Value.Description
+					operation.RequestBody.Required = op.RequestBody.Value.Required
+					operation.RequestBody.Content = map[string]specs.MediaType{}
+					for contentType := range op.RequestBody.Value.Content {
+						operation.RequestBody.Content[contentType] = specs.MediaType{}
+					}
+				}
 			}
 			if op.Security != nil && len(*op.Security) > 0 {
 				for _, req := range *op.Security {

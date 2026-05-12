@@ -141,6 +141,39 @@ func TestContractsLintFailsForPrivateReadWithoutProblemResponse(t *testing.T) {
 	}
 }
 
+func TestContractsLintFailsForUndocumentedUnsafeWrite(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"responses": {
+					"400": {
+						"description": "bad request",
+						"content": {"application/problem+json": {"schema": {"type": "object"}}}
+					}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}],
+				"x-tenant": {"required": true, "source": "header"},
+				"x-idempotency-key": {"required": true},
+				"x-rate-limit": "write-standard"
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	for _, want := range []string{"unsafe_write_request_body_required", "unsafe_write_success_response_required"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func TestContractsLintAllowsPublicReadinessWithoutSecurity(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")

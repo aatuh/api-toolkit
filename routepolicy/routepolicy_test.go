@@ -211,6 +211,52 @@ func TestLintOperationsFindsUnsafeWriteMissingTenantAndRateLimit(t *testing.T) {
 	}
 }
 
+func TestLintOperationsFindsUndocumentedUnsafeWrite(t *testing.T) {
+	findings := LintOperations([]specs.Operation{
+		{
+			OperationID: "createWidget",
+			Method:      http.MethodPost,
+			Path:        "/widgets",
+			Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write"}}},
+			Responses: map[int]specs.Response{
+				http.StatusBadRequest: specs.ProblemResponse("Bad Request"),
+			},
+			Extensions: map[string]any{
+				ExtensionTenant:         map[string]any{"required": true},
+				ExtensionIdempotencyKey: map[string]any{"required": true},
+				ExtensionRateLimit:      "write-standard",
+			},
+		},
+		{
+			OperationID: "deleteWidget",
+			Method:      http.MethodDelete,
+			Path:        "/widgets/{id}",
+			Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write"}}},
+			Responses: map[int]specs.Response{
+				http.StatusNoContent:  {},
+				http.StatusBadRequest: specs.ProblemResponse("Bad Request"),
+			},
+			Extensions: map[string]any{
+				ExtensionTenant:         map[string]any{"required": true},
+				ExtensionIdempotencyKey: map[string]any{"required": true},
+				ExtensionRateLimit:      "write-standard",
+			},
+		},
+	}, LintOptions{
+		RequireUnsafeWriteRequestBody:     true,
+		RequireUnsafeWriteSuccessResponse: true,
+	})
+
+	for _, code := range []string{"unsafe_write_request_body_required", "unsafe_write_success_response_required"} {
+		if !hasFinding(findings, code) {
+			t.Fatalf("missing finding %s in %#v", code, findings)
+		}
+	}
+	if len(findings) != 2 {
+		t.Fatalf("findings = %#v, want only POST request-body and success-response findings", findings)
+	}
+}
+
 func TestLintOperationsFindsAdminRouteWithoutPolicy(t *testing.T) {
 	findings := LintOperations([]specs.Operation{{
 		OperationID: "readProfile",
