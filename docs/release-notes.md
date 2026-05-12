@@ -45,6 +45,10 @@ source of truth is `docs/release-runbook.md`.
   bootstrap defaults, code-first route contracts, OpenAPI output, public
   readiness, admin-protected metrics/pprof/detailed health, auth, tenant, and
   idempotent write behavior.
+- `api-toolkit contracts diff` now performs compatibility review over parsed
+  OpenAPI operations. Additive operations pass, while removed operations,
+  changed operation IDs, removed documented responses, and changed security
+  requirements fail with deterministic findings.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -348,38 +347,128 @@ func stringPtrValue(value *string) string {
 }
 
 func diffOpenAPI(basePath, headPath string) error {
-	base, err := normalizedJSONFile(basePath)
+	base, err := operationsFromOpenAPI(basePath)
 	if err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
-	head, err := normalizedJSONFile(headPath)
+	head, err := operationsFromOpenAPI(headPath)
 	if err != nil {
 		return fmt.Errorf("head: %w", err)
 	}
-	if !bytes.Equal(base, head) {
-		return errors.New("contracts differ")
+	findings := diffOperations(base, head)
+	if len(findings) > 0 {
+		return openAPIDiffError{Findings: findings}
 	}
 	return nil
 }
 
-func normalizedJSONFile(path string) ([]byte, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, errors.New("path is required")
+type openAPIDiffFinding struct {
+	Code   string
+	Method string
+	Path   string
+	Detail string
+}
+
+func (f openAPIDiffFinding) String() string {
+	parts := []string{f.Code}
+	if f.Method != "" {
+		parts = append(parts, f.Method)
 	}
-	data, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return nil, err
+	if f.Path != "" {
+		parts = append(parts, f.Path)
 	}
-	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
-		return nil, err
+	if f.Detail != "" {
+		parts = append(parts, f.Detail)
 	}
-	out, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return nil, err
+	return strings.Join(parts, " ")
+}
+
+type openAPIDiffError struct {
+	Findings []openAPIDiffFinding
+}
+
+func (e openAPIDiffError) Error() string {
+	lines := make([]string, 0, len(e.Findings)+1)
+	lines = append(lines, "breaking OpenAPI changes:")
+	for _, finding := range e.Findings {
+		lines = append(lines, "- "+finding.String())
 	}
-	return append(out, '\n'), nil
+	return strings.Join(lines, "\n")
+}
+
+func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
+	headByKey := make(map[string]specs.Operation, len(head))
+	for _, operation := range head {
+		headByKey[operationKey(operation.Method, operation.Path)] = operation
+	}
+	var findings []openAPIDiffFinding
+	for _, baseOperation := range base {
+		headOperation, ok := headByKey[operationKey(baseOperation.Method, baseOperation.Path)]
+		if !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "operation_removed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+			})
+			continue
+		}
+		if strings.TrimSpace(baseOperation.OperationID) != "" && strings.TrimSpace(baseOperation.OperationID) != strings.TrimSpace(headOperation.OperationID) {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "operation_id_changed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: fmt.Sprintf("%q -> %q", strings.TrimSpace(baseOperation.OperationID), strings.TrimSpace(headOperation.OperationID)),
+			})
+		}
+		for _, status := range sortedResponseStatuses(baseOperation.Responses) {
+			if _, ok := headOperation.Responses[status]; !ok {
+				findings = append(findings, openAPIDiffFinding{
+					Code:   "response_removed",
+					Method: baseOperation.Method,
+					Path:   baseOperation.Path,
+					Detail: fmt.Sprintf("%d", status),
+				})
+			}
+		}
+		baseSecurity := securityFingerprint(baseOperation.Security)
+		headSecurity := securityFingerprint(headOperation.Security)
+		if baseSecurity != headSecurity {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "security_changed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
+			})
+		}
+	}
+	return findings
+}
+
+func operationKey(method, path string) string {
+	return strings.ToUpper(strings.TrimSpace(method)) + " " + strings.TrimSpace(path)
+}
+
+func sortedResponseStatuses(responses map[int]specs.Response) []int {
+	statuses := make([]int, 0, len(responses))
+	for status := range responses {
+		statuses = append(statuses, status)
+	}
+	sort.Ints(statuses)
+	return statuses
+}
+
+func securityFingerprint(requirements []specs.SecurityRequirement) string {
+	if len(requirements) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(requirements))
+	for _, requirement := range requirements {
+		scopes := append([]string(nil), requirement.Scopes...)
+		sort.Strings(scopes)
+		parts = append(parts, requirement.Name+":"+strings.Join(scopes, ","))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "|")
 }
 
 type scaffoldFile struct {
