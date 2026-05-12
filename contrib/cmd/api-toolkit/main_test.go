@@ -140,6 +140,60 @@ func TestContractsLintAllowsPublicReadinessWithoutSecurity(t *testing.T) {
 	}
 }
 
+func TestContractsLintAllowsAdditionalPublicPath(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/status": {
+			"get": {
+				"operationId": "getStatus",
+				"responses": {"200": {"description": "ok"}}
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail without custom public path")
+	}
+	if !strings.Contains(errOut.String(), "security_required") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+
+	var out strings.Builder
+	code = run(context.Background(), []string{"contracts", "lint", "--openapi", specPath, "--public-path", "/status"}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected custom public path lint to pass: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "contracts lint passed") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestContractsLintChecksAdditionalAdminPath(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/internal/debug": {
+			"get": {
+				"operationId": "getInternalDebug",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["admin:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath, "--admin-path", "/internal/debug"}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail for custom admin path without policy")
+	}
+	if !strings.Contains(errOut.String(), "admin_policy_required") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
 func TestContractsDiffAllowsAdditiveOperations(t *testing.T) {
 	tmp := t.TempDir()
 	base := filepath.Join(tmp, "base.json")

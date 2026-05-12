@@ -99,6 +99,10 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		fs := flag.NewFlagSet("contracts lint", flag.ContinueOnError)
 		fs.SetOutput(stderr)
 		openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
+		publicPaths := newStringListFlag(defaultContractLintPublicPaths())
+		adminPaths := newStringListFlag(defaultContractLintAdminPaths())
+		fs.Var(&publicPaths, "public-path", "additional public path allowed without security metadata; repeatable")
+		fs.Var(&adminPaths, "admin-path", "additional operator-only path that must declare admin policy metadata; repeatable")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
@@ -119,8 +123,8 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			RequireUnsafeWriteIdempotency:     true,
 			RequireUnsafeWriteRateLimit:       true,
 			RequireUnsafeWriteProblemResponse: true,
-			PublicPaths:                       defaultContractLintPublicPaths(),
-			AdminPaths:                        []string{"/debug/pprof/", "/debug/pprof/*", "/metrics", "/health/detailed"},
+			PublicPaths:                       publicPaths.Values(),
+			AdminPaths:                        adminPaths.Values(),
 		})
 		if len(findings) > 0 {
 			for _, finding := range findings {
@@ -150,6 +154,34 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	}
 }
 
+type stringListFlag struct {
+	values []string
+}
+
+func newStringListFlag(defaults []string) stringListFlag {
+	return stringListFlag{values: append([]string(nil), defaults...)}
+}
+
+func (f *stringListFlag) String() string {
+	if f == nil {
+		return ""
+	}
+	return strings.Join(f.values, ",")
+}
+
+func (f *stringListFlag) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return errors.New("path must not be empty")
+	}
+	f.values = append(f.values, value)
+	return nil
+}
+
+func (f stringListFlag) Values() []string {
+	return append([]string(nil), f.values...)
+}
+
 func defaultContractLintPublicPaths() []string {
 	return []string{
 		specs.Livez,
@@ -162,6 +194,15 @@ func defaultContractLintPublicPaths() []string {
 		specs.DocsVersion,
 		specs.DocsInfo,
 		specs.Version,
+	}
+}
+
+func defaultContractLintAdminPaths() []string {
+	return []string{
+		specs.PprofIndex,
+		specs.PprofIndex + "*",
+		specs.Metrics,
+		specs.HealthDetailed,
 	}
 }
 
