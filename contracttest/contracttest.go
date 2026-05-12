@@ -3,6 +3,7 @@ package contracttest
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -68,6 +69,52 @@ func AssertOperationHasSecurity(t testing.TB, registry *specs.Registry, method, 
 		}
 	}
 	t.Fatalf("operation %s %s missing security scheme %q", method, path, scheme)
+}
+
+// AssertOperationID fails the test when an OpenAPI operation lacks the expected operationId.
+func AssertOperationID(t testing.TB, registry *specs.Registry, method, path, operationID string) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	if got := strings.TrimSpace(fmtString(operation["operationId"])); got != strings.TrimSpace(operationID) {
+		t.Fatalf("operation %s %s operationId = %q, want %q", method, path, got, operationID)
+	}
+}
+
+// AssertAllOperationsHaveOperationID fails the test when any registered operation lacks operationId.
+func AssertAllOperationsHaveOperationID(t testing.TB, registry *specs.Registry) {
+	t.Helper()
+	if registry == nil {
+		t.Fatalf("spec registry is nil")
+	}
+	for _, operation := range registry.Operations() {
+		if strings.TrimSpace(operation.OperationID) == "" {
+			t.Fatalf("operation %s %s is missing operationId", operation.Method, operation.Path)
+		}
+	}
+}
+
+// AssertOperationHasProblemResponse fails when an operation response is not application/problem+json.
+func AssertOperationHasProblemResponse(t testing.TB, registry *specs.Registry, method, path string, status int) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	responses, ok := operation["responses"].(map[string]any)
+	if !ok {
+		t.Fatalf("operation %s %s has no responses", method, path)
+	}
+	response, ok := responses[strconv.Itoa(status)].(map[string]any)
+	if !ok {
+		t.Fatalf("operation %s %s missing response %d", method, path, status)
+	}
+	if ref, _ := response["$ref"].(string); strings.Contains(ref, "Problem") {
+		return
+	}
+	content, ok := response["content"].(map[string]any)
+	if !ok {
+		t.Fatalf("operation %s %s response %d has no content", method, path, status)
+	}
+	if _, ok := content["application/problem+json"]; !ok {
+		t.Fatalf("operation %s %s response %d missing application/problem+json", method, path, status)
+	}
 }
 
 // AssertProblemCatalogHas fails the test when a problem catalog lacks a code.
@@ -136,4 +183,11 @@ func openAPIOperation(t testing.TB, registry *specs.Registry, method, path strin
 		t.Fatalf("OpenAPI operation %s %s is missing", method, path)
 	}
 	return operation
+}
+
+func fmtString(value any) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
 }

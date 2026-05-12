@@ -85,7 +85,7 @@ func (policy *Policy) Apply(operation specs.Operation) (specs.Operation, []func(
 		}
 	}
 	if config.Idempotency != nil && operation.Extensions != nil {
-		if _, ok := operation.Extensions["x-idempotency-key"]; ok {
+		if _, ok := operation.Extensions[ExtensionIdempotencyKey]; ok {
 			mw, err := config.Idempotency(operation)
 			if err != nil {
 				return operation, nil, err
@@ -97,7 +97,7 @@ func (policy *Policy) Apply(operation specs.Operation) (specs.Operation, []func(
 		}
 	}
 	if config.RateLimit != nil && operation.Extensions != nil {
-		if _, ok := operation.Extensions["x-rate-limit"]; ok {
+		if _, ok := operation.Extensions[ExtensionRateLimit]; ok {
 			mw, err := config.RateLimit(operation)
 			if err != nil {
 				return operation, nil, err

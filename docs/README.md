@@ -12,6 +12,15 @@ without scanning the root README.
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
 
+The contrib CLI can scaffold the fuller reusable service baseline:
+
+```sh
+go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service \
+  --module example.com/my-api \
+  --profile saas-api \
+  --dir ./my-api
+```
+
 ## Security, operations, and runtime behavior
 
 | Document | Audience | Purpose |

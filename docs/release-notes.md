@@ -27,6 +27,25 @@ source of truth is `docs/release-runbook.md`.
 
 ### Correctness, security, and release governance
 
+- `specs.Operation` now includes `OperationID` and emits OpenAPI
+  `operationId` values so route contracts can carry stable client-visible
+  operation identity.
+- `routepolicy` now includes typed metadata helpers for auth, tenant,
+  idempotency, rate-limit, admin-policy, and Problem Details response contracts,
+  plus operation linting for missing production policy metadata.
+- `contracttest` now includes assertions for operation IDs, Problem Details
+  error responses, and registry-wide operation ID coverage.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
+  `APIService` and `APIServiceConfig` as a supported composition root for
+  generated services, with safe admin-wrapper system endpoint mounting and
+  startup checks.
+- `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` adds the
+  developer CLI with `new service`, `contracts lint`, `contracts diff`, and
+  `version` commands. The generated `saas-api` service uses chi-backed
+  bootstrap defaults, code-first route contracts, OpenAPI output, public
+  readiness, admin-protected metrics/pprof/detailed health, auth, tenant, and
+  idempotent write behavior.
+
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer
   in-flight reservations after expiry or replacement.

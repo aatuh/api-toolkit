@@ -88,6 +88,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/ulid	wrapper-only	wrapper-smoke
 github.com/aatuh/api-toolkit/contrib/v2/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/validation	experimental	direct-tests	Validation adapter.
 github.com/aatuh/api-toolkit/contrib/v2/bootstrap	supported-adapter	direct-tests	Contrib bootstrap composition helpers.
+github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/migrate	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/tester	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v2/config	experimental	direct-tests	Contrib configuration loader.

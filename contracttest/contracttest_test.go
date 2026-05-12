@@ -13,13 +13,15 @@ import (
 func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	specRegistry := specs.NewRegistry(specs.Info{Title: "Contracts", Version: "1"})
 	specRegistry.Register(specs.Operation{
-		Method: http.MethodGet,
-		Path:   "/widgets",
+		OperationID: "listWidgets",
+		Method:      http.MethodGet,
+		Path:        "/widgets",
 		Security: []specs.SecurityRequirement{{
 			Name: "ApiKeyAuth",
 		}},
 		Responses: map[int]specs.Response{
-			http.StatusOK: {Description: "ok"},
+			http.StatusOK:         {Description: "ok"},
+			http.StatusBadRequest: specs.ProblemResponse("bad request"),
 		},
 	})
 	routeRegistry := routecontracts.NewRegistry(fakeRouter{}, nil)
@@ -31,6 +33,9 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	AssertRouteCoverage(t, routeRegistry, http.MethodGet, "/widgets")
 	AssertOperationHasResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusOK)
 	AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
+	AssertOperationID(t, specRegistry, http.MethodGet, "/widgets", "listWidgets")
+	AssertAllOperationsHaveOperationID(t, specRegistry)
+	AssertOperationHasProblemResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusBadRequest)
 	AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.ProblemCode(httpx.TypeBadRequest))
 }
 
