@@ -46,6 +46,9 @@ source of truth is `docs/release-runbook.md`.
 - `routepolicy.LintOperations` and `api-toolkit contracts lint` now require
   non-public operations, including safe reads, to document Problem Details
   error responses.
+- `routepolicy.LintOperations` and `api-toolkit contracts lint` now fail
+  unsafe write operations that omit request body metadata for POST/PUT/PATCH or
+  omit a documented 2xx success response.
 - `contracttest` now includes assertions for operation IDs, Problem Details
   error responses, tenant/idempotency/rate-limit/admin policy metadata,
   registry-wide operation ID coverage, and conservative OpenAPI compatibility

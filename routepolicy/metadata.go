@@ -131,6 +131,8 @@ type LintOptions struct {
 	RequireUnsafeWriteTenant          bool
 	RequireUnsafeWriteIdempotency     bool
 	RequireUnsafeWriteRateLimit       bool
+	RequireUnsafeWriteRequestBody     bool
+	RequireUnsafeWriteSuccessResponse bool
 	RequireUnsafeWriteProblemResponse bool
 	PublicPaths                       []string
 	AdminPaths                        []string
@@ -191,6 +193,12 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 			if opts.RequireUnsafeWriteRateLimit && !hasExtension(operation, ExtensionRateLimit) {
 				findings = append(findings, finding(operation, "unsafe_write_rate_limit_required", "unsafe write operations must declare rate-limit policy"))
 			}
+			if opts.RequireUnsafeWriteRequestBody && requiresRequestBody(method) && !hasRequestBody(operation) {
+				findings = append(findings, finding(operation, "unsafe_write_request_body_required", "unsafe write operations with request payloads must document requestBody"))
+			}
+			if opts.RequireUnsafeWriteSuccessResponse && !hasSuccessResponse(operation) {
+				findings = append(findings, finding(operation, "unsafe_write_success_response_required", "unsafe write operations must document at least one 2xx success response"))
+			}
 			if opts.RequireUnsafeWriteProblemResponse && !requiresProblemResponse && !hasProblemResponse(operation) {
 				findings = append(findings, finding(operation, "problem_response_required", "operation must document at least one Problem Details error response"))
 			}
@@ -224,6 +232,34 @@ func isUnsafeWrite(method string) bool {
 	default:
 		return false
 	}
+}
+
+func requiresRequestBody(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodPost, http.MethodPut, http.MethodPatch:
+		return true
+	default:
+		return false
+	}
+}
+
+func hasRequestBody(operation specs.Operation) bool {
+	if operation.RequestBody == nil {
+		return false
+	}
+	if len(operation.RequestBody.Content) > 0 || len(operation.RequestBody.ContentTypes) > 0 {
+		return true
+	}
+	return strings.TrimSpace(operation.RequestBody.Description) != "" || operation.RequestBody.Required
+}
+
+func hasSuccessResponse(operation specs.Operation) bool {
+	for status := range operation.Responses {
+		if status >= 200 && status <= 299 {
+			return true
+		}
+	}
+	return false
 }
 
 func hasExtension(operation specs.Operation, name string) bool {
