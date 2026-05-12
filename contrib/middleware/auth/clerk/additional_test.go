@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -61,4 +63,16 @@ func TestNewMiddlewareDisabledAndHealthCheckerDisabled(t *testing.T) {
 		t.Fatal("nil middleware should pass handlers through")
 	}
 	nilMiddleware.Close()
+}
+
+func TestHealthCheckerContract(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL, JWKSRefreshTimeout: time.Second}, server.Client())
+	healthchecktest.AssertCheckerContract(t, checker, "clerk", ports.HealthStatusHealthy)
 }

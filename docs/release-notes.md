@@ -75,6 +75,9 @@ source of truth is `docs/release-runbook.md`.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest` adds reusable
   rate limiter adapter contract coverage, and `ratelimitredis` now runs it to
   prove empty-key bypass, per-key isolation, retry-after, and refill behavior.
+- `github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest` adds
+  reusable health checker adapter contract coverage for supported Stripe,
+  Resend, and Clerk readiness checks.
 
 ### Stable core API additions
 
