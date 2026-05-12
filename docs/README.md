@@ -26,7 +26,8 @@ checks operation IDs, non-public security requirements, unsafe-write tenant,
 idempotency, rate-limit metadata, request body metadata, documented 2xx success
 responses, Problem Details responses, and protected operator paths. `contracts
 diff` allows additive operations and fails closed on removed operations, changed
-operation IDs, removed documented responses, or changed security requirements:
+operation IDs, removed documented responses, request-body tightening or content
+removal, or changed security requirements:
 
 ```sh
 api-toolkit contracts lint --openapi ./openapi.json

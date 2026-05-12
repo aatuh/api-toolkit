@@ -360,6 +360,74 @@ func TestContractsDiffFailsForBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestContractsDiffFailsForRequestBodyBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": false,
+					"content": {
+						"application/json": {"schema": {"type": "object"}},
+						"application/vnd.widgets+json": {"schema": {"type": "object"}}
+					}
+				},
+				"responses": {"201": {"description": "created"}},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		},
+		"/widget-imports": {
+			"post": {
+				"operationId": "importWidgets",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {"202": {"description": "accepted"}},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {"201": {"description": "created"}},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		},
+		"/widget-imports": {
+			"post": {
+				"operationId": "importWidgets",
+				"responses": {"202": {"description": "accepted"}},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected request body breaking diff to fail")
+	}
+	for _, want := range []string{
+		"request_body_required_added POST /widgets",
+		"request_body_content_removed POST /widgets application/vnd.widgets+json",
+		"request_body_removed POST /widget-imports",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
 	t.Helper()
 	spec := `{

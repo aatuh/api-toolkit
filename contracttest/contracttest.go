@@ -216,7 +216,8 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // OpenAPICompatibilityFindings reports conservative compatibility findings
 // between two OpenAPI JSON documents. Additive operations and responses are
 // compatible; removed operations, changed operation IDs, removed documented
-// responses, and changed security requirements are findings.
+// responses, request-body tightening or content removal, and changed security
+// requirements are findings.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -243,6 +244,19 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		for _, status := range baseOperation.ResponseStatuses {
 			if !containsStatus(headOperation.ResponseStatuses, status) {
 				findings = append(findings, fmt.Sprintf("response_removed %s %s %s", baseOperation.Method, baseOperation.Path, status))
+			}
+		}
+		if baseOperation.RequestBodyPresent && !headOperation.RequestBodyPresent {
+			findings = append(findings, fmt.Sprintf("request_body_removed %s %s", baseOperation.Method, baseOperation.Path))
+		}
+		if !baseOperation.RequestBodyRequired && headOperation.RequestBodyRequired {
+			findings = append(findings, fmt.Sprintf("request_body_required_added %s %s", baseOperation.Method, baseOperation.Path))
+		}
+		if baseOperation.RequestBodyPresent && headOperation.RequestBodyPresent {
+			for _, contentType := range baseOperation.RequestBodyContentTypes {
+				if !containsStatus(headOperation.RequestBodyContentTypes, contentType) {
+					findings = append(findings, fmt.Sprintf("request_body_content_removed %s %s %s", baseOperation.Method, baseOperation.Path, contentType))
+				}
 			}
 		}
 		if strings.Join(baseOperation.Security, "|") != strings.Join(headOperation.Security, "|") {
@@ -310,11 +324,14 @@ func openAPIOperation(t testing.TB, registry *specs.Registry, method, path strin
 }
 
 type openAPIOperationSnapshot struct {
-	Method           string
-	Path             string
-	OperationID      string
-	ResponseStatuses []string
-	Security         []string
+	Method                  string
+	Path                    string
+	OperationID             string
+	RequestBodyPresent      bool
+	RequestBodyRequired     bool
+	RequestBodyContentTypes []string
+	ResponseStatuses        []string
+	Security                []string
 }
 
 func (operation openAPIOperationSnapshot) key() string {
@@ -342,11 +359,14 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 				continue
 			}
 			operations = append(operations, openAPIOperationSnapshot{
-				Method:           strings.ToUpper(method),
-				Path:             path,
-				OperationID:      fmtString(rawOperation["operationId"]),
-				ResponseStatuses: responseStatuses(rawOperation["responses"]),
-				Security:         securityRequirements(rawOperation["security"]),
+				Method:                  strings.ToUpper(method),
+				Path:                    path,
+				OperationID:             fmtString(rawOperation["operationId"]),
+				RequestBodyPresent:      hasRequestBody(rawOperation["requestBody"]),
+				RequestBodyRequired:     requestBodyRequired(rawOperation["requestBody"]),
+				RequestBodyContentTypes: requestBodyContentTypes(rawOperation["requestBody"]),
+				ResponseStatuses:        responseStatuses(rawOperation["responses"]),
+				Security:                securityRequirements(rawOperation["security"]),
 			})
 		}
 	}
@@ -381,6 +401,40 @@ func responseStatuses(raw any) []string {
 	}
 	sort.Strings(statuses)
 	return statuses
+}
+
+func hasRequestBody(raw any) bool {
+	_, ok := raw.(map[string]any)
+	return ok
+}
+
+func requestBodyRequired(raw any) bool {
+	requestBody, ok := raw.(map[string]any)
+	if !ok {
+		return false
+	}
+	required, _ := requestBody["required"].(bool)
+	return required
+}
+
+func requestBodyContentTypes(raw any) []string {
+	requestBody, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	content, ok := requestBody["content"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	contentTypes := make([]string, 0, len(content))
+	for contentType := range content {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			contentTypes = append(contentTypes, contentType)
+		}
+	}
+	sort.Strings(contentTypes)
+	return contentTypes
 }
 
 func securityRequirements(raw any) []string {
