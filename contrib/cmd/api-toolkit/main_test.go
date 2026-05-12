@@ -118,6 +118,29 @@ func TestContractsLintFailsForPrivateReadWithoutSecurity(t *testing.T) {
 	}
 }
 
+func TestContractsLintFailsForPrivateReadWithoutProblemResponse(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	if !strings.Contains(errOut.String(), "problem_response_required") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
 func TestContractsLintAllowsPublicReadinessWithoutSecurity(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")

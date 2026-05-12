@@ -158,6 +158,34 @@ func TestLintOperationsFindsNonPublicOperationWithoutSecurity(t *testing.T) {
 	}
 }
 
+func TestLintOperationsFindsNonPublicOperationWithoutProblemResponse(t *testing.T) {
+	findings := LintOperations([]specs.Operation{
+		{
+			OperationID: "listWidgets",
+			Method:      http.MethodGet,
+			Path:        "/widgets",
+			Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:read"}}},
+			Responses:   map[int]specs.Response{http.StatusOK: {}},
+		},
+		{
+			OperationID: "ready",
+			Method:      http.MethodGet,
+			Path:        "/readyz",
+			Responses:   map[int]specs.Response{http.StatusOK: {}},
+		},
+	}, LintOptions{
+		RequireProblemResponse: true,
+		PublicPaths:            []string{"/readyz"},
+	})
+
+	if !hasFinding(findings, "problem_response_required") {
+		t.Fatalf("missing problem response finding in %#v", findings)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings = %#v, want only private operation finding", findings)
+	}
+}
+
 func TestLintOperationsFindsUnsafeWriteMissingTenantAndRateLimit(t *testing.T) {
 	findings := LintOperations([]specs.Operation{{
 		OperationID: "createWidget",

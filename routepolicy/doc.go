@@ -14,8 +14,9 @@
 // applied based on the operation contract.
 //
 // LintOperations provides release and CI checks for operation IDs, unique
-// operation identity, security metadata, unsafe-write tenant/idempotency/rate-limit
-// policies, Problem Details responses, and admin-only system routes.
+// operation identity, security metadata, Problem Details responses,
+// unsafe-write tenant/idempotency/rate-limit policies, and admin-only system
+// routes.
 //
 // Policies fail closed by returning errors from Apply. EmitPolicyExtension
 // output only when the generated OpenAPI document should expose

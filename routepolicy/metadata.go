@@ -126,6 +126,7 @@ type LintOptions struct {
 	RequireOperationID                bool
 	RequireUniqueOperationID          bool
 	RequireSecurity                   bool
+	RequireProblemResponse            bool
 	RequireUnsafeWriteAuth            bool
 	RequireUnsafeWriteTenant          bool
 	RequireUnsafeWriteIdempotency     bool
@@ -159,6 +160,7 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 			continue
 		}
 		operationID := strings.TrimSpace(operation.OperationID)
+		publicPath := matchesAnyPath(path, opts.PublicPaths)
 		if opts.RequireOperationID && operationID == "" {
 			findings = append(findings, finding(operation, "operation_id_required", "operationId is required for compatibility review"))
 		}
@@ -169,8 +171,12 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 				operationIDs[operationID] = operation
 			}
 		}
-		if opts.RequireSecurity && !matchesAnyPath(path, opts.PublicPaths) && !hasSecurity(operation) {
+		if opts.RequireSecurity && !publicPath && !hasSecurity(operation) {
 			findings = append(findings, finding(operation, "security_required", "non-public operations must declare security requirements or scopes"))
+		}
+		requiresProblemResponse := opts.RequireProblemResponse && !publicPath
+		if requiresProblemResponse && !hasProblemResponse(operation) {
+			findings = append(findings, finding(operation, "problem_response_required", "non-public operations must document at least one Problem Details error response"))
 		}
 		if isUnsafeWrite(method) {
 			if opts.RequireUnsafeWriteAuth && !hasSecurity(operation) {
@@ -185,7 +191,7 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 			if opts.RequireUnsafeWriteRateLimit && !hasExtension(operation, ExtensionRateLimit) {
 				findings = append(findings, finding(operation, "unsafe_write_rate_limit_required", "unsafe write operations must declare rate-limit policy"))
 			}
-			if opts.RequireUnsafeWriteProblemResponse && !hasProblemResponse(operation) {
+			if opts.RequireUnsafeWriteProblemResponse && !requiresProblemResponse && !hasProblemResponse(operation) {
 				findings = append(findings, finding(operation, "problem_response_required", "operation must document at least one Problem Details error response"))
 			}
 		}

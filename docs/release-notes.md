@@ -43,6 +43,9 @@ source of truth is `docs/release-runbook.md`.
 - `routepolicy`, `contracttest`, and `api-toolkit contracts lint` now enforce
   unique OpenAPI `operationId` values so generated clients and compatibility
   reviews can rely on stable operation identity.
+- `routepolicy.LintOperations` and `api-toolkit contracts lint` now require
+  non-public operations, including safe reads, to document Problem Details
+  error responses.
 - `contracttest` now includes assertions for operation IDs, Problem Details
   error responses, tenant/idempotency/rate-limit/admin policy metadata,
   registry-wide operation ID coverage, and conservative OpenAPI compatibility
