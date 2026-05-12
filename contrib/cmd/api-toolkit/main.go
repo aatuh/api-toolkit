@@ -120,6 +120,7 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			RequireOperationID:                true,
 			RequireUniqueOperationID:          true,
 			RequireSecurity:                   true,
+			RequireProblemResponse:            true,
 			RequireUnsafeWriteAuth:            true,
 			RequireUnsafeWriteTenant:          true,
 			RequireUnsafeWriteIdempotency:     true,
