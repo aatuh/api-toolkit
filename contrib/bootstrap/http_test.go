@@ -443,6 +443,89 @@ func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *tes
 	}
 }
 
+func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
+	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(health.NewBasicChecker())
+
+	service, err := NewAPIService(APIServiceConfig{
+		Addr: ":0",
+		Log:  ports.NopLogger{},
+		RegisterRoutes: func(r ports.HTTPRouter) error {
+			r.Get("/hello", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+			return nil
+		},
+		SystemEndpoints: SystemEndpoints{
+			Health:  health.NewHandler(manager),
+			Docs:    docs.NewHandler(nil),
+			Version: version.NewHandler(version.Config{}),
+			Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}),
+			Pprof: pprofStub(),
+		},
+		Admin: SystemEndpointAdminOptions{
+			RequireAdmin: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Admin-Wrapper", "true")
+					next.ServeHTTP(w, r)
+				})
+			},
+			EnablePprof: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new API service: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/hello", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("/hello status = %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Metrics, nil))
+	if got := rec.Header().Get("X-Admin-Wrapper"); got != "true" {
+		t.Fatalf("metrics admin wrapper header = %q", got)
+	}
+}
+
+func TestNewAPIServiceRequiresAdminWrapperForSystemEndpoints(t *testing.T) {
+	_, err := NewAPIService(APIServiceConfig{
+		Addr: ":0",
+		Log:  ports.NopLogger{},
+		SystemEndpoints: SystemEndpoints{
+			Health: health.NewHandler(nil),
+		},
+	})
+	if err == nil {
+		t.Fatal("expected admin wrapper error")
+	}
+}
+
+func TestNewAPIServiceRunsStartupChecks(t *testing.T) {
+	_, err := NewAPIService(APIServiceConfig{
+		Addr: ":0",
+		Log:  ports.NopLogger{},
+		StartupChecks: []StartupCheck{{
+			Name: "policy",
+			Check: func(context.Context) error {
+				return errors.New("invalid policy")
+			},
+		}},
+	})
+	if err == nil || err.Error() != "startup check policy: invalid policy" {
+		t.Fatalf("unexpected startup check error: %v", err)
+	}
+}
+
 func pprofStub() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

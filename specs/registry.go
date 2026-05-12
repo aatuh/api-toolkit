@@ -82,6 +82,7 @@ type Components struct {
 
 // Operation describes an API operation for registry usage.
 type Operation struct {
+	OperationID string
 	Method      string
 	Path        string
 	Summary     string
@@ -192,6 +193,18 @@ func (r *Registry) Register(op Operation) {
 	r.ops = append(r.ops, op)
 }
 
+// Operations returns the registered operations in deterministic OpenAPI order.
+func (r *Registry) Operations() []Operation {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	ops := append([]Operation(nil), r.ops...)
+	r.mu.RUnlock()
+	sortOperations(ops)
+	return ops
+}
+
 // OpenAPI returns a JSON-encoded OpenAPI 3.0 document.
 func (r *Registry) OpenAPI() ([]byte, error) {
 	if r == nil {
@@ -204,12 +217,7 @@ func (r *Registry) OpenAPI() ([]byte, error) {
 	components := cloneComponents(r.components)
 	r.mu.RUnlock()
 
-	sort.SliceStable(ops, func(i, j int) bool {
-		if ops[i].Path == ops[j].Path {
-			return strings.ToUpper(ops[i].Method) < strings.ToUpper(ops[j].Method)
-		}
-		return ops[i].Path < ops[j].Path
-	})
+	sortOperations(ops)
 
 	paths := map[string]map[string]any{}
 	for _, op := range ops {
@@ -261,6 +269,9 @@ func defaultOpenAPI(info Info) map[string]any {
 
 func buildOperation(op Operation) map[string]any {
 	out := map[string]any{}
+	if strings.TrimSpace(op.OperationID) != "" {
+		out["operationId"] = strings.TrimSpace(op.OperationID)
+	}
 	if op.Summary != "" {
 		out["summary"] = op.Summary
 	}
@@ -309,6 +320,15 @@ func buildOperation(op Operation) map[string]any {
 		}
 	}
 	return out
+}
+
+func sortOperations(ops []Operation) {
+	sort.SliceStable(ops, func(i, j int) bool {
+		if ops[i].Path == ops[j].Path {
+			return strings.ToUpper(ops[i].Method) < strings.ToUpper(ops[j].Method)
+		}
+		return ops[i].Path < ops[j].Path
+	})
 }
 
 func parameterObjects(parameters []Parameter) []map[string]any {

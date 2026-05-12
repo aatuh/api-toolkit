@@ -18,6 +18,7 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 	})
 	registry.SetServers([]Server{{URL: "https://api.example.test", Description: "production"}})
 	registry.Register(Operation{
+		OperationID: "createWidget",
 		Method:      http.MethodPost,
 		Path:        "/widgets",
 		Summary:     "Create widget",
@@ -69,6 +70,9 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 	operation := operationAt(t, doc, "/widgets", "post")
 	if operation["summary"] != "Create widget" {
 		t.Fatalf("summary = %v", operation["summary"])
+	}
+	if operation["operationId"] != "createWidget" {
+		t.Fatalf("operationId = %v", operation["operationId"])
 	}
 	if operation["description"] != "Creates a widget." {
 		t.Fatalf("description = %v", operation["description"])

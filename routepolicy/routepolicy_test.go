@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v2/specs"
@@ -60,4 +61,75 @@ func TestPolicyUsesAuthHookForSecuredOperations(t *testing.T) {
 	if !called || len(middleware) != 1 {
 		t.Fatalf("auth hook called=%v middleware=%d", called, len(middleware))
 	}
+}
+
+func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
+	operation := ApplyMetadata(specs.Operation{Method: http.MethodPost, Path: "/widgets"},
+		WithOperationID("createWidget"),
+		WithAuth("ApiKeyAuth", "widgets:write"),
+		WithTenantRequired("header"),
+		WithIdempotencyRequired(),
+		WithRateLimit("write-standard"),
+		WithProblemResponses(http.StatusBadRequest, http.StatusConflict),
+	)
+
+	if operation.OperationID != "createWidget" {
+		t.Fatalf("operation id = %q", operation.OperationID)
+	}
+	if len(operation.Security) != 1 || operation.Security[0].Name != "ApiKeyAuth" {
+		t.Fatalf("security = %#v", operation.Security)
+	}
+	if _, ok := operation.Extensions[ExtensionTenant]; !ok {
+		t.Fatalf("tenant extension missing: %#v", operation.Extensions)
+	}
+	if _, ok := operation.Extensions[ExtensionIdempotencyKey]; !ok {
+		t.Fatalf("idempotency extension missing: %#v", operation.Extensions)
+	}
+	if got := operation.Extensions[ExtensionRateLimit]; got != "write-standard" {
+		t.Fatalf("rate limit extension = %#v", got)
+	}
+	if _, ok := operation.Responses[http.StatusBadRequest]; !ok {
+		t.Fatalf("bad request response missing: %#v", operation.Responses)
+	}
+}
+
+func TestLintOperationsFindsMissingProductionPolicy(t *testing.T) {
+	findings := LintOperations([]specs.Operation{{
+		Method:    http.MethodPost,
+		Path:      "/widgets",
+		Responses: map[int]specs.Response{http.StatusCreated: {}},
+	}}, LintOptions{
+		RequireOperationID:                true,
+		RequireUnsafeWriteAuth:            true,
+		RequireUnsafeWriteIdempotency:     true,
+		RequireUnsafeWriteProblemResponse: true,
+	})
+
+	for _, code := range []string{"operation_id_required", "unsafe_write_auth_required", "unsafe_write_idempotency_required", "problem_response_required"} {
+		if !hasFinding(findings, code) {
+			t.Fatalf("missing finding %s in %#v", code, findings)
+		}
+	}
+}
+
+func TestLintOperationsFindsAdminRouteWithoutPolicy(t *testing.T) {
+	findings := LintOperations([]specs.Operation{{
+		OperationID: "readProfile",
+		Method:      http.MethodGet,
+		Path:        "/debug/pprof/",
+		Responses:   map[int]specs.Response{http.StatusOK: {}, http.StatusBadRequest: specs.ProblemResponse("")},
+	}}, LintOptions{AdminPaths: []string{"/debug/pprof/"}})
+
+	if !hasFinding(findings, "admin_policy_required") {
+		t.Fatalf("missing admin policy finding in %#v", findings)
+	}
+}
+
+func hasFinding(findings []LintFinding, code string) bool {
+	for _, finding := range findings {
+		if strings.EqualFold(finding.Code, code) {
+			return true
+		}
+	}
+	return false
 }

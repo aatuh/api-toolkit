@@ -67,6 +67,7 @@ Contrib packages:
 - `middleware/*` provides CORS, request logging, metrics, OpenAPI validation, OpenTelemetry tracing, Clerk auth, and development-only auth headers.
 - `integrations/*` provides convenience wrappers around selected adapters.
 - `bootstrap`, `config`, `telemetry`, `migrator`, `countrycodes`, and contrib email helpers support application wiring.
+- `cmd/api-toolkit` provides developer tooling for generating a production-oriented SaaS API skeleton and checking OpenAPI contract artifacts.
 
 For API and test-status ownership, use `docs/package-classification.tsv` and the
 human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
