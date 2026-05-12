@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
 	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/endpoints/version"
@@ -523,6 +525,31 @@ func TestNewAPIServiceRunsStartupChecks(t *testing.T) {
 	})
 	if err == nil || err.Error() != "startup check policy: invalid policy" {
 		t.Fatalf("unexpected startup check error: %v", err)
+	}
+}
+
+func TestNewAPIServiceValidatesDeclaredMiddlewareOrder(t *testing.T) {
+	router := chi.New()
+	_, err := NewAPIService(APIServiceConfig{
+		Addr:   ":0",
+		Log:    ports.NopLogger{},
+		Router: router,
+		MiddlewareOrder: []MiddlewareStage{
+			MiddlewareRequestID,
+			MiddlewareTracing,
+			MiddlewareRecovery,
+		},
+		RequiredMiddlewareOrder: []MiddlewareStage{
+			MiddlewareRequestID,
+			MiddlewareRecovery,
+			MiddlewareTracing,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected middleware order validation error")
+	}
+	if got := err.Error(); !strings.Contains(got, "middleware order") || !strings.Contains(got, "tracing") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

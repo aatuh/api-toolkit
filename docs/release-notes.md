@@ -49,6 +49,9 @@ source of truth is `docs/release-runbook.md`.
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented responses, and changed security
   requirements fail with deterministic findings.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
+  stage identifiers, strict/dev middleware order helpers, and startup
+  validation for custom APIService middleware order declarations.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

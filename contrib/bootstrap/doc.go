@@ -40,4 +40,14 @@
 //
 // In production profiles, pass `bootstrap.SystemEndpointOptions{EnablePprof:true}` when
 // there is an explicit policy decision to expose profiling.
+//
+// Middleware order
+// ----------------
+//
+// `ProfileStrictAPI` records its middleware stages in `Profile.MiddlewareOrder`.
+// The default router validates that the production order keeps request IDs,
+// recovery, tracing, secure headers, rate limits, body/query limits, JSON
+// enforcement, timeout, request logging, and metrics in the expected sequence.
+// Services that compose custom routers can use `RequireMiddlewareOrder` as a
+// startup check.
 package bootstrap

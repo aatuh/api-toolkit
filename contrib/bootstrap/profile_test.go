@@ -79,6 +79,48 @@ func (s *stubMiddlewareChain) Use(middlewares ...func(http.Handler) http.Handler
 	s.middlewares = append(s.middlewares, middlewares...)
 }
 
+func TestProfileStrictAPIReportsProductionMiddlewareOrder(t *testing.T) {
+	profile, err := ProfileStrictAPI(
+		ports.NopLogger{},
+		WithMetricsRecorder(metricsmw.NoopMetrics{}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	expected := []MiddlewareStage{
+		MiddlewareRequestID,
+		MiddlewareRecovery,
+		MiddlewareTracing,
+		MiddlewareSecureHeaders,
+		MiddlewareRateLimit,
+		MiddlewareBodyLimit,
+		MiddlewareQueryLimit,
+		MiddlewareJSON,
+		MiddlewareTimeout,
+		MiddlewareRequestLogging,
+		MiddlewareMetrics,
+	}
+	if err := ValidateMiddlewareOrder(profile.MiddlewareOrder, expected...); err != nil {
+		t.Fatalf("strict middleware order: %v", err)
+	}
+}
+
+func TestValidateMiddlewareOrderRejectsMissingOrReorderedStages(t *testing.T) {
+	err := ValidateMiddlewareOrder(
+		[]MiddlewareStage{MiddlewareRequestID, MiddlewareTracing, MiddlewareRecovery},
+		MiddlewareRequestID,
+		MiddlewareRecovery,
+		MiddlewareTracing,
+	)
+	if err == nil {
+		t.Fatal("expected reordered middleware to fail")
+	}
+	if err := ValidateMiddlewareOrder([]MiddlewareStage{MiddlewareRequestID}, MiddlewareRequestID, MiddlewareRecovery); err == nil {
+		t.Fatal("expected missing middleware to fail")
+	}
+}
+
 func TestProfileStrictAPIEnforcesQueryLimitsByDefault(t *testing.T) {
 	profile, err := ProfileStrictAPI(
 		ports.NopLogger{},
