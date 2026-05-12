@@ -59,7 +59,7 @@ FAKE
 
 init_repo() {
   local dir="$1"
-  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders" "$dir/contrib/adapters/idempotency"
+  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders/assets" "$dir/contrib/adapters/idempotency"
   cp "$repo_root/scripts/contrib_api_drift_report.sh" "$dir/scripts/contrib_api_drift_report.sh"
   cp "$repo_root/scripts/contrib_release_notes_check.sh" "$dir/scripts/contrib_release_notes_check.sh"
   chmod +x "$dir/scripts/"*.sh
@@ -82,6 +82,9 @@ type Config struct {
 	Enabled bool
 }
 GO
+  cat >"$dir/contrib/middleware/auth/devheaders/assets/policy.yaml" <<'YAML'
+mode: relaxed
+YAML
   cat >"$dir/contrib/adapters/idempotency/memory.go" <<'GO'
 package idempotency
 
@@ -159,6 +162,28 @@ experimental_output="$(require_success experimental-change-notes run_script_in_d
 case "$experimental_output" in
   *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
   *) printf 'experimental notes output changed unexpectedly:\n%s\n' "$experimental_output" >&2; exit 1 ;;
+esac
+
+runtime_asset_dir="$tmp/runtime-asset"
+init_repo "$runtime_asset_dir"
+cat >"$runtime_asset_dir/contrib/middleware/auth/devheaders/assets/policy.yaml" <<'YAML'
+mode: strict
+YAML
+runtime_asset_output="$(require_failure runtime-asset-release-notes run_script_in_dir "$runtime_asset_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$runtime_asset_output" in
+  *"contrib/middleware/auth/devheaders/assets/policy.yaml"*) ;;
+  *) printf 'runtime asset release-note failure did not name the changed asset:\n%s\n' "$runtime_asset_output" >&2; exit 1 ;;
+esac
+
+readme_dir="$tmp/readme"
+init_repo "$readme_dir"
+cat >"$readme_dir/contrib/middleware/auth/devheaders/README.md" <<'MD'
+# Dev header middleware notes
+MD
+readme_output="$(require_success readme-change-notes run_script_in_dir "$readme_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$readme_output" in
+  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
+  *) printf 'README-only notes output changed unexpectedly:\n%s\n' "$readme_output" >&2; exit 1 ;;
 esac
 
 incompatible_dir="$tmp/incompatible"

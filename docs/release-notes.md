@@ -15,7 +15,7 @@ source of truth is `docs/release-runbook.md`.
 - Add release notes and upgrade notes that describe user-visible behavior, migration paths, and compatibility impact.
 - Run release evidence through the runbook path; `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` is the release-readiness gate, while `make finalize` and `make audit-check` are local/reviewer gates.
 - Run `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-api-drift-report` when selected contrib adapters or integrations change exported APIs; selected packages come from `docs/contrib-api-drift-packages.txt`, supported-adapter incompatible drift is gate-enforced, and this does not make contrib stable.
-- Run `CONTRIB_RELEASE_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-release-notes-check` when supported contrib adapter, integration, middleware, bootstrap, or telemetry behavior files change.
+- Run `CONTRIB_RELEASE_BASE_REF=v2.1.0 GOTOOLCHAIN=local make contrib-release-notes-check` when supported contrib adapter, integration, middleware, bootstrap, or telemetry behavior files or runtime assets change.
 - Supported-adapter contrib packages remain outside the stable core API promise, but incompatible public API drift in that tier must be treated as gate-enforced and resolved with compatibility, reclassification, or a major-release policy decision.
 - If there is incompatible report-only contrib drift, add an explicit release note or upgrade note acknowledgement tied to the affected package. This does not make contrib stable.
 - Update `docs/vulnerability-dispositions.tsv` when imported-only vulnerability IDs change, expire, or receive upgraded dependencies.
@@ -72,6 +72,9 @@ source of truth is `docs/release-runbook.md`.
   requirements to packages classified as `supported-adapter`, preserving
   supported-adapter governance without over-requiring notes for experimental or
   wrapper-only contrib internals.
+- The contrib release-note review gate now includes package-owned runtime
+  assets such as JSON, YAML, SQL, template, and policy files under supported
+  contrib package directories.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest` adds reusable
   rate limiter adapter contract coverage, and `ratelimitredis` now runs it to
   prove empty-key bypass, per-key isolation, retry-after, and refill behavior.

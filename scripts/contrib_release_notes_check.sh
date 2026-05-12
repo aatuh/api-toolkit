@@ -4,10 +4,55 @@
 set -euo pipefail
 
 base_ref="${CONTRIB_RELEASE_BASE_REF:-${API_BASE_REF:-HEAD~1}}"
+classification_manifest="docs/package-classification.tsv"
 if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
   echo "Base ref $base_ref not found; skipping contrib release notes check."
   exit 0
 fi
+
+is_release_note_candidate_path() {
+  local path="$1"
+  case "$path" in
+    *_test.go|*/doc.go|*.md)
+      return 1
+      ;;
+    *.go|*.sql|*.json|*.yaml|*.yml|*.toml|*.tmpl|*.tpl|*.html|*.txt|*.csv|*.cue|*.rego|*.graphql|*.graphqls)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+supported_import_path_for_changed_path() {
+  local path="$1"
+  local package_path="${path%/*}"
+  local import_path
+
+  while [ -n "$package_path" ] && [ "$package_path" != "." ] && [ "$package_path" != "contrib" ]; do
+    case "$package_path" in
+      contrib/*)
+        import_path="github.com/aatuh/api-toolkit/contrib/v2/${package_path#contrib/}"
+        ;;
+      *)
+        import_path="github.com/aatuh/api-toolkit/${package_path}"
+        ;;
+    esac
+    if awk -F '\t' -v import_path="$import_path" '
+      $1 == import_path && $2 == "supported-adapter" { found = 1 }
+      END { exit found ? 0 : 1 }
+    ' "$classification_manifest"; then
+      printf '%s\n' "$import_path"
+      return 0
+    fi
+    case "$package_path" in
+      */*) package_path="${package_path%/*}" ;;
+      *) break ;;
+    esac
+  done
+  return 1
+}
 
 changed_contrib_candidates="$(git diff --name-only "$base_ref" -- \
   'contrib/adapters' \
@@ -21,11 +66,13 @@ changed_contrib_candidates="$(git diff --name-only "$base_ref" -- \
   'contrib/middleware/oteltrace' \
   'contrib/middleware/requestlog' \
   'contrib/telemetry' \
-  | grep -E '\.go$' \
-  | grep -Ev '(^|/)([^/]+_test\.go|doc\.go)$' || true)"
+  | while IFS= read -r path; do
+      if is_release_note_candidate_path "$path"; then
+        printf '%s\n' "$path"
+      fi
+    done || true)"
 
 changed_contrib=""
-classification_manifest="docs/package-classification.tsv"
 if [ -n "$changed_contrib_candidates" ]; then
   if [ ! -f "$classification_manifest" ]; then
     echo "Contrib release notes check requires $classification_manifest." >&2
@@ -33,19 +80,7 @@ if [ -n "$changed_contrib_candidates" ]; then
   fi
   while IFS= read -r path; do
     [ -n "$path" ] || continue
-    package_path="${path%/*}"
-    case "$package_path" in
-      contrib/*)
-        import_path="github.com/aatuh/api-toolkit/contrib/v2/${package_path#contrib/}"
-        ;;
-      *)
-        import_path="github.com/aatuh/api-toolkit/${package_path}"
-        ;;
-    esac
-    if awk -F '\t' -v import_path="$import_path" '
-      $1 == import_path && $2 == "supported-adapter" { found = 1 }
-      END { exit found ? 0 : 1 }
-    ' "$classification_manifest"; then
+    if import_path="$(supported_import_path_for_changed_path "$path")"; then
       changed_contrib="${changed_contrib}${path}"$'\n'
     fi
   done <<< "$changed_contrib_candidates"

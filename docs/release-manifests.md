@@ -31,5 +31,5 @@ machine-readable manifests that support release and documentation checks.
 ## Maintenance notes
 
 - Keep package-classification notes short but specific enough for future reviewers to understand why smoke, generated, tooling, test-support, or excluded status is acceptable.
-- Keep contrib drift package selection focused on high-use adapters and integrations; supported-adapter incompatible drift is gate-enforced, but do not use it to imply a stable contrib API promise.
+- Keep contrib drift package selection focused on high-use adapters and integrations; supported-adapter incompatible drift is gate-enforced, and supported package-owned runtime assets remain release-note reviewed, but neither rule implies a stable contrib API promise.
 - Keep vulnerability dispositions tied to current evidence. Remove stale advisory rows after dependencies are upgraded and current evidence no longer reports the ID.
