@@ -124,9 +124,13 @@ func WithProblemResponses(statuses ...int) MetadataOption {
 // LintOptions configures route contract linting.
 type LintOptions struct {
 	RequireOperationID                bool
+	RequireSecurity                   bool
 	RequireUnsafeWriteAuth            bool
+	RequireUnsafeWriteTenant          bool
 	RequireUnsafeWriteIdempotency     bool
+	RequireUnsafeWriteRateLimit       bool
 	RequireUnsafeWriteProblemResponse bool
+	PublicPaths                       []string
 	AdminPaths                        []string
 }
 
@@ -155,12 +159,21 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 		if opts.RequireOperationID && strings.TrimSpace(operation.OperationID) == "" {
 			findings = append(findings, finding(operation, "operation_id_required", "operationId is required for compatibility review"))
 		}
+		if opts.RequireSecurity && !matchesAnyPath(path, opts.PublicPaths) && !hasSecurity(operation) {
+			findings = append(findings, finding(operation, "security_required", "non-public operations must declare security requirements or scopes"))
+		}
 		if isUnsafeWrite(method) {
-			if opts.RequireUnsafeWriteAuth && len(operation.Security) == 0 && len(operation.Scopes) == 0 {
+			if opts.RequireUnsafeWriteAuth && !hasSecurity(operation) {
 				findings = append(findings, finding(operation, "unsafe_write_auth_required", "unsafe write operations must declare auth or scopes"))
+			}
+			if opts.RequireUnsafeWriteTenant && !hasExtension(operation, ExtensionTenant) {
+				findings = append(findings, finding(operation, "unsafe_write_tenant_required", "unsafe write operations must declare tenant policy"))
 			}
 			if opts.RequireUnsafeWriteIdempotency && !hasExtension(operation, ExtensionIdempotencyKey) {
 				findings = append(findings, finding(operation, "unsafe_write_idempotency_required", "unsafe write operations must declare idempotency policy"))
+			}
+			if opts.RequireUnsafeWriteRateLimit && !hasExtension(operation, ExtensionRateLimit) {
+				findings = append(findings, finding(operation, "unsafe_write_rate_limit_required", "unsafe write operations must declare rate-limit policy"))
 			}
 			if opts.RequireUnsafeWriteProblemResponse && !hasProblemResponse(operation) {
 				findings = append(findings, finding(operation, "problem_response_required", "operation must document at least one Problem Details error response"))
@@ -203,6 +216,18 @@ func hasExtension(operation specs.Operation, name string) bool {
 	}
 	_, ok := operation.Extensions[name]
 	return ok
+}
+
+func hasSecurity(operation specs.Operation) bool {
+	if len(operation.Security) > 0 {
+		return true
+	}
+	for _, scope := range operation.Scopes {
+		if strings.TrimSpace(scope) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func hasProblemResponse(operation specs.Operation) bool {

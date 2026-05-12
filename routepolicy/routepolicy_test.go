@@ -112,6 +112,58 @@ func TestLintOperationsFindsMissingProductionPolicy(t *testing.T) {
 	}
 }
 
+func TestLintOperationsFindsNonPublicOperationWithoutSecurity(t *testing.T) {
+	findings := LintOperations([]specs.Operation{
+		{
+			OperationID: "listWidgets",
+			Method:      http.MethodGet,
+			Path:        "/widgets",
+			Responses:   map[int]specs.Response{http.StatusOK: {}},
+		},
+		{
+			OperationID: "ready",
+			Method:      http.MethodGet,
+			Path:        "/readyz",
+			Responses:   map[int]specs.Response{http.StatusOK: {}},
+		},
+	}, LintOptions{
+		RequireSecurity: true,
+		PublicPaths:     []string{"/readyz"},
+	})
+
+	if !hasFinding(findings, "security_required") {
+		t.Fatalf("missing security finding in %#v", findings)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected only private route finding, got %#v", findings)
+	}
+}
+
+func TestLintOperationsFindsUnsafeWriteMissingTenantAndRateLimit(t *testing.T) {
+	findings := LintOperations([]specs.Operation{{
+		OperationID: "createWidget",
+		Method:      http.MethodPost,
+		Path:        "/widgets",
+		Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write"}}},
+		Responses: map[int]specs.Response{
+			http.StatusCreated:    {},
+			http.StatusBadRequest: specs.ProblemResponse("Bad Request"),
+		},
+		Extensions: map[string]any{
+			ExtensionIdempotencyKey: map[string]any{"required": true},
+		},
+	}}, LintOptions{
+		RequireUnsafeWriteTenant:    true,
+		RequireUnsafeWriteRateLimit: true,
+	})
+
+	for _, code := range []string{"unsafe_write_tenant_required", "unsafe_write_rate_limit_required"} {
+		if !hasFinding(findings, code) {
+			t.Fatalf("missing finding %s in %#v", code, findings)
+		}
+	}
+}
+
 func TestLintOperationsFindsAdminRouteWithoutPolicy(t *testing.T) {
 	findings := LintOperations([]specs.Operation{{
 		OperationID: "readProfile",
