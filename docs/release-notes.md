@@ -71,8 +71,8 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented responses, request-body tightening
-  or content removal, and changed security requirements fail with deterministic
-  findings.
+  or content removal, response content removal, and changed security
+  requirements fail with deterministic findings.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.

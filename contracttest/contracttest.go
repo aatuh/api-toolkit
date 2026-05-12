@@ -216,8 +216,8 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // OpenAPICompatibilityFindings reports conservative compatibility findings
 // between two OpenAPI JSON documents. Additive operations and responses are
 // compatible; removed operations, changed operation IDs, removed documented
-// responses, request-body tightening or content removal, and changed security
-// requirements are findings.
+// responses, request-body tightening or content removal, response content
+// removal, and changed security requirements are findings.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -242,8 +242,14 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 			findings = append(findings, fmt.Sprintf("operation_id_changed %s %s", baseOperation.Method, baseOperation.Path))
 		}
 		for _, status := range baseOperation.ResponseStatuses {
-			if !containsStatus(headOperation.ResponseStatuses, status) {
+			if !containsValue(headOperation.ResponseStatuses, status) {
 				findings = append(findings, fmt.Sprintf("response_removed %s %s %s", baseOperation.Method, baseOperation.Path, status))
+				continue
+			}
+			for _, contentType := range baseOperation.ResponseContentTypes[status] {
+				if !containsValue(headOperation.ResponseContentTypes[status], contentType) {
+					findings = append(findings, fmt.Sprintf("response_content_removed %s %s %s %s", baseOperation.Method, baseOperation.Path, status, contentType))
+				}
 			}
 		}
 		if baseOperation.RequestBodyPresent && !headOperation.RequestBodyPresent {
@@ -254,7 +260,7 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		}
 		if baseOperation.RequestBodyPresent && headOperation.RequestBodyPresent {
 			for _, contentType := range baseOperation.RequestBodyContentTypes {
-				if !containsStatus(headOperation.RequestBodyContentTypes, contentType) {
+				if !containsValue(headOperation.RequestBodyContentTypes, contentType) {
 					findings = append(findings, fmt.Sprintf("request_body_content_removed %s %s %s", baseOperation.Method, baseOperation.Path, contentType))
 				}
 			}
@@ -331,6 +337,7 @@ type openAPIOperationSnapshot struct {
 	RequestBodyRequired     bool
 	RequestBodyContentTypes []string
 	ResponseStatuses        []string
+	ResponseContentTypes    map[string][]string
 	Security                []string
 }
 
@@ -366,6 +373,7 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 				RequestBodyRequired:     requestBodyRequired(rawOperation["requestBody"]),
 				RequestBodyContentTypes: requestBodyContentTypes(rawOperation["requestBody"]),
 				ResponseStatuses:        responseStatuses(rawOperation["responses"]),
+				ResponseContentTypes:    responseContentTypes(rawOperation["responses"]),
 				Security:                securityRequirements(rawOperation["security"]),
 			})
 		}
@@ -403,6 +411,27 @@ func responseStatuses(raw any) []string {
 	return statuses
 }
 
+func responseContentTypes(raw any) map[string][]string {
+	responses, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[string][]string, len(responses))
+	for status, rawResponse := range responses {
+		status = strings.TrimSpace(status)
+		response, ok := rawResponse.(map[string]any)
+		if status == "" || !ok {
+			continue
+		}
+		content, ok := response["content"].(map[string]any)
+		if !ok {
+			continue
+		}
+		out[status] = sortedMapKeys(content)
+	}
+	return out
+}
+
 func hasRequestBody(raw any) bool {
 	_, ok := raw.(map[string]any)
 	return ok
@@ -435,6 +464,18 @@ func requestBodyContentTypes(raw any) []string {
 	}
 	sort.Strings(contentTypes)
 	return contentTypes
+}
+
+func sortedMapKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func securityRequirements(raw any) []string {
@@ -472,9 +513,9 @@ func securityScopes(raw any) []string {
 	return scopes
 }
 
-func containsStatus(statuses []string, want string) bool {
-	for _, status := range statuses {
-		if status == want {
+func containsValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
 			return true
 		}
 	}

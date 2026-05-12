@@ -601,14 +601,17 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 			})
 		}
 		for _, status := range sortedResponseStatuses(baseOperation.Responses) {
-			if _, ok := headOperation.Responses[status]; !ok {
+			headResponse, ok := headOperation.Responses[status]
+			if !ok {
 				findings = append(findings, openAPIDiffFinding{
 					Code:   "response_removed",
 					Method: baseOperation.Method,
 					Path:   baseOperation.Path,
 					Detail: fmt.Sprintf("%d", status),
 				})
+				continue
 			}
+			findings = append(findings, diffResponseContent(baseOperation, status, baseOperation.Responses[status], headResponse)...)
 		}
 		findings = append(findings, diffRequestBody(baseOperation, headOperation)...)
 		baseSecurity := securityFingerprint(baseOperation.Security)
@@ -619,6 +622,22 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				Method: baseOperation.Method,
 				Path:   baseOperation.Path,
 				Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
+			})
+		}
+	}
+	return findings
+}
+
+func diffResponseContent(baseOperation specs.Operation, status int, baseResponse, headResponse specs.Response) []openAPIDiffFinding {
+	var findings []openAPIDiffFinding
+	headContentTypes := stringSet(responseContentTypes(headResponse))
+	for _, contentType := range responseContentTypes(baseResponse) {
+		if _, ok := headContentTypes[contentType]; !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "response_content_removed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: fmt.Sprintf("%d %s", status, contentType),
 			})
 		}
 	}
@@ -672,6 +691,28 @@ func sortedResponseStatuses(responses map[int]specs.Response) []int {
 	}
 	sort.Ints(statuses)
 	return statuses
+}
+
+func responseContentTypes(response specs.Response) []string {
+	seen := map[string]struct{}{}
+	for contentType := range response.Content {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			seen[contentType] = struct{}{}
+		}
+	}
+	for _, contentType := range response.ContentTypes {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			seen[contentType] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for contentType := range seen {
+		out = append(out, contentType)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func requestBodyRequired(body *specs.RequestBody) bool {
