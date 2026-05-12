@@ -24,8 +24,9 @@ import (
 
 // Profile describes a middleware stack and server options.
 type Profile struct {
-	Middlewares   []func(http.Handler) http.Handler
-	ServerOptions []ServerOption
+	Middlewares     []func(http.Handler) http.Handler
+	MiddlewareOrder []MiddlewareStage
+	ServerOptions   []ServerOption
 }
 
 // Apply attaches the profile middlewares to the router.
@@ -233,10 +234,17 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 
 	chain := []func(http.Handler) http.Handler{
 		mw.RequestID(),
-		traceMw.Middleware(),
 		recoverx.New(recoverx.WithLogger(cfg.log)),
+		traceMw.Middleware(),
 		corsMiddleware(corsh, cfg.corsOptions),
 		secureMw.Middleware(),
+	}
+	order := []MiddlewareStage{
+		MiddlewareRequestID,
+		MiddlewareRecovery,
+		MiddlewareTracing,
+		MiddlewareCORS,
+		MiddlewareSecureHeaders,
 	}
 	if cfg.enableRateLimit {
 		cfg.rateLimit.ClientIPResolver = cfg.identityResolver
@@ -245,6 +253,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 			return Profile{}, err
 		}
 		chain = append(chain, rateMw.Middleware())
+		order = append(order, MiddlewareRateLimit)
 	}
 	chain = append(chain,
 		maxBodyMw.Middleware(),
@@ -258,9 +267,18 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 		requestLogMw.Middleware(),
 		metricsMw.Middleware(),
 	)
+	order = append(order,
+		MiddlewareBodyLimit,
+		MiddlewareQueryLimit,
+		MiddlewareJSON,
+		MiddlewareTimeout,
+		MiddlewareRequestLogging,
+		MiddlewareMetrics,
+	)
 
 	return Profile{
-		Middlewares: chain,
+		Middlewares:     chain,
+		MiddlewareOrder: append([]MiddlewareStage(nil), order...),
 	}, nil
 }
 
@@ -333,8 +351,8 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 
 	chain := []func(http.Handler) http.Handler{
 		mw.RequestID(),
-		traceMw.Middleware(),
 		recoverx.New(recoverx.WithLogger(cfg.log)),
+		traceMw.Middleware(),
 		corsMiddleware(corsh, cfg.corsOptions),
 		secureMw.Middleware(),
 		maxBodyMw.Middleware(),
@@ -345,7 +363,8 @@ func ProfileDev(log ports.Logger, opts ...ProfileOption) (Profile, error) {
 		metricsMw.Middleware(),
 	}
 	return Profile{
-		Middlewares: chain,
+		Middlewares:     chain,
+		MiddlewareOrder: DevMiddlewareOrder(),
 	}, nil
 }
 

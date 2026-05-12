@@ -93,6 +93,9 @@ func NewDefaultRouterWithConfig(log ports.Logger, cfg DefaultRouterConfig) (port
 	if err != nil {
 		return nil, err
 	}
+	if err := ValidateMiddlewareOrder(profile.MiddlewareOrder, StrictAPIMiddlewareOrder()...); err != nil {
+		return nil, fmt.Errorf("default router middleware order: %w", err)
+	}
 	profile.ApplyTo(r)
 	return r, nil
 }

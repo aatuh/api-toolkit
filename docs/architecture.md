@@ -81,6 +81,10 @@ This keeps the core stable while allowing integrations to change independently.
 - Health handlers treat probe configuration as part of the contract: liveness
   and readiness should reflect configured checkers, and detailed dependency
   output should only be exposed when `EnableDetailed` is explicitly enabled.
+- `bootstrap.ProfileStrictAPI` exposes and validates the production middleware
+  sequence so request IDs, recovery, tracing, secure headers, rate limits,
+  body/query limits, JSON enforcement, timeouts, logging, and metrics stay in a
+  predictable order.
 - `contrib/adapters/txpostgres` keeps transactional cleanup inside the adapter
   boundary: application code gets the caller context for work and commit, while
   deferred rollback uses a short-lived cleanup context so cancellation does not

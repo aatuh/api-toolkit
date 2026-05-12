@@ -18,14 +18,16 @@ type StartupCheck struct {
 
 // APIServiceConfig configures a reusable production API composition root.
 type APIServiceConfig struct {
-	Addr            string
-	Log             ports.Logger
-	Router          ports.HTTPRouter
-	RegisterRoutes  func(ports.HTTPRouter) error
-	SystemEndpoints SystemEndpoints
-	Admin           SystemEndpointAdminOptions
-	ServerOptions   []ServerOption
-	StartupChecks   []StartupCheck
+	Addr                    string
+	Log                     ports.Logger
+	Router                  ports.HTTPRouter
+	RegisterRoutes          func(ports.HTTPRouter) error
+	SystemEndpoints         SystemEndpoints
+	Admin                   SystemEndpointAdminOptions
+	MiddlewareOrder         []MiddlewareStage
+	RequiredMiddlewareOrder []MiddlewareStage
+	ServerOptions           []ServerOption
+	StartupChecks           []StartupCheck
 }
 
 // APIService is a reusable HTTP API composition root for generated services.
@@ -44,6 +46,9 @@ func NewAPIService(config APIServiceConfig) (*APIService, error) {
 		log = ports.NopLogger{}
 	}
 	if err := runStartupChecks(context.Background(), config.StartupChecks); err != nil {
+		return nil, err
+	}
+	if err := validateConfiguredMiddlewareOrder(config.MiddlewareOrder, config.RequiredMiddlewareOrder); err != nil {
 		return nil, err
 	}
 
@@ -113,6 +118,19 @@ func runStartupChecks(ctx context.Context, checks []StartupCheck) error {
 		if err := check.Check(ctx); err != nil {
 			return fmt.Errorf("startup check %s: %w", name, err)
 		}
+	}
+	return nil
+}
+
+func validateConfiguredMiddlewareOrder(order, required []MiddlewareStage) error {
+	if len(order) == 0 && len(required) == 0 {
+		return nil
+	}
+	if len(required) == 0 {
+		required = StrictAPIMiddlewareOrder()
+	}
+	if err := ValidateMiddlewareOrder(order, required...); err != nil {
+		return fmt.Errorf("middleware order: %w", err)
 	}
 	return nil
 }
