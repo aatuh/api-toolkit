@@ -610,6 +610,7 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				})
 			}
 		}
+		findings = append(findings, diffRequestBody(baseOperation, headOperation)...)
 		baseSecurity := securityFingerprint(baseOperation.Security)
 		headSecurity := securityFingerprint(headOperation.Security)
 		if baseSecurity != headSecurity {
@@ -618,6 +619,42 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				Method: baseOperation.Method,
 				Path:   baseOperation.Path,
 				Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
+			})
+		}
+	}
+	return findings
+}
+
+func diffRequestBody(baseOperation, headOperation specs.Operation) []openAPIDiffFinding {
+	var findings []openAPIDiffFinding
+	baseBody := baseOperation.RequestBody
+	headBody := headOperation.RequestBody
+	if baseBody != nil && headBody == nil {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "request_body_removed",
+			Method: baseOperation.Method,
+			Path:   baseOperation.Path,
+		})
+		return findings
+	}
+	if !requestBodyRequired(baseBody) && requestBodyRequired(headBody) {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "request_body_required_added",
+			Method: baseOperation.Method,
+			Path:   baseOperation.Path,
+		})
+	}
+	if baseBody == nil || headBody == nil {
+		return findings
+	}
+	headContentTypes := stringSet(requestBodyContentTypes(headBody))
+	for _, contentType := range requestBodyContentTypes(baseBody) {
+		if _, ok := headContentTypes[contentType]; !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "request_body_content_removed",
+				Method: baseOperation.Method,
+				Path:   baseOperation.Path,
+				Detail: contentType,
 			})
 		}
 	}
@@ -635,6 +672,43 @@ func sortedResponseStatuses(responses map[int]specs.Response) []int {
 	}
 	sort.Ints(statuses)
 	return statuses
+}
+
+func requestBodyRequired(body *specs.RequestBody) bool {
+	return body != nil && body.Required
+}
+
+func requestBodyContentTypes(body *specs.RequestBody) []string {
+	if body == nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for contentType := range body.Content {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			seen[contentType] = struct{}{}
+		}
+	}
+	for _, contentType := range body.ContentTypes {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			seen[contentType] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for contentType := range seen {
+		out = append(out, contentType)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func stringSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
 }
 
 func securityFingerprint(requirements []specs.SecurityRequirement) string {

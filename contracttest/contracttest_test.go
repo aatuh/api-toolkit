@@ -151,6 +151,78 @@ func TestOpenAPICompatibilityFindingsReportBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportRequestBodyBreakingChanges(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": false,
+						"content": {
+							"application/json": {"schema": {"type": "object"}},
+							"application/vnd.widgets+json": {"schema": {"type": "object"}}
+						}
+					},
+					"responses": {"201": {"description": "created"}},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			},
+			"/widget-imports": {
+				"post": {
+					"operationId": "importWidgets",
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"type": "object"}}}
+					},
+					"responses": {"202": {"description": "accepted"}},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"type": "object"}}}
+					},
+					"responses": {"201": {"description": "created"}},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			},
+			"/widget-imports": {
+				"post": {
+					"operationId": "importWidgets",
+					"responses": {"202": {"description": "accepted"}},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"request_body_required_added POST /widgets",
+		"request_body_content_removed POST /widgets application/vnd.widgets+json",
+		"request_body_removed POST /widget-imports",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}
