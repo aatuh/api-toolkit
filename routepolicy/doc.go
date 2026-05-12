@@ -13,6 +13,11 @@
 // quota decisions. routepolicy only decides when those factories should be
 // applied based on the operation contract.
 //
+// Metadata helpers such as WithAuth, WithDeprecated, WithSunset,
+// WithTenantRequired, WithIdempotencyRequired, WithRateLimit, WithAdminPolicy,
+// and WithProblemResponses keep route contracts code-first without relying on
+// raw OpenAPI extension maps at call sites.
+//
 // LintOperations provides release and CI checks for operation IDs, unique
 // operation identity, security metadata, Problem Details responses,
 // unsafe-write tenant/idempotency/rate-limit/request/response policies, and

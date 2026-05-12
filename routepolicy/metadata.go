@@ -56,6 +56,25 @@ func WithAuth(scheme string, scopes ...string) MetadataOption {
 	}
 }
 
+// WithDeprecated marks a route as deprecated in generated OpenAPI.
+func WithDeprecated() MetadataOption {
+	return func(operation *specs.Operation) {
+		operation.Deprecated = true
+	}
+}
+
+// WithSunset records the route sunset value and marks the route as deprecated.
+func WithSunset(sunset string) MetadataOption {
+	return func(operation *specs.Operation) {
+		sunset = strings.TrimSpace(sunset)
+		if sunset == "" {
+			return
+		}
+		operation.Deprecated = true
+		operation.Sunset = sunset
+	}
+}
+
 // WithTenantRequired marks a route as tenant-scoped.
 func WithTenantRequired(source string) MetadataOption {
 	return func(operation *specs.Operation) {
