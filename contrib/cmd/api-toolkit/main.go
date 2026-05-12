@@ -110,13 +110,15 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			fmt.Fprintf(stderr, "context canceled: %v\n", err)
 			return 1
 		}
-		operations, err := operationsFromOpenAPI(*openAPIPath)
+		loaded, err := loadOpenAPI(*openAPIPath)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
+		operations := operationsFromOpenAPIDocument(loaded.doc)
 		findings := routepolicy.LintOperations(operations, routepolicy.LintOptions{
 			RequireOperationID:                true,
+			RequireUniqueOperationID:          true,
 			RequireSecurity:                   true,
 			RequireUnsafeWriteAuth:            true,
 			RequireUnsafeWriteTenant:          true,
@@ -130,6 +132,10 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			for _, finding := range findings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
+			return 1
+		}
+		if err := loaded.validate(); err != nil {
+			fmt.Fprintln(stderr, err)
 			return 1
 		}
 		fmt.Fprintln(stdout, "contracts lint passed")
@@ -392,18 +398,48 @@ func replaceLine(module, path string) string {
 	return fmt.Sprintf("replace %s => %s\n", module, filepath.Clean(path))
 }
 
-func operationsFromOpenAPI(path string) ([]specs.Operation, error) {
+type loadedOpenAPI struct {
+	doc    *openapi3.T
+	loader *openapi3.Loader
+}
+
+func loadOpenAPI(path string) (loadedOpenAPI, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return nil, errors.New("--openapi is required")
+		return loadedOpenAPI{}, errors.New("--openapi is required")
 	}
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("load openapi: %w", err)
+		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
 	}
-	if err := doc.Validate(loader.Context); err != nil {
-		return nil, fmt.Errorf("validate openapi: %w", err)
+	return loadedOpenAPI{doc: doc, loader: loader}, nil
+}
+
+func (loaded loadedOpenAPI) validate() error {
+	if loaded.doc == nil || loaded.loader == nil {
+		return errors.New("load openapi: document is nil")
+	}
+	if err := loaded.doc.Validate(loaded.loader.Context); err != nil {
+		return fmt.Errorf("validate openapi: %w", err)
+	}
+	return nil
+}
+
+func operationsFromOpenAPI(path string) ([]specs.Operation, error) {
+	loaded, err := loadOpenAPI(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := loaded.validate(); err != nil {
+		return nil, err
+	}
+	return operationsFromOpenAPIDocument(loaded.doc), nil
+}
+
+func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
+	if doc == nil || doc.Paths == nil {
+		return nil
 	}
 	var operations []specs.Operation
 	for routePath, item := range doc.Paths.Map() {
@@ -463,7 +499,7 @@ func operationsFromOpenAPI(path string) ([]specs.Operation, error) {
 		}
 		return operations[i].Path < operations[j].Path
 	})
-	return operations, nil
+	return operations
 }
 
 func stringPtrValue(value *string) string {

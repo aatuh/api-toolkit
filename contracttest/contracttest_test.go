@@ -42,6 +42,7 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
 	AssertOperationID(t, specRegistry, http.MethodGet, "/widgets", "listWidgets")
 	AssertAllOperationsHaveOperationID(t, specRegistry)
+	AssertUniqueOperationIDs(t, specRegistry)
 	AssertOperationHasProblemResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusBadRequest)
 	AssertOperationHasTenantPolicy(t, specRegistry, http.MethodGet, "/widgets")
 	AssertOperationHasIdempotencyPolicy(t, specRegistry, http.MethodGet, "/widgets")

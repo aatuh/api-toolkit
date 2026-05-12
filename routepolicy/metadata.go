@@ -124,6 +124,7 @@ func WithProblemResponses(statuses ...int) MetadataOption {
 // LintOptions configures route contract linting.
 type LintOptions struct {
 	RequireOperationID                bool
+	RequireUniqueOperationID          bool
 	RequireSecurity                   bool
 	RequireUnsafeWriteAuth            bool
 	RequireUnsafeWriteTenant          bool
@@ -150,14 +151,23 @@ func (f LintFinding) Error() string {
 // LintOperations validates operation metadata needed for production API contracts.
 func LintOperations(operations []specs.Operation, opts LintOptions) []LintFinding {
 	var findings []LintFinding
+	operationIDs := map[string]specs.Operation{}
 	for _, operation := range operations {
 		method := strings.ToUpper(strings.TrimSpace(operation.Method))
 		path := strings.TrimSpace(operation.Path)
 		if method == "" || path == "" {
 			continue
 		}
-		if opts.RequireOperationID && strings.TrimSpace(operation.OperationID) == "" {
+		operationID := strings.TrimSpace(operation.OperationID)
+		if opts.RequireOperationID && operationID == "" {
 			findings = append(findings, finding(operation, "operation_id_required", "operationId is required for compatibility review"))
+		}
+		if opts.RequireUniqueOperationID && operationID != "" {
+			if previous, ok := operationIDs[operationID]; ok {
+				findings = append(findings, finding(operation, "operation_id_duplicate", fmt.Sprintf("operationId %q is already used by %s %s", operationID, strings.ToUpper(strings.TrimSpace(previous.Method)), strings.TrimSpace(previous.Path))))
+			} else {
+				operationIDs[operationID] = operation
+			}
 		}
 		if opts.RequireSecurity && !matchesAnyPath(path, opts.PublicPaths) && !hasSecurity(operation) {
 			findings = append(findings, finding(operation, "security_required", "non-public operations must declare security requirements or scopes"))

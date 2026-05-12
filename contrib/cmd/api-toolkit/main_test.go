@@ -140,6 +140,36 @@ func TestContractsLintAllowsPublicReadinessWithoutSecurity(t *testing.T) {
 	}
 }
 
+func TestContractsLintFailsForDuplicateOperationIDs(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/widgets": {
+			"get": {
+				"operationId": "getWidget",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		},
+		"/widget-exports": {
+			"get": {
+				"operationId": "getWidget",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["exports:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	if !strings.Contains(errOut.String(), "operation_id_duplicate") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
 func TestContractsLintAllowsAdditionalPublicPath(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")

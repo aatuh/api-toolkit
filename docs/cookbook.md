@@ -222,10 +222,12 @@ contracttest.AssertRegistryValid(t, routeRegistry)
 contracttest.AssertRouteCoverage(t, routeRegistry, http.MethodGet, "/widgets")
 contracttest.AssertOperationHasResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusOK)
 contracttest.AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
+contracttest.AssertAllOperationsHaveOperationID(t, specRegistry)
+contracttest.AssertUniqueOperationIDs(t, specRegistry)
 contracttest.AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.ProblemCode(httpx.TypeBadRequest))
 ```
 
-- Expected result: tests fail when a runtime route, documented response, security requirement, or problem code is missing.
+- Expected result: tests fail when a runtime route, documented response, security requirement, stable operation identity, or problem code is missing.
 - Production caveat: golden OpenAPI tests should review diffs intentionally; the helper does not auto-update golden files.
 
 ## Runtime deprecation headers
