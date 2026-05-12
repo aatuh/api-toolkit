@@ -41,12 +41,16 @@ source of truth is `docs/release-runbook.md`.
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and
   startup checks.
+- `middleware/auth/tenant.Options.RequireAllSources` now lets services require
+  every configured tenant source to be present and equal before a handler runs,
+  which supports authenticated-tenant-to-header mismatch checks.
 - `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` adds the
   developer CLI with `new service`, `contracts lint`, `contracts diff`, and
   `version` commands. The generated `saas-api` service uses chi-backed
   bootstrap defaults, code-first route contracts, OpenAPI output, public
-  readiness, admin-protected metrics/pprof/detailed health, auth, tenant, and
-  idempotent write behavior, plus a checked-in OpenAPI golden workflow.
+  readiness, admin-protected metrics/pprof/detailed health, core API-key and
+  tenant middleware, and idempotent write behavior, plus a checked-in OpenAPI
+  golden workflow.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented responses, and changed security

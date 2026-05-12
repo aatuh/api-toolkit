@@ -110,6 +110,51 @@ func TestTenantMiddlewareSetsScope(t *testing.T) {
 	}
 }
 
+func TestTenantMiddlewareRequireAllSourcesRequiresHeaderAndContext(t *testing.T) {
+	mw, err := New(Options{
+		HeaderName: "X-Tenant-ID",
+		TenantFromContext: func(ctx context.Context) (string, bool) {
+			return authorization.TenantIDFromContext(ctx)
+		},
+		RequireAllSources: true,
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := authorization.ScopeFromContext(r.Context())
+		if !ok || scope.TenantID != "tenant-a" {
+			t.Fatalf("expected tenant scope, got %+v (ok=%v)", scope, ok)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	ctx := authorization.WithActor(context.Background(), authorization.Actor{UserID: "user-1"})
+	ctx = authorization.WithScope(ctx, authorization.Scope{UserID: "user-1", TenantID: "tenant-a"})
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden for missing header, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-a")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected ok for matching sources, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("X-Tenant-ID", "tenant-a")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized for missing authenticated tenant source, got %d", rec.Code)
+	}
+}
+
 func TestTenantMiddlewareURLParamMismatch(t *testing.T) {
 	mw, err := New(Options{
 		HeaderName:        "X-Tenant-ID",

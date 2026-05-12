@@ -579,11 +579,14 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/binding"
 	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
@@ -640,6 +643,18 @@ func newService() (*bootstrap.APIService, error) {
 	})
 	healthManager.RegisterChecker(health.NewBasicChecker())
 
+	apiKeyMiddleware, err := newAPIKeyMiddleware()
+	if err != nil {
+		return nil, err
+	}
+	tenantMiddleware, err := tenant.New(tenant.Options{
+		HeaderName:        "X-Tenant-ID",
+		TenantFromContext: authorization.TenantIDFromContext,
+		RequireAllSources: true,
+	})
+	if err != nil {
+		return nil, err
+	}
 	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
 		Store: idempotency.NewMemoryStore(),
 	})
@@ -678,7 +693,12 @@ func newService() (*bootstrap.APIService, error) {
 				routepolicy.WithRateLimit("write-standard"),
 				routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict),
 			)
-			if err := contracts.Post("/widgets", operation, idempotencyMiddleware.Handler(http.HandlerFunc(createWidget))); err != nil {
+			widgetHandler := http.Handler(http.HandlerFunc(createWidget))
+			widgetHandler = idempotencyMiddleware.Handler(widgetHandler)
+			widgetHandler = apikey.RequireScopeMiddleware("widgets:write")(widgetHandler)
+			widgetHandler = tenantMiddleware.Handler(widgetHandler)
+			widgetHandler = apiKeyMiddleware.Handler(widgetHandler)
+			if err := contracts.Post("/widgets", operation, widgetHandler); err != nil {
 				return err
 			}
 			return contracts.Validate()
@@ -697,13 +717,27 @@ func newService() (*bootstrap.APIService, error) {
 	})
 }
 
+func newAPIKeyMiddleware() (*apikey.Middleware, error) {
+	expectedKey := env("API_KEY", "local-dev-key")
+	tenantID := env("API_TENANT_ID", "tenant_1")
+	return apikey.NewMiddleware(apikey.Config{
+		HeaderNames: []string{"X-API-Key"},
+		Verifier: apikey.VerifierFunc(func(_ context.Context, key apikey.PresentedKey) (apikey.Principal, error) {
+			if key.Value != expectedKey {
+				return apikey.Principal{}, errors.New("invalid api key")
+			}
+			return apikey.Principal{
+				ID:       "local-api-key",
+				TenantID: tenantID,
+				Scopes:   []string{"widgets:write"},
+			}, nil
+		}),
+	})
+}
+
 func createWidget(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("X-API-Key") != env("API_KEY", "local-dev-key") {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication required"})
-		return
-	}
-	tenantID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
-	if tenantID == "" {
+	tenantID, ok := authorization.TenantIDFromContext(r.Context())
+	if !ok {
 		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant scope required"})
 		return
 	}
@@ -826,6 +860,20 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 		t.Fatalf("missing auth status = %d", rec.Code)
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"starter"}` + "`" + `))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "local-dev-key")
+	req.Header.Set("X-Tenant-ID", "tenant_2")
+	req.Header.Set("Idempotency-Key", "tenant-mismatch-key")
+	rec = httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("tenant mismatch status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "tenant scope mismatch") {
+		t.Fatalf("tenant mismatch body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"   "}` + "`" + `))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", "local-dev-key")
@@ -896,6 +944,7 @@ finalize: fmt test openapi-check
 
 const envTemplate = `API_ADDR=:8080
 API_KEY=local-dev-key
+API_TENANT_ID=tenant_1
 ADMIN_KEY=local-admin-key
 `
 
@@ -939,4 +988,6 @@ Default routes:
 - ` + "`GET /docs/openapi.json`" + `
 - ` + "`POST /widgets`" + ` with ` + "`X-API-Key`" + `, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
+
+The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 `

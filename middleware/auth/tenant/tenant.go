@@ -31,6 +31,10 @@ type Options struct {
 	URLParam          string
 	URLParamExtractor ports.URLParamExtractor
 	TenantFromContext TenantFromContext
+	// RequireAllSources requires every configured tenant source to be present
+	// and to agree. Use it when a route must prove the request tenant matches
+	// the authenticated tenant scope.
+	RequireAllSources bool
 	ErrorHandler      ErrorHandler
 }
 
@@ -135,6 +139,9 @@ func (m *Middleware) tenantFromRequest(r *http.Request) (string, error) {
 	}
 	if len(values) == 0 {
 		return "", nil
+	}
+	if m.opts.RequireAllSources && len(values) != sources {
+		return "", errTenantMissing
 	}
 	expected := values[0]
 	for _, value := range values[1:] {

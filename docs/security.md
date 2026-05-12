@@ -74,6 +74,9 @@ Goal:
 
 - API key auth extracts credentials and enforces verifier decisions. Store,
   hash, rotate, and revoke keys in application-owned verifier code.
+- Tenant middleware compares configured tenant sources before handlers run. Use
+  `RequireAllSources` for routes that must prove a request header or URL tenant
+  matches the authenticated tenant scope.
 - OAuth2 helpers standardize claims and scopes only after an app-owned validator
   verifies issuer, audience, expiry, JWKS material, and tenant mapping.
 - Upload helpers reject malformed, oversized, missing, or disallowed multipart
