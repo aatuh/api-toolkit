@@ -21,6 +21,17 @@ go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new servic
   --dir ./my-api
 ```
 
+The same CLI can review OpenAPI artifacts before release. `contracts lint`
+checks operation IDs, route policy metadata, problem responses, and protected
+operator paths. `contracts diff` allows additive operations and fails closed on
+removed operations, changed operation IDs, removed documented responses, or
+changed security requirements:
+
+```sh
+api-toolkit contracts lint --openapi ./openapi.json
+api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
+```
+
 ## Security, operations, and runtime behavior
 
 | Document | Audience | Purpose |

@@ -83,6 +83,103 @@ func TestContractsLintFailsForMissingPolicy(t *testing.T) {
 	}
 }
 
+func TestContractsDiffAllowsAdditiveOperations(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {"200": {"description": "ok"}}
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {"200": {"description": "ok"}}
+			}
+		},
+		"/widget-exports": {
+			"get": {
+				"operationId": "getWidget",
+				"responses": {"200": {"description": "ok"}, "404": {"description": "not found"}}
+			}
+		}
+	}`)
+
+	var out strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected additive diff to pass: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "contracts diff passed") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestContractsDiffFailsForBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {"200": {"description": "ok"}, "401": {"description": "unauthorized"}},
+				"security": [{"ApiKeyAuth": []}]
+			},
+			"post": {
+				"operationId": "createWidget",
+				"responses": {"201": {"description": "created"}, "400": {"description": "bad request"}}
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgetsRenamed",
+				"responses": {"200": {"description": "ok"}}
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected breaking diff to fail")
+	}
+	for _, want := range []string{
+		"operation_removed POST /widgets",
+		"operation_id_changed GET /widgets",
+		"response_removed GET /widgets",
+		"security_changed GET /widgets",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
+	t.Helper()
+	spec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"paths": ` + pathsJSON + `
+	}`
+	if err := os.WriteFile(path, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+}
+
 func mustRepoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
