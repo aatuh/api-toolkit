@@ -72,6 +72,9 @@ source of truth is `docs/release-runbook.md`.
   requirements to packages classified as `supported-adapter`, preserving
   supported-adapter governance without over-requiring notes for experimental or
   wrapper-only contrib internals.
+- `github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest` adds reusable
+  rate limiter adapter contract coverage, and `ratelimitredis` now runs it to
+  prove empty-key bypass, per-key isolation, retry-after, and refill behavior.
 
 ### Stable core API additions
 

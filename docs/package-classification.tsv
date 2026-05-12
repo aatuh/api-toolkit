@@ -81,6 +81,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate	experimental	direct-tes
 github.com/aatuh/api-toolkit/contrib/v2/adapters/opa	experimental	direct-tests	OPA policy adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool	supported-adapter	direct-tests	Postgres pool adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis	supported-adapter	direct-tests	Redis rate-limit adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest	test-only	test-support	Reusable rate-limit adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/resend	supported-adapter	direct-tests	Resend email adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe	supported-adapter	direct-tests	Stripe billing adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres	supported-adapter	direct-tests	Postgres transaction adapter.
