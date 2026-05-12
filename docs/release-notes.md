@@ -34,7 +34,9 @@ source of truth is `docs/release-runbook.md`.
   idempotency, rate-limit, admin-policy, and Problem Details response contracts,
   plus operation linting for missing production policy metadata.
 - `contracttest` now includes assertions for operation IDs, Problem Details
-  error responses, and registry-wide operation ID coverage.
+  error responses, tenant/idempotency/rate-limit/admin policy metadata,
+  registry-wide operation ID coverage, and conservative OpenAPI compatibility
+  findings.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and

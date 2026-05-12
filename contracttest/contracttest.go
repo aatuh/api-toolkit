@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
@@ -117,6 +119,57 @@ func AssertOperationHasProblemResponse(t testing.TB, registry *specs.Registry, m
 	}
 }
 
+// AssertOperationHasTenantPolicy fails when an operation lacks required tenant metadata.
+func AssertOperationHasTenantPolicy(t testing.TB, registry *specs.Registry, method, path string) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	tenant, ok := operation[routepolicy.ExtensionTenant].(map[string]any)
+	if !ok {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionTenant)
+	}
+	required, _ := tenant["required"].(bool)
+	if !required {
+		t.Fatalf("operation %s %s tenant metadata is not required", method, path)
+	}
+}
+
+// AssertOperationHasIdempotencyPolicy fails when an operation lacks idempotency metadata.
+func AssertOperationHasIdempotencyPolicy(t testing.TB, registry *specs.Registry, method, path string) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	policy, ok := operation[routepolicy.ExtensionIdempotencyKey].(map[string]any)
+	if !ok {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionIdempotencyKey)
+	}
+	required, _ := policy["required"].(bool)
+	if !required {
+		t.Fatalf("operation %s %s idempotency metadata is not required", method, path)
+	}
+}
+
+// AssertOperationHasRateLimitPolicy fails when an operation lacks the expected rate-limit policy metadata.
+func AssertOperationHasRateLimitPolicy(t testing.TB, registry *specs.Registry, method, path, policy string) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	got := fmtString(operation[routepolicy.ExtensionRateLimit])
+	policy = strings.TrimSpace(policy)
+	if got == "" {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionRateLimit)
+	}
+	if policy != "" && got != policy {
+		t.Fatalf("operation %s %s rate-limit policy = %q, want %q", method, path, got, policy)
+	}
+}
+
+// AssertOperationHasAdminPolicy fails when an operation lacks admin policy metadata.
+func AssertOperationHasAdminPolicy(t testing.TB, registry *specs.Registry, method, path string) {
+	t.Helper()
+	operation := openAPIOperation(t, registry, method, path)
+	if strings.TrimSpace(fmtString(operation[routepolicy.ExtensionAdminPolicy])) == "" {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionAdminPolicy)
+	}
+}
+
 // AssertProblemCatalogHas fails the test when a problem catalog lacks a code.
 func AssertProblemCatalogHas(t testing.TB, catalog *httpx.ProblemCatalog, code httpx.ProblemCode) {
 	t.Helper()
@@ -126,6 +179,58 @@ func AssertProblemCatalogHas(t testing.TB, catalog *httpx.ProblemCatalog, code h
 	if _, ok := catalog.Definition(code); !ok {
 		t.Fatalf("problem catalog missing code %q", code)
 	}
+}
+
+// AssertOpenAPICompatible fails when head removes or changes base operations in
+// a way that requires compatibility review.
+func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
+	t.Helper()
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("OpenAPI compatibility parse error: %v", err)
+	}
+	if len(findings) > 0 {
+		t.Fatalf("OpenAPI compatibility findings:\n%s", strings.Join(findings, "\n"))
+	}
+}
+
+// OpenAPICompatibilityFindings reports conservative compatibility findings
+// between two OpenAPI JSON documents. Additive operations and responses are
+// compatible; removed operations, changed operation IDs, removed documented
+// responses, and changed security requirements are findings.
+func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
+	baseOperations, err := openAPIOperationSnapshots(base)
+	if err != nil {
+		return nil, fmt.Errorf("base: %w", err)
+	}
+	headOperations, err := openAPIOperationSnapshots(head)
+	if err != nil {
+		return nil, fmt.Errorf("head: %w", err)
+	}
+	headByKey := make(map[string]openAPIOperationSnapshot, len(headOperations))
+	for _, operation := range headOperations {
+		headByKey[operation.key()] = operation
+	}
+	var findings []string
+	for _, baseOperation := range baseOperations {
+		headOperation, ok := headByKey[baseOperation.key()]
+		if !ok {
+			findings = append(findings, fmt.Sprintf("operation_removed %s %s", baseOperation.Method, baseOperation.Path))
+			continue
+		}
+		if strings.TrimSpace(baseOperation.OperationID) != "" && strings.TrimSpace(baseOperation.OperationID) != strings.TrimSpace(headOperation.OperationID) {
+			findings = append(findings, fmt.Sprintf("operation_id_changed %s %s", baseOperation.Method, baseOperation.Path))
+		}
+		for _, status := range baseOperation.ResponseStatuses {
+			if !containsStatus(headOperation.ResponseStatuses, status) {
+				findings = append(findings, fmt.Sprintf("response_removed %s %s %s", baseOperation.Method, baseOperation.Path, status))
+			}
+		}
+		if strings.Join(baseOperation.Security, "|") != strings.Join(headOperation.Security, "|") {
+			findings = append(findings, fmt.Sprintf("security_changed %s %s", baseOperation.Method, baseOperation.Path))
+		}
+	}
+	return findings, nil
 }
 
 // NormalizeOpenAPI returns deterministic indented JSON for OpenAPI comparison.
@@ -183,6 +288,124 @@ func openAPIOperation(t testing.TB, registry *specs.Registry, method, path strin
 		t.Fatalf("OpenAPI operation %s %s is missing", method, path)
 	}
 	return operation
+}
+
+type openAPIOperationSnapshot struct {
+	Method           string
+	Path             string
+	OperationID      string
+	ResponseStatuses []string
+	Security         []string
+}
+
+func (operation openAPIOperationSnapshot) key() string {
+	return strings.ToUpper(strings.TrimSpace(operation.Method)) + " " + strings.TrimSpace(operation.Path)
+}
+
+func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return nil, err
+	}
+	paths, ok := root["paths"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("OpenAPI document has no paths")
+	}
+	var operations []openAPIOperationSnapshot
+	for path, rawPathItem := range paths {
+		pathItem, ok := rawPathItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, method := range []string{httpMethodGet, httpMethodPost, httpMethodPut, httpMethodPatch, httpMethodDelete} {
+			rawOperation, ok := pathItem[method].(map[string]any)
+			if !ok {
+				continue
+			}
+			operations = append(operations, openAPIOperationSnapshot{
+				Method:           strings.ToUpper(method),
+				Path:             path,
+				OperationID:      fmtString(rawOperation["operationId"]),
+				ResponseStatuses: responseStatuses(rawOperation["responses"]),
+				Security:         securityRequirements(rawOperation["security"]),
+			})
+		}
+	}
+	sort.Slice(operations, func(i, j int) bool {
+		if operations[i].Path == operations[j].Path {
+			return operations[i].Method < operations[j].Method
+		}
+		return operations[i].Path < operations[j].Path
+	})
+	return operations, nil
+}
+
+const (
+	httpMethodGet    = "get"
+	httpMethodPost   = "post"
+	httpMethodPut    = "put"
+	httpMethodPatch  = "patch"
+	httpMethodDelete = "delete"
+)
+
+func responseStatuses(raw any) []string {
+	responses, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	statuses := make([]string, 0, len(responses))
+	for status := range responses {
+		status = strings.TrimSpace(status)
+		if status != "" {
+			statuses = append(statuses, status)
+		}
+	}
+	sort.Strings(statuses)
+	return statuses
+}
+
+func securityRequirements(raw any) []string {
+	entries, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, entry := range entries {
+		requirement, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		for scheme, rawScopes := range requirement {
+			out = append(out, strings.TrimSpace(scheme)+":"+strings.Join(securityScopes(rawScopes), ","))
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func securityScopes(raw any) []string {
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	scopes := make([]string, 0, len(values))
+	for _, value := range values {
+		scope := fmtString(value)
+		if scope != "" {
+			scopes = append(scopes, scope)
+		}
+	}
+	sort.Strings(scopes)
+	return scopes
+}
+
+func containsStatus(statuses []string, want string) bool {
+	for _, status := range statuses {
+		if status == want {
+			return true
+		}
+	}
+	return false
 }
 
 func fmtString(value any) string {
