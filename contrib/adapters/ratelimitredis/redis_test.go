@@ -7,7 +7,30 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+func TestLimiterContract(t *testing.T) {
+	t.Parallel()
+
+	ratelimittest.AssertLimiterContract(t, func(t testing.TB, cfg ratelimittest.Config) ports.RateLimiter {
+		t.Helper()
+		mini := miniredis.RunT(t)
+		client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+		t.Cleanup(func() {
+			_ = client.Close()
+		})
+		return New(client, Options{
+			Capacity:   cfg.Capacity,
+			RefillRate: cfg.RefillRate,
+			StateTTL:   cfg.StateTTL,
+			KeyPrefix:  cfg.KeyPrefix,
+			Clock:      cfg.Clock,
+		})
+	})
+}
 
 func TestLimiterAllowTracksRetryAfterAndTTL(t *testing.T) {
 	t.Parallel()
