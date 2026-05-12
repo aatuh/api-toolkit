@@ -30,6 +30,7 @@ changed security requirements:
 
 ```sh
 api-toolkit contracts lint --openapi ./openapi.json
+api-toolkit contracts lint --openapi ./openapi.json --public-path /status --admin-path /internal/debug
 api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
 ```
 
