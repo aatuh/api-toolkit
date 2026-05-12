@@ -60,7 +60,7 @@ contrib-api-drift-report: tools ## Check selected contrib API drift without maki
 	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v2.x releases use API_BASE_REF=v2.1.0"; exit 2; }
 	@API_BASE_REF="$(API_BASE_REF)" scripts/contrib_api_drift_report.sh
 
-contrib-release-notes-check: tools ## Review gate requiring release notes for supported contrib behavior changes
+contrib-release-notes-check: tools ## Review gate requiring release notes for supported contrib behavior/runtime changes
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
 
 contrib-review-contract: ## Run contrib drift/release-note script contract tests
