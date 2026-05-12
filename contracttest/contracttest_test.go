@@ -223,6 +223,66 @@ func TestOpenAPICompatibilityFindingsReportRequestBodyBreakingChanges(t *testing
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportResponseContentBreakingChanges(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {
+						"200": {
+							"description": "ok",
+							"content": {
+								"application/json": {"schema": {"type": "object"}},
+								"application/vnd.widgets+json": {"schema": {"type": "object"}}
+							}
+						},
+						"400": {
+							"description": "bad request",
+							"content": {"application/problem+json": {"schema": {"type": "object"}}}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {
+						"200": {
+							"description": "ok",
+							"content": {"application/json": {"schema": {"type": "object"}}}
+						},
+						"400": {"description": "bad request"}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"response_content_removed GET /widgets 200 application/vnd.widgets+json",
+		"response_content_removed GET /widgets 400 application/problem+json",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}

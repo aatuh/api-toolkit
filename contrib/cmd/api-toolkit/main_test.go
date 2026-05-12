@@ -428,6 +428,62 @@ func TestContractsDiffFailsForRequestBodyBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestContractsDiffFailsForResponseContentBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {
+					"200": {
+						"description": "ok",
+						"content": {
+							"application/json": {"schema": {"type": "object"}},
+							"application/vnd.widgets+json": {"schema": {"type": "object"}}
+						}
+					},
+					"400": {
+						"description": "bad request",
+						"content": {"application/problem+json": {"schema": {"type": "object"}}}
+					}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {
+					"200": {
+						"description": "ok",
+						"content": {"application/json": {"schema": {"type": "object"}}}
+					},
+					"400": {"description": "bad request"}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected response content breaking diff to fail")
+	}
+	for _, want := range []string{
+		"response_content_removed GET /widgets 200 application/vnd.widgets+json",
+		"response_content_removed GET /widgets 400 application/problem+json",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
 	t.Helper()
 	spec := `{
