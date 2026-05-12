@@ -20,6 +20,7 @@ These dependencies belong in `contrib/go.mod`, not root `go.mod`:
 ## Test ownership
 
 - `middleware/idempotency` root tests use the package-local in-memory test store for middleware flow, migration recovery, telemetry, and rollout preflight behavior.
+- `contrib/adapters/healthchecktest` owns reusable adapter contract coverage for health checker names, status classification, timestamps, messages, and duration shape.
 - `contrib/adapters/idempotencytest` owns reusable adapter release-contract coverage for token-aware release behavior, legacy tokenless recovery, completed-record preservation, ambiguous-record preservation, and token mismatch handling.
 - `contrib/adapters/ratelimittest` owns reusable adapter contract coverage for rate limiter empty-key bypass, per-key isolation, retry-after behavior, and token refill behavior.
 - Redis- and memory-adapter contract tests live under `contrib/adapters/...`, where Redis and miniredis are already legitimate contrib module dependencies.

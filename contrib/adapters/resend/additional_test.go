@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest"
 	"github.com/aatuh/api-toolkit/v2/email"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -89,6 +90,7 @@ func TestHealthCheckerDisabledAndProviderResponses(t *testing.T) {
 	if result := checker.Check(context.Background()); result.Status != ports.HealthStatusHealthy {
 		t.Fatalf("healthy status = %q", result.Status)
 	}
+	healthchecktest.AssertCheckerContract(t, checker, "resend", ports.HealthStatusHealthy)
 	mode = "restricted"
 	checker = HealthChecker(Config{Enabled: true, APIKey: "key", BaseURL: server.URL}, server.Client())
 	if result := checker.Check(context.Background()); result.Status != ports.HealthStatusHealthy || !strings.Contains(result.Message, "send-only") {

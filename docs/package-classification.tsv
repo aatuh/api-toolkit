@@ -72,6 +72,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar	experimental	direct-tests
 github.com/aatuh/api-toolkit/contrib/v2/adapters/chi	experimental	direct-tests	HTTP router adapter and authz route validation helpers.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/clock	wrapper-only	wrapper-smoke-tested	Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar	experimental	direct-tests	Environment loading adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest	test-only	test-support	Reusable health checker adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient	experimental	direct-tests	Outbound HTTP client, breaker, and SSRF transport adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter for dev/test.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis	supported-adapter	direct-tests	Redis idempotency adapter.

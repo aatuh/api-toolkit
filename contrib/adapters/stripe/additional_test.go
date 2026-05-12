@@ -2,12 +2,16 @@ package stripe
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest"
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 func TestProviderOptionsAndWebhookContextHelpers(t *testing.T) {
@@ -52,4 +56,24 @@ func TestHealthCheckerNilProvider(t *testing.T) {
 	if HealthChecker(nil) != nil {
 		t.Fatal("nil provider health checker should be nil")
 	}
+}
+
+func TestHealthCheckerContract(t *testing.T) {
+	t.Parallel()
+
+	healthchecktest.AssertCheckerContract(t, HealthChecker(healthCheckPaymentProvider{}), "stripe", ports.HealthStatusHealthy)
+}
+
+type healthCheckPaymentProvider struct{}
+
+func (healthCheckPaymentProvider) CreateCheckoutSession(context.Context, compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
+	return compatbilling.CheckoutSession{}, errors.New("unused")
+}
+
+func (healthCheckPaymentProvider) ParseWebhook(context.Context, []byte, string) (compatbilling.WebhookEvent, error) {
+	return compatbilling.WebhookEvent{}, errors.New("unused")
+}
+
+func (healthCheckPaymentProvider) ListPrices(context.Context) ([]compatbilling.Price, error) {
+	return []compatbilling.Price{{ID: "price_contract"}}, nil
 }
