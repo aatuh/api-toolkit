@@ -112,6 +112,25 @@ func TestLintOperationsFindsMissingProductionPolicy(t *testing.T) {
 	}
 }
 
+func TestLintOperationsFindsDuplicateOperationID(t *testing.T) {
+	findings := LintOperations([]specs.Operation{
+		{
+			OperationID: "getWidget",
+			Method:      http.MethodGet,
+			Path:        "/widgets/{id}",
+		},
+		{
+			OperationID: "getWidget",
+			Method:      http.MethodGet,
+			Path:        "/widget-exports/{id}",
+		},
+	}, LintOptions{RequireUniqueOperationID: true})
+
+	if !hasFinding(findings, "operation_id_duplicate") {
+		t.Fatalf("missing duplicate operation ID finding in %#v", findings)
+	}
+}
+
 func TestLintOperationsFindsNonPublicOperationWithoutSecurity(t *testing.T) {
 	findings := LintOperations([]specs.Operation{
 		{

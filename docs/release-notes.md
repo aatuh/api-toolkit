@@ -40,6 +40,9 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts lint` now accepts repeatable `--public-path` and
   `--admin-path` flags so applications can extend the default public and
   operator-only path sets without weakening the built-in production checks.
+- `routepolicy`, `contracttest`, and `api-toolkit contracts lint` now enforce
+  unique OpenAPI `operationId` values so generated clients and compatibility
+  reviews can rely on stable operation identity.
 - `contracttest` now includes assertions for operation IDs, Problem Details
   error responses, tenant/idempotency/rate-limit/admin policy metadata,
   registry-wide operation ID coverage, and conservative OpenAPI compatibility

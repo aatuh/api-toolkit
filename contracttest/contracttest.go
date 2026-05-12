@@ -95,6 +95,25 @@ func AssertAllOperationsHaveOperationID(t testing.TB, registry *specs.Registry) 
 	}
 }
 
+// AssertUniqueOperationIDs fails the test when two operations share an operationId.
+func AssertUniqueOperationIDs(t testing.TB, registry *specs.Registry) {
+	t.Helper()
+	if registry == nil {
+		t.Fatalf("spec registry is nil")
+	}
+	seen := map[string]specs.Operation{}
+	for _, operation := range registry.Operations() {
+		operationID := strings.TrimSpace(operation.OperationID)
+		if operationID == "" {
+			continue
+		}
+		if previous, ok := seen[operationID]; ok {
+			t.Fatalf("operation %s %s duplicates operationId %q from %s %s", operation.Method, operation.Path, operationID, previous.Method, previous.Path)
+		}
+		seen[operationID] = operation
+	}
+}
+
 // AssertOperationHasProblemResponse fails when an operation response is not application/problem+json.
 func AssertOperationHasProblemResponse(t testing.TB, registry *specs.Registry, method, path string, status int) {
 	t.Helper()
