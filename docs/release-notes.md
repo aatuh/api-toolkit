@@ -46,7 +46,7 @@ source of truth is `docs/release-runbook.md`.
   `version` commands. The generated `saas-api` service uses chi-backed
   bootstrap defaults, code-first route contracts, OpenAPI output, public
   readiness, admin-protected metrics/pprof/detailed health, auth, tenant, and
-  idempotent write behavior.
+  idempotent write behavior, plus a checked-in OpenAPI golden workflow.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented responses, and changed security

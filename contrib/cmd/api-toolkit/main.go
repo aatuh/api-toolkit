@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -188,6 +190,13 @@ func generateService(cfg scaffoldConfig) error {
 			return err
 		}
 	}
+	golden, err := renderSaaSAPIOpenAPIGolden()
+	if err != nil {
+		return err
+	}
+	if err := writeGeneratedFile(root, "testdata/openapi.golden.json", golden); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -256,6 +265,64 @@ func renderTemplate(name, body string, data map[string]string) ([]byte, error) {
 		return nil, fmt.Errorf("render template %s: %w", name, err)
 	}
 	return buf.Bytes(), nil
+}
+
+type scaffoldWidgetResponse struct {
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	Name     string `json:"name"`
+}
+
+func renderSaaSAPIOpenAPIGolden() ([]byte, error) {
+	registry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
+	registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	if err := specs.RegisterSchemaFrom[scaffoldWidgetResponse](registry, "Widget", specs.SchemaOptions{}); err != nil {
+		return nil, fmt.Errorf("register scaffold schema: %w", err)
+	}
+	specs.RegisterProblemCatalog(registry, nil)
+	registry.Register(routepolicy.ApplyMetadata(specs.Operation{
+		Method:  http.MethodPost,
+		Path:    "/widgets",
+		Summary: "Create widget",
+		RequestBody: &specs.RequestBody{
+			Required: true,
+			Content: map[string]specs.MediaType{
+				"application/json": {Schema: map[string]any{"type": "object"}},
+			},
+		},
+		Responses: map[int]specs.Response{
+			http.StatusCreated: {
+				Description: "Widget created",
+				Content: map[string]specs.MediaType{
+					"application/json": {SchemaRef: "#/components/schemas/Widget"},
+				},
+			},
+		},
+	},
+		routepolicy.WithOperationID("createWidget"),
+		routepolicy.WithAuth("ApiKeyAuth", "widgets:write"),
+		routepolicy.WithTenantRequired("header"),
+		routepolicy.WithIdempotencyRequired(),
+		routepolicy.WithRateLimit("write-standard"),
+		routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict),
+	))
+	doc, err := registry.OpenAPI()
+	if err != nil {
+		return nil, fmt.Errorf("render scaffold openapi: %w", err)
+	}
+	return normalizeJSON(doc)
+}
+
+func normalizeJSON(data []byte) ([]byte, error) {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	out, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
 }
 
 func replaceLine(module, path string) string {
@@ -674,14 +741,20 @@ const mainTestTemplate = `package main
 
 import (
 	"bytes"
+	"flag"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aatuh/api-toolkit/v2/contracttest"
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
+
+var updateOpenAPI = flag.Bool("update-openapi", false, "rewrite testdata/openapi.golden.json")
 
 func TestGeneratedServiceHealthAndOpenAPI(t *testing.T) {
 	service, err := newService()
@@ -707,6 +780,36 @@ func TestGeneratedServiceHealthAndOpenAPI(t *testing.T) {
 	if operation["operationId"] != "createWidget" {
 		t.Fatalf("operationId = %v", operation["operationId"])
 	}
+}
+
+func TestGeneratedServiceOpenAPIGolden(t *testing.T) {
+	service, err := newService()
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, specs.DocsOpenAPI, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	goldenPath := filepath.Join("testdata", "openapi.golden.json")
+	if *updateOpenAPI {
+		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o750); err != nil {
+			t.Fatalf("create golden directory: %v", err)
+		}
+		normalized, err := contracttest.NormalizeOpenAPI(rec.Body.Bytes())
+		if err != nil {
+			t.Fatalf("normalize openapi: %v", err)
+		}
+		if err := os.WriteFile(goldenPath, normalized, 0o600); err != nil {
+			t.Fatalf("write golden: %v", err)
+		}
+	}
+	golden, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	contracttest.GoldenOpenAPI(t, rec.Body.Bytes(), golden)
 }
 
 func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
@@ -774,7 +877,7 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 
 const makefileTemplate = `GO ?= go
 
-.PHONY: test fmt finalize
+.PHONY: test fmt openapi-check openapi-update finalize
 
 test:
 	$(GO) test ./...
@@ -782,7 +885,13 @@ test:
 fmt:
 	$(GO) fmt ./...
 
-finalize: fmt test
+openapi-check:
+	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden
+
+openapi-update:
+	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden -update-openapi
+
+finalize: fmt test openapi-check
 `
 
 const envTemplate = `API_ADDR=:8080
@@ -815,6 +924,13 @@ Run locally:
 ` + "```sh" + `
 go test ./...
 go run .
+` + "```" + `
+
+Refresh and check the OpenAPI golden:
+
+` + "```sh" + `
+make openapi-update
+make openapi-check
 ` + "```" + `
 
 Default routes:

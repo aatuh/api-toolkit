@@ -47,7 +47,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("new service failed: %s", out.String())
 	}
-	for _, name := range []string{"go.mod", "main.go", "main_test.go", "Makefile", ".env.example", "Dockerfile", "docker-compose.yml", "README.md"} {
+	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", "Dockerfile", "docker-compose.yml", "README.md"} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
@@ -64,6 +64,12 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "openapi-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service openapi check failed:\n%s\nerror: %v", output, err)
 	}
 }
 
