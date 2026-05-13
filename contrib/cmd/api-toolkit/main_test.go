@@ -19,6 +19,18 @@ func TestRunVersion(t *testing.T) {
 	if !strings.Contains(out.String(), "api-toolkit") {
 		t.Fatalf("version output = %q", out.String())
 	}
+	for _, want := range []string{
+		"go go",
+		"main ",
+		"core github.com/aatuh/api-toolkit/v2 ",
+		"contrib github.com/aatuh/api-toolkit/contrib/v2 ",
+		"build_commit ",
+		"build_date ",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("version output missing %q:\n%s", want, out.String())
+		}
+	}
 }
 
 func TestNewServiceRejectsTraversalOutput(t *testing.T) {

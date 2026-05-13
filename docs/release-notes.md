@@ -175,6 +175,8 @@ source of truth is `docs/release-runbook.md`.
 - `github.com/aatuh/api-toolkit/contrib/v2/telemetry.InitTracing` now returns
   an error when tracing is explicitly enabled without an OTLP endpoint instead
   of silently installing a noop exporter.
+- `api-toolkit version` now prints Go runtime, main module, core module,
+  contrib module, build commit, and build date metadata for release evidence.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
