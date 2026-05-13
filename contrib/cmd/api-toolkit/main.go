@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"text/template"
@@ -23,6 +25,16 @@ import (
 )
 
 const toolVersion = "dev"
+
+var (
+	buildCommit = "unknown"
+	buildDate   = "unknown"
+)
+
+const (
+	coreModulePath    = "github.com/aatuh/api-toolkit/v2"
+	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v2"
+)
 
 func main() {
 	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
@@ -41,7 +53,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintf(stdout, "api-toolkit %s\n", toolVersion)
+		printVersion(stdout)
 		return 0
 	case "new":
 		return runNew(ctx, args[1:], stdout, stderr)
@@ -51,6 +63,75 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+type versionMetadata struct {
+	ToolVersion    string
+	GoVersion      string
+	MainPath       string
+	MainVersion    string
+	CoreVersion    string
+	ContribVersion string
+	BuildCommit    string
+	BuildDate      string
+}
+
+func printVersion(stdout io.Writer) {
+	info := collectVersionMetadata()
+	fmt.Fprintf(stdout, "api-toolkit %s\n", info.ToolVersion)
+	fmt.Fprintf(stdout, "go %s\n", info.GoVersion)
+	fmt.Fprintf(stdout, "main %s %s\n", info.MainPath, info.MainVersion)
+	fmt.Fprintf(stdout, "core %s %s\n", coreModulePath, info.CoreVersion)
+	fmt.Fprintf(stdout, "contrib %s %s\n", contribModulePath, info.ContribVersion)
+	fmt.Fprintf(stdout, "build_commit %s\n", info.BuildCommit)
+	fmt.Fprintf(stdout, "build_date %s\n", info.BuildDate)
+}
+
+func collectVersionMetadata() versionMetadata {
+	info := versionMetadata{
+		ToolVersion:    toolVersion,
+		GoVersion:      runtime.Version(),
+		MainPath:       "unknown",
+		MainVersion:    "unknown",
+		CoreVersion:    "unknown",
+		ContribVersion: "unknown",
+		BuildCommit:    buildCommit,
+		BuildDate:      buildDate,
+	}
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo != nil {
+		info.MainPath = versionValue(buildInfo.Main.Path)
+		info.MainVersion = versionValue(buildInfo.Main.Version)
+		if buildInfo.Main.Path == contribModulePath || strings.HasPrefix(buildInfo.Main.Path, contribModulePath+"/") {
+			info.ContribVersion = versionValue(buildInfo.Main.Version)
+		}
+		for _, dep := range buildInfo.Deps {
+			if dep == nil {
+				continue
+			}
+			version := versionValue(dep.Version)
+			if dep.Replace != nil {
+				version = versionValue(dep.Replace.Version)
+				if version == "unknown" {
+					version = "local"
+				}
+			}
+			switch dep.Path {
+			case coreModulePath:
+				info.CoreVersion = version
+			case contribModulePath:
+				info.ContribVersion = version
+			}
+		}
+	}
+	return info
+}
+
+func versionValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "(devel)" {
+		return "dev"
+	}
+	return value
 }
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
