@@ -77,6 +77,20 @@ metrics.
 
 ## Idempotency compatibility telemetry
 
+Normal idempotency request outcomes can be observed with
+`middleware/idempotency.Options.OnOutcome`. `OutcomeEvent.MetricLabels()` exposes
+only:
+
+- `method`: standard HTTP method or `OTHER`
+- `store_class`: `memory`, `redis`, `sql`, `custom`, or `unknown`
+- `outcome`: a stable idempotency outcome enum such as `completed_stored`,
+  `completed_released`, `replayed`, `conflict`, `in_flight`, `ambiguous`,
+  `fail_open`, or `persistence_failed`
+- `status_class`: `1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`
+
+Outcome events intentionally omit raw paths, query strings, request IDs, tenant
+IDs, idempotency keys, bodies, and error strings.
+
 The idempotency mixed-version compatibility metric label contract is bounded:
 
 - `method`: standard HTTP method or `OTHER`

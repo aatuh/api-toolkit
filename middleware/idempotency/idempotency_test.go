@@ -64,6 +64,73 @@ func TestIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyEmitsLowCardinalityOutcomeEvents(t *testing.T) {
+	mem := newMemoryStore()
+	var events []OutcomeEvent
+	mw, err := New(Options{
+		Store:        mem,
+		MaxBodyBytes: 1024,
+		OnOutcome: func(_ context.Context, event OutcomeEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"ok": "true"})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge/123?token=secret", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-outcome")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("first status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge/123?token=secret", strings.NewReader("alpha"))
+	req.Header.Set("Idempotency-Key", "key-outcome")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("replay status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge/123?token=secret", strings.NewReader("beta"))
+	req.Header.Set("Idempotency-Key", "key-outcome")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("conflict status = %d", rec.Code)
+	}
+
+	if len(events) != 3 {
+		t.Fatalf("events = %#v", events)
+	}
+	if events[0].Outcome != IdempotencyOutcomeCompletedStored || events[0].Method != http.MethodPost || events[0].Status != http.StatusCreated {
+		t.Fatalf("first event = %#v", events[0])
+	}
+	if events[1].Outcome != IdempotencyOutcomeReplayed || events[1].Status != http.StatusCreated {
+		t.Fatalf("replay event = %#v", events[1])
+	}
+	if events[2].Outcome != IdempotencyOutcomeConflict || events[2].Status != http.StatusConflict {
+		t.Fatalf("conflict event = %#v", events[2])
+	}
+
+	labels := events[0].MetricLabels()
+	for _, key := range []string{"method", "store_class", "outcome", "status_class"} {
+		if labels[key] == "" {
+			t.Fatalf("metric labels missing %q: %#v", key, labels)
+		}
+	}
+	for _, forbidden := range []string{"path", "key", "tenant_id", "request_id", "error"} {
+		if _, ok := labels[forbidden]; ok {
+			t.Fatalf("metric labels include forbidden high-cardinality label %q: %#v", forbidden, labels)
+		}
+	}
+}
+
 func TestIdempotencyRecoversLegacyTokenlessInflightRecordFromMemoryStore(t *testing.T) {
 	const key = "key-legacy-memory-recovery"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
