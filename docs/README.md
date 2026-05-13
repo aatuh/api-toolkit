@@ -22,10 +22,11 @@ go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new servic
   --dir ./my-api
 ```
 
-Use `--auth jwt` when the generated service should validate bearer tokens via
-JWKS instead of local API keys. The JWT scaffold requires `JWT_JWKS_URL`,
-`JWT_ISSUER`, and `JWT_AUDIENCE`, extracts tenant scope from token claims, and
-keeps the same tenant mismatch, idempotency, OpenAPI, and admin-route defaults.
+Use `--auth jwt` or `--auth clerk` when the generated service should validate
+bearer tokens via JWKS instead of local API keys. Bearer scaffolds require the
+matching issuer, audience, and JWKS URL environment variables, extract tenant
+scope from validated token claims, and keep the same tenant mismatch,
+idempotency, OpenAPI, and admin-route defaults.
 
 The same CLI can review OpenAPI artifacts before release. `contracts lint`
 checks operation IDs, non-public security requirements, unsafe-write tenant,

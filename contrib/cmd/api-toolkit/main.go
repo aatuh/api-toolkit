@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/format"
 	"io"
 	"net/http"
 	"os"
@@ -54,7 +55,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key|jwt]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key|jwt|clerk]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
@@ -77,7 +78,7 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unsupported profile %q\n", *profile)
 		return 2
 	}
-	authName, err := validateScaffoldAuthMode(profileName, *authMode)
+	authName, err := validateScaffoldAuthMode(*authMode)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -105,16 +106,14 @@ const (
 	scaffoldAuthDevHeaders = "dev-headers"
 )
 
-func validateScaffoldAuthMode(profile, authMode string) (string, error) {
+func validateScaffoldAuthMode(authMode string) (string, error) {
 	authMode = strings.ToLower(strings.TrimSpace(authMode))
 	if authMode == "" {
 		authMode = scaffoldAuthAPIKey
 	}
 	switch authMode {
-	case scaffoldAuthAPIKey, scaffoldAuthJWT:
+	case scaffoldAuthAPIKey, scaffoldAuthJWT, scaffoldAuthClerk:
 		return authMode, nil
-	case scaffoldAuthClerk:
-		return "", fmt.Errorf("auth mode %q is not supported by profile %q yet", authMode, profile)
 	case scaffoldAuthDevHeaders:
 		return "", fmt.Errorf("auth mode %q requires an explicit development profile", authMode)
 	default:
@@ -298,6 +297,13 @@ func generateService(cfg scaffoldConfig) error {
 		if err != nil {
 			return err
 		}
+		if strings.HasSuffix(file.Name, ".go") {
+			formatted, err := format.Source(rendered)
+			if err != nil {
+				return fmt.Errorf("format %s: %w", file.Name, err)
+			}
+			rendered = formatted
+		}
 		if err := writeGeneratedFile(root, file.Name, rendered); err != nil {
 			return err
 		}
@@ -426,17 +432,21 @@ func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 }
 
 func scaffoldAuthSecuritySchemeName(authMode string) string {
-	if authMode == scaffoldAuthJWT {
+	if isScaffoldBearerAuth(authMode) {
 		return "BearerAuth"
 	}
 	return "ApiKeyAuth"
 }
 
 func scaffoldAuthSecurityScheme(authMode string) specs.SecurityScheme {
-	if authMode == scaffoldAuthJWT {
+	if isScaffoldBearerAuth(authMode) {
 		return specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"}
 	}
 	return specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"}
+}
+
+func isScaffoldBearerAuth(authMode string) bool {
+	return authMode == scaffoldAuthJWT || authMode == scaffoldAuthClerk
 }
 
 func normalizeJSON(data []byte) ([]byte, error) {
@@ -1344,7 +1354,7 @@ go 1.25.0
 require (
 	github.com/aatuh/api-toolkit/v2 v2.1.0
 	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
-{{ if eq .AuthMode "jwt" }}	github.com/golang-jwt/jwt/v5 v5.3.0
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	github.com/golang-jwt/jwt/v5 v5.3.0
 {{ end }}	github.com/redis/go-redis/v9 v9.19.0
 )
 
@@ -1366,7 +1376,8 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
-	"github.com/redis/go-redis/v9"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+{{ end }}	"github.com/redis/go-redis/v9"
 	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/binding"
 	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
@@ -1374,7 +1385,7 @@ import (
 	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 {{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-{{ else }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
+{{ end }}{{ if eq .AuthMode "api-key" }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
 {{ end }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -1405,7 +1416,7 @@ func main() {
 
 func newService() (*bootstrap.APIService, error) {
 	specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
-{{ if eq .AuthMode "jwt" }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 {{ else }}	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 {{ end }}
 	if err := specs.RegisterSchemaFrom[widgetResponse](specRegistry, "Widget", specs.SchemaOptions{}); err != nil {
@@ -1430,7 +1441,7 @@ func newService() (*bootstrap.APIService, error) {
 		EnableCaching:   true,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
-		ReadinessChecks: []string{"basic"{{ if eq .AuthMode "jwt" }}, "jwt"{{ end }}},
+		ReadinessChecks: []string{"basic"{{ if eq .AuthMode "jwt" }}, "jwt"{{ else if eq .AuthMode "clerk" }}, "clerk"{{ end }}},
 	})
 	healthManager.RegisterChecker(health.NewBasicChecker())
 
@@ -1439,6 +1450,11 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 	healthManager.RegisterChecker(jwtauth.HealthChecker(jwtConfig, nil))
+{{ else if eq .AuthMode "clerk" }}	clerkMiddleware, clerkConfig, err := newClerkMiddleware(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	healthManager.RegisterChecker(clerkauth.HealthChecker(clerkConfig, nil))
 {{ else }}
 	apiKeyMiddleware, err := newAPIKeyMiddleware()
 	if err != nil {
@@ -1507,6 +1523,10 @@ func newService() (*bootstrap.APIService, error) {
 			widgetHandler = tenantMiddleware.Handler(widgetHandler)
 			widgetHandler = withJWTAuthorizationScope(widgetHandler)
 			widgetHandler = jwtMiddleware.Handler(widgetHandler)
+{{ else if eq .AuthMode "clerk" }}			widgetHandler = requireClerkScope("widgets:write")(widgetHandler)
+			widgetHandler = tenantMiddleware.Handler(widgetHandler)
+			widgetHandler = withClerkAuthorizationScope(widgetHandler)
+			widgetHandler = clerkMiddleware.Handler(widgetHandler)
 {{ else }}
 			widgetHandler = apikey.RequireScopeMiddleware("widgets:write")(widgetHandler)
 			widgetHandler = tenantMiddleware.Handler(widgetHandler)
@@ -1520,6 +1540,12 @@ func newService() (*bootstrap.APIService, error) {
 {{ if eq .AuthMode "jwt" }}		ShutdownHooks: []bootstrap.ShutdownHook{
 			{Name: "jwt", Hook: func(context.Context) error {
 				jwtMiddleware.Close()
+				return nil
+			}},
+		},
+{{ else if eq .AuthMode "clerk" }}		ShutdownHooks: []bootstrap.ShutdownHook{
+			{Name: "clerk", Hook: func(context.Context) error {
+				clerkMiddleware.Close()
 				return nil
 			}},
 		},
@@ -1562,6 +1588,36 @@ func newService() (*bootstrap.APIService, error) {
 		JWKSRefreshInterval: 10 * time.Minute,
 	}
 	mw, err := jwtauth.NewMiddleware(ctx, cfg, ports.NopLogger{})
+	if err != nil {
+		return nil, cfg, err
+	}
+	return mw, cfg, nil
+}
+
+{{ else if eq .AuthMode "clerk" }}func newClerkMiddleware(ctx context.Context) (*clerkauth.Middleware, clerkauth.Config, error) {
+	jwksURL, err := requiredEnv("CLERK_JWKS_URL")
+	if err != nil {
+		return nil, clerkauth.Config{}, err
+	}
+	issuer, err := requiredEnv("CLERK_ISSUER")
+	if err != nil {
+		return nil, clerkauth.Config{}, err
+	}
+	audience, err := requiredEnv("CLERK_AUDIENCE")
+	if err != nil {
+		return nil, clerkauth.Config{}, err
+	}
+	cfg := clerkauth.Config{
+		Enabled:             true,
+		JWKSURL:             jwksURL,
+		Issuer:              issuer,
+		Audience:            audience,
+		AllowedAlgorithms:   splitCSV(env("CLERK_ALLOWED_ALGORITHMS", "RS256")),
+		AllowedClockSkew:    30 * time.Second,
+		JWKSRefreshTimeout:  5 * time.Second,
+		JWKSRefreshInterval: 10 * time.Minute,
+	}
+	mw, err := clerkauth.NewMiddleware(ctx, cfg, ports.NopLogger{})
 	if err != nil {
 		return nil, cfg, err
 	}
@@ -1657,7 +1713,7 @@ func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
 	}
 }
 
-{{ if eq .AuthMode "jwt" }}func withJWTAuthorizationScope(next http.Handler) http.Handler {
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}{{ if eq .AuthMode "jwt" }}func withJWTAuthorizationScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := jwtauth.SubjectFromContext(r.Context())
 		if !ok {
@@ -1753,6 +1809,53 @@ func jwtScopeValues(value any) []string {
 	}
 }
 
+{{ else if eq .AuthMode "clerk" }}func withClerkAuthorizationScope(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := clerkauth.SubjectFromContext(r.Context())
+		if !ok {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+			return
+		}
+		if strings.TrimSpace(subj.TenantID) == "" {
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
+			return
+		}
+		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: strings.TrimSpace(subj.TenantID), UserID: subj.UserID})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func requireClerkScope(required string) func(http.Handler) http.Handler {
+	required = strings.TrimSpace(required)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			subj, ok := clerkauth.SubjectFromContext(r.Context())
+			if !ok {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+				return
+			}
+			if !clerkSubjectHasScope(subj, required) {
+				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func clerkSubjectHasScope(subj clerkauth.Subject, required string) bool {
+	if required == "" {
+		return true
+	}
+	for _, scope := range splitScopeString(subj.Scope) {
+		if strings.EqualFold(scope, required) {
+			return true
+		}
+	}
+	return false
+}
+
+{{ end }}
 func splitScopeString(value string) []string {
 	parts := strings.FieldsFunc(value, func(r rune) bool {
 		return r == ' ' || r == ','
@@ -1812,19 +1915,19 @@ const mainTestTemplate = `package main
 
 import (
 	"bytes"
-{{ if eq .AuthMode "jwt" }}	"crypto/rand"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 {{ end }}	"encoding/json"
 	"flag"
-{{ if eq .AuthMode "jwt" }}	"math/big"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	"math/big"
 {{ end }}	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-{{ if eq .AuthMode "jwt" }}	"time"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 {{ end }}
@@ -1993,6 +2096,31 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 	}
 }
 
+{{ else if eq .AuthMode "clerk" }}func TestGeneratedServiceRejectsProductionMissingClerkConfig(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("CLERK_JWKS_URL", "")
+	t.Setenv("CLERK_ISSUER", "https://issuer.example.com")
+	t.Setenv("CLERK_AUDIENCE", "saas-api")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require Clerk config")
+	} else if !strings.Contains(err.Error(), "CLERK_JWKS_URL") {
+		t.Fatalf("startup error = %v, want CLERK_JWKS_URL requirement", err)
+	}
+}
+
+func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
+	t.Setenv("ENV", "production")
+	setClerkAuthEnv(t)
+	t.Setenv("ADMIN_KEY", "")
+	t.Setenv("IDEMPOTENCY_STORE", "redis")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require admin key")
+	} else if !strings.Contains(err.Error(), "ADMIN_KEY") {
+		t.Fatalf("startup error = %v, want ADMIN_KEY requirement", err)
+	}
+}
+
 {{ else }}func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("API_KEY", "")
@@ -2008,6 +2136,7 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 	t.Setenv("ENV", "production")
 {{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
 {{ else }}
 	t.Setenv("API_KEY", "prod-api-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
@@ -2024,6 +2153,7 @@ func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 	t.Setenv("ENV", "production")
 {{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
 {{ else }}
 	t.Setenv("API_KEY", "prod-api-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
@@ -2042,6 +2172,7 @@ func setLocalTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV", "development")
 {{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
 {{ else }}
 	t.Setenv("API_KEY", "local-dev-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
@@ -2053,56 +2184,81 @@ func setLocalTestEnv(t *testing.T) {
 func authorizeWidgetRequest(t *testing.T, req *http.Request, tenantID string) {
 	t.Helper()
 {{ if eq .AuthMode "jwt" }}	req.Header.Set("Authorization", "Bearer "+testJWT(t, tenantID, "widgets:write"))
+{{ else if eq .AuthMode "clerk" }}	req.Header.Set("Authorization", "Bearer "+testClerkJWT(t, tenantID, "widgets:write"))
 {{ else }}	req.Header.Set("X-API-Key", "local-dev-key")
 {{ end }}	req.Header.Set("X-Tenant-ID", tenantID)
 }
 
-{{ if eq .AuthMode "jwt" }}const (
-	testJWTKeyID    = "test-kid"
-	testJWTIssuer   = "https://issuer.example.test"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}const (
+	testBearerKeyID = "test-kid"
+{{ if eq .AuthMode "jwt" }}	testJWTIssuer   = "https://issuer.example.test"
 	testJWTAudience = "saas-api"
+{{ else if eq .AuthMode "clerk" }}	testClerkIssuer   = "https://clerk.example.test"
+	testClerkAudience = "saas-api"
+{{ end }}
 )
 
-var testJWTPrivateKey *rsa.PrivateKey
+var testBearerPrivateKey *rsa.PrivateKey
 
+{{ if eq .AuthMode "jwt" }}
 func setJWTAuthEnv(t *testing.T) {
+	t.Helper()
+	setBearerAuthEnv(t, "JWT", testJWTIssuer, testJWTAudience)
+}
+
+func testJWT(t *testing.T, tenantID string, scopes ...string) string {
+	t.Helper()
+	return testBearerJWT(t, testJWTIssuer, testJWTAudience, tenantID, scopes...)
+}
+
+{{ else if eq .AuthMode "clerk" }}func setClerkAuthEnv(t *testing.T) {
+	t.Helper()
+	setBearerAuthEnv(t, "CLERK", testClerkIssuer, testClerkAudience)
+}
+
+func testClerkJWT(t *testing.T, tenantID string, scopes ...string) string {
+	t.Helper()
+	return testBearerJWT(t, testClerkIssuer, testClerkAudience, tenantID, scopes...)
+}
+
+{{ end }}func setBearerAuthEnv(t *testing.T, envPrefix, issuer, audience string) {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("generate JWT key: %v", err)
+		t.Fatalf("generate bearer test key: %v", err)
 	}
-	testJWTPrivateKey = key
+	testBearerPrivateKey = key
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{jwkFromRSAPublicKey(&key.PublicKey)}})
 	}))
 	t.Cleanup(server.Close)
-	t.Setenv("JWT_JWKS_URL", server.URL)
-	t.Setenv("JWT_ISSUER", testJWTIssuer)
-	t.Setenv("JWT_AUDIENCE", testJWTAudience)
-	t.Setenv("JWT_ALLOWED_ALGORITHMS", "RS256")
+	t.Setenv(envPrefix+"_JWKS_URL", server.URL)
+	t.Setenv(envPrefix+"_ISSUER", issuer)
+	t.Setenv(envPrefix+"_AUDIENCE", audience)
+	t.Setenv(envPrefix+"_ALLOWED_ALGORITHMS", "RS256")
 }
 
-func testJWT(t *testing.T, tenantID string, scopes ...string) string {
+func testBearerJWT(t *testing.T, issuer, audience, tenantID string, scopes ...string) string {
 	t.Helper()
-	if testJWTPrivateKey == nil {
-		t.Fatal("JWT test key is not configured")
+	if testBearerPrivateKey == nil {
+		t.Fatal("bearer test key is not configured")
 	}
 	now := time.Now().UTC()
 	claims := jwt.MapClaims{
 		"sub":       "user_123",
 		"tenant_id": tenantID,
 		"scope":     strings.Join(scopes, " "),
-		"iss":       testJWTIssuer,
-		"aud":       testJWTAudience,
+		"iss":       issuer,
+		"aud":       audience,
 		"iat":       now.Unix(),
 		"exp":       now.Add(time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = testJWTKeyID
-	signed, err := token.SignedString(testJWTPrivateKey)
+	token.Header["kid"] = testBearerKeyID
+	signed, err := token.SignedString(testBearerPrivateKey)
 	if err != nil {
-		t.Fatalf("sign JWT: %v", err)
+		t.Fatalf("sign bearer test JWT: %v", err)
 	}
 	return signed
 }
@@ -2111,7 +2267,7 @@ func jwkFromRSAPublicKey(key *rsa.PublicKey) map[string]string {
 	return map[string]string{
 		"kty": "RSA",
 		"use": "sig",
-		"kid": testJWTKeyID,
+		"kid": testBearerKeyID,
 		"alg": "RS256",
 		"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
 		"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
@@ -2155,6 +2311,10 @@ API_ADDR=:8080
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api
 JWT_ALLOWED_ALGORITHMS=RS256
+{{ else if eq .AuthMode "clerk" }}CLERK_JWKS_URL=
+CLERK_ISSUER=
+CLERK_AUDIENCE=saas-api
+CLERK_ALLOWED_ALGORITHMS=RS256
 {{ else }}
 API_KEY=local-dev-key
 API_TENANT_ID=tenant_1
@@ -2237,12 +2397,14 @@ Default routes:
 
 - ` + "`GET /readyz`" + `
 - ` + "`GET /docs/openapi.json`" + `
-- ` + "`POST /widgets`" + ` with {{ if eq .AuthMode "jwt" }}` + "`Authorization: Bearer <token>`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
+- ` + "`POST /widgets`" + ` with {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}` + "`Authorization: Bearer <token>`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 {{ if eq .AuthMode "jwt" }}JWT mode validates bearer tokens with ` + "`JWT_JWKS_URL`" + `, ` + "`JWT_ISSUER`" + `, and ` + "`JWT_AUDIENCE`" + `. The ` + "`tenant_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
 When ` + "`ENV=production`" + `, startup requires explicit JWT configuration and ` + "`ADMIN_KEY`" + `.
+{{ else if eq .AuthMode "clerk" }}Clerk mode validates bearer tokens with ` + "`CLERK_JWKS_URL`" + `, ` + "`CLERK_ISSUER`" + `, and ` + "`CLERK_AUDIENCE`" + `. The ` + "`tenant_id`" + ` or ` + "`org_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
+When ` + "`ENV=production`" + `, startup requires explicit Clerk configuration and ` + "`ADMIN_KEY`" + `.
 {{ else }}
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
