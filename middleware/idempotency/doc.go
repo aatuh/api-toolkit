@@ -11,6 +11,9 @@
 // Options.StorageKeyFunc to TenantScopedStorageKeyFunc() after auth and tenant
 // middleware so the backing store receives a stable hashed key scoped by tenant
 // and actor while replay responses still return the original client key.
+// Set Options.RequireKey when unsafe write route contracts require an
+// Idempotency-Key; when enabled, handled requests without a key fail with a
+// Problem Details 400 instead of falling through to the handler.
 //
 // Compatibility helpers:
 //

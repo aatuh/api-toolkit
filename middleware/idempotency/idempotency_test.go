@@ -65,6 +65,42 @@ func TestIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyRequireKeyRejectsMissingKey(t *testing.T) {
+	mem := newMemoryStore()
+	var events []OutcomeEvent
+	called := false
+	mw, err := New(Options{
+		Store:      mem,
+		RequireKey: true,
+		OnOutcome: func(_ context.Context, event OutcomeEvent) {
+			events = append(events, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if called {
+		t.Fatal("handler was called without an idempotency key")
+	}
+	if !strings.Contains(rec.Body.String(), "idempotency key is required") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+	if len(events) != 1 || events[0].Outcome != IdempotencyOutcomeMissingKey || events[0].Status != http.StatusBadRequest {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
 func TestIdempotencyEmitsLowCardinalityOutcomeEvents(t *testing.T) {
 	mem := newMemoryStore()
 	var events []OutcomeEvent
