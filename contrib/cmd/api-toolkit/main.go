@@ -1533,7 +1533,8 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
-		Store: idempotencyStore,
+		Store:          idempotencyStore,
+		StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc(),
 	})
 	if err != nil {
 		return nil, err
@@ -2183,6 +2184,9 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 	}
 	if got := rec.Header().Get("Idempotency-Replayed"); got != "true" {
 		t.Fatalf("replay header = %q", got)
+	}
+	if got := rec.Header().Get("Idempotency-Key"); got != "create-key" {
+		t.Fatalf("replay idempotency key = %q", got)
 	}
 }
 

@@ -29,6 +29,11 @@ var (
 // KeyFunc extracts an idempotency key from the request.
 type KeyFunc func(*http.Request) string
 
+// StorageKeyFunc maps a client-supplied idempotency key to the key used by the
+// backing store. Implementations should keep the result stable for replay and
+// avoid embedding raw tenant IDs, user IDs, or client keys.
+type StorageKeyFunc func(*http.Request, string) string
+
 // HashFunc computes a request hash used to detect key reuse with different payloads.
 type HashFunc func(*http.Request, []byte) (string, error)
 

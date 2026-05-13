@@ -306,6 +306,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"NewPrometheusRecorderChecked",
 		"DefaultRouterConfig{Metrics:",
 		"newIdempotencyStore()",
+		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",
 	} {
 		if !strings.Contains(string(generatedMain), want) {
