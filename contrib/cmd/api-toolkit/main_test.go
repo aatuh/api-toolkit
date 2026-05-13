@@ -403,6 +403,22 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 			t.Fatalf("generated Makefile missing %q", want)
 		}
 	}
+	generatedCompose, err := os.ReadFile(filepath.Join(serviceDir, "docker-compose.yml"))
+	if err != nil {
+		t.Fatalf("read generated docker-compose.yml: %v", err)
+	}
+	for _, want := range []string{
+		"redis:",
+		"image: redis:7-alpine",
+		"REDIS_ADDR: redis:6379",
+		"RATE_LIMIT_REDIS_ADDR: redis:6379",
+		"redis-data:",
+		`test: ["CMD", "redis-cli", "ping"]`,
+	} {
+		if !strings.Contains(string(generatedCompose), want) {
+			t.Fatalf("generated docker-compose.yml missing %q:\n%s", want, generatedCompose)
+		}
+	}
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)

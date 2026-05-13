@@ -2981,6 +2981,26 @@ const composeTemplate = `services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      REDIS_ADDR: redis:6379
+      RATE_LIMIT_REDIS_ADDR: redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
 `
 
 const readmeTemplate = `# Generated api-toolkit Service
@@ -2996,6 +3016,12 @@ Build the production-style container image:
 
 ` + "```sh" + `
 docker build -t my-api .
+` + "```" + `
+
+Run the API with its local Redis dependency:
+
+` + "```sh" + `
+docker compose up --build
 ` + "```" + `
 
 Refresh and check the OpenAPI golden:
