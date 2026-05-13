@@ -224,6 +224,43 @@ func TestRouteOverrideCanTuneHardTimeoutCaptureBytes(t *testing.T) {
 	}
 }
 
+func TestStreamingRouteOverrideDisablesHardTimeoutBuffering(t *testing.T) {
+	profile, err := New(
+		WithRequireAuth(false),
+		WithHardTimeout(5*time.Millisecond),
+		WithRouteOverrides(StreamingRouteOverride("/events", http.MethodGet)),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/events" {
+			_, hasFlusher := w.(http.Flusher)
+			w.Header().Set("X-Has-Flusher", strconv.FormatBool(hasFlusher))
+		}
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defaultReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/default", nil)
+	defaultRec := httptest.NewRecorder()
+	handler.ServeHTTP(defaultRec, defaultReq)
+	if defaultRec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected default route to keep hard timeout, got %d", defaultRec.Code)
+	}
+
+	streamReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/events", nil)
+	streamRec := httptest.NewRecorder()
+	handler.ServeHTTP(streamRec, streamReq)
+	if streamRec.Code != http.StatusOK {
+		t.Fatalf("expected streaming route to bypass hard timeout, got %d", streamRec.Code)
+	}
+	if got := streamRec.Header().Get("X-Has-Flusher"); got != "true" {
+		t.Fatalf("expected streaming route to preserve flusher, got %q", got)
+	}
+}
+
 func TestOWASPBaselineLimits(t *testing.T) {
 	profile, err := OWASPBaseline(WithRequireAuth(false))
 	if err != nil {

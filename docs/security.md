@@ -113,10 +113,13 @@ websocket upgrades, or handlers that require optional `http.ResponseWriter`
 interfaces such as `http.Flusher` or `http.Hijacker`. Tune capture size globally
 with `securityprofile.WithHardTimeoutMaxCaptureBytes` or per route with
 `RouteOverride.HardTimeoutMaxCaptureBytes` for large non-streaming responses;
-these knobs do not make streaming routes safe. Handler panics inside hard
-timeout are contained in the child goroutine. Before the timeout response wins,
-the middleware returns a deterministic 500 Problem Details response; after the
-timeout response wins, late panics are dropped with late writes.
+these knobs do not make streaming routes safe. Use
+`securityprofile.StreamingRouteOverride` for streaming, SSE, websocket, or
+large-download routes that need to preserve optional writer interfaces and avoid
+timeout response buffering. Handler panics inside hard timeout are contained in
+the child goroutine. Before the timeout response wins, the middleware returns a
+deterministic 500 Problem Details response; after the timeout response wins,
+late panics are dropped with late writes.
 
 `middleware/timeout.Options.EventHooks` exposes bounded operator
 metadata for timeout, panic, and capture-overflow outcomes. The event contract
