@@ -47,7 +47,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("new service failed: %s", out.String())
 	}
-	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", "Dockerfile", "docker-compose.yml", "README.md"} {
+	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", ".dockerignore", "Dockerfile", "docker-compose.yml", "README.md"} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
@@ -62,6 +62,32 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated main.go missing %q", want)
+		}
+	}
+	generatedDockerfile, err := os.ReadFile(filepath.Join(serviceDir, "Dockerfile"))
+	if err != nil {
+		t.Fatalf("read generated Dockerfile: %v", err)
+	}
+	for _, want := range []string{
+		"FROM golang:1.25 AS build",
+		"CGO_ENABLED=0 GOOS=linux go build",
+		"USER nonroot:nonroot",
+		"ENTRYPOINT [\"/api\"]",
+	} {
+		if !strings.Contains(string(generatedDockerfile), want) {
+			t.Fatalf("generated Dockerfile missing %q", want)
+		}
+	}
+	if strings.Contains(string(generatedDockerfile), "go run") {
+		t.Fatalf("generated Dockerfile should run a built binary, got:\n%s", generatedDockerfile)
+	}
+	generatedDockerignore, err := os.ReadFile(filepath.Join(serviceDir, ".dockerignore"))
+	if err != nil {
+		t.Fatalf("read generated .dockerignore: %v", err)
+	}
+	for _, want := range []string{".env", ".git"} {
+		if !strings.Contains(string(generatedDockerignore), want) {
+			t.Fatalf("generated .dockerignore missing %q", want)
 		}
 	}
 
