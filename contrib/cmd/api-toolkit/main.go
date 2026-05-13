@@ -3025,8 +3025,10 @@ API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/ap
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 OUTPUT_DIR ?= .ci-result
+TOOLS_DIR ?= .tools
 SYFT ?= syft
 COVERAGE_MIN ?= 70.0
+GOVULNCHECK ?= $(CURDIR)/$(TOOLS_DIR)/bin/govulncheck
 GOVULNCHECK_VERSION ?= v1.2.0
 VERSION ?= dev
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -3037,8 +3039,11 @@ LDFLAGS ?= -s -w -X main.appVersion=$(VERSION) -X main.buildCommit=$(BUILD_COMMI
 
 .PHONY: tools test fmt build coverage coverage-check test-race vuln openapi-check openapi-update contracts-lint contracts-diff fast-check audit-check sbom-local clean finalize
 
-tools:
-	$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+tools: $(GOVULNCHECK)
+
+$(GOVULNCHECK):
+	mkdir -p "$(CURDIR)/$(TOOLS_DIR)/bin"
+	GOBIN="$(CURDIR)/$(TOOLS_DIR)/bin" $(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 test:
 	$(GO) test ./...
@@ -3060,7 +3065,7 @@ test-race:
 	$(GO) test ./... -race -count=1
 
 vuln: tools
-	govulncheck ./...
+	"$(GOVULNCHECK)" ./...
 
 openapi-check:
 	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden
@@ -3160,6 +3165,7 @@ const gitignoreTemplate = `.env
 .env.*
 !.env.example
 .ci-result/
+.tools/
 coverage.out
 bin/
 tmp/
@@ -3172,6 +3178,7 @@ const dockerignoreTemplate = `.git
 .env.*
 !.env.example
 .ci-result
+.tools
 coverage.out
 tmp/
 bin/
@@ -3278,6 +3285,6 @@ Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the 
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
 ` + "`make build`" + ` produces ` + "`bin/api`" + ` and stamps ` + "`/version`" + ` with ` + "`VERSION`" + `, ` + "`BUILD_COMMIT`" + `, and ` + "`BUILD_DATE`" + `. The Dockerfile accepts matching build args and defaults to ` + "`dev`" + `/` + "`unknown`" + ` metadata.
-Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow. The generated Makefile also includes ` + "`make fast-check`" + ` for local iteration, ` + "`make audit-check`" + ` for coverage floor, race, vulnerability, OpenAPI, and contract review, and optional ` + "`make sbom-local`" + ` for SPDX JSON SBOM output under ` + "`.ci-result/sbom`" + ` when Syft is installed.
+Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow. The generated Makefile also includes ` + "`make fast-check`" + ` for local iteration, ` + "`make audit-check`" + ` for coverage floor, race, vulnerability, OpenAPI, and contract review, and optional ` + "`make sbom-local`" + ` for SPDX JSON SBOM output under ` + "`.ci-result/sbom`" + ` when Syft is installed. Generated Go tools are installed under ` + "`.tools/bin`" + ` by default.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `

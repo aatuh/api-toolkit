@@ -111,6 +111,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` Makefiles now make `coverage-check` enforce
   `COVERAGE_MIN` instead of only writing a coverage profile, so generated CI
   fails closed when test coverage drops below the configured floor.
+- Generated `saas-api` Makefiles now install `govulncheck` under `.tools/bin`
+  by default and invoke it through the overridable `GOVULNCHECK` variable, so
+  scaffold checks do not require globally mutating the developer Go bin.
 - Generated `saas-api` services now keep memory idempotency storage as the local
   default but reject it under `ENV=production`; production defaults to the Redis
   idempotency adapter and requires `REDIS_ADDR` before startup.
