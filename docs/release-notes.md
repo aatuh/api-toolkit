@@ -110,6 +110,9 @@ source of truth is `docs/release-runbook.md`.
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
   findings.
+- `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
+  OpenAPI component-schema drift findings, so library tests and CLI release
+  review stay aligned.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.
