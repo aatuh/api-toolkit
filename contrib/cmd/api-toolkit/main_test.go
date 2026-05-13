@@ -33,12 +33,14 @@ func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 
 func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 	tests := []struct {
-		name string
-		auth string
-		want string
+		name    string
+		profile string
+		auth    string
+		want    string
 	}{
-		{name: "dev headers require development profile", auth: "dev-headers", want: "auth mode \"dev-headers\" requires an explicit development profile"},
-		{name: "unknown", auth: "session", want: "unsupported auth mode \"session\""},
+		{name: "dev headers require development profile", profile: "saas-api", auth: "dev-headers", want: "auth mode \"dev-headers\" requires an explicit development profile"},
+		{name: "production modes stay on saas profile", profile: "dev-api", auth: "api-key", want: "auth mode \"api-key\" is not supported for profile \"dev-api\""},
+		{name: "unknown", profile: "saas-api", auth: "session", want: "unsupported auth mode \"session\""},
 	}
 
 	for _, tt := range tests {
@@ -47,7 +49,7 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 			code := run(context.Background(), []string{
 				"new", "service",
 				"--module", "example.com/my-api",
-				"--profile", "saas-api",
+				"--profile", tt.profile,
 				"--auth", tt.auth,
 				"--dir", filepath.Join(t.TempDir(), "service"),
 			}, &strings.Builder{}, &errOut)
@@ -58,6 +60,80 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "dev-api",
+		"--auth", "dev-headers",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new service failed: %s", out.String())
+	}
+
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "main.go"))
+	if err != nil {
+		t.Fatalf("read generated main.go: %v", err)
+	}
+	for _, want := range []string{
+		`RegisterSecurityScheme("DevHeaderAuth"`,
+		"newDevHeadersMiddleware",
+		"withDevHeaderAuthorizationScope",
+		"requireDevHeaderScope",
+	} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated dev-header main.go missing %q", want)
+		}
+	}
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated .env.example: %v", err)
+	}
+	for _, want := range []string{
+		"DEV_AUTH_FALLBACK_ENABLED=true",
+		"DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES=true",
+		"DEV_AUTH_TENANT_HEADER=X-Debug-Tenant-ID",
+		"DEV_AUTH_SCOPE_HEADER=X-Debug-Scopes",
+	} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated dev-header .env.example missing %q", want)
+		}
+	}
+	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read generated README.md: %v", err)
+	}
+	if !strings.Contains(string(generatedREADME), "Generated auth mode: `dev-headers`.") {
+		t.Fatalf("generated README missing dev-header auth mode")
+	}
+
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated dev-header service tidy failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated dev-header service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-lint")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated dev-header service contracts lint failed:\n%s\nerror: %v", output, err)
 	}
 }
 
