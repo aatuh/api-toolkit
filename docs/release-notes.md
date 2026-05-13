@@ -138,6 +138,10 @@ source of truth is `docs/release-runbook.md`.
   service on unexpected task errors, and stop during graceful shutdown.
   Generated `saas-api` services use this to run health refreshes with bounded
   health-status metrics.
+- `make release-check` now runs `contrib-api-drift-report` as a first-class
+  release-readiness subcheck, and release evidence reuses that log for the
+  structured contrib drift summary instead of leaving supported-adapter API
+  drift only in the evidence-only path.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required
