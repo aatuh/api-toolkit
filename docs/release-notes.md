@@ -177,6 +177,9 @@ source of truth is `docs/release-runbook.md`.
   of silently installing a noop exporter.
 - `api-toolkit version` now prints Go runtime, main module, core module,
   contrib module, build commit, and build date metadata for release evidence.
+- Generated services now stamp `/version` from `appVersion`, `buildCommit`, and
+  `buildDate`, and the generated Makefile/Dockerfile pass those fields through
+  build flags with local `dev`/`unknown` defaults.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

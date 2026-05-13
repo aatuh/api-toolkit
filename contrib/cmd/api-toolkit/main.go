@@ -1690,6 +1690,12 @@ type widgetResponse struct {
 	Name     string ` + "`json:\"name\"`" + `
 }
 
+var (
+	appVersion  = "dev"
+	buildCommit = "unknown"
+	buildDate   = "unknown"
+)
+
 func main() {
 	service, err := newService()
 	if err != nil {
@@ -1727,7 +1733,7 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 
-specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
+specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: appVersion})
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 {{ else if eq .AuthMode "dev-headers" }}	specRegistry.RegisterSecurityScheme("DevHeaderAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-Debug-User", In: "header"})
 {{ else }}	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
@@ -1743,7 +1749,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 	docsManager := docs.NewWithConfig(ports.DocsConfig{
 		Title:       "SaaS API",
 		Description: "Generated api-toolkit service",
-		Version:     "dev",
+		Version:     appVersion,
 		Paths:       ports.DefaultDocsPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
@@ -1905,7 +1911,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  health.NewHandler(healthManager),
 			Docs:    docs.NewHandler(docsManager),
-			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: "dev"}}),
+			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
 			Metrics: bootstrap.PrometheusMetricsHandler(),
 			Pprof:   http.DefaultServeMux,
 		},
@@ -2456,6 +2462,21 @@ func TestGeneratedServiceHealthAndOpenAPI(t *testing.T) {
 	if operation["operationId"] != "createWidget" {
 		t.Fatalf("operationId = %v", operation["operationId"])
 	}
+
+	rec = httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, specs.Version, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("version status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var versionInfo map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionInfo); err != nil {
+		t.Fatalf("decode version: %v", err)
+	}
+	for key, want := range map[string]string{"version": "dev", "commit": "unknown", "date": "unknown"} {
+		if versionInfo[key] != want {
+			t.Fatalf("version %s = %q, want %q", key, versionInfo[key], want)
+		}
+	}
 }
 
 func TestGeneratedServiceOpenAPIGolden(t *testing.T) {
@@ -2487,6 +2508,36 @@ func TestGeneratedServiceOpenAPIGolden(t *testing.T) {
 		t.Fatalf("read golden: %v", err)
 	}
 	contracttest.GoldenOpenAPI(t, rec.Body.Bytes(), golden)
+}
+
+func TestGeneratedVersionEndpointUsesBuildMetadata(t *testing.T) {
+	oldVersion, oldCommit, oldDate := appVersion, buildCommit, buildDate
+	appVersion = "1.2.3"
+	buildCommit = "abc123"
+	buildDate = "2026-05-13T00:00:00Z"
+	t.Cleanup(func() {
+		appVersion, buildCommit, buildDate = oldVersion, oldCommit, oldDate
+	})
+	setLocalTestEnv(t)
+	service, err := newService()
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, specs.Version, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("version status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var versionInfo map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionInfo); err != nil {
+		t.Fatalf("decode version: %v", err)
+	}
+	for key, want := range map[string]string{"version": "1.2.3", "commit": "abc123", "date": "2026-05-13T00:00:00Z"} {
+		if versionInfo[key] != want {
+			t.Fatalf("version %s = %q, want %q", key, versionInfo[key], want)
+		}
+	}
 }
 
 func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
@@ -2951,14 +3002,23 @@ const makefileTemplate = `GO ?= go
 API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
+VERSION ?= dev
+BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GOOS ?= $(shell $(GO) env GOOS)
+GOARCH ?= $(shell $(GO) env GOARCH)
+LDFLAGS ?= -s -w -X main.appVersion=$(VERSION) -X main.buildCommit=$(BUILD_COMMIT) -X main.buildDate=$(BUILD_DATE)
 
-.PHONY: test fmt openapi-check openapi-update contracts-lint contracts-diff finalize
+.PHONY: test fmt build openapi-check openapi-update contracts-lint contracts-diff finalize
 
 test:
 	$(GO) test ./...
 
 fmt:
 	$(GO) fmt ./...
+
+build:
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/api .
 
 openapi-check:
 	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden
@@ -2972,7 +3032,7 @@ contracts-lint:
 contracts-diff:
 	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
 
-finalize: fmt test openapi-check contracts-lint contracts-diff
+finalize: fmt test build openapi-check contracts-lint contracts-diff
 `
 
 const envTemplate = `ENV=development
@@ -3045,7 +3105,10 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 RUN go test ./...
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api .
+ARG VERSION=dev
+ARG BUILD_COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.appVersion=${VERSION} -X main.buildCommit=${BUILD_COMMIT} -X main.buildDate=${BUILD_DATE}" -o /out/api .
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
@@ -3136,5 +3199,6 @@ When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_K
 Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
+` + "`make build`" + ` produces ` + "`bin/api`" + ` and stamps ` + "`/version`" + ` with ` + "`VERSION`" + `, ` + "`BUILD_COMMIT`" + `, and ` + "`BUILD_DATE`" + `. The Dockerfile accepts matching build args and defaults to ` + "`dev`" + `/` + "`unknown`" + ` metadata.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
