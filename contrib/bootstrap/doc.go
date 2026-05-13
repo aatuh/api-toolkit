@@ -49,5 +49,7 @@
 // recovery, tracing, secure headers, rate limits, body/query limits, JSON
 // enforcement, timeout, request logging, and metrics in the expected sequence.
 // Services that compose custom routers can use `RequireMiddlewareOrder` as a
-// startup check.
+// startup check. SaaS API services that add route-policy middleware outside the
+// transport profile can use `StrictSaaSAPIMiddlewareOrder` to require auth,
+// tenant, and idempotency stages after metrics.
 package bootstrap

@@ -77,6 +77,11 @@ source of truth is `docs/release-runbook.md`.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
+  `StrictSaaSAPIMiddlewareOrder` for services that require the full production
+  policy sequence of auth, tenant, and idempotency after the transport
+  middleware stack, and generated `saas-api` services declare that order during
+  startup validation.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

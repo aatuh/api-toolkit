@@ -45,6 +45,18 @@ func StrictAPIMiddlewareOrder() []MiddlewareStage {
 	}
 }
 
+// StrictSaaSAPIMiddlewareOrder returns the production SaaS API middleware
+// sequence, including route-policy stages commonly applied outside the
+// transport profile.
+func StrictSaaSAPIMiddlewareOrder() []MiddlewareStage {
+	order := StrictAPIMiddlewareOrder()
+	return append(order,
+		MiddlewareAuth,
+		MiddlewareTenant,
+		MiddlewareIdempotency,
+	)
+}
+
 // DevMiddlewareOrder returns the development profile middleware sequence.
 func DevMiddlewareOrder() []MiddlewareStage {
 	return []MiddlewareStage{
