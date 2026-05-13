@@ -206,6 +206,10 @@ source of truth is `docs/release-runbook.md`.
   bounded operator metadata for timeout, panic, and response-capture overflow
   outcomes without exposing panic values, paths, query strings, headers, or
   bodies.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now exposes
+  `HardTimeoutEventHook` and records bounded hard-timeout outcomes in
+  `http_hard_timeout_events_total`; request logging now exposes
+  `HardTimeoutEventLogHook` with the same bounded event shape.
 - `securityprofile.StreamingRouteOverride` now provides an explicit route-level
   opt-out for streaming, SSE, websocket, or large-download routes that must
   avoid hard-timeout response buffering and preserve optional writer

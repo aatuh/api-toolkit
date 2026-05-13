@@ -14,6 +14,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	coretrace "github.com/aatuh/api-toolkit/v2/middleware/trace"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
@@ -47,6 +48,13 @@ const (
 	FieldIdempotencyOutcome     = "idempotency_outcome"
 	FieldIdempotencyStatusClass = "idempotency_status_class"
 	FieldIdempotencyFailOpen    = "idempotency_fail_open"
+
+	FieldHardTimeoutMethod          = "hard_timeout_method"
+	FieldHardTimeoutOutcome         = "hard_timeout_outcome"
+	FieldHardTimeoutStatusClass     = "hard_timeout_status_class"
+	FieldHardTimeoutTimedOut        = "hard_timeout_timed_out"
+	FieldHardTimeoutPanicked        = "hard_timeout_panicked"
+	FieldHardTimeoutCaptureOverflow = "hard_timeout_capture_overflow"
 )
 
 const redactedValue = "[redacted]"
@@ -330,6 +338,39 @@ func IdempotencyOutcomeFields(event idempotencymw.OutcomeEvent) []any {
 	}
 }
 
+// HardTimeoutEventLogHook returns a hard-timeout middleware event hook that
+// writes bounded timeout fields to the configured logger.
+func HardTimeoutEventLogHook(log ports.Logger) func(timeoutmw.HardTimeoutEvent) {
+	if log == nil {
+		return nil
+	}
+	return func(event timeoutmw.HardTimeoutEvent) {
+		fields := HardTimeoutEventFields(event)
+		switch event.Outcome {
+		case timeoutmw.HardTimeoutOutcomeTimeout:
+			log.Warn("hard timeout event", fields...)
+		case timeoutmw.HardTimeoutOutcomePanic, timeoutmw.HardTimeoutOutcomeCaptureOverflow:
+			log.Error("hard timeout event", fields...)
+		default:
+			log.Error("hard timeout event", fields...)
+		}
+	}
+}
+
+// HardTimeoutEventFields returns bounded log fields for a hard-timeout event.
+// It intentionally omits request paths, tenant IDs, request IDs, headers,
+// bodies, panic values, and raw error strings.
+func HardTimeoutEventFields(event timeoutmw.HardTimeoutEvent) []any {
+	return []any{
+		FieldHardTimeoutMethod, hardTimeoutMethodLabel(event.Method),
+		FieldHardTimeoutOutcome, hardTimeoutOutcomeLabel(event.Outcome),
+		FieldHardTimeoutStatusClass, hardTimeoutStatusClass(event.Status),
+		FieldHardTimeoutTimedOut, event.TimedOut,
+		FieldHardTimeoutPanicked, event.Panicked,
+		FieldHardTimeoutCaptureOverflow, event.CaptureOverflow,
+	}
+}
+
 func requestID(r *http.Request) string {
 	if v := r.Header.Get("X-Request-ID"); v != "" {
 		return v
@@ -371,6 +412,54 @@ func traceIDs(r *http.Request) (string, string) {
 		return sc.TraceID().String(), sc.SpanID().String()
 	}
 	return coretrace.GetTraceID(r), coretrace.GetSpanID(r)
+}
+
+func hardTimeoutMethodLabel(method string) string {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	switch method {
+	case http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace:
+		return method
+	case "":
+		return "UNKNOWN"
+	default:
+		return "OTHER"
+	}
+}
+
+func hardTimeoutOutcomeLabel(outcome timeoutmw.HardTimeoutOutcome) string {
+	switch outcome {
+	case timeoutmw.HardTimeoutOutcomeTimeout,
+		timeoutmw.HardTimeoutOutcomePanic,
+		timeoutmw.HardTimeoutOutcomeCaptureOverflow:
+		return string(outcome)
+	default:
+		return "unknown"
+	}
+}
+
+func hardTimeoutStatusClass(status int) string {
+	switch {
+	case status >= 100 && status < 200:
+		return "1xx"
+	case status >= 200 && status < 300:
+		return "2xx"
+	case status >= 300 && status < 400:
+		return "3xx"
+	case status >= 400 && status < 500:
+		return "4xx"
+	case status >= 500 && status < 600:
+		return "5xx"
+	default:
+		return "none"
+	}
 }
 
 type headerRedactor struct {

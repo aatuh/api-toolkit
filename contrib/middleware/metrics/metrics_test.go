@@ -13,6 +13,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
@@ -288,6 +289,80 @@ func TestIdempotencyOutcomeHookRecordsOutcomes(t *testing.T) {
 	}
 }
 
+func TestPrometheusRecorderRecordsHardTimeoutEventsWithBoundedLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	recorder.RecordHardTimeoutEvent(timeoutmw.HardTimeoutEvent{
+		Method:          "BREW",
+		Status:          http.StatusGatewayTimeout,
+		Outcome:         timeoutmw.HardTimeoutOutcome("customer-acme-timeout"),
+		TimedOut:        true,
+		Panicked:        true,
+		CaptureOverflow: true,
+	})
+	recorder.RecordHardTimeoutEvent(timeoutmw.HardTimeoutEvent{
+		Method:   http.MethodPost,
+		Status:   http.StatusInternalServerError,
+		Outcome:  timeoutmw.HardTimeoutOutcomeCaptureOverflow,
+		TimedOut: false,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	family := metricFamilyByName(t, families, "http_hard_timeout_events_total")
+	if len(family.Metric) != 2 {
+		t.Fatalf("metric count = %d, want 2", len(family.Metric))
+	}
+	seen := map[string]bool{}
+	for _, metric := range family.Metric {
+		labels := map[string]string{}
+		for _, label := range metric.Label {
+			labels[label.GetName()] = label.GetValue()
+			switch label.GetName() {
+			case "method", "outcome", "status_class", "timed_out", "panicked", "capture_overflow":
+			default:
+				t.Fatalf("unexpected hard-timeout metric label %q", label.GetName())
+			}
+			if strings.Contains(label.GetValue(), "customer") || strings.Contains(label.GetValue(), "acme") {
+				t.Fatalf("hard-timeout metric leaked high-cardinality label %q", label.GetValue())
+			}
+		}
+		if len(labels) != 6 {
+			t.Fatalf("labels = %#v, want six bounded labels", labels)
+		}
+		seen[labels["method"]+"|"+labels["outcome"]+"|"+labels["status_class"]+"|"+labels["timed_out"]+"|"+labels["panicked"]+"|"+labels["capture_overflow"]] = true
+	}
+	for _, want := range []string{
+		"OTHER|unknown|5xx|true|true|true",
+		"POST|capture_overflow|5xx|false|false|false",
+	} {
+		if !seen[want] {
+			t.Fatalf("missing hard-timeout labels %s in %#v", want, seen)
+		}
+	}
+}
+
+func TestHardTimeoutEventHookRecordsEvents(t *testing.T) {
+	recorder := &captureHardTimeoutEventRecorder{}
+	hook := HardTimeoutEventHook(recorder)
+
+	hook(timeoutmw.HardTimeoutEvent{
+		Method:  http.MethodGet,
+		Status:  http.StatusGatewayTimeout,
+		Outcome: timeoutmw.HardTimeoutOutcomeTimeout,
+	})
+
+	if recorder.event.Outcome != timeoutmw.HardTimeoutOutcomeTimeout || recorder.event.Method != http.MethodGet {
+		t.Fatalf("recorded event = %#v", recorder.event)
+	}
+}
+
 func TestHandlerRecordsRoutePolicyLabelsFromRouteContracts(t *testing.T) {
 	recorder := &capturePolicyRecorder{}
 	mw, err := New(Options{Recorder: recorder})
@@ -453,6 +528,14 @@ type captureIdempotencyOutcomeRecorder struct {
 }
 
 func (r *captureIdempotencyOutcomeRecorder) RecordIdempotencyOutcome(event idempotencymw.OutcomeEvent) {
+	r.event = event
+}
+
+type captureHardTimeoutEventRecorder struct {
+	event timeoutmw.HardTimeoutEvent
+}
+
+func (r *captureHardTimeoutEventRecorder) RecordHardTimeoutEvent(event timeoutmw.HardTimeoutEvent) {
 	r.event = event
 }
 

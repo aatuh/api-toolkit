@@ -125,7 +125,9 @@ late panics are dropped with late writes.
 metadata for timeout, panic, and capture-overflow outcomes. The event contract
 intentionally omits panic values, URL paths, query strings, request headers,
 response headers, and bodies, so it is suitable for low-cardinality counters or
-sanitized structured logs.
+sanitized structured logs. Contrib services can wire the event to
+`metrics.HardTimeoutEventHook` for `http_hard_timeout_events_total` and
+`requestlog.HardTimeoutEventLogHook` for bounded structured log fields.
 
 OpenAPI response validation also buffers handler responses so it can validate
 the final status, headers, and body against the route contract. Do not apply it

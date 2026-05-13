@@ -6,6 +6,8 @@
 // are not logged.
 // IdempotencyOutcomeLogHook emits bounded idempotency outcome fields without
 // raw idempotency keys, tenants, paths, bodies, or error strings.
+// HardTimeoutEventLogHook emits bounded hard-timeout event fields without raw
+// paths, tenants, headers, bodies, panic values, or error strings.
 //
 // Header redaction
 // ---------------
