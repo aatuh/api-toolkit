@@ -106,6 +106,10 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts diff` now also fails closed when existing operations
   drift in tenant, idempotency, rate-limit, admin-policy, or deprecation/sunset
   route policy metadata.
+- `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
+  reports removed schemas, added required properties, removed object
+  properties, type/ref changes, and enum value removals as compatibility
+  findings.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.

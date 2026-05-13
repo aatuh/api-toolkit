@@ -721,6 +721,91 @@ func TestContractsDiffFailsForParameterBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestContractsDiffFailsForComponentSchemaBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	if err := os.WriteFile(base, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Legacy": {"type": "object", "properties": {"id": {"type": "string"}}},
+				"Widget": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"},
+						"status": {"type": "string", "enum": ["active", "disabled"]},
+						"tenant_id": {"type": "string"}
+					}
+				}
+			},
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write base spec: %v", err)
+	}
+	if err := os.WriteFile(head, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Widget": {
+					"type": "object",
+					"required": ["name", "status"],
+					"properties": {
+						"name": {"type": "integer"},
+						"status": {"type": "string", "enum": ["active"]}
+					}
+				}
+			},
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write head spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected schema breaking diff to fail")
+	}
+	for _, want := range []string{
+		"schema_removed Legacy",
+		"schema_required_property_added Widget status",
+		"schema_property_removed Widget tenant_id",
+		"schema_type_changed Widget.name",
+		"schema_enum_value_removed Widget.status \"disabled\"",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
 	t.Helper()
 	spec := `{
