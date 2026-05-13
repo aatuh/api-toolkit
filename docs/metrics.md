@@ -19,6 +19,7 @@ metrics when the relevant hooks are present:
 - `http_route_policy_requests_total` (counter)
 - `health_status_changes_total` (counter)
 - `idempotency_outcomes_total` (counter)
+- `http_hard_timeout_events_total` (counter)
 
 Required labels:
 
@@ -48,6 +49,13 @@ Idempotency outcome labels:
 - `outcome` (stable idempotency outcome enum or `unknown`)
 - `status_class` (`1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`)
 - `fail_open` (`true` or `false`)
+
+Hard-timeout event labels:
+
+- `method` (same bounded method label as HTTP metrics)
+- `outcome` (`timeout`, `panic`, `capture_overflow`, or `unknown`)
+- `status_class` (`1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`)
+- `timed_out`, `panicked`, and `capture_overflow` (`true` or `false`)
 
 ## Label policy
 
@@ -179,3 +187,23 @@ adapter-specific raw-key opt-in is explicitly enabled for incident review.
 Compatibility telemetry delivery is best-effort. Async mode uses a bounded queue
 and worker pool; when the queue is full, events are dropped and a warning records
 the cumulative drop count and queue size.
+
+## Hard-timeout telemetry
+
+Hard-timeout response cutoffs can be observed with
+`middleware/timeout.Options.EventHooks`. Contrib services can wire the same
+bounded event into Prometheus and structured logs:
+
+```go
+hardTimeout, err := timeout.NewHard(timeout.Options{
+	Timeout: 2 * time.Second,
+	EventHooks: &timeout.HardTimeoutEventHooks{
+		OnEvent: metrics.HardTimeoutEventHook(recorder),
+	},
+})
+```
+
+Use `requestlog.HardTimeoutEventLogHook(log)` when you also want structured log
+entries for timeout, panic, and capture-overflow outcomes. Both helpers omit
+panic values, URL paths, query strings, tenant IDs, request IDs, headers,
+response bodies, and raw error strings.

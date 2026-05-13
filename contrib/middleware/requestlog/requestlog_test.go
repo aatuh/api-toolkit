@@ -10,6 +10,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
 	"github.com/aatuh/api-toolkit/v2/specs"
@@ -247,6 +248,40 @@ func TestIdempotencyOutcomeLogHookIncludesBoundedFields(t *testing.T) {
 	}
 	if fields[FieldIdempotencyStoreClass] == "customer-acme-memory-primary" || fields[FieldIdempotencyOutcome] == "customer-acme-outcome" {
 		t.Fatalf("idempotency outcome log leaked raw values: %#v", fields)
+	}
+}
+
+func TestHardTimeoutEventLogHookIncludesBoundedFields(t *testing.T) {
+	log := &captureLogger{}
+	hook := HardTimeoutEventLogHook(log)
+
+	hook(timeoutmw.HardTimeoutEvent{
+		Method:          "BREW",
+		Status:          http.StatusGatewayTimeout,
+		Outcome:         timeoutmw.HardTimeoutOutcome("customer-acme-timeout"),
+		TimedOut:        true,
+		Panicked:        true,
+		CaptureOverflow: true,
+	})
+
+	if log.level != "error" || log.msg != "hard timeout event" {
+		t.Fatalf("log entry = %s %q", log.level, log.msg)
+	}
+	fields := kvToMap(log.kv)
+	for key, want := range map[string]any{
+		FieldHardTimeoutMethod:          "OTHER",
+		FieldHardTimeoutOutcome:         "unknown",
+		FieldHardTimeoutStatusClass:     "5xx",
+		FieldHardTimeoutTimedOut:        true,
+		FieldHardTimeoutPanicked:        true,
+		FieldHardTimeoutCaptureOverflow: true,
+	} {
+		if got := fields[key]; got != want {
+			t.Fatalf("field %s = %#v, want %#v; fields=%#v", key, got, want, fields)
+		}
+	}
+	if fields[FieldHardTimeoutOutcome] == "customer-acme-timeout" {
+		t.Fatalf("hard-timeout log leaked raw outcome value: %#v", fields)
 	}
 }
 

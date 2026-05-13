@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
 )
@@ -39,6 +40,11 @@ type HealthMetricsRecorder interface {
 // IdempotencyOutcomeMetricsRecorder captures bounded idempotency outcome metrics.
 type IdempotencyOutcomeMetricsRecorder interface {
 	RecordIdempotencyOutcome(event idempotencymw.OutcomeEvent)
+}
+
+// HardTimeoutEventMetricsRecorder captures bounded hard-timeout event metrics.
+type HardTimeoutEventMetricsRecorder interface {
+	RecordHardTimeoutEvent(event timeoutmw.HardTimeoutEvent)
 }
 
 // RoutePolicyMetricsRecorder captures bounded per-request route policy labels.
@@ -68,6 +74,9 @@ func (NoopMetrics) RecordHealthStatusChange(_, _ ports.HealthStatus, _ ports.Det
 
 // RecordIdempotencyOutcome is a no-op implementation.
 func (NoopMetrics) RecordIdempotencyOutcome(idempotencymw.OutcomeEvent) {}
+
+// RecordHardTimeoutEvent is a no-op implementation.
+func (NoopMetrics) RecordHardTimeoutEvent(timeoutmw.HardTimeoutEvent) {}
 
 // RecordRoutePolicy is a no-op implementation.
 func (NoopMetrics) RecordRoutePolicy(Labels) {}
@@ -118,6 +127,7 @@ type PrometheusRecorder struct {
 	durations           *prometheus.HistogramVec
 	healthStatusChanges *prometheus.CounterVec
 	idempotencyOutcomes *prometheus.CounterVec
+	hardTimeoutEvents   *prometheus.CounterVec
 	routePolicyRequests *prometheus.CounterVec
 }
 
@@ -163,6 +173,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		Name: "idempotency_outcomes_total",
 		Help: "Total number of idempotency decisions by bounded outcome labels",
 	}, []string{"method", "store_class", "outcome", "status_class", "fail_open"})
+	hardTimeoutEvents := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_hard_timeout_events_total",
+		Help: "Total number of hard-timeout outcomes by bounded event labels",
+	}, []string{"method", "outcome", "status_class", "timed_out", "panicked", "capture_overflow"})
 	routePolicyRequests := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_route_policy_requests_total",
 		Help: "Total number of HTTP requests by bounded route policy metadata",
@@ -183,6 +197,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 	if err != nil {
 		return nil, fmt.Errorf("register idempotency_outcomes_total: %w", err)
 	}
+	registeredHardTimeoutEvents, err := registerOrReuseCounterVec(reg, hardTimeoutEvents)
+	if err != nil {
+		return nil, fmt.Errorf("register http_hard_timeout_events_total: %w", err)
+	}
 	registeredRoutePolicyRequests, err := registerOrReuseCounterVec(reg, routePolicyRequests)
 	if err != nil {
 		return nil, fmt.Errorf("register http_route_policy_requests_total: %w", err)
@@ -192,6 +210,7 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		durations:           registeredDurations,
 		healthStatusChanges: registeredHealthStatusChanges,
 		idempotencyOutcomes: registeredIdempotencyOutcomes,
+		hardTimeoutEvents:   registeredHardTimeoutEvents,
 		routePolicyRequests: registeredRoutePolicyRequests,
 	}, nil
 }
@@ -272,6 +291,22 @@ func (p *PrometheusRecorder) RecordIdempotencyOutcome(event idempotencymw.Outcom
 	).Inc()
 }
 
+// RecordHardTimeoutEvent records one bounded hard-timeout event.
+func (p *PrometheusRecorder) RecordHardTimeoutEvent(event timeoutmw.HardTimeoutEvent) {
+	if p == nil || p.hardTimeoutEvents == nil {
+		return
+	}
+	labels := HardTimeoutEventLabels(event)
+	p.hardTimeoutEvents.WithLabelValues(
+		labels["method"],
+		labels["outcome"],
+		labels["status_class"],
+		labels["timed_out"],
+		labels["panicked"],
+		labels["capture_overflow"],
+	).Inc()
+}
+
 // RecordRoutePolicy records bounded route policy labels for one request.
 func (p *PrometheusRecorder) RecordRoutePolicy(labels Labels) {
 	if p == nil || p.routePolicyRequests == nil {
@@ -317,6 +352,17 @@ func IdempotencyOutcomeHook(recorder IdempotencyOutcomeMetricsRecorder) idempote
 	}
 }
 
+// HardTimeoutEventHook converts a hard-timeout middleware callback into a
+// metrics recorder call.
+func HardTimeoutEventHook(recorder HardTimeoutEventMetricsRecorder) func(timeoutmw.HardTimeoutEvent) {
+	return func(event timeoutmw.HardTimeoutEvent) {
+		if recorder == nil {
+			return
+		}
+		recorder.RecordHardTimeoutEvent(event)
+	}
+}
+
 // HealthStatusChangeLabels returns the bounded label set used for health status
 // transition metrics.
 func HealthStatusChangeLabels(from, to ports.HealthStatus) Labels {
@@ -338,6 +384,20 @@ func IdempotencyOutcomeLabels(event idempotencymw.OutcomeEvent) Labels {
 	return labels
 }
 
+// HardTimeoutEventLabels returns the bounded label set used for hard-timeout
+// metrics and logs. It intentionally excludes paths, panic payloads, headers,
+// response bodies, tenants, and request IDs.
+func HardTimeoutEventLabels(event timeoutmw.HardTimeoutEvent) Labels {
+	return Labels{
+		"method":           canonicalHTTPMethodWithFallback(event.Method),
+		"outcome":          sanitizeHardTimeoutOutcome(event.Outcome),
+		"status_class":     statusClass(canonicalHTTPStatus(itoa(event.Status))),
+		"timed_out":        boolLabel(event.TimedOut),
+		"panicked":         boolLabel(event.Panicked),
+		"capture_overflow": boolLabel(event.CaptureOverflow),
+	}
+}
+
 func sanitizeHealthStatus(status ports.HealthStatus) string {
 	switch status {
 	case ports.HealthStatusHealthy:
@@ -351,6 +411,31 @@ func sanitizeHealthStatus(status ports.HealthStatus) string {
 	default:
 		return "other"
 	}
+}
+
+func canonicalHTTPMethodWithFallback(method string) string {
+	if method := canonicalHTTPMethod(method); method != "" {
+		return method
+	}
+	return "UNKNOWN"
+}
+
+func sanitizeHardTimeoutOutcome(outcome timeoutmw.HardTimeoutOutcome) string {
+	switch outcome {
+	case timeoutmw.HardTimeoutOutcomeTimeout,
+		timeoutmw.HardTimeoutOutcomePanic,
+		timeoutmw.HardTimeoutOutcomeCaptureOverflow:
+		return string(outcome)
+	default:
+		return "unknown"
+	}
+}
+
+func boolLabel(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
 }
 
 // Handler wraps the next handler to record counters and duration.
