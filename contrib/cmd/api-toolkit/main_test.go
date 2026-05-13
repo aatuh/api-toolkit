@@ -1102,6 +1102,67 @@ func TestContractsDiffFailsForComponentSchemaBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestContractsDiffFailsForSecuritySchemeBreakingChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	if err := os.WriteFile(base, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"},
+				"WebhookAuth": {"type": "apiKey", "in": "header", "name": "X-Webhook-Signature"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write base spec: %v", err)
+	}
+	if err := os.WriteFile(head, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key-V2"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write head spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected security scheme breaking diff to fail")
+	}
+	for _, want := range []string{
+		"security_scheme_changed ApiKeyAuth",
+		"security_scheme_removed WebhookAuth",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func TestContractsDiffFailsForInlineSchemaBreakingChanges(t *testing.T) {
 	tmp := t.TempDir()
 	base := filepath.Join(tmp, "base.json")

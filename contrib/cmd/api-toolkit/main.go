@@ -693,6 +693,7 @@ func diffOpenAPI(basePath, headPath string) error {
 	base := operationsFromOpenAPIDocument(baseLoaded.doc)
 	head := operationsFromOpenAPIDocument(headLoaded.doc)
 	findings := diffOperations(base, head)
+	findings = append(findings, diffSecuritySchemes(baseLoaded.doc, headLoaded.doc)...)
 	findings = append(findings, diffOperationSchemas(baseLoaded.doc, headLoaded.doc)...)
 	findings = append(findings, diffComponentSchemas(baseLoaded.doc, headLoaded.doc)...)
 	if len(findings) > 0 {
@@ -1080,6 +1081,81 @@ func deprecationPolicyFingerprint(operation specs.Operation) string {
 		return ""
 	}
 	return fmt.Sprintf("deprecated=%t;sunset=%s", policy.Deprecated, strings.TrimSpace(policy.Sunset))
+}
+
+func diffSecuritySchemes(baseDoc, headDoc *openapi3.T) []openAPIDiffFinding {
+	baseSchemes := componentSecuritySchemes(baseDoc)
+	headSchemes := componentSecuritySchemes(headDoc)
+	var findings []openAPIDiffFinding
+	for _, name := range sortedSecuritySchemeNames(baseSchemes) {
+		baseScheme := baseSchemes[name]
+		headScheme, ok := headSchemes[name]
+		if !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "security_scheme_removed",
+				Detail: name,
+			})
+			continue
+		}
+		if securitySchemeRefFingerprint(baseScheme) != securitySchemeRefFingerprint(headScheme) {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "security_scheme_changed",
+				Detail: name,
+			})
+		}
+	}
+	return findings
+}
+
+func componentSecuritySchemes(doc *openapi3.T) openapi3.SecuritySchemes {
+	if doc == nil || doc.Components == nil {
+		return nil
+	}
+	return doc.Components.SecuritySchemes
+}
+
+func sortedSecuritySchemeNames(schemes openapi3.SecuritySchemes) []string {
+	names := make([]string, 0, len(schemes))
+	for name := range schemes {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func securitySchemeRefFingerprint(ref *openapi3.SecuritySchemeRef) string {
+	if ref == nil {
+		return ""
+	}
+	if refName := strings.TrimSpace(ref.Ref); refName != "" {
+		return "ref=" + refName
+	}
+	if ref.Value == nil {
+		return ""
+	}
+	scheme := ref.Value
+	payload := map[string]any{
+		"type":             strings.TrimSpace(scheme.Type),
+		"name":             strings.TrimSpace(scheme.Name),
+		"in":               strings.TrimSpace(scheme.In),
+		"scheme":           strings.TrimSpace(scheme.Scheme),
+		"bearerFormat":     strings.TrimSpace(scheme.BearerFormat),
+		"openIdConnectUrl": strings.TrimSpace(scheme.OpenIdConnectUrl),
+	}
+	if scheme.Flows != nil {
+		payload["flows"] = scheme.Flows
+	}
+	if len(scheme.Extensions) > 0 {
+		payload["extensions"] = scheme.Extensions
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprint(payload)
+	}
+	return string(encoded)
 }
 
 func diffComponentSchemas(baseDoc, headDoc *openapi3.T) []openAPIDiffFinding {
