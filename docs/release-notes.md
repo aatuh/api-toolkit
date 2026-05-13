@@ -100,6 +100,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` services now keep memory idempotency storage as the local
   default but reject it under `ENV=production`; production defaults to the Redis
   idempotency adapter and requires `REDIS_ADDR` before startup.
+- `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
+  idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
+  method, store class, outcome, and status class for metrics.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required

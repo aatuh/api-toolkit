@@ -46,8 +46,12 @@
 //     clock-skew sensitive startup preflights while preserving advisory mode by
 //     default.
 //   - Use LegacyInFlightCompatibilityMetricSink for metrics-first consumers; event
-//     labels are exposed through MetricLabels() and use a stable schema:
-//     method, path, store_type, outcome, key, and error.
+//     labels are exposed through MetricLabels() and use the stable bounded schema:
+//     method, store_class, and outcome.
+//   - Use OnOutcome for normal request-path idempotency telemetry. OutcomeEvent
+//     intentionally omits paths, keys, tenants, request IDs, body data, and raw
+//     error strings; MetricLabels() exposes method, store_class, outcome, and
+//     status_class.
 //
 // Recommended event contract:
 //
