@@ -1623,7 +1623,12 @@ func newService() (*bootstrap.APIService, error) {
 	if err != nil {
 		return nil, err
 	}
-	router, err := bootstrap.NewDefaultRouterWithConfig(log, bootstrap.DefaultRouterConfig{Metrics: metricsRecorder})
+	routerConfig, err := bootstrap.DefaultRouterConfigFromEnv(nil)
+	if err != nil {
+		return nil, err
+	}
+	routerConfig.Metrics = metricsRecorder
+	router, err := bootstrap.NewDefaultRouterWithConfig(log, routerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -2438,6 +2443,29 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 	}
 }
 
+func TestGeneratedServiceRejectsMalformedTrustedProxies(t *testing.T) {
+	setLocalTestEnv(t)
+	t.Setenv("TRUSTED_PROXIES", "not-a-cidr")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected service startup to reject malformed trusted proxies")
+	} else if !strings.Contains(err.Error(), "parse trusted proxies") {
+		t.Fatalf("startup error = %v, want trusted proxy parse failure", err)
+	}
+}
+
+func TestGeneratedServiceRejectsUnsafeRateLimitBypassConfig(t *testing.T) {
+	setLocalTestEnv(t)
+	t.Setenv("RATE_LIMIT_SKIP_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES", "true")
+	t.Setenv("RATE_LIMIT_SKIP_HEADER", "X-Rate-Limit-Bypass")
+	t.Setenv("TRUSTED_PROXIES", "")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected service startup to reject rate-limit bypass without trusted proxies")
+	} else if !strings.Contains(err.Error(), "trusted proxies are required") {
+		t.Fatalf("startup error = %v, want trusted proxy requirement", err)
+	}
+}
+
 {{ if eq .AuthMode "jwt" }}func TestGeneratedServiceRejectsProductionMissingJWTConfig(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("JWT_JWKS_URL", "")
@@ -2708,6 +2736,10 @@ finalize: fmt test openapi-check contracts-lint contracts-diff
 
 const envTemplate = `ENV=development
 API_ADDR=:8080
+TRUSTED_PROXIES=
+RATE_LIMIT_SKIP_ENABLED=false
+RATE_LIMIT_SKIP_HEADER=
+RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES=false
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api
