@@ -407,6 +407,112 @@ func TestHandlerRecordsRoutePolicyLabelsFromRouteContracts(t *testing.T) {
 	}
 }
 
+func TestRoutePolicyLabelsBoundsPolicyMetadata(t *testing.T) {
+	labels := RoutePolicyLabels(Labels{
+		"method":       "BREW",
+		"route":        " /widgets/{id} ",
+		"status":       "201",
+		"status_class": "customer-acme-success",
+		"auth":         "ApiKeyAuth",
+		"tenant":       "tenant-acme",
+		"idempotency":  "key-123",
+		"rate_limit":   "gold-plan",
+		"admin":        "root",
+		"deprecated":   "yes",
+	})
+
+	want := Labels{
+		"method":       "OTHER",
+		"route":        "/widgets/{id}",
+		"status_class": "2xx",
+		"auth":         "none",
+		"tenant":       "none",
+		"idempotency":  "none",
+		"rate_limit":   "none",
+		"admin":        "none",
+		"deprecated":   "false",
+	}
+	for key, wantValue := range want {
+		if got := labels[key]; got != wantValue {
+			t.Fatalf("label %s = %q, want %q; labels=%#v", key, got, wantValue, labels)
+		}
+	}
+	for _, labelValue := range labels {
+		if strings.Contains(labelValue, "acme") || strings.Contains(labelValue, "ApiKeyAuth") || strings.Contains(labelValue, "gold") {
+			t.Fatalf("route policy label leaked high-cardinality policy data: %#v", labels)
+		}
+	}
+}
+
+func TestPrometheusRecorderRecordsRoutePolicyRequestsWithBoundedLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	recorder.RecordRoutePolicy(Labels{
+		"method":       "BREW",
+		"route":        "/widgets/{id}",
+		"status":       "201",
+		"status_class": "customer-acme-success",
+		"auth":         "ApiKeyAuth",
+		"tenant":       "tenant-acme",
+		"idempotency":  "key-123",
+		"rate_limit":   "gold-plan",
+		"admin":        "root",
+		"deprecated":   "yes",
+	})
+	recorder.RecordRoutePolicy(Labels{
+		"method":       http.MethodPost,
+		"route":        "/widgets",
+		"status":       "429",
+		"status_class": "4xx",
+		"auth":         "required",
+		"tenant":       "required",
+		"idempotency":  "required",
+		"rate_limit":   "configured",
+		"admin":        "required",
+		"deprecated":   "true",
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	family := metricFamilyByName(t, families, "http_route_policy_requests_total")
+	if len(family.Metric) != 2 {
+		t.Fatalf("metric count = %d, want 2", len(family.Metric))
+	}
+	seen := map[string]bool{}
+	for _, metric := range family.Metric {
+		labels := map[string]string{}
+		for _, label := range metric.Label {
+			labels[label.GetName()] = label.GetValue()
+			switch label.GetName() {
+			case "method", "route", "status_class", "auth", "tenant", "idempotency", "admin", "deprecated", "rate_limit":
+			default:
+				t.Fatalf("unexpected route-policy metric label %q", label.GetName())
+			}
+			if strings.Contains(label.GetValue(), "acme") || strings.Contains(label.GetValue(), "ApiKeyAuth") || strings.Contains(label.GetValue(), "gold") {
+				t.Fatalf("route-policy metric leaked high-cardinality label %q", label.GetValue())
+			}
+		}
+		if len(labels) != 9 {
+			t.Fatalf("labels = %#v, want nine bounded labels", labels)
+		}
+		seen[labels["method"]+"|"+labels["route"]+"|"+labels["status_class"]+"|"+labels["auth"]+"|"+labels["tenant"]+"|"+labels["idempotency"]+"|"+labels["admin"]+"|"+labels["deprecated"]+"|"+labels["rate_limit"]] = true
+	}
+	for _, want := range []string{
+		"OTHER|/widgets/{id}|2xx|none|none|none|none|false|none",
+		"POST|/widgets|4xx|required|required|required|required|true|configured",
+	} {
+		if !seen[want] {
+			t.Fatalf("missing route-policy labels %s in %#v", want, seen)
+		}
+	}
+}
+
 func TestNewPrometheusRecorderCheckedReturnsConflictErrorWithCustomRegisterer(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(prometheus.NewGaugeVec(prometheus.GaugeOpts{
