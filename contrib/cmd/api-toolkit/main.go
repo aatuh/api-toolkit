@@ -953,6 +953,7 @@ var scaffoldFiles = []scaffoldFile{
 	{Name: "main_test.go", Body: mainTestTemplate},
 	{Name: "Makefile", Body: makefileTemplate},
 	{Name: ".env.example", Body: envTemplate},
+	{Name: ".dockerignore", Body: dockerignoreTemplate},
 	{Name: "Dockerfile", Body: dockerfileTemplate},
 	{Name: "docker-compose.yml", Body: composeTemplate},
 	{Name: "README.md", Body: readmeTemplate},
@@ -1398,13 +1399,30 @@ API_TENANT_ID=tenant_1
 ADMIN_KEY=local-admin-key
 `
 
-const dockerfileTemplate = `FROM golang:1.25
-WORKDIR /app
-COPY go.mod go.sum* ./
+const dockerignoreTemplate = `.git
+.env
+.env.*
+!.env.example
+.ci-result
+coverage.out
+tmp/
+bin/
+`
+
+const dockerfileTemplate = `FROM golang:1.25 AS build
+WORKDIR /src
+COPY go.mod ./
 RUN go mod download
 COPY . .
 RUN go test ./...
-CMD ["go", "run", "."]
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api .
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /
+COPY --from=build /out/api /api
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/api"]
 `
 
 const composeTemplate = `services:
@@ -1423,6 +1441,12 @@ Run locally:
 ` + "```sh" + `
 go test ./...
 go run .
+` + "```" + `
+
+Build the production-style container image:
+
+` + "```sh" + `
+docker build -t my-api .
 ` + "```" + `
 
 Refresh and check the OpenAPI golden:

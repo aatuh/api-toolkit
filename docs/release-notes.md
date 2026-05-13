@@ -79,6 +79,10 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` services now fail startup under `ENV=production` unless
   `API_KEY` and `ADMIN_KEY` are explicitly set, so local fallback credentials
   cannot be deployed accidentally.
+- Generated `saas-api` services now include a `.dockerignore` and a hardened
+  multi-stage Dockerfile that runs tests during build, compiles a static binary,
+  and runs it from a non-root distroless runtime image instead of `go run` in a
+  full Go toolchain image.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required
