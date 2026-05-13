@@ -286,7 +286,8 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // compatible; removed operations, changed operation IDs, removed documented
 // parameters, added required parameters, removed documented responses,
 // request-body tightening or content removal, response content removal, and
-// changed security requirements are findings.
+// changed security requirements are findings. Tenant, idempotency, rate-limit,
+// admin, and deprecation/sunset route policy drift are findings too.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -338,6 +339,7 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		if strings.Join(baseOperation.Security, "|") != strings.Join(headOperation.Security, "|") {
 			findings = append(findings, fmt.Sprintf("security_changed %s %s", baseOperation.Method, baseOperation.Path))
 		}
+		findings = append(findings, policyCompatibilityFindings(baseOperation, headOperation)...)
 	}
 	return findings, nil
 }
@@ -516,6 +518,11 @@ type openAPIOperationSnapshot struct {
 	ResponseStatuses        []string
 	ResponseContentTypes    map[string][]string
 	Security                []string
+	TenantPolicy            string
+	IdempotencyPolicy       string
+	RateLimitPolicy         string
+	AdminPolicy             string
+	DeprecationPolicy       string
 }
 
 func (operation openAPIOperationSnapshot) key() string {
@@ -553,6 +560,11 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 				ResponseStatuses:        responseStatuses(rawOperation["responses"]),
 				ResponseContentTypes:    responseContentTypes(rawOperation["responses"]),
 				Security:                securityRequirements(rawOperation["security"]),
+				TenantPolicy:            tenantPolicyFingerprint(rawOperation),
+				IdempotencyPolicy:       idempotencyPolicyFingerprint(rawOperation),
+				RateLimitPolicy:         rateLimitPolicyFingerprint(rawOperation),
+				AdminPolicy:             adminPolicyFingerprint(rawOperation),
+				DeprecationPolicy:       deprecationPolicyFingerprint(rawOperation),
 			})
 		}
 	}
@@ -621,6 +633,28 @@ func parameterCompatibilityFindings(baseOperation, headOperation openAPIOperatio
 		if _, ok := baseByKey[headParameter.key()]; !ok && headParameter.Required {
 			findings = append(findings, fmt.Sprintf("required_parameter_added %s %s %s", baseOperation.Method, baseOperation.Path, headParameter.key()))
 		}
+	}
+	return findings
+}
+
+func policyCompatibilityFindings(baseOperation, headOperation openAPIOperationSnapshot) []string {
+	checks := []struct {
+		code string
+		base string
+		head string
+	}{
+		{code: "tenant_policy_changed", base: baseOperation.TenantPolicy, head: headOperation.TenantPolicy},
+		{code: "idempotency_policy_changed", base: baseOperation.IdempotencyPolicy, head: headOperation.IdempotencyPolicy},
+		{code: "rate_limit_policy_changed", base: baseOperation.RateLimitPolicy, head: headOperation.RateLimitPolicy},
+		{code: "admin_policy_changed", base: baseOperation.AdminPolicy, head: headOperation.AdminPolicy},
+		{code: "deprecation_policy_changed", base: baseOperation.DeprecationPolicy, head: headOperation.DeprecationPolicy},
+	}
+	var findings []string
+	for _, check := range checks {
+		if check.base == check.head {
+			continue
+		}
+		findings = append(findings, fmt.Sprintf("%s %s %s", check.code, baseOperation.Method, baseOperation.Path))
 	}
 	return findings
 }
@@ -756,6 +790,54 @@ func securityRequirements(raw any) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func tenantPolicyFingerprint(raw map[string]any) string {
+	policy, ok := routepolicy.TenantPolicyFromOperation(specOperationForPolicy(raw))
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("required=%t;source=%s", policy.Required, strings.TrimSpace(policy.Source))
+}
+
+func idempotencyPolicyFingerprint(raw map[string]any) string {
+	policy, ok := routepolicy.IdempotencyPolicyFromOperation(specOperationForPolicy(raw))
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("required=%t;header=%s", policy.Required, strings.TrimSpace(policy.Header))
+}
+
+func rateLimitPolicyFingerprint(raw map[string]any) string {
+	policy, ok := routepolicy.RateLimitPolicyFromOperation(specOperationForPolicy(raw))
+	if !ok {
+		return ""
+	}
+	return policy
+}
+
+func adminPolicyFingerprint(raw map[string]any) string {
+	policy, ok := routepolicy.AdminPolicyFromOperation(specOperationForPolicy(raw))
+	if !ok {
+		return ""
+	}
+	return policy
+}
+
+func deprecationPolicyFingerprint(raw map[string]any) string {
+	policy, ok := routepolicy.DeprecationPolicyFromOperation(specOperationForPolicy(raw))
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("deprecated=%t;sunset=%s", policy.Deprecated, strings.TrimSpace(policy.Sunset))
+}
+
+func specOperationForPolicy(raw map[string]any) specs.Operation {
+	return specs.Operation{
+		Deprecated: boolValue(raw["deprecated"]),
+		Sunset:     fmtString(raw["x-sunset"]),
+		Extensions: specExtensions(raw),
+	}
 }
 
 func securityScopes(raw any) []string {
