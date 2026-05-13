@@ -28,6 +28,11 @@
 // unsafe-write tenant/idempotency/rate-limit/request/response policies, and
 // admin-only system routes.
 //
+// ObservabilityLabelsFromOperation and ObservabilityMiddleware expose only
+// bounded route-policy labels for request logs and metrics. They intentionally
+// collapse raw scopes, tenant sources, rate-limit names, and admin policy names
+// into small enums.
+//
 // Policies fail closed by returning errors from Apply. EmitPolicyExtension
 // output only when the generated OpenAPI document should expose
 // x-api-toolkit-policy metadata. For examples, see docs/cookbook.md.

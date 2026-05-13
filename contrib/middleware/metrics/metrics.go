@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
 )
 
 // Labels is a simple key:value map for metric dimensions.
@@ -34,6 +35,11 @@ type HealthMetricsRecorder interface {
 	RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse)
 }
 
+// RoutePolicyMetricsRecorder captures bounded per-request route policy labels.
+type RoutePolicyMetricsRecorder interface {
+	RecordRoutePolicy(labels Labels)
+}
+
 // PrometheusHandler returns a standard /metrics http.Handler if the
 // Prometheus client is linked; otherwise returns http.NotFoundHandler.
 // This indirection avoids hard dependency on the Prometheus client.
@@ -53,6 +59,9 @@ func (NoopMetrics) ObserveHistogram(_ string, _ float64, _ Labels) {}
 // RecordHealthStatusChange is a no-op implementation.
 func (NoopMetrics) RecordHealthStatusChange(_, _ ports.HealthStatus, _ ports.DetailedHealthResponse) {
 }
+
+// RecordRoutePolicy is a no-op implementation.
+func (NoopMetrics) RecordRoutePolicy(Labels) {}
 
 // Middleware instruments HTTP traffic using a provided recorder.
 type Middleware struct {
@@ -99,6 +108,7 @@ type PrometheusRecorder struct {
 	requests            *prometheus.CounterVec
 	durations           *prometheus.HistogramVec
 	healthStatusChanges *prometheus.CounterVec
+	routePolicyRequests *prometheus.CounterVec
 }
 
 // ErrIncompatibleCollectorRegistration reports that a Prometheus metric name is
@@ -139,6 +149,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		Name: "health_status_changes_total",
 		Help: "Total number of health status transitions",
 	}, []string{"from", "to"})
+	routePolicyRequests := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "http_route_policy_requests_total",
+		Help: "Total number of HTTP requests by bounded route policy metadata",
+	}, []string{"method", "route", "status_class", "auth", "tenant", "idempotency", "admin", "deprecated", "rate_limit"})
 	registeredRequests, err := registerOrReuseCounterVec(reg, requests)
 	if err != nil {
 		return nil, fmt.Errorf("register http_requests_total: %w", err)
@@ -151,10 +165,15 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 	if err != nil {
 		return nil, fmt.Errorf("register health_status_changes_total: %w", err)
 	}
+	registeredRoutePolicyRequests, err := registerOrReuseCounterVec(reg, routePolicyRequests)
+	if err != nil {
+		return nil, fmt.Errorf("register http_route_policy_requests_total: %w", err)
+	}
 	return &PrometheusRecorder{
 		requests:            registeredRequests,
 		durations:           registeredDurations,
 		healthStatusChanges: registeredHealthStatusChanges,
+		routePolicyRequests: registeredRoutePolicyRequests,
 	}, nil
 }
 
@@ -219,6 +238,29 @@ func (p *PrometheusRecorder) RecordHealthStatusChange(from, to ports.HealthStatu
 	p.healthStatusChanges.WithLabelValues(labels["from"], labels["to"]).Inc()
 }
 
+// RecordRoutePolicy records bounded route policy labels for one request.
+func (p *PrometheusRecorder) RecordRoutePolicy(labels Labels) {
+	if p == nil || p.routePolicyRequests == nil {
+		return
+	}
+	method, route, status := sanitizeHTTPLabels(labels)
+	statusClassLabel := sanitizeStatusClass(labels["status_class"])
+	if statusClassLabel == "none" {
+		statusClassLabel = statusClass(status)
+	}
+	p.routePolicyRequests.WithLabelValues(
+		method,
+		route,
+		statusClassLabel,
+		sanitizePolicyLabel(labels["auth"], "none"),
+		sanitizePolicyLabel(labels["tenant"], "none"),
+		sanitizePolicyLabel(labels["idempotency"], "none"),
+		sanitizePolicyLabel(labels["admin"], "none"),
+		sanitizePolicyLabel(labels["deprecated"], "false"),
+		sanitizePolicyLabel(labels["rate_limit"], "none"),
+	).Inc()
+}
+
 // HealthStatusChangeHook converts a health scheduler status-change callback
 // into a metrics recorder call.
 func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context, ports.HealthStatus, ports.HealthStatus, ports.DetailedHealthResponse) {
@@ -269,6 +311,9 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 		mw.Clock = ports.SystemClock{}
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r != nil {
+			r = r.WithContext(routepolicy.SeedObservabilityContext(r.Context()))
+		}
 		start := mw.Clock.Now()
 		ww := wrapResponseWriter(w)
 		defer func() {
@@ -302,6 +347,19 @@ func (mw *Middleware) observeRequest(r *http.Request, start time.Time, status in
 		mw.Clock.Now().Sub(start).Seconds(),
 		labels,
 	)
+	if recorder, ok := mw.M.(RoutePolicyMetricsRecorder); ok {
+		if policyLabels, ok := routepolicy.ObservabilityLabelsFromRequest(r); ok {
+			routeLabels := Labels{
+				"method":       r.Method,
+				"route":        route,
+				"status_class": statusClass(canonicalHTTPStatus(itoa(status))),
+			}
+			for key, value := range policyLabels.Map() {
+				routeLabels[key] = value
+			}
+			recorder.RecordRoutePolicy(routeLabels)
+		}
+	}
 }
 
 func itoa(n int) string {
@@ -379,6 +437,36 @@ func canonicalHTTPStatus(status string) string {
 		return ""
 	}
 	return status
+}
+
+func statusClass(status string) string {
+	if len(status) != 3 {
+		return "none"
+	}
+	switch status[0] {
+	case '1', '2', '3', '4', '5':
+		return string([]byte{status[0], 'x', 'x'})
+	default:
+		return "none"
+	}
+}
+
+func sanitizeStatusClass(value string) string {
+	switch strings.TrimSpace(value) {
+	case "1xx", "2xx", "3xx", "4xx", "5xx":
+		return strings.TrimSpace(value)
+	default:
+		return "none"
+	}
+}
+
+func sanitizePolicyLabel(value, fallback string) string {
+	switch value {
+	case "required", "configured", "none", "true", "false":
+		return value
+	default:
+		return fallback
+	}
 }
 
 func chiRoutePattern(r *http.Request) string {

@@ -14,25 +14,32 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	coretrace "github.com/aatuh/api-toolkit/v2/middleware/trace"
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
 )
 
 const (
-	FieldRequestID       = "request_id"
-	FieldTraceID         = "trace_id"
-	FieldSpanID          = "span_id"
-	FieldRoute           = "route"
-	FieldStatus          = "status"
-	FieldCommittedStatus = "committed_status"
-	FieldLatencyMS       = "latency_ms"
-	FieldMethod          = "method"
-	FieldPath            = "path"
-	FieldBytes           = "bytes"
-	FieldClientIP        = "client_ip"
-	FieldUserAgent       = "user_agent"
-	FieldRequestHeaders  = "req_headers"
-	FieldResponseHeaders = "resp_headers"
-	FieldStack           = "stack"
-	FieldPanicRecovered  = "panic_recovered"
+	FieldRequestID         = "request_id"
+	FieldTraceID           = "trace_id"
+	FieldSpanID            = "span_id"
+	FieldRoute             = "route"
+	FieldStatus            = "status"
+	FieldCommittedStatus   = "committed_status"
+	FieldLatencyMS         = "latency_ms"
+	FieldMethod            = "method"
+	FieldPath              = "path"
+	FieldBytes             = "bytes"
+	FieldClientIP          = "client_ip"
+	FieldUserAgent         = "user_agent"
+	FieldRequestHeaders    = "req_headers"
+	FieldResponseHeaders   = "resp_headers"
+	FieldStack             = "stack"
+	FieldPanicRecovered    = "panic_recovered"
+	FieldPolicyAuth        = "policy_auth"
+	FieldPolicyTenant      = "policy_tenant"
+	FieldPolicyIdempotency = "policy_idempotency"
+	FieldPolicyRateLimit   = "policy_rate_limit"
+	FieldPolicyAdmin       = "policy_admin"
+	FieldPolicyDeprecated  = "policy_deprecated"
 )
 
 const redactedValue = "[redacted]"
@@ -196,6 +203,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r != nil {
+			r = r.WithContext(routepolicy.SeedObservabilityContext(r.Context()))
+		}
 		start := m.clock.Now()
 		ww := wrapResponseWriter(w)
 		defer func() {
@@ -240,6 +250,9 @@ func (m *Middleware) logRequest(r *http.Request, ww *responseRecorder, start tim
 		FieldTraceID, traceID,
 		FieldSpanID, spanID,
 	)
+	if labels, ok := routepolicy.ObservabilityLabelsFromRequest(r); ok {
+		fields = appendPolicyLabels(fields, labels)
+	}
 	if panicValue != nil {
 		if ww.Committed() && ww.Status() != 0 {
 			fields = append(fields, FieldCommittedStatus, ww.Status())
@@ -271,6 +284,18 @@ func (m *Middleware) logRequest(r *http.Request, ww *responseRecorder, start tim
 		return
 	}
 	m.Log.Info("http", fields...)
+}
+
+func appendPolicyLabels(fields []any, labels routepolicy.ObservabilityLabels) []any {
+	values := labels.Map()
+	return append(fields,
+		FieldPolicyAuth, values["auth"],
+		FieldPolicyTenant, values["tenant"],
+		FieldPolicyIdempotency, values["idempotency"],
+		FieldPolicyRateLimit, values["rate_limit"],
+		FieldPolicyAdmin, values["admin"],
+		FieldPolicyDeprecated, values["deprecated"],
+	)
 }
 
 func requestID(r *http.Request) string {

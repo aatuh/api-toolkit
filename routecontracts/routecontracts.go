@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
@@ -110,7 +111,9 @@ func (registry *Registry) Register(route Route) error {
 		operation = updated
 		policyMiddleware = append(policyMiddleware, middleware...)
 	}
-	middleware := append(append([]func(http.Handler) http.Handler{}, route.Middleware...), policyMiddleware...)
+	middleware := []func(http.Handler) http.Handler{routepolicy.ObservabilityMiddleware(operation)}
+	middleware = append(middleware, route.Middleware...)
+	middleware = append(middleware, policyMiddleware...)
 	wrapped := applyMiddleware(route.Handler, middleware)
 	switch method {
 	case http.MethodGet:

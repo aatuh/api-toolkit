@@ -1,5 +1,10 @@
 // Package requestlog provides contrib HTTP request logging middleware.
 //
+// Requests registered through routecontracts include bounded route-policy
+// fields such as `policy_auth`, `policy_tenant`, and `policy_rate_limit`.
+// These fields report policy shape only; raw scopes, tenants, and policy names
+// are not logged.
+//
 // Header redaction
 // ---------------
 //
