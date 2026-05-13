@@ -177,6 +177,8 @@ source of truth is `docs/release-runbook.md`.
   of silently installing a noop exporter.
 - `api-toolkit version` now prints Go runtime, main module, core module,
   contrib module, build commit, and build date metadata for release evidence.
+- `api-toolkit version --json` now emits the same installed tool metadata in a
+  stable machine-readable shape for release evidence and automation.
 - Generated services now stamp `/version` from `appVersion`, `buildCommit`, and
   `buildDate`, and the generated Makefile/Dockerfile pass those fields through
   build flags with local `dev`/`unknown` defaults.

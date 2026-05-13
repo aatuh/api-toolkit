@@ -53,8 +53,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version":
-		printVersion(stdout)
-		return 0
+		return runVersion(args[1:], stdout, stderr)
 	case "new":
 		return runNew(ctx, args[1:], stdout, stderr)
 	case "contracts":
@@ -66,14 +65,32 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 type versionMetadata struct {
-	ToolVersion    string
-	GoVersion      string
-	MainPath       string
-	MainVersion    string
-	CoreVersion    string
-	ContribVersion string
-	BuildCommit    string
-	BuildDate      string
+	ToolVersion    string `json:"tool_version"`
+	GoVersion      string `json:"go_version"`
+	MainPath       string `json:"main_path"`
+	MainVersion    string `json:"main_version"`
+	CoreVersion    string `json:"core_version"`
+	ContribVersion string `json:"contrib_version"`
+	BuildCommit    string `json:"build_commit"`
+	BuildDate      string `json:"build_date"`
+}
+
+func runVersion(args []string, stdout, stderr io.Writer) int {
+	switch len(args) {
+	case 0:
+		printVersion(stdout)
+		return 0
+	case 1:
+		if args[0] == "--json" {
+			if err := printVersionJSON(stdout); err != nil {
+				fmt.Fprintf(stderr, "write version json: %v\n", err)
+				return 1
+			}
+			return 0
+		}
+	}
+	fmt.Fprintln(stderr, "usage: api-toolkit version [--json]")
+	return 2
 }
 
 func printVersion(stdout io.Writer) {
@@ -85,6 +102,10 @@ func printVersion(stdout io.Writer) {
 	fmt.Fprintf(stdout, "contrib %s %s\n", contribModulePath, info.ContribVersion)
 	fmt.Fprintf(stdout, "build_commit %s\n", info.BuildCommit)
 	fmt.Fprintf(stdout, "build_date %s\n", info.BuildDate)
+}
+
+func printVersionJSON(stdout io.Writer) error {
+	return json.NewEncoder(stdout).Encode(collectVersionMetadata())
 }
 
 func collectVersionMetadata() versionMetadata {
