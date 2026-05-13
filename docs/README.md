@@ -28,6 +28,10 @@ matching issuer, audience, and JWKS URL environment variables, extract tenant
 scope from validated token claims, and keep the same tenant mismatch,
 idempotency, OpenAPI, and admin-route defaults.
 
+Generated services wire the default router to the contrib Prometheus recorder,
+so protected `/metrics` includes bounded HTTP request counters and histograms
+using method, route pattern, and status labels.
+
 Use `--profile dev-api --auth dev-headers` only for local development services
 that need debug-header authentication. The generated service requires explicit
 dev-bypass environment variables, trusts only configured loopback proxies by
