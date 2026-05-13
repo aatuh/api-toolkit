@@ -38,7 +38,13 @@ func InitTracing(ctx context.Context, cfg TraceConfig) (func(context.Context) er
 			),
 		)
 
-		if !cfg.Enabled || strings.TrimSpace(cfg.Endpoint) == "" {
+		if !cfg.Enabled {
+			otel.SetTracerProvider(noop.NewTracerProvider())
+			traceInitEnabled = false
+			return
+		}
+		if strings.TrimSpace(cfg.Endpoint) == "" {
+			traceInitErr = errEmptyEndpoint
 			otel.SetTracerProvider(noop.NewTracerProvider())
 			traceInitEnabled = false
 			return
