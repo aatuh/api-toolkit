@@ -59,7 +59,7 @@ FAKE
 
 init_repo() {
   local dir="$1"
-  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders/assets" "$dir/contrib/adapters/idempotency"
+  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders/assets" "$dir/contrib/adapters/idempotency" "$dir/contrib/cmd/api-toolkit"
   cp "$repo_root/scripts/contrib_api_drift_report.sh" "$dir/scripts/contrib_api_drift_report.sh"
   cp "$repo_root/scripts/contrib_release_notes_check.sh" "$dir/scripts/contrib_release_notes_check.sh"
   chmod +x "$dir/scripts/"*.sh
@@ -74,6 +74,7 @@ NOTES
 # Columns: import_path	api_status	test_status	notes
 github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter.
+github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
 TSV
   cat >"$dir/contrib/middleware/auth/devheaders/devheaders.go" <<'GO'
 package devheaders
@@ -91,6 +92,11 @@ package idempotency
 type Store struct {
 	Enabled bool
 }
+GO
+  cat >"$dir/contrib/cmd/api-toolkit/main.go" <<'GO'
+package main
+
+func main() {}
 GO
   git -C "$dir" init -q -b main
   git -C "$dir" config user.email "contrib-review-contract@example.invalid"
@@ -144,7 +150,7 @@ case "$no_change_output" in
 esac
 notes_no_change_output="$(require_success no-change-notes run_script_in_dir "$no_change_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$notes_no_change_output" in
-  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
+  *"No supported-tier contrib public behavior files changed."*) ;;
   *) printf 'no-change notes output changed unexpectedly:\n%s\n' "$notes_no_change_output" >&2; exit 1 ;;
 esac
 
@@ -160,7 +166,7 @@ type Store struct {
 GO
 experimental_output="$(require_success experimental-change-notes run_script_in_dir "$experimental_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$experimental_output" in
-  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
+  *"No supported-tier contrib public behavior files changed."*) ;;
   *) printf 'experimental notes output changed unexpectedly:\n%s\n' "$experimental_output" >&2; exit 1 ;;
 esac
 
@@ -182,8 +188,33 @@ cat >"$readme_dir/contrib/middleware/auth/devheaders/README.md" <<'MD'
 MD
 readme_output="$(require_success readme-change-notes run_script_in_dir "$readme_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$readme_output" in
-  *"No supported-tier contrib adapter/integration public behavior files changed."*) ;;
+  *"No supported-tier contrib public behavior files changed."*) ;;
   *) printf 'README-only notes output changed unexpectedly:\n%s\n' "$readme_output" >&2; exit 1 ;;
+esac
+
+tooling_cli_dir="$tmp/tooling-cli"
+init_repo "$tooling_cli_dir"
+cat >"$tooling_cli_dir/contrib/cmd/api-toolkit/main.go" <<'GO'
+package main
+
+func main() {
+	println("new scaffold behavior")
+}
+GO
+tooling_cli_output="$(require_failure tooling-cli-release-notes run_script_in_dir "$tooling_cli_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$tooling_cli_output" in
+  *"contrib/cmd/api-toolkit/main.go"*) ;;
+  *) printf 'tooling CLI release-note failure did not name the changed file:\n%s\n' "$tooling_cli_output" >&2; exit 1 ;;
+esac
+
+cat >>"$tooling_cli_dir/docs/release-notes.md" <<'NOTES'
+
+- `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` scaffold behavior changed.
+NOTES
+tooling_cli_ack_output="$(require_success tooling-cli-release-notes-acknowledged run_script_in_dir "$tooling_cli_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$tooling_cli_ack_output" in
+  *"Contrib supported-tier changes have release notes coverage."*) ;;
+  *) printf 'tooling CLI release-note acknowledgement output changed unexpectedly:\n%s\n' "$tooling_cli_ack_output" >&2; exit 1 ;;
 esac
 
 incompatible_dir="$tmp/incompatible"
