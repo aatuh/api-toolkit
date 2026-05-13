@@ -173,6 +173,8 @@ func (m *Middleware) subjectFromToken(tokenStr string) (Subject, error) {
 		First:    stringClaim(claims, "first_name"),
 		Last:     stringClaim(claims, "last_name"),
 		Language: stringClaim(claims, "preferred_language"),
+		TenantID: firstNonEmpty(stringClaim(claims, "tenant_id"), stringClaim(claims, "org_id")),
+		Scope:    firstNonEmpty(stringClaim(claims, "scope"), stringClaim(claims, "scp"), stringClaim(claims, "permissions")),
 	}
 	return subj, nil
 }

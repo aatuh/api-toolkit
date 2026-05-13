@@ -239,6 +239,12 @@ func TestSubjectFromTokenEnforcesAllowedAlgorithms(t *testing.T) {
 	if subject.UserID != "user" {
 		t.Fatalf("expected subject user id, got %q", subject.UserID)
 	}
+	if subject.TenantID != "tenant_1" {
+		t.Fatalf("expected tenant id, got %q", subject.TenantID)
+	}
+	if subject.Scope != "widgets:write" {
+		t.Fatalf("expected scope claim, got %q", subject.Scope)
+	}
 
 	hsToken := signToken(t, jwt.SigningMethodHS256, baseClaims(now), []byte("secret"), "test-kid")
 	if _, err := mw.subjectFromToken(hsToken); err == nil {
@@ -389,10 +395,12 @@ func signToken(t *testing.T, method jwt.SigningMethod, claims jwt.MapClaims, key
 
 func baseClaims(now time.Time) jwt.MapClaims {
 	return jwt.MapClaims{
-		"sub": "user",
-		"iss": "https://issuer.example",
-		"aud": "example",
-		"exp": float64(now.Add(time.Hour).Unix()),
-		"iat": float64(now.Unix()),
+		"sub":       "user",
+		"iss":       "https://issuer.example",
+		"aud":       "example",
+		"exp":       float64(now.Add(time.Hour).Unix()),
+		"iat":       float64(now.Unix()),
+		"scope":     "widgets:write",
+		"tenant_id": "tenant_1",
 	}
 }

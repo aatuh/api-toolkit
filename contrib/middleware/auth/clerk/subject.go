@@ -17,6 +17,8 @@ type Subject struct {
 	First    string
 	Last     string
 	Language string
+	TenantID string
+	Scope    string
 }
 
 // WithSubject stores an authenticated subject in context.
