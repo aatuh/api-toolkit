@@ -109,6 +109,10 @@ source of truth is `docs/release-runbook.md`.
   enforce route scopes, close JWT middleware through bootstrap shutdown hooks,
   and keep generated contract tests and OpenAPI goldens aligned. Clerk,
   development-header, and unknown modes still fail closed.
+- `contrib/middleware/auth/clerk.Subject` now exposes tenant and scope strings
+  derived from validated JWT claims while preserving subject comparability, so
+  applications and generated services can enforce tenant and route-scope policy
+  from Clerk tokens.
 - `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
   idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
   method, store class, outcome, and status class for metrics.

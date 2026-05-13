@@ -25,7 +25,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 }
 
 func TestSubjectRoundTripAndDisabledConstructor(t *testing.T) {
-	subj := Subject{UserID: "user-123", Email: "clerk@example.com"}
+	subj := Subject{UserID: "user-123", Email: "clerk@example.com", TenantID: "tenant_1", Scope: "widgets:write"}
 	ctx := WithSubject(context.Background(), subj)
 
 	got, ok := SubjectFromContext(ctx)
