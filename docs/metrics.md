@@ -78,6 +78,9 @@ The contrib bootstrap helpers keep metrics opt-in:
   recorder unless you pass `bootstrap.WithMetricsRecorder(...)`.
 - `bootstrap.MountSystemEndpoints` preserves v2 convenience behavior and only
   mounts `specs.Metrics` when you set `SystemEndpoints.Metrics` explicitly.
+- Generated `saas-api` services create one Prometheus recorder, pass it to the
+  default router, and run the health scheduler as an `APIService` background
+  task with `metrics.HealthStatusChangeHook`.
 - Prefer `bootstrap.MountSystemEndpointsToWithAdmin` for new system endpoint
   wiring so metrics are mounted behind an explicit admin or internal-network
   wrapper.

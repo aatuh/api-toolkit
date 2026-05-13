@@ -133,6 +133,11 @@ source of truth is `docs/release-runbook.md`.
   bounded `health_status_changes_total` Prometheus counters through
   `HealthStatusChangeHook`, using only `from` and `to` health-status labels for
   scheduler transitions.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
+  supports named `BackgroundTasks` that run with the service context, fail the
+  service on unexpected task errors, and stop during graceful shutdown.
+  Generated `saas-api` services use this to run health refreshes with bounded
+  health-status metrics.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required

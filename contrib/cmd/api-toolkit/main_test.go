@@ -305,6 +305,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"NewPrometheusRecorderChecked",
 		"DefaultRouterConfig{Metrics:",
+		"HealthStatusChangeHook",
+		"BackgroundTasks:",
 		"newIdempotencyStore()",
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",

@@ -585,6 +585,81 @@ func TestNewAPIServiceValidatesDeclaredMiddlewareOrder(t *testing.T) {
 	}
 }
 
+func TestAPIServiceStopsBackgroundTasksOnShutdown(t *testing.T) {
+	started := make(chan struct{})
+	stopped := make(chan struct{})
+	service, err := NewAPIService(APIServiceConfig{
+		Addr: "127.0.0.1:0",
+		Log:  ports.NopLogger{},
+		BackgroundTasks: []BackgroundTask{{
+			Name: "health-scheduler",
+			Run: func(ctx context.Context) error {
+				close(started)
+				<-ctx.Done()
+				close(stopped)
+				return ctx.Err()
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("new API service: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.Start(ctx)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("background task did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("start returned error after shutdown: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("service did not stop after context cancellation")
+	}
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("background task did not observe shutdown")
+	}
+}
+
+func TestAPIServiceReturnsBackgroundTaskFailure(t *testing.T) {
+	service, err := NewAPIService(APIServiceConfig{
+		Addr: "127.0.0.1:0",
+		Log:  ports.NopLogger{},
+		BackgroundTasks: []BackgroundTask{{
+			Name: "health-scheduler",
+			Run: func(context.Context) error {
+				return errors.New("refresh failed")
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("new API service: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = service.Start(ctx)
+	if err == nil {
+		t.Fatal("expected background task failure")
+	}
+	if got := err.Error(); !strings.Contains(got, "background task health-scheduler") || !strings.Contains(got, "refresh failed") {
+		t.Fatalf("unexpected background task error: %v", err)
+	}
+}
+
 func pprofStub() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
