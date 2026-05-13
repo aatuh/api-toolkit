@@ -118,6 +118,12 @@ timeout are contained in the child goroutine. Before the timeout response wins,
 the middleware returns a deterministic 500 Problem Details response; after the
 timeout response wins, late panics are dropped with late writes.
 
+`middleware/timeout.Options.EventHooks` exposes bounded operator
+metadata for timeout, panic, and capture-overflow outcomes. The event contract
+intentionally omits panic values, URL paths, query strings, request headers,
+response headers, and bodies, so it is suitable for low-cardinality counters or
+sanitized structured logs.
+
 OpenAPI response validation also buffers handler responses so it can validate
 the final status, headers, and body against the route contract. Do not apply it
 to streaming responses, server-sent events, websocket upgrades, or routes that
