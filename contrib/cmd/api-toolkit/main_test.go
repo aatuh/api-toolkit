@@ -335,6 +335,9 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		t.Fatalf("read generated main.go: %v", err)
 	}
 	for _, want := range []string{
+		`appVersion  = "dev"`,
+		`buildCommit = "unknown"`,
+		`buildDate   = "unknown"`,
 		"MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"NewPrometheusRecorderChecked",
@@ -355,6 +358,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"client.Close()",
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",
+		`ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}`,
 	} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated main.go missing %q", want)
@@ -377,7 +381,13 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 	for _, want := range []string{
 		"FROM golang:1.25 AS build",
+		"ARG VERSION=dev",
+		"ARG BUILD_COMMIT=unknown",
+		"ARG BUILD_DATE=unknown",
 		"CGO_ENABLED=0 GOOS=linux go build",
+		"-X main.appVersion=${VERSION}",
+		"-X main.buildCommit=${BUILD_COMMIT}",
+		"-X main.buildDate=${BUILD_DATE}",
 		"USER nonroot:nonroot",
 		"ENTRYPOINT [\"/api\"]",
 	} {
@@ -410,7 +420,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated Makefile: %v", err)
 	}
-	for _, want := range []string{"contracts-lint:", "contracts-diff:", "API_TOOLKIT ?=", "OPENAPI_BASE ?="} {
+	for _, want := range []string{"VERSION ?= dev", "BUILD_COMMIT ?=", "BUILD_DATE ?=", "LDFLAGS ?=", "build:", "-X main.appVersion=$(VERSION)", "contracts-lint:", "contracts-diff:", "API_TOOLKIT ?=", "OPENAPI_BASE ?="} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated Makefile missing %q", want)
 		}
@@ -473,6 +483,15 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated service contracts diff failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "build")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service build failed:\n%s\nerror: %v", output, err)
+	}
+	if _, err := os.Stat(filepath.Join(serviceDir, "bin", "api")); err != nil {
+		t.Fatalf("expected generated build artifact: %v", err)
 	}
 }
 
