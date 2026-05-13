@@ -34,6 +34,11 @@ source of truth is `docs/release-runbook.md`.
   sunset, tenant, idempotency, rate-limit, admin-policy, and Problem Details
   response contracts, plus operation linting for missing production policy
   metadata.
+- `routepolicy` now exposes typed metadata readers for auth, deprecation,
+  tenant, idempotency, rate-limit, admin-policy, and Problem Details response
+  contracts. Contract linting now requires unsafe-write tenant and idempotency
+  metadata to be explicitly marked `required: true` instead of accepting any
+  extension value.
 - `routepolicy.LintOperations` and `api-toolkit contracts lint` now fail
   non-public operations without security metadata and unsafe write operations
   without tenant, idempotency, rate-limit, and Problem Details policy metadata,
