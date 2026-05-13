@@ -341,6 +341,93 @@ func TestOpenAPICompatibilityFindingsReportParameterBreakingChanges(t *testing.T
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportRoutePolicyDrift(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"deprecated": true,
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"type": "object"}}}
+					},
+					"responses": {
+						"201": {"description": "created"},
+						"400": {
+							"description": "bad request",
+							"content": {"application/problem+json": {"schema": {"type": "object"}}}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}],
+					"x-tenant": {"required": true, "source": "header"},
+					"x-idempotency-key": {"required": true, "header": "Idempotency-Key"},
+					"x-rate-limit": "write-standard",
+					"x-sunset": "Wed, 01 Jul 2026 00:00:00 GMT"
+				}
+			},
+			"/metrics": {
+				"get": {
+					"operationId": "getMetrics",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["admin:read"]}],
+					"x-admin-policy": "admin"
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"type": "object"}}}
+					},
+					"responses": {
+						"201": {"description": "created"},
+						"400": {
+							"description": "bad request",
+							"content": {"application/problem+json": {"schema": {"type": "object"}}}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}],
+					"x-tenant": {"required": false, "source": "path"},
+					"x-rate-limit": "write-burst"
+				}
+			},
+			"/metrics": {
+				"get": {
+					"operationId": "getMetrics",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["admin:read"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"tenant_policy_changed POST /widgets",
+		"idempotency_policy_changed POST /widgets",
+		"rate_limit_policy_changed POST /widgets",
+		"deprecation_policy_changed POST /widgets",
+		"admin_policy_changed GET /metrics",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}

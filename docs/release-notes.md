@@ -62,6 +62,9 @@ source of truth is `docs/release-runbook.md`.
 - `contracttest` now includes stricter generated-OpenAPI assertions for
   expected security scopes, tenant policy source, idempotency header, named
   admin policy, and sets of Problem Details response statuses.
+- `contracttest.OpenAPICompatibilityFindings` now reports tenant,
+  idempotency, rate-limit, admin-policy, and deprecation/sunset route policy
+  drift, matching the stricter `api-toolkit contracts diff` behavior.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and
