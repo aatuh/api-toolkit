@@ -4,6 +4,8 @@
 // fields such as `policy_auth`, `policy_tenant`, and `policy_rate_limit`.
 // These fields report policy shape only; raw scopes, tenants, and policy names
 // are not logged.
+// IdempotencyOutcomeLogHook emits bounded idempotency outcome fields without
+// raw idempotency keys, tenants, paths, bodies, or error strings.
 //
 // Header redaction
 // ---------------

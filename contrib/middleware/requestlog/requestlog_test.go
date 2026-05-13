@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
 	"github.com/aatuh/api-toolkit/v2/specs"
@@ -214,6 +215,38 @@ func TestRequestLogIncludesBoundedRoutePolicyLabels(t *testing.T) {
 	}
 	if fields[FieldPolicyRateLimit] == "tenant-specific-write-standard" || fields[FieldPolicyAdmin] == "platform-admins" {
 		t.Fatalf("policy log leaked raw policy values: %#v", fields)
+	}
+}
+
+func TestIdempotencyOutcomeLogHookIncludesBoundedFields(t *testing.T) {
+	log := &captureLogger{}
+	hook := IdempotencyOutcomeLogHook(log)
+
+	hook(context.Background(), idempotencymw.OutcomeEvent{
+		Method:    "BREW",
+		Status:    http.StatusCreated,
+		StoreType: "customer-acme-memory-primary",
+		Outcome:   idempotencymw.OutcomeEventName("customer-acme-outcome"),
+		FailOpen:  true,
+	})
+
+	if log.level != "info" || log.msg != "idempotency outcome" {
+		t.Fatalf("log entry = %s %q", log.level, log.msg)
+	}
+	fields := kvToMap(log.kv)
+	for key, want := range map[string]any{
+		FieldIdempotencyMethod:      "OTHER",
+		FieldIdempotencyStoreClass:  "memory",
+		FieldIdempotencyOutcome:     "unknown",
+		FieldIdempotencyStatusClass: "2xx",
+		FieldIdempotencyFailOpen:    true,
+	} {
+		if got := fields[key]; got != want {
+			t.Fatalf("field %s = %#v, want %#v; fields=%#v", key, got, want, fields)
+		}
+	}
+	if fields[FieldIdempotencyStoreClass] == "customer-acme-memory-primary" || fields[FieldIdempotencyOutcome] == "customer-acme-outcome" {
+		t.Fatalf("idempotency outcome log leaked raw values: %#v", fields)
 	}
 }
 

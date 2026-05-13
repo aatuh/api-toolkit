@@ -1493,6 +1493,7 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
 {{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v2/config"
 	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
 {{ end }}
@@ -1616,6 +1617,10 @@ func newService() (*bootstrap.APIService, error) {
 	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
 		Store:          idempotencyStore,
 		StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc(),
+		OnOutcome: idempotencyOutcomeHooks(
+			metricsmw.IdempotencyOutcomeHook(metricsRecorder),
+			requestlog.IdempotencyOutcomeLogHook(log),
+		),
 	})
 	if err != nil {
 		return nil, err
@@ -1868,6 +1873,16 @@ func createWidget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, widgetResponse{ID: "w_123", TenantID: tenantID, Name: strings.TrimSpace(input.Name)})
+}
+
+func idempotencyOutcomeHooks(handlers ...idempotencymw.OutcomeHandler) idempotencymw.OutcomeHandler {
+	return func(ctx context.Context, event idempotencymw.OutcomeEvent) {
+		for _, handler := range handlers {
+			if handler != nil {
+				handler(ctx, event)
+			}
+		}
+	}
 }
 
 func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
@@ -2277,6 +2292,19 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 	}
 	if got := rec.Header().Get("Idempotency-Key"); got != "create-key" {
 		t.Fatalf("replay idempotency key = %q", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, specs.Metrics, nil)
+	req.Header.Set("X-Admin-Key", "local-admin-key")
+	rec = httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{"idempotency_outcomes_total", ` + "`outcome=\"completed_stored\"`" + `, ` + "`outcome=\"replayed\"`" + `} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("metrics body missing %q:\n%s", want, rec.Body.String())
+		}
 	}
 }
 

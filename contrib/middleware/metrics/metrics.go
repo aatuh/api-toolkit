@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
 )
@@ -33,6 +34,11 @@ type MetricsRecorder interface {
 // names, error strings, request data, tenant identifiers, or health messages.
 type HealthMetricsRecorder interface {
 	RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse)
+}
+
+// IdempotencyOutcomeMetricsRecorder captures bounded idempotency outcome metrics.
+type IdempotencyOutcomeMetricsRecorder interface {
+	RecordIdempotencyOutcome(event idempotencymw.OutcomeEvent)
 }
 
 // RoutePolicyMetricsRecorder captures bounded per-request route policy labels.
@@ -59,6 +65,9 @@ func (NoopMetrics) ObserveHistogram(_ string, _ float64, _ Labels) {}
 // RecordHealthStatusChange is a no-op implementation.
 func (NoopMetrics) RecordHealthStatusChange(_, _ ports.HealthStatus, _ ports.DetailedHealthResponse) {
 }
+
+// RecordIdempotencyOutcome is a no-op implementation.
+func (NoopMetrics) RecordIdempotencyOutcome(idempotencymw.OutcomeEvent) {}
 
 // RecordRoutePolicy is a no-op implementation.
 func (NoopMetrics) RecordRoutePolicy(Labels) {}
@@ -108,6 +117,7 @@ type PrometheusRecorder struct {
 	requests            *prometheus.CounterVec
 	durations           *prometheus.HistogramVec
 	healthStatusChanges *prometheus.CounterVec
+	idempotencyOutcomes *prometheus.CounterVec
 	routePolicyRequests *prometheus.CounterVec
 }
 
@@ -149,6 +159,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		Name: "health_status_changes_total",
 		Help: "Total number of health status transitions",
 	}, []string{"from", "to"})
+	idempotencyOutcomes := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "idempotency_outcomes_total",
+		Help: "Total number of idempotency decisions by bounded outcome labels",
+	}, []string{"method", "store_class", "outcome", "status_class", "fail_open"})
 	routePolicyRequests := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_route_policy_requests_total",
 		Help: "Total number of HTTP requests by bounded route policy metadata",
@@ -165,6 +179,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 	if err != nil {
 		return nil, fmt.Errorf("register health_status_changes_total: %w", err)
 	}
+	registeredIdempotencyOutcomes, err := registerOrReuseCounterVec(reg, idempotencyOutcomes)
+	if err != nil {
+		return nil, fmt.Errorf("register idempotency_outcomes_total: %w", err)
+	}
 	registeredRoutePolicyRequests, err := registerOrReuseCounterVec(reg, routePolicyRequests)
 	if err != nil {
 		return nil, fmt.Errorf("register http_route_policy_requests_total: %w", err)
@@ -173,6 +191,7 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		requests:            registeredRequests,
 		durations:           registeredDurations,
 		healthStatusChanges: registeredHealthStatusChanges,
+		idempotencyOutcomes: registeredIdempotencyOutcomes,
 		routePolicyRequests: registeredRoutePolicyRequests,
 	}, nil
 }
@@ -238,6 +257,21 @@ func (p *PrometheusRecorder) RecordHealthStatusChange(from, to ports.HealthStatu
 	p.healthStatusChanges.WithLabelValues(labels["from"], labels["to"]).Inc()
 }
 
+// RecordIdempotencyOutcome records one bounded idempotency decision.
+func (p *PrometheusRecorder) RecordIdempotencyOutcome(event idempotencymw.OutcomeEvent) {
+	if p == nil || p.idempotencyOutcomes == nil {
+		return
+	}
+	labels := IdempotencyOutcomeLabels(event)
+	p.idempotencyOutcomes.WithLabelValues(
+		labels["method"],
+		labels["store_class"],
+		labels["outcome"],
+		labels["status_class"],
+		labels["fail_open"],
+	).Inc()
+}
+
 // RecordRoutePolicy records bounded route policy labels for one request.
 func (p *PrometheusRecorder) RecordRoutePolicy(labels Labels) {
 	if p == nil || p.routePolicyRequests == nil {
@@ -272,6 +306,17 @@ func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context
 	}
 }
 
+// IdempotencyOutcomeHook converts an idempotency middleware callback into a
+// metrics recorder call.
+func IdempotencyOutcomeHook(recorder IdempotencyOutcomeMetricsRecorder) idempotencymw.OutcomeHandler {
+	return func(_ context.Context, event idempotencymw.OutcomeEvent) {
+		if recorder == nil {
+			return
+		}
+		recorder.RecordIdempotencyOutcome(event)
+	}
+}
+
 // HealthStatusChangeLabels returns the bounded label set used for health status
 // transition metrics.
 func HealthStatusChangeLabels(from, to ports.HealthStatus) Labels {
@@ -279,6 +324,18 @@ func HealthStatusChangeLabels(from, to ports.HealthStatus) Labels {
 		"from": sanitizeHealthStatus(from),
 		"to":   sanitizeHealthStatus(to),
 	}
+}
+
+// IdempotencyOutcomeLabels returns the bounded label set used for idempotency
+// outcome metrics.
+func IdempotencyOutcomeLabels(event idempotencymw.OutcomeEvent) Labels {
+	labels := Labels(event.MetricLabels())
+	if event.FailOpen {
+		labels["fail_open"] = "true"
+	} else {
+		labels["fail_open"] = "false"
+	}
+	return labels
 }
 
 func sanitizeHealthStatus(status ports.HealthStatus) string {

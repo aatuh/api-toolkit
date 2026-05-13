@@ -1,6 +1,7 @@
 package requestlog
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -12,34 +13,40 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	coretrace "github.com/aatuh/api-toolkit/v2/middleware/trace"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
 )
 
 const (
-	FieldRequestID         = "request_id"
-	FieldTraceID           = "trace_id"
-	FieldSpanID            = "span_id"
-	FieldRoute             = "route"
-	FieldStatus            = "status"
-	FieldCommittedStatus   = "committed_status"
-	FieldLatencyMS         = "latency_ms"
-	FieldMethod            = "method"
-	FieldPath              = "path"
-	FieldBytes             = "bytes"
-	FieldClientIP          = "client_ip"
-	FieldUserAgent         = "user_agent"
-	FieldRequestHeaders    = "req_headers"
-	FieldResponseHeaders   = "resp_headers"
-	FieldStack             = "stack"
-	FieldPanicRecovered    = "panic_recovered"
-	FieldPolicyAuth        = "policy_auth"
-	FieldPolicyTenant      = "policy_tenant"
-	FieldPolicyIdempotency = "policy_idempotency"
-	FieldPolicyRateLimit   = "policy_rate_limit"
-	FieldPolicyAdmin       = "policy_admin"
-	FieldPolicyDeprecated  = "policy_deprecated"
+	FieldRequestID              = "request_id"
+	FieldTraceID                = "trace_id"
+	FieldSpanID                 = "span_id"
+	FieldRoute                  = "route"
+	FieldStatus                 = "status"
+	FieldCommittedStatus        = "committed_status"
+	FieldLatencyMS              = "latency_ms"
+	FieldMethod                 = "method"
+	FieldPath                   = "path"
+	FieldBytes                  = "bytes"
+	FieldClientIP               = "client_ip"
+	FieldUserAgent              = "user_agent"
+	FieldRequestHeaders         = "req_headers"
+	FieldResponseHeaders        = "resp_headers"
+	FieldStack                  = "stack"
+	FieldPanicRecovered         = "panic_recovered"
+	FieldPolicyAuth             = "policy_auth"
+	FieldPolicyTenant           = "policy_tenant"
+	FieldPolicyIdempotency      = "policy_idempotency"
+	FieldPolicyRateLimit        = "policy_rate_limit"
+	FieldPolicyAdmin            = "policy_admin"
+	FieldPolicyDeprecated       = "policy_deprecated"
+	FieldIdempotencyMethod      = "idempotency_method"
+	FieldIdempotencyStoreClass  = "idempotency_store_class"
+	FieldIdempotencyOutcome     = "idempotency_outcome"
+	FieldIdempotencyStatusClass = "idempotency_status_class"
+	FieldIdempotencyFailOpen    = "idempotency_fail_open"
 )
 
 const redactedValue = "[redacted]"
@@ -296,6 +303,31 @@ func appendPolicyLabels(fields []any, labels routepolicy.ObservabilityLabels) []
 		FieldPolicyAdmin, values["admin"],
 		FieldPolicyDeprecated, values["deprecated"],
 	)
+}
+
+// IdempotencyOutcomeLogHook returns an idempotency middleware outcome hook that
+// writes bounded outcome fields to the configured logger.
+func IdempotencyOutcomeLogHook(log ports.Logger) idempotencymw.OutcomeHandler {
+	if log == nil {
+		return nil
+	}
+	return func(_ context.Context, event idempotencymw.OutcomeEvent) {
+		log.Info("idempotency outcome", IdempotencyOutcomeFields(event)...)
+	}
+}
+
+// IdempotencyOutcomeFields returns bounded log fields for an idempotency
+// outcome. It intentionally omits request paths, tenant IDs, idempotency keys,
+// request IDs, bodies, and raw error strings.
+func IdempotencyOutcomeFields(event idempotencymw.OutcomeEvent) []any {
+	labels := event.MetricLabels()
+	return []any{
+		FieldIdempotencyMethod, labels["method"],
+		FieldIdempotencyStoreClass, labels["store_class"],
+		FieldIdempotencyOutcome, labels["outcome"],
+		FieldIdempotencyStatusClass, labels["status_class"],
+		FieldIdempotencyFailOpen, event.FailOpen,
+	}
 }
 
 func requestID(r *http.Request) string {
