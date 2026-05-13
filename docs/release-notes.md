@@ -76,6 +76,9 @@ source of truth is `docs/release-runbook.md`.
   readiness, admin-protected metrics/pprof/detailed health, core API-key and
   tenant middleware, and idempotent write behavior, plus a checked-in OpenAPI
   golden workflow.
+- Generated `saas-api` services now fail startup under `ENV=production` unless
+  `API_KEY` and `ADMIN_KEY` are explicitly set, so local fallback credentials
+  cannot be deployed accidentally.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required
