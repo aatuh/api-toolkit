@@ -728,6 +728,21 @@ func TestMakefileGateIntent(t *testing.T) {
 	if !strings.Contains(releaseCheck, "$(MAKE) contrib-release-notes-check") {
 		t.Fatal("release-check must call contrib-release-notes-check")
 	}
+	if !strings.Contains(releaseCheck, "$(MAKE) v3-readiness-check") {
+		t.Fatal("release-check must call v3-readiness-check")
+	}
+	v3Readiness := makeTargetRecipe(t, makefile, "v3-readiness-check")
+	for _, required := range []string{
+		"TestV3DebtChecklistRowsStayExecutable",
+		"TestCompatibilityRoadmapCoversDocumentedSensitiveSurfaces",
+		"TestCompatibilitySensitivePortsGovernanceDocs",
+		"TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces",
+		"TestReleaseNotesIncludeStableSurfaceChecklist",
+	} {
+		if !strings.Contains(v3Readiness, required) {
+			t.Fatalf("v3-readiness-check must run %s", required)
+		}
+	}
 	contribReport := makeTargetRecipe(t, makefile, "contrib-api-drift-report")
 	if !strings.Contains(contribReport, "scripts/contrib_api_drift_report.sh") {
 		t.Fatal("contrib-api-drift-report must call the contrib API drift script")
@@ -789,6 +804,7 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 		"docs/vulnerability-dispositions.tsv",
 		"docs/contrib-api-drift-dispositions.tsv",
 		"make contrib-release-notes-check",
+		"make v3-readiness-check",
 	} {
 		if !strings.Contains(script, required) {
 			t.Fatalf("release evidence script missing %q", required)

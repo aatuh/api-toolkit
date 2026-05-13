@@ -36,6 +36,7 @@ checks = [
     "ci-build-smoke",
     "release-api-check",
     "contrib-release-notes-check",
+    "v3-readiness-check",
     "docs-check",
     "test",
     "test-race",
@@ -159,7 +160,7 @@ PY
 
 for log_name in \
   tools.log lint.log vuln.log gosec.log ci-build-smoke.log release-api-check.log \
-  contrib-release-notes-check.log docs-check.log test.log test-race.log fuzz.log \
+  contrib-release-notes-check.log v3-readiness-check.log docs-check.log test.log test-race.log fuzz.log \
   clean.log contrib-api-drift-report.log; do
   printf 'synthetic fixture %s\n' "$log_name" >"$asset_dir/logs/$log_name"
 done

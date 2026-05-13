@@ -137,6 +137,13 @@ incompatible; it is not a substitute for human compatibility judgment. `make
 release-check` and `make release-evidence` include that gate so unacknowledged
 incompatible report-only drift cannot be published by the normal release path.
 
+Compatibility-sensitive v3 cleanup stays gated separately from the stable v2
+API check. `make v3-readiness-check` runs focused docscheck guardrails for
+provider-shaped billing ports, driver-shaped database stats, legacy response
+helpers, tokenless idempotency release, unchecked authz construction, checked
+list parser shims, and release-note requirements before those surfaces can be
+removed in a major version.
+
 ## Deprecation policy
 
 - Use `// Deprecated:` Go doc comments with a replacement when possible.
@@ -151,6 +158,7 @@ packages. Breaking changes must coincide with a major version bump.
 Command intent is deliberately split, and `docs/release-runbook.md` is the
 command source of truth. `make api-check` is a local compatibility helper.
 `make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline.
+`make v3-readiness-check` runs focused compatibility-sensitive surface guardrails.
 `make release-check` is the release-readiness gate.
 `make release-evidence` runs the release-readiness subchecks through the evidence writer and writes `release-check-summary.json` schema v2.
 `make contrib-api-drift-report` enforces supported-adapter incompatible drift.
