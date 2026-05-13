@@ -328,9 +328,9 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // compatible; removed operations, changed operation IDs, removed documented
 // parameters, added required parameters, removed documented responses,
 // request-body tightening or content removal, response content removal, and
-// changed security requirements are findings. Tenant, idempotency, rate-limit,
-// admin, deprecation/sunset route policy drift, and obvious inline or component
-// schema removals or narrowing are findings too.
+// changed security requirements or security scheme definitions are findings.
+// Tenant, idempotency, rate-limit, admin, deprecation/sunset route policy drift,
+// and obvious inline or component schema removals or narrowing are findings too.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -389,6 +389,11 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		return nil, err
 	}
 	findings = append(findings, operationSchemaFindings...)
+	securitySchemeFindings, err := securitySchemeCompatibilityFindings(base, head)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, securitySchemeFindings...)
 	schemaFindings, err := componentSchemaCompatibilityFindings(base, head)
 	if err != nil {
 		return nil, err
@@ -914,6 +919,70 @@ func componentSchemaCompatibilityFindings(base, head []byte) ([]string, error) {
 		findings = append(findings, schemaCompatibilityFindings(name, baseSchema, headSchema)...)
 	}
 	return findings, nil
+}
+
+func securitySchemeCompatibilityFindings(base, head []byte) ([]string, error) {
+	baseSchemes, err := componentSecuritySchemeMaps(base)
+	if err != nil {
+		return nil, fmt.Errorf("base security schemes: %w", err)
+	}
+	headSchemes, err := componentSecuritySchemeMaps(head)
+	if err != nil {
+		return nil, fmt.Errorf("head security schemes: %w", err)
+	}
+	var findings []string
+	for _, name := range sortedMapKeys(baseSchemes) {
+		baseScheme := baseSchemes[name]
+		headScheme, ok := headSchemes[name]
+		if !ok {
+			findings = append(findings, "security_scheme_removed "+name)
+			continue
+		}
+		if securitySchemeDefinitionFingerprint(baseScheme) != securitySchemeDefinitionFingerprint(headScheme) {
+			findings = append(findings, "security_scheme_changed "+name)
+		}
+	}
+	return findings, nil
+}
+
+func componentSecuritySchemeMaps(doc []byte) (map[string]any, error) {
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return nil, err
+	}
+	components, ok := root["components"].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	schemes, ok := components["securitySchemes"].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	return schemes, nil
+}
+
+func securitySchemeDefinitionFingerprint(raw any) string {
+	scheme, ok := raw.(map[string]any)
+	if !ok {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return fmt.Sprint(raw)
+		}
+		return string(encoded)
+	}
+	behavior := make(map[string]any, len(scheme))
+	for key, value := range scheme {
+		key = strings.TrimSpace(key)
+		if key == "" || key == "description" {
+			continue
+		}
+		behavior[key] = value
+	}
+	encoded, err := json.Marshal(behavior)
+	if err != nil {
+		return fmt.Sprint(behavior)
+	}
+	return string(encoded)
 }
 
 func componentSchemaMaps(doc []byte) (map[string]any, error) {

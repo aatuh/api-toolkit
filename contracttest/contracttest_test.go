@@ -524,6 +524,59 @@ func TestOpenAPICompatibilityFindingsReportComponentSchemaDrift(t *testing.T) {
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportSecuritySchemeDrift(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"},
+				"WebhookAuth": {"type": "apiKey", "in": "header", "name": "X-Webhook-Signature"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key-V2"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"security_scheme_changed ApiKeyAuth",
+		"security_scheme_removed WebhookAuth",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 func TestOpenAPICompatibilityFindingsReportInlineSchemaDrift(t *testing.T) {
 	base := []byte(`{
 		"openapi": "3.0.0",

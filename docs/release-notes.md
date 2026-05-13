@@ -154,6 +154,11 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts diff` now also fails closed when existing operations
   drift in tenant, idempotency, rate-limit, admin-policy, or deprecation/sunset
   route policy metadata.
+- `api-toolkit contracts diff` and
+  `contracttest.OpenAPICompatibilityFindings` now also flag removed or changed
+  `components.securitySchemes`, so auth header, bearer, OAuth, or OIDC
+  contract drift is caught even when operation-level security requirements keep
+  the same scheme name.
 - `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
