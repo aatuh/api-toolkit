@@ -194,6 +194,9 @@ source of truth is `docs/release-runbook.md`.
 - The getting-started guide is now scaffold-first and verifies the generated
   service, OpenAPI golden, and contract lint/diff workflow instead of teaching a
   hand-written minimal starter as the primary path.
+- Generated service Makefiles now include `fast-check`, `audit-check`,
+  `coverage-check`, `test-race`, `vuln`, and `clean` targets so scaffold CI runs
+  race tests and govulncheck in addition to build and contract checks.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

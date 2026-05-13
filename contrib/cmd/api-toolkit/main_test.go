@@ -446,7 +446,27 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated Makefile: %v", err)
 	}
-	for _, want := range []string{"VERSION ?= dev", "BUILD_COMMIT ?=", "BUILD_DATE ?=", "LDFLAGS ?=", "build:", "-X main.appVersion=$(VERSION)", "contracts-lint:", "contracts-diff:", "API_TOOLKIT ?=", "OPENAPI_BASE ?="} {
+	for _, want := range []string{
+		"VERSION ?= dev",
+		"BUILD_COMMIT ?=",
+		"BUILD_DATE ?=",
+		"LDFLAGS ?=",
+		"GOVULNCHECK_VERSION ?=",
+		"tools:",
+		"build:",
+		"-X main.appVersion=$(VERSION)",
+		"coverage-check:",
+		"test-race:",
+		"vuln:",
+		"contracts-lint:",
+		"contracts-diff:",
+		"fast-check:",
+		"audit-check:",
+		"clean:",
+		"finalize: fmt audit-check clean",
+		"API_TOOLKIT ?=",
+		"OPENAPI_BASE ?=",
+	} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated Makefile missing %q", want)
 		}
@@ -537,6 +557,12 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(serviceDir, "bin", "api")); err != nil {
 		t.Fatalf("expected generated build artifact: %v", err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "test-race")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service race tests failed:\n%s\nerror: %v", output, err)
 	}
 }
 

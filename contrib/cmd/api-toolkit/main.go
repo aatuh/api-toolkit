@@ -3024,6 +3024,7 @@ const makefileTemplate = `GO ?= go
 API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
+GOVULNCHECK_VERSION ?= v1.2.0
 VERSION ?= dev
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -3031,7 +3032,10 @@ GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 LDFLAGS ?= -s -w -X main.appVersion=$(VERSION) -X main.buildCommit=$(BUILD_COMMIT) -X main.buildDate=$(BUILD_DATE)
 
-.PHONY: test fmt build openapi-check openapi-update contracts-lint contracts-diff finalize
+.PHONY: tools test fmt build coverage coverage-check test-race vuln openapi-check openapi-update contracts-lint contracts-diff fast-check audit-check clean finalize
+
+tools:
+	$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 test:
 	$(GO) test ./...
@@ -3041,6 +3045,17 @@ fmt:
 
 build:
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/api .
+
+coverage:
+	$(GO) test ./... -coverprofile=coverage.out
+
+coverage-check: coverage
+
+test-race:
+	$(GO) test ./... -race -count=1
+
+vuln: tools
+	govulncheck ./...
 
 openapi-check:
 	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden
@@ -3054,7 +3069,14 @@ contracts-lint:
 contracts-diff:
 	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
 
-finalize: fmt test build openapi-check contracts-lint contracts-diff
+fast-check: test build openapi-check contracts-lint contracts-diff
+
+audit-check: coverage-check test-race build openapi-check contracts-lint contracts-diff vuln
+
+clean:
+	$(GO) clean -testcache
+
+finalize: fmt audit-check clean
 `
 
 const ciWorkflowTemplate = `name: ci
@@ -3246,6 +3268,6 @@ Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the 
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
 ` + "`make build`" + ` produces ` + "`bin/api`" + ` and stamps ` + "`/version`" + ` with ` + "`VERSION`" + `, ` + "`BUILD_COMMIT`" + `, and ` + "`BUILD_DATE`" + `. The Dockerfile accepts matching build args and defaults to ` + "`dev`" + `/` + "`unknown`" + ` metadata.
-Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow.
+Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow. The generated Makefile also includes ` + "`make fast-check`" + ` for local iteration and ` + "`make audit-check`" + ` for coverage, race, vulnerability, OpenAPI, and contract review.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
