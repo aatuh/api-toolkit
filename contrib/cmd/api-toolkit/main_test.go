@@ -428,7 +428,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated .dockerignore: %v", err)
 	}
-	for _, want := range []string{".env", ".git"} {
+	for _, want := range []string{".env", ".git", ".tools"} {
 		if !strings.Contains(string(generatedDockerignore), want) {
 			t.Fatalf("generated .dockerignore missing %q", want)
 		}
@@ -437,7 +437,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated .gitignore: %v", err)
 	}
-	for _, want := range []string{".env", "!.env.example", "coverage.out", ".ci-result/"} {
+	for _, want := range []string{".env", "!.env.example", "coverage.out", ".ci-result/", ".tools/"} {
 		if !strings.Contains(string(generatedGitignore), want) {
 			t.Fatalf("generated .gitignore missing %q", want)
 		}
@@ -452,16 +452,20 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"BUILD_DATE ?=",
 		"LDFLAGS ?=",
 		"OUTPUT_DIR ?=",
+		"TOOLS_DIR ?=",
 		"SYFT ?=",
 		"COVERAGE_MIN ?=",
+		"GOVULNCHECK ?=",
 		"GOVULNCHECK_VERSION ?=",
 		"tools:",
+		"GOBIN=\"$(CURDIR)/$(TOOLS_DIR)/bin\" $(GO) install",
 		"build:",
 		"-X main.appVersion=$(VERSION)",
 		"coverage-check:",
 		"tool cover -func=coverage.out",
 		"test-race:",
 		"vuln:",
+		"\"$(GOVULNCHECK)\" ./...",
 		"contracts-lint:",
 		"contracts-diff:",
 		"fast-check:",
@@ -578,6 +582,13 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "coverage") || !strings.Contains(string(output), "below required") {
 		t.Fatalf("generated service coverage failure should explain the floor:\n%s", output)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "vuln", "GOVULNCHECK=/bin/true")
+	cmd.Dir = serviceDir
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service vuln target should use overridable local tool path:\n%s\nerror: %v", output, err)
 	}
 	cmd = exec.CommandContext(context.Background(), "make", "test-race")
 	cmd.Dir = serviceDir
