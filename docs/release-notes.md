@@ -85,6 +85,9 @@ source of truth is `docs/release-runbook.md`.
   parameters, removed documented responses, request-body tightening or content
   removal, response content removal, and changed security requirements fail with
   deterministic findings.
+- `api-toolkit contracts diff` now also fails closed when existing operations
+  drift in tenant, idempotency, rate-limit, admin-policy, or deprecation/sunset
+  route policy metadata.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.

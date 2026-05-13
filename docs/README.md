@@ -28,7 +28,8 @@ responses, Problem Details responses, and protected operator paths. `contracts
 diff` allows additive operations and fails closed on removed operations, changed
 operation IDs, removed documented parameters, added required parameters,
 removed documented responses, request-body tightening or content removal,
-response content removal, or changed security requirements:
+response content removal, changed security requirements, or drift in tenant,
+idempotency, rate-limit, admin, and deprecation route policy metadata:
 
 ```sh
 api-toolkit contracts lint --openapi ./openapi.json

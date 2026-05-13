@@ -457,6 +457,7 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 				OperationID: op.OperationID,
 				Method:      strings.ToUpper(method),
 				Path:        routePath,
+				Deprecated:  op.Deprecated,
 				Responses:   map[int]specs.Response{},
 				Extensions:  map[string]any{},
 			}
@@ -486,6 +487,9 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 				if strings.HasPrefix(name, "x-") {
 					operation.Extensions[name] = value
 				}
+			}
+			if sunset, ok := operation.Extensions["x-sunset"].(string); ok {
+				operation.Sunset = strings.TrimSpace(sunset)
 			}
 			for status, responseRef := range op.Responses.Map() {
 				if status == "default" {
@@ -626,6 +630,7 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 				Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
 			})
 		}
+		findings = append(findings, diffRoutePolicies(baseOperation, headOperation)...)
 	}
 	return findings
 }
@@ -731,6 +736,73 @@ func diffRequestBody(baseOperation, headOperation specs.Operation) []openAPIDiff
 		}
 	}
 	return findings
+}
+
+func diffRoutePolicies(baseOperation, headOperation specs.Operation) []openAPIDiffFinding {
+	checks := []struct {
+		code string
+		base string
+		head string
+	}{
+		{code: "tenant_policy_changed", base: tenantPolicyFingerprint(baseOperation), head: tenantPolicyFingerprint(headOperation)},
+		{code: "idempotency_policy_changed", base: idempotencyPolicyFingerprint(baseOperation), head: idempotencyPolicyFingerprint(headOperation)},
+		{code: "rate_limit_policy_changed", base: rateLimitPolicyFingerprint(baseOperation), head: rateLimitPolicyFingerprint(headOperation)},
+		{code: "admin_policy_changed", base: adminPolicyFingerprint(baseOperation), head: adminPolicyFingerprint(headOperation)},
+		{code: "deprecation_policy_changed", base: deprecationPolicyFingerprint(baseOperation), head: deprecationPolicyFingerprint(headOperation)},
+	}
+	var findings []openAPIDiffFinding
+	for _, check := range checks {
+		if check.base == check.head {
+			continue
+		}
+		findings = append(findings, openAPIDiffFinding{
+			Code:   check.code,
+			Method: baseOperation.Method,
+			Path:   baseOperation.Path,
+			Detail: fmt.Sprintf("%q -> %q", check.base, check.head),
+		})
+	}
+	return findings
+}
+
+func tenantPolicyFingerprint(operation specs.Operation) string {
+	policy, ok := routepolicy.TenantPolicyFromOperation(operation)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("required=%t;source=%s", policy.Required, strings.TrimSpace(policy.Source))
+}
+
+func idempotencyPolicyFingerprint(operation specs.Operation) string {
+	policy, ok := routepolicy.IdempotencyPolicyFromOperation(operation)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("required=%t;header=%s", policy.Required, strings.TrimSpace(policy.Header))
+}
+
+func rateLimitPolicyFingerprint(operation specs.Operation) string {
+	policy, ok := routepolicy.RateLimitPolicyFromOperation(operation)
+	if !ok {
+		return ""
+	}
+	return policy
+}
+
+func adminPolicyFingerprint(operation specs.Operation) string {
+	policy, ok := routepolicy.AdminPolicyFromOperation(operation)
+	if !ok {
+		return ""
+	}
+	return policy
+}
+
+func deprecationPolicyFingerprint(operation specs.Operation) string {
+	policy, ok := routepolicy.DeprecationPolicyFromOperation(operation)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("deprecated=%t;sunset=%s", policy.Deprecated, strings.TrimSpace(policy.Sunset))
 }
 
 func operationKey(method, path string) string {
