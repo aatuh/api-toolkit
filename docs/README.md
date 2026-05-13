@@ -60,11 +60,13 @@ api-toolkit contracts lint --openapi ./openapi.json
 api-toolkit contracts lint --openapi ./openapi.json --public-path /status --admin-path /internal/debug
 api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
 api-toolkit version
+api-toolkit version --json
 ```
 
 `api-toolkit version` prints the tool version, Go runtime, main module, core
-module version, contrib module version, and optional build commit/date fields so
-release evidence can identify the installed generator and contract tool.
+module version, contrib module version, and optional build commit/date fields.
+Use `api-toolkit version --json` for machine-readable release evidence that
+identifies the installed generator and contract tool.
 
 ## Security, operations, and runtime behavior
 

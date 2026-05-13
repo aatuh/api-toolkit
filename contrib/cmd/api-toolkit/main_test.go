@@ -33,6 +33,32 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
+func TestRunVersionJSON(t *testing.T) {
+	var out strings.Builder
+	code := run(context.Background(), []string{"version", "--json"}, &out, &out)
+	if code != 0 {
+		t.Fatalf("version --json exit code = %d output=%s", code, out.String())
+	}
+	var got map[string]string
+	if err := json.Unmarshal([]byte(out.String()), &got); err != nil {
+		t.Fatalf("decode version json: %v\n%s", err, out.String())
+	}
+	for _, key := range []string{
+		"tool_version",
+		"go_version",
+		"main_path",
+		"main_version",
+		"core_version",
+		"contrib_version",
+		"build_commit",
+		"build_date",
+	} {
+		if strings.TrimSpace(got[key]) == "" {
+			t.Fatalf("version json missing %q: %#v", key, got)
+		}
+	}
+}
+
 func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 	var errOut strings.Builder
 	code := run(context.Background(), []string{"new", "service", "--module", "example.com/my-api", "--dir", "../escape"}, &strings.Builder{}, &errOut)
