@@ -2371,20 +2371,29 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
-	rec := httptest.NewRecorder()
-	service.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, specs.Metrics, nil))
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("metrics without admin status = %d", rec.Code)
+
+	for _, path := range []string{specs.HealthDetailed, specs.Metrics, specs.PprofIndex} {
+		rec := httptest.NewRecorder()
+		service.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s without admin status = %d", path, rec.Code)
+		}
 	}
-	req := httptest.NewRequest(http.MethodGet, specs.Metrics, nil)
-	req.Header.Set("X-Admin-Key", "local-admin-key")
-	rec = httptest.NewRecorder()
-	service.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("metrics with admin status = %d", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "http_requests_total") {
-		t.Fatalf("metrics body missing HTTP metrics:\n%s", rec.Body.String())
+
+	for _, path := range []string{specs.HealthDetailed, specs.Metrics, specs.PprofIndex} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-Admin-Key", "local-admin-key")
+		rec := httptest.NewRecorder()
+		service.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s with admin status = %d body=%s", path, rec.Code, rec.Body.String())
+		}
+		if path != specs.Metrics {
+			continue
+		}
+		if !strings.Contains(rec.Body.String(), "http_requests_total") {
+			t.Fatalf("metrics body missing HTTP metrics:\n%s", rec.Body.String())
+		}
 	}
 }
 
@@ -2759,7 +2768,9 @@ Default routes:
 - ` + "`GET /readyz`" + `
 - ` + "`GET /docs/openapi.json`" + `
 - ` + "`POST /widgets`" + ` with {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}` + "`Authorization: Bearer <token>`" + `{{ else if eq .AuthMode "dev-headers" }}` + "`X-Debug-User`" + `, ` + "`X-Debug-Tenant-ID`" + `, ` + "`X-Debug-Scopes`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
+- ` + "`GET /health/detailed`" + ` with ` + "`X-Admin-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
+- ` + "`GET /debug/pprof/`" + ` with ` + "`X-Admin-Key`" + `
 
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 The generated OpenAPI document declares ` + "`{{ .AuthSchemeName }}`" + ` as the top-level security default and keeps operation scopes explicit on protected writes.

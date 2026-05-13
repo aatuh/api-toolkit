@@ -117,6 +117,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `dev-headers`.") {
 		t.Fatalf("generated README missing dev-header auth mode")
 	}
+	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "DevHeaderAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -187,6 +188,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `clerk`.") {
 		t.Fatalf("generated README missing Clerk auth mode")
 	}
+	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -257,6 +259,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `jwt`.") {
 		t.Fatalf("generated README missing JWT auth mode")
 	}
+	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -381,6 +384,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `api-key`.") {
 		t.Fatalf("generated README missing auth mode")
 	}
+	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -1409,6 +1413,15 @@ func assertGeneratedGoldenHasGlobalSecurity(t *testing.T, serviceDir, scheme str
 		}
 	}
 	t.Fatalf("generated OpenAPI golden missing top-level security scheme %q: %s", scheme, golden)
+}
+
+func assertGeneratedREADMEListsOperatorRoutes(t *testing.T, readme string) {
+	t.Helper()
+	for _, want := range []string{"`GET /health/detailed` with `X-Admin-Key`", "`GET /metrics` with `X-Admin-Key`", "`GET /debug/pprof/` with `X-Admin-Key`"} {
+		if !strings.Contains(readme, want) {
+			t.Fatalf("generated README missing operator route %q:\n%s", want, readme)
+		}
+	}
 }
 
 func mustRepoRoot(t *testing.T) string {
