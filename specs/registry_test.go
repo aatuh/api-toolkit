@@ -209,6 +209,42 @@ func TestRegistryOpenAPIIncludesComponentsAndRefs(t *testing.T) {
 	}
 }
 
+func TestRegistryOpenAPIIncludesGlobalSecurity(t *testing.T) {
+	registry := NewRegistry(Info{Title: "Security", Version: "1"})
+	registry.SetSecurity([]SecurityRequirement{
+		{Name: "ApiKeyAuth", Scopes: []string{"widgets:write", "widgets:read"}},
+		{Name: "TenantJWT"},
+	})
+	registry.Register(Operation{
+		Method: http.MethodGet,
+		Path:   "/widgets",
+	})
+
+	doc := decodeOpenAPI(t, registry)
+	security := asSlice(t, doc["security"])
+	if len(security) != 2 {
+		t.Fatalf("security length = %d, want 2", len(security))
+	}
+	apiKey := asMap(t, security[0])
+	if scopes := asStringSlice(t, apiKey["ApiKeyAuth"]); !reflect.DeepEqual(scopes, []string{"widgets:read", "widgets:write"}) {
+		t.Fatalf("ApiKeyAuth scopes = %#v", scopes)
+	}
+	jwt := asMap(t, security[1])
+	if scopes := asStringSlice(t, jwt["TenantJWT"]); len(scopes) != 0 {
+		t.Fatalf("TenantJWT scopes = %#v, want empty", scopes)
+	}
+	operation := operationAt(t, doc, "/widgets", "get")
+	if _, ok := operation["security"]; ok {
+		t.Fatalf("operation security = %#v, want inherited global security", operation["security"])
+	}
+
+	registry.SetSecurity(nil)
+	doc = decodeOpenAPI(t, registry)
+	if _, ok := doc["security"]; ok {
+		t.Fatalf("security = %#v, want omitted after reset", doc["security"])
+	}
+}
+
 func TestRegistryOpenAPIDefaults(t *testing.T) {
 	registry := NewRegistry(Info{})
 	registry.Register(Operation{

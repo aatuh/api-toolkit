@@ -97,8 +97,9 @@ func AssertOperationHasSecurityScopes(t testing.TB, registry *specs.Registry, me
 	t.Fatalf("operation %s %s missing security scheme %q", method, path, scheme)
 }
 
-// SecuritySchemeDefinitionFindings returns findings for operation security
-// requirements that reference schemes missing from components.securitySchemes.
+// SecuritySchemeDefinitionFindings returns findings for top-level and
+// operation security requirements that reference schemes missing from
+// components.securitySchemes.
 func SecuritySchemeDefinitionFindings(registry *specs.Registry) []string {
 	if registry == nil {
 		return []string{"spec registry is nil"}
@@ -113,6 +114,16 @@ func SecuritySchemeDefinitionFindings(registry *specs.Registry) []string {
 	}
 	defined := openAPISecuritySchemeSet(root)
 	var findings []string
+	for _, requirement := range specSecurityRequirements(root["security"]) {
+		name := strings.TrimSpace(requirement.Name)
+		if name == "" {
+			continue
+		}
+		if _, ok := defined[name]; ok {
+			continue
+		}
+		findings = append(findings, fmt.Sprintf("security_scheme_undefined GLOBAL %s", name))
+	}
 	for _, operation := range registry.Operations() {
 		for _, requirement := range operation.Security {
 			name := strings.TrimSpace(requirement.Name)
