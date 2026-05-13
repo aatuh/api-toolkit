@@ -253,6 +253,38 @@ func TestRunServerReturnsListenError(t *testing.T) {
 	}
 }
 
+func TestRunShutdownHooksRunsHooksInOrder(t *testing.T) {
+	var calls []string
+	err := runShutdownHooks(context.Background(), []ShutdownHook{
+		{Name: "first", Hook: func(context.Context) error {
+			calls = append(calls, "first")
+			return nil
+		}},
+		{Name: "second", Hook: func(context.Context) error {
+			calls = append(calls, "second")
+			return nil
+		}},
+	})
+	if err != nil {
+		t.Fatalf("shutdown hooks: %v", err)
+	}
+	if strings.Join(calls, ",") != "first,second" {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
+func TestRunShutdownHooksReportsNamedError(t *testing.T) {
+	err := runShutdownHooks(context.Background(), []ShutdownHook{{
+		Name: "jwks",
+		Hook: func(context.Context) error {
+			return errors.New("close failed")
+		},
+	}})
+	if err == nil || err.Error() != "shutdown hook jwks: close failed" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestMountSystemEndpointsToUsesMinimalRegistrar(t *testing.T) {
 	router := &stubRouteRegistrar{}
 
