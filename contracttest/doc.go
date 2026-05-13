@@ -4,5 +4,6 @@
 // stable operation identity, scoped security requirements, typed route policy
 // metadata, Problem Details response sets, typed problem catalogs, deterministic
 // OpenAPI golden output, and conservative operation, policy, security-scheme,
-// inline schema, and component schema compatibility in application tests.
+// inherited global-security, inline schema, and component schema compatibility
+// in application tests.
 package contracttest

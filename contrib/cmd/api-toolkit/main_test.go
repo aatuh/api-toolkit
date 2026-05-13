@@ -507,6 +507,43 @@ func TestContractsLintFailsForUndefinedSecurityScheme(t *testing.T) {
 	}
 }
 
+func TestContractsLintUsesGlobalSecurityRequirements(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	if err := os.WriteFile(specPath, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"security": [{"ApiKeyAuth": ["widgets:read"]}],
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {
+						"200": {"description": "ok"},
+						"400": {
+							"description": "bad request",
+							"content": {"application/problem+json": {"schema": {"type": "object"}}}
+						}
+					}
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	var out strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected lint to pass with inherited global security: %s", out.String())
+	}
+}
+
 func TestContractsLintFailsForUndocumentedUnsafeWrite(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
@@ -757,6 +794,67 @@ func TestContractsDiffFailsForBreakingChanges(t *testing.T) {
 		"operation_removed POST /widgets",
 		"operation_id_changed GET /widgets",
 		"response_removed GET /widgets",
+		"security_changed GET /widgets",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func TestContractsDiffFailsForGlobalSecurityDrift(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	baseSpec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"security": [{"ApiKeyAuth": ["widgets:read"]}],
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`
+	headSpec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(base, []byte(baseSpec), 0o600); err != nil {
+		t.Fatalf("write base spec: %v", err)
+	}
+	if err := os.WriteFile(head, []byte(headSpec), 0o600); err != nil {
+		t.Fatalf("write head spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected global security diff to fail")
+	}
+	for _, want := range []string{
+		"global_security_changed",
 		"security_changed GET /widgets",
 	} {
 		if !strings.Contains(errOut.String(), want) {
