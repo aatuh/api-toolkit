@@ -18,7 +18,8 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 		Method:      http.MethodGet,
 		Path:        "/widgets",
 		Security: []specs.SecurityRequirement{{
-			Name: "ApiKeyAuth",
+			Name:   "ApiKeyAuth",
+			Scopes: []string{"widgets:read"},
 		}},
 		Responses: map[int]specs.Response{
 			http.StatusOK:         {Description: "ok"},
@@ -26,7 +27,7 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 		},
 		Extensions: map[string]any{
 			routepolicy.ExtensionTenant:         map[string]any{"required": true, "source": "header"},
-			routepolicy.ExtensionIdempotencyKey: map[string]any{"required": true},
+			routepolicy.ExtensionIdempotencyKey: map[string]any{"required": true, "header": "Idempotency-Key"},
 			routepolicy.ExtensionRateLimit:      "read-standard",
 			routepolicy.ExtensionAdminPolicy:    "admin",
 		},
@@ -40,14 +41,19 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	AssertRouteCoverage(t, routeRegistry, http.MethodGet, "/widgets")
 	AssertOperationHasResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusOK)
 	AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
+	AssertOperationHasSecurityScopes(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth", "widgets:read")
 	AssertOperationID(t, specRegistry, http.MethodGet, "/widgets", "listWidgets")
 	AssertAllOperationsHaveOperationID(t, specRegistry)
 	AssertUniqueOperationIDs(t, specRegistry)
 	AssertOperationHasProblemResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusBadRequest)
+	AssertOperationHasProblemResponses(t, specRegistry, http.MethodGet, "/widgets", http.StatusBadRequest)
 	AssertOperationHasTenantPolicy(t, specRegistry, http.MethodGet, "/widgets")
+	AssertOperationHasTenantPolicySource(t, specRegistry, http.MethodGet, "/widgets", "header")
 	AssertOperationHasIdempotencyPolicy(t, specRegistry, http.MethodGet, "/widgets")
+	AssertOperationHasIdempotencyPolicyHeader(t, specRegistry, http.MethodGet, "/widgets", "Idempotency-Key")
 	AssertOperationHasRateLimitPolicy(t, specRegistry, http.MethodGet, "/widgets", "read-standard")
 	AssertOperationHasAdminPolicy(t, specRegistry, http.MethodGet, "/widgets")
+	AssertOperationHasAdminPolicyNamed(t, specRegistry, http.MethodGet, "/widgets", "admin")
 	AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.ProblemCode(httpx.TypeBadRequest))
 }
 

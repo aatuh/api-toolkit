@@ -59,6 +59,9 @@ source of truth is `docs/release-runbook.md`.
   error responses, tenant/idempotency/rate-limit/admin policy metadata,
   registry-wide operation ID coverage, and conservative OpenAPI compatibility
   findings.
+- `contracttest` now includes stricter generated-OpenAPI assertions for
+  expected security scopes, tenant policy source, idempotency header, named
+  admin policy, and sets of Problem Details response statuses.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and

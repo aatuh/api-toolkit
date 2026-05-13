@@ -73,6 +73,30 @@ func AssertOperationHasSecurity(t testing.TB, registry *specs.Registry, method, 
 	t.Fatalf("operation %s %s missing security scheme %q", method, path, scheme)
 }
 
+// AssertOperationHasSecurityScopes fails the test when an OpenAPI operation
+// lacks the expected security requirement scopes for a scheme.
+func AssertOperationHasSecurityScopes(t testing.TB, registry *specs.Registry, method, path, scheme string, scopes ...string) {
+	t.Helper()
+	operation := openAPISpecOperation(t, registry, method, path)
+	auth, ok := routepolicy.AuthPolicyFromOperation(operation)
+	if !ok {
+		t.Fatalf("operation %s %s has no security requirements", method, path)
+	}
+	wantScopes := sortedNonEmptyStrings(scopes)
+	scheme = strings.TrimSpace(scheme)
+	for _, requirement := range auth.Security {
+		if strings.TrimSpace(requirement.Name) != scheme {
+			continue
+		}
+		gotScopes := sortedNonEmptyStrings(requirement.Scopes)
+		if sameStrings(gotScopes, wantScopes) {
+			return
+		}
+		t.Fatalf("operation %s %s security scopes for %q = %v, want %v", method, path, scheme, gotScopes, wantScopes)
+	}
+	t.Fatalf("operation %s %s missing security scheme %q", method, path, scheme)
+}
+
 // AssertOperationID fails the test when an OpenAPI operation lacks the expected operationId.
 func AssertOperationID(t testing.TB, registry *specs.Registry, method, path, operationID string) {
 	t.Helper()
@@ -117,62 +141,92 @@ func AssertUniqueOperationIDs(t testing.TB, registry *specs.Registry) {
 // AssertOperationHasProblemResponse fails when an operation response is not application/problem+json.
 func AssertOperationHasProblemResponse(t testing.TB, registry *specs.Registry, method, path string, status int) {
 	t.Helper()
-	operation := openAPIOperation(t, registry, method, path)
-	responses, ok := operation["responses"].(map[string]any)
-	if !ok {
-		t.Fatalf("operation %s %s has no responses", method, path)
+	AssertOperationHasProblemResponses(t, registry, method, path, status)
+}
+
+// AssertOperationHasProblemResponses fails when an operation lacks documented
+// Problem Details responses for any expected status.
+func AssertOperationHasProblemResponses(t testing.TB, registry *specs.Registry, method, path string, statuses ...int) {
+	t.Helper()
+	operation := openAPISpecOperation(t, registry, method, path)
+	problemStatuses := routepolicy.ProblemResponseStatuses(operation)
+	if len(problemStatuses) == 0 {
+		t.Fatalf("operation %s %s has no Problem Details responses", method, path)
 	}
-	response, ok := responses[strconv.Itoa(status)].(map[string]any)
-	if !ok {
-		t.Fatalf("operation %s %s missing response %d", method, path, status)
-	}
-	if ref, _ := response["$ref"].(string); strings.Contains(ref, "Problem") {
-		return
-	}
-	content, ok := response["content"].(map[string]any)
-	if !ok {
-		t.Fatalf("operation %s %s response %d has no content", method, path, status)
-	}
-	if _, ok := content["application/problem+json"]; !ok {
-		t.Fatalf("operation %s %s response %d missing application/problem+json", method, path, status)
+	for _, status := range statuses {
+		if !containsInt(problemStatuses, status) {
+			t.Fatalf("operation %s %s missing Problem Details response %d; got %v", method, path, status, problemStatuses)
+		}
 	}
 }
 
 // AssertOperationHasTenantPolicy fails when an operation lacks required tenant metadata.
 func AssertOperationHasTenantPolicy(t testing.TB, registry *specs.Registry, method, path string) {
 	t.Helper()
-	operation := openAPIOperation(t, registry, method, path)
-	tenant, ok := operation[routepolicy.ExtensionTenant].(map[string]any)
+	operation := openAPISpecOperation(t, registry, method, path)
+	tenant, ok := routepolicy.TenantPolicyFromOperation(operation)
 	if !ok {
 		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionTenant)
 	}
-	required, _ := tenant["required"].(bool)
-	if !required {
+	if !tenant.Required {
 		t.Fatalf("operation %s %s tenant metadata is not required", method, path)
+	}
+}
+
+// AssertOperationHasTenantPolicySource fails when an operation lacks required
+// tenant metadata with the expected source.
+func AssertOperationHasTenantPolicySource(t testing.TB, registry *specs.Registry, method, path, source string) {
+	t.Helper()
+	operation := openAPISpecOperation(t, registry, method, path)
+	tenant, ok := routepolicy.TenantPolicyFromOperation(operation)
+	if !ok {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionTenant)
+	}
+	if !tenant.Required {
+		t.Fatalf("operation %s %s tenant metadata is not required", method, path)
+	}
+	if got, want := strings.TrimSpace(tenant.Source), strings.TrimSpace(source); got != want {
+		t.Fatalf("operation %s %s tenant source = %q, want %q", method, path, got, want)
 	}
 }
 
 // AssertOperationHasIdempotencyPolicy fails when an operation lacks idempotency metadata.
 func AssertOperationHasIdempotencyPolicy(t testing.TB, registry *specs.Registry, method, path string) {
 	t.Helper()
-	operation := openAPIOperation(t, registry, method, path)
-	policy, ok := operation[routepolicy.ExtensionIdempotencyKey].(map[string]any)
+	operation := openAPISpecOperation(t, registry, method, path)
+	policy, ok := routepolicy.IdempotencyPolicyFromOperation(operation)
 	if !ok {
 		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionIdempotencyKey)
 	}
-	required, _ := policy["required"].(bool)
-	if !required {
+	if !policy.Required {
 		t.Fatalf("operation %s %s idempotency metadata is not required", method, path)
+	}
+}
+
+// AssertOperationHasIdempotencyPolicyHeader fails when an operation lacks
+// required idempotency metadata with the expected header.
+func AssertOperationHasIdempotencyPolicyHeader(t testing.TB, registry *specs.Registry, method, path, header string) {
+	t.Helper()
+	operation := openAPISpecOperation(t, registry, method, path)
+	policy, ok := routepolicy.IdempotencyPolicyFromOperation(operation)
+	if !ok {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionIdempotencyKey)
+	}
+	if !policy.Required {
+		t.Fatalf("operation %s %s idempotency metadata is not required", method, path)
+	}
+	if got, want := strings.TrimSpace(policy.Header), strings.TrimSpace(header); got != want {
+		t.Fatalf("operation %s %s idempotency header = %q, want %q", method, path, got, want)
 	}
 }
 
 // AssertOperationHasRateLimitPolicy fails when an operation lacks the expected rate-limit policy metadata.
 func AssertOperationHasRateLimitPolicy(t testing.TB, registry *specs.Registry, method, path, policy string) {
 	t.Helper()
-	operation := openAPIOperation(t, registry, method, path)
-	got := fmtString(operation[routepolicy.ExtensionRateLimit])
+	operation := openAPISpecOperation(t, registry, method, path)
+	got, ok := routepolicy.RateLimitPolicyFromOperation(operation)
 	policy = strings.TrimSpace(policy)
-	if got == "" {
+	if !ok {
 		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionRateLimit)
 	}
 	if policy != "" && got != policy {
@@ -183,9 +237,23 @@ func AssertOperationHasRateLimitPolicy(t testing.TB, registry *specs.Registry, m
 // AssertOperationHasAdminPolicy fails when an operation lacks admin policy metadata.
 func AssertOperationHasAdminPolicy(t testing.TB, registry *specs.Registry, method, path string) {
 	t.Helper()
-	operation := openAPIOperation(t, registry, method, path)
-	if strings.TrimSpace(fmtString(operation[routepolicy.ExtensionAdminPolicy])) == "" {
+	operation := openAPISpecOperation(t, registry, method, path)
+	if _, ok := routepolicy.AdminPolicyFromOperation(operation); !ok {
 		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionAdminPolicy)
+	}
+}
+
+// AssertOperationHasAdminPolicyNamed fails when an operation lacks the expected
+// admin policy metadata.
+func AssertOperationHasAdminPolicyNamed(t testing.TB, registry *specs.Registry, method, path, policy string) {
+	t.Helper()
+	operation := openAPISpecOperation(t, registry, method, path)
+	got, ok := routepolicy.AdminPolicyFromOperation(operation)
+	if !ok {
+		t.Fatalf("operation %s %s missing %s metadata", method, path, routepolicy.ExtensionAdminPolicy)
+	}
+	if want := strings.TrimSpace(policy); want != "" && got != want {
+		t.Fatalf("operation %s %s admin policy = %q, want %q", method, path, got, want)
 	}
 }
 
@@ -329,6 +397,112 @@ func openAPIOperation(t testing.TB, registry *specs.Registry, method, path strin
 		t.Fatalf("OpenAPI operation %s %s is missing", method, path)
 	}
 	return operation
+}
+
+func openAPISpecOperation(t testing.TB, registry *specs.Registry, method, path string) specs.Operation {
+	t.Helper()
+	raw := openAPIOperation(t, registry, method, path)
+	return specs.Operation{
+		OperationID: fmtString(raw["operationId"]),
+		Method:      strings.ToUpper(strings.TrimSpace(method)),
+		Path:        strings.TrimSpace(path),
+		Deprecated:  boolValue(raw["deprecated"]),
+		Sunset:      fmtString(raw["x-sunset"]),
+		Security:    specSecurityRequirements(raw["security"]),
+		Scopes:      securityScopes(raw["x-scopes"]),
+		Responses:   specResponses(raw["responses"]),
+		Extensions:  specExtensions(raw),
+	}
+}
+
+func specExtensions(raw map[string]any) map[string]any {
+	extensions := map[string]any{}
+	for key, value := range raw {
+		key = strings.TrimSpace(key)
+		if strings.HasPrefix(key, "x-") {
+			extensions[key] = value
+		}
+	}
+	if len(extensions) == 0 {
+		return nil
+	}
+	return extensions
+}
+
+func specSecurityRequirements(raw any) []specs.SecurityRequirement {
+	entries, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	var out []specs.SecurityRequirement
+	for _, entry := range entries {
+		requirement, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		for scheme, rawScopes := range requirement {
+			scheme = strings.TrimSpace(scheme)
+			if scheme == "" {
+				continue
+			}
+			out = append(out, specs.SecurityRequirement{
+				Name:   scheme,
+				Scopes: securityScopes(rawScopes),
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func specResponses(raw any) map[int]specs.Response {
+	responses, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[int]specs.Response, len(responses))
+	for rawStatus, rawResponse := range responses {
+		status, err := strconv.Atoi(strings.TrimSpace(rawStatus))
+		if err != nil {
+			continue
+		}
+		response, ok := rawResponse.(map[string]any)
+		if !ok {
+			continue
+		}
+		out[status] = specs.Response{
+			Description:  fmtString(response["description"]),
+			ContentTypes: specResponseContentTypes(response["content"]),
+			Content:      specResponseContent(response["content"]),
+			Ref:          fmtString(response["$ref"]),
+		}
+	}
+	return out
+}
+
+func specResponseContentTypes(raw any) []string {
+	content, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return sortedMapKeys(content)
+}
+
+func specResponseContent(raw any) map[string]specs.MediaType {
+	content, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[string]specs.MediaType, len(content))
+	for contentType := range content {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			out[contentType] = specs.MediaType{}
+		}
+	}
+	return out
 }
 
 type openAPIOperationSnapshot struct {
@@ -607,6 +781,44 @@ func containsValue(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func containsInt(values []int, want int) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedNonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func boolValue(value any) bool {
+	typed, _ := value.(bool)
+	return typed
 }
 
 func fmtString(value any) string {
