@@ -197,6 +197,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated service Makefiles now include `fast-check`, `audit-check`,
   `coverage-check`, `test-race`, `vuln`, and `clean` targets so scaffold CI runs
   race tests and govulncheck in addition to build and contract checks.
+- Generated service Makefiles now include optional `sbom-local` output through
+  Syft, writing SPDX JSON to `.ci-result/sbom/sbom.spdx.json` without adding
+  Syft to the default finalize path.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
