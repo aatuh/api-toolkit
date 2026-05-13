@@ -65,6 +65,10 @@ source of truth is `docs/release-runbook.md`.
 - `contracttest.OpenAPICompatibilityFindings` now reports tenant,
   idempotency, rate-limit, admin-policy, and deprecation/sunset route policy
   drift, matching the stricter `api-toolkit contracts diff` behavior.
+- CI now runs `make docs-check` explicitly and runs
+  `make contrib-release-notes-check` on pull requests against the fetched PR
+  base ref, keeping documentation and supported-contrib release-note governance
+  visible before merge.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and

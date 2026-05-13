@@ -44,6 +44,26 @@ jobs:
           check-latest: true
       - name: Lint
         run: make lint
+  governance:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Documentation governance
+        run: make docs-check
+      - name: Fetch pull request base for contrib release notes
+        if: github.event_name == 'pull_request'
+        run: git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" --depth=1
+      - name: Contrib release-note check (pull request base)
+        if: github.event_name == 'pull_request'
+        env:
+          CONTRIB_RELEASE_BASE_REF: origin/${{ github.base_ref }}
+        run: make contrib-release-notes-check
   api-check:
     runs-on: ubuntu-latest
     env:

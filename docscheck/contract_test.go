@@ -735,6 +735,22 @@ func TestMakefileGateIntent(t *testing.T) {
 	}
 }
 
+func TestCIGovernanceWorkflowRunsDocsAndContribReleaseNoteGates(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+
+	for _, required := range []string{
+		"make docs-check",
+		"make contrib-release-notes-check",
+		"CONTRIB_RELEASE_BASE_REF: origin/${{ github.base_ref }}",
+		"git fetch origin \"${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}\"",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/ci.yml missing governance requirement %q", required)
+		}
+	}
+}
+
 func TestReleaseEvidenceTarget(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
