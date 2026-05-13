@@ -538,6 +538,7 @@ func diffOpenAPI(basePath, headPath string) error {
 	base := operationsFromOpenAPIDocument(baseLoaded.doc)
 	head := operationsFromOpenAPIDocument(headLoaded.doc)
 	findings := diffOperations(base, head)
+	findings = append(findings, diffOperationSchemas(baseLoaded.doc, headLoaded.doc)...)
 	findings = append(findings, diffComponentSchemas(baseLoaded.doc, headLoaded.doc)...)
 	if len(findings) > 0 {
 		return openAPIDiffError{Findings: findings}
@@ -734,6 +735,129 @@ func diffRequestBody(baseOperation, headOperation specs.Operation) []openAPIDiff
 		}
 	}
 	return findings
+}
+
+func diffOperationSchemas(baseDoc, headDoc *openapi3.T) []openAPIDiffFinding {
+	if baseDoc == nil || baseDoc.Paths == nil || headDoc == nil || headDoc.Paths == nil {
+		return nil
+	}
+	var findings []openAPIDiffFinding
+	for routePath, baseItem := range baseDoc.Paths.Map() {
+		if baseItem == nil {
+			continue
+		}
+		headItem := headDoc.Paths.Value(routePath)
+		if headItem == nil {
+			continue
+		}
+		headOperations := headItem.Operations()
+		for method, baseOperation := range baseItem.Operations() {
+			if baseOperation == nil {
+				continue
+			}
+			headOperation := headOperations[method]
+			if headOperation == nil {
+				continue
+			}
+			method = strings.ToUpper(method)
+			findings = append(findings, diffOperationRequestSchemas(method, routePath, baseOperation, headOperation)...)
+			findings = append(findings, diffOperationResponseSchemas(method, routePath, baseOperation, headOperation)...)
+		}
+	}
+	return findings
+}
+
+func diffOperationRequestSchemas(method, routePath string, baseOperation, headOperation *openapi3.Operation) []openAPIDiffFinding {
+	baseBody := requestBodyValue(baseOperation.RequestBody)
+	headBody := requestBodyValue(headOperation.RequestBody)
+	if baseBody == nil || headBody == nil {
+		return nil
+	}
+	var findings []openAPIDiffFinding
+	headContent := headBody.Content
+	for _, contentType := range sortedOpenAPIContentTypes(baseBody.Content) {
+		baseMedia := baseBody.Content[contentType]
+		headMedia := headContent[contentType]
+		if baseMedia == nil || headMedia == nil {
+			continue
+		}
+		schemaPath := "requestBody " + contentType
+		findings = append(findings, diffOperationSchemaRef(method, routePath, schemaPath, baseMedia.Schema, headMedia.Schema)...)
+	}
+	return findings
+}
+
+func diffOperationResponseSchemas(method, routePath string, baseOperation, headOperation *openapi3.Operation) []openAPIDiffFinding {
+	if baseOperation.Responses == nil || headOperation.Responses == nil {
+		return nil
+	}
+	headResponses := headOperation.Responses.Map()
+	var findings []openAPIDiffFinding
+	for _, status := range sortedOpenAPIResponseStatuses(baseOperation.Responses.Map()) {
+		baseResponse := responseValue(baseOperation.Responses.Map()[status])
+		headResponse := responseValue(headResponses[status])
+		if baseResponse == nil || headResponse == nil {
+			continue
+		}
+		headContent := headResponse.Content
+		for _, contentType := range sortedOpenAPIContentTypes(baseResponse.Content) {
+			baseMedia := baseResponse.Content[contentType]
+			headMedia := headContent[contentType]
+			if baseMedia == nil || headMedia == nil {
+				continue
+			}
+			schemaPath := fmt.Sprintf("response %s %s", status, contentType)
+			findings = append(findings, diffOperationSchemaRef(method, routePath, schemaPath, baseMedia.Schema, headMedia.Schema)...)
+		}
+	}
+	return findings
+}
+
+func diffOperationSchemaRef(method, routePath, schemaPath string, baseRef, headRef *openapi3.SchemaRef) []openAPIDiffFinding {
+	findings := diffSchemaRef(schemaPath, baseRef, headRef)
+	for i := range findings {
+		findings[i].Method = method
+		findings[i].Path = routePath
+	}
+	return findings
+}
+
+func requestBodyValue(ref *openapi3.RequestBodyRef) *openapi3.RequestBody {
+	if ref == nil {
+		return nil
+	}
+	return ref.Value
+}
+
+func responseValue(ref *openapi3.ResponseRef) *openapi3.Response {
+	if ref == nil {
+		return nil
+	}
+	return ref.Value
+}
+
+func sortedOpenAPIContentTypes(content openapi3.Content) []string {
+	types := make([]string, 0, len(content))
+	for contentType := range content {
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			types = append(types, contentType)
+		}
+	}
+	sort.Strings(types)
+	return types
+}
+
+func sortedOpenAPIResponseStatuses(responses map[string]*openapi3.ResponseRef) []string {
+	statuses := make([]string, 0, len(responses))
+	for status := range responses {
+		status = strings.TrimSpace(status)
+		if status != "" && status != "default" {
+			statuses = append(statuses, status)
+		}
+	}
+	sort.Strings(statuses)
+	return statuses
 }
 
 func diffRoutePolicies(baseOperation, headOperation specs.Operation) []openAPIDiffFinding {

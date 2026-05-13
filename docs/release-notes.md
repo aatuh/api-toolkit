@@ -110,6 +110,9 @@ source of truth is `docs/release-runbook.md`.
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
   findings.
+- `api-toolkit contracts diff` now applies those conservative schema
+  compatibility checks to inline request and response media schemas on existing
+  operations, so handler-local contract narrowing is caught before release.
 - `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
   OpenAPI component-schema drift findings, so library tests and CLI release
   review stay aligned.
