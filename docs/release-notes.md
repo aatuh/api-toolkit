@@ -97,6 +97,9 @@ source of truth is `docs/release-runbook.md`.
   `contracts-diff` targets backed by the api-toolkit CLI, and generated
   `finalize` runs those contract checks alongside tests and OpenAPI golden
   verification.
+- Generated `saas-api` services now keep memory idempotency storage as the local
+  default but reject it under `ENV=production`; production defaults to the Redis
+  idempotency adapter and requires `REDIS_ADDR` before startup.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required

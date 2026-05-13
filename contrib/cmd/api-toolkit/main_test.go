@@ -59,9 +59,20 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	for _, want := range []string{
 		"MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
+		"newIdempotencyStore()",
+		"idempotencyredis.New",
 	} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated main.go missing %q", want)
+		}
+	}
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated .env.example: %v", err)
+	}
+	for _, want := range []string{"IDEMPOTENCY_STORE=memory", "REDIS_ADDR=localhost:6379"} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated .env.example missing %q", want)
 		}
 	}
 	generatedDockerfile, err := os.ReadFile(filepath.Join(serviceDir, "Dockerfile"))
