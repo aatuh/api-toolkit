@@ -69,6 +69,9 @@ source of truth is `docs/release-runbook.md`.
   `make contrib-release-notes-check` on pull requests against the fetched PR
   base ref, keeping documentation and supported-contrib release-note governance
   visible before merge.
+- CI pull-request governance now also runs `make contrib-api-drift-report`
+  against the fetched PR base ref, so supported-adapter incompatible drift
+  fails before merge without making contrib part of the stable core API promise.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and

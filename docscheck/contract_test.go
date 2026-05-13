@@ -745,7 +745,10 @@ func TestCIGovernanceWorkflowRunsDocsAndContribReleaseNoteGates(t *testing.T) {
 	for _, required := range []string{
 		"make docs-check",
 		"make contrib-release-notes-check",
+		"Contrib API drift gate (pull request base)",
+		"make contrib-api-drift-report",
 		"CONTRIB_RELEASE_BASE_REF: origin/${{ github.base_ref }}",
+		"API_BASE_REF: origin/${{ github.base_ref }}",
 		"git fetch origin \"${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}\"",
 	} {
 		if !strings.Contains(workflow, required) {
