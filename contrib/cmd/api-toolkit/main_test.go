@@ -31,6 +31,38 @@ func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 	}
 }
 
+func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
+	tests := []struct {
+		name string
+		auth string
+		want string
+	}{
+		{name: "jwt not yet generated", auth: "jwt", want: "auth mode \"jwt\" is not supported by profile \"saas-api\" yet"},
+		{name: "clerk not yet generated", auth: "clerk", want: "auth mode \"clerk\" is not supported by profile \"saas-api\" yet"},
+		{name: "dev headers require development profile", auth: "dev-headers", want: "auth mode \"dev-headers\" requires an explicit development profile"},
+		{name: "unknown", auth: "session", want: "unsupported auth mode \"session\""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var errOut strings.Builder
+			code := run(context.Background(), []string{
+				"new", "service",
+				"--module", "example.com/my-api",
+				"--profile", "saas-api",
+				"--auth", tt.auth,
+				"--dir", filepath.Join(t.TempDir(), "service"),
+			}, &strings.Builder{}, &errOut)
+			if code == 0 {
+				t.Fatal("expected unsupported auth mode to fail")
+			}
+			if !strings.Contains(errOut.String(), tt.want) {
+				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
+			}
+		})
+	}
+}
+
 func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
@@ -118,6 +150,13 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated Makefile missing %q", want)
 		}
+	}
+	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read generated README.md: %v", err)
+	}
+	if !strings.Contains(string(generatedREADME), "Generated auth mode: `api-key`.") {
+		t.Fatalf("generated README missing auth mode")
 	}
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
