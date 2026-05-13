@@ -20,8 +20,34 @@ const (
 	ExtensionAdminPolicy = "x-admin-policy"
 )
 
+const defaultIdempotencyHeader = "Idempotency-Key"
+
 // MetadataOption mutates an operation with stable api-toolkit policy metadata.
 type MetadataOption func(*specs.Operation)
+
+// AuthPolicy describes security metadata attached to an operation.
+type AuthPolicy struct {
+	Security []specs.SecurityRequirement
+	Scopes   []string
+}
+
+// DeprecationPolicy describes deprecation metadata attached to an operation.
+type DeprecationPolicy struct {
+	Deprecated bool
+	Sunset     string
+}
+
+// TenantPolicy describes tenant metadata attached to an operation.
+type TenantPolicy struct {
+	Required bool
+	Source   string
+}
+
+// IdempotencyPolicy describes idempotency-key metadata attached to an operation.
+type IdempotencyPolicy struct {
+	Required bool
+	Header   string
+}
 
 // ApplyMetadata applies stable metadata options to an operation.
 func ApplyMetadata(operation specs.Operation, opts ...MetadataOption) specs.Operation {
@@ -94,7 +120,10 @@ func WithTenantRequired(source string) MetadataOption {
 func WithIdempotencyRequired() MetadataOption {
 	return func(operation *specs.Operation) {
 		ensureExtensions(operation)
-		operation.Extensions[ExtensionIdempotencyKey] = map[string]any{"required": true}
+		operation.Extensions[ExtensionIdempotencyKey] = map[string]any{
+			"required": true,
+			"header":   defaultIdempotencyHeader,
+		}
 	}
 }
 
@@ -138,6 +167,117 @@ func WithProblemResponses(statuses ...int) MetadataOption {
 			operation.Responses[status] = specs.ProblemResponse(http.StatusText(status))
 		}
 	}
+}
+
+// AuthPolicyFromOperation returns typed auth metadata from an operation.
+func AuthPolicyFromOperation(operation specs.Operation) (AuthPolicy, bool) {
+	policy := AuthPolicy{
+		Security: append([]specs.SecurityRequirement(nil), operation.Security...),
+		Scopes:   sortedNonEmpty(operation.Scopes),
+	}
+	if len(policy.Security) == 0 && len(policy.Scopes) == 0 {
+		return AuthPolicy{}, false
+	}
+	return policy, true
+}
+
+// DeprecationPolicyFromOperation returns typed deprecation metadata from an operation.
+func DeprecationPolicyFromOperation(operation specs.Operation) (DeprecationPolicy, bool) {
+	policy := DeprecationPolicy{
+		Deprecated: operation.Deprecated,
+		Sunset:     strings.TrimSpace(operation.Sunset),
+	}
+	if !policy.Deprecated && policy.Sunset == "" {
+		return DeprecationPolicy{}, false
+	}
+	return policy, true
+}
+
+// TenantPolicyFromOperation returns typed tenant metadata from an operation.
+func TenantPolicyFromOperation(operation specs.Operation) (TenantPolicy, bool) {
+	value, ok := operation.Extensions[ExtensionTenant]
+	if !ok {
+		return TenantPolicy{}, false
+	}
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return TenantPolicy{}, false
+	}
+	policy := TenantPolicy{
+		Required: boolField(fields, "required"),
+		Source:   strings.TrimSpace(stringField(fields, "source")),
+	}
+	if policy.Source == "" {
+		policy.Source = "context"
+	}
+	return policy, true
+}
+
+// IdempotencyPolicyFromOperation returns typed idempotency metadata from an operation.
+func IdempotencyPolicyFromOperation(operation specs.Operation) (IdempotencyPolicy, bool) {
+	value, ok := operation.Extensions[ExtensionIdempotencyKey]
+	if !ok {
+		return IdempotencyPolicy{}, false
+	}
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return IdempotencyPolicy{}, false
+	}
+	policy := IdempotencyPolicy{
+		Required: boolField(fields, "required"),
+		Header:   strings.TrimSpace(stringField(fields, "header")),
+	}
+	if policy.Header == "" {
+		policy.Header = defaultIdempotencyHeader
+	}
+	return policy, true
+}
+
+// RateLimitPolicyFromOperation returns the named rate-limit policy from an operation.
+func RateLimitPolicyFromOperation(operation specs.Operation) (string, bool) {
+	if operation.Extensions == nil {
+		return "", false
+	}
+	policy, ok := operation.Extensions[ExtensionRateLimit].(string)
+	if !ok {
+		return "", false
+	}
+	policy = strings.TrimSpace(policy)
+	if policy == "" {
+		return "", false
+	}
+	return policy, true
+}
+
+// AdminPolicyFromOperation returns the named admin policy from an operation.
+func AdminPolicyFromOperation(operation specs.Operation) (string, bool) {
+	if operation.Extensions == nil {
+		return "", false
+	}
+	policy, ok := operation.Extensions[ExtensionAdminPolicy].(string)
+	if !ok {
+		return "", false
+	}
+	policy = strings.TrimSpace(policy)
+	if policy == "" {
+		return "", false
+	}
+	return policy, true
+}
+
+// ProblemResponseStatuses returns documented Problem Details response statuses.
+func ProblemResponseStatuses(operation specs.Operation) []int {
+	statuses := make([]int, 0, len(operation.Responses))
+	for status, response := range operation.Responses {
+		if status < 400 || status > 599 {
+			continue
+		}
+		if isProblemResponse(response) {
+			statuses = append(statuses, status)
+		}
+	}
+	sort.Ints(statuses)
+	return statuses
 }
 
 // LintOptions configures route contract linting.
@@ -203,14 +343,16 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 			if opts.RequireUnsafeWriteAuth && !hasSecurity(operation) {
 				findings = append(findings, finding(operation, "unsafe_write_auth_required", "unsafe write operations must declare auth or scopes"))
 			}
-			if opts.RequireUnsafeWriteTenant && !hasExtension(operation, ExtensionTenant) {
+			if opts.RequireUnsafeWriteTenant && !hasRequiredTenantPolicy(operation) {
 				findings = append(findings, finding(operation, "unsafe_write_tenant_required", "unsafe write operations must declare tenant policy"))
 			}
-			if opts.RequireUnsafeWriteIdempotency && !hasExtension(operation, ExtensionIdempotencyKey) {
+			if opts.RequireUnsafeWriteIdempotency && !hasRequiredIdempotencyPolicy(operation) {
 				findings = append(findings, finding(operation, "unsafe_write_idempotency_required", "unsafe write operations must declare idempotency policy"))
 			}
-			if opts.RequireUnsafeWriteRateLimit && !hasExtension(operation, ExtensionRateLimit) {
-				findings = append(findings, finding(operation, "unsafe_write_rate_limit_required", "unsafe write operations must declare rate-limit policy"))
+			if opts.RequireUnsafeWriteRateLimit {
+				if _, ok := RateLimitPolicyFromOperation(operation); !ok {
+					findings = append(findings, finding(operation, "unsafe_write_rate_limit_required", "unsafe write operations must declare rate-limit policy"))
+				}
 			}
 			if opts.RequireUnsafeWriteRequestBody && requiresRequestBody(method) && !hasRequestBody(operation) {
 				findings = append(findings, finding(operation, "unsafe_write_request_body_required", "unsafe write operations with request payloads must document requestBody"))
@@ -222,8 +364,10 @@ func LintOperations(operations []specs.Operation, opts LintOptions) []LintFindin
 				findings = append(findings, finding(operation, "problem_response_required", "operation must document at least one Problem Details error response"))
 			}
 		}
-		if matchesAnyPath(path, opts.AdminPaths) && !hasExtension(operation, ExtensionAdminPolicy) {
-			findings = append(findings, finding(operation, "admin_policy_required", "operator-only route must declare admin policy metadata"))
+		if matchesAnyPath(path, opts.AdminPaths) {
+			if _, ok := AdminPolicyFromOperation(operation); !ok {
+				findings = append(findings, finding(operation, "admin_policy_required", "operator-only route must declare admin policy metadata"))
+			}
 		}
 	}
 	return findings
@@ -281,12 +425,14 @@ func hasSuccessResponse(operation specs.Operation) bool {
 	return false
 }
 
-func hasExtension(operation specs.Operation, name string) bool {
-	if operation.Extensions == nil {
-		return false
-	}
-	_, ok := operation.Extensions[name]
-	return ok
+func hasRequiredTenantPolicy(operation specs.Operation) bool {
+	policy, ok := TenantPolicyFromOperation(operation)
+	return ok && policy.Required
+}
+
+func hasRequiredIdempotencyPolicy(operation specs.Operation) bool {
+	policy, ok := IdempotencyPolicyFromOperation(operation)
+	return ok && policy.Required
 }
 
 func hasSecurity(operation specs.Operation) bool {
@@ -306,19 +452,44 @@ func hasProblemResponse(operation specs.Operation) bool {
 		if status < 400 || status > 599 {
 			continue
 		}
-		if strings.Contains(response.Ref, "Problem") {
+		if isProblemResponse(response) {
 			return true
-		}
-		if _, ok := response.Content["application/problem+json"]; ok {
-			return true
-		}
-		for _, contentType := range response.ContentTypes {
-			if strings.EqualFold(strings.TrimSpace(contentType), "application/problem+json") {
-				return true
-			}
 		}
 	}
 	return false
+}
+
+func isProblemResponse(response specs.Response) bool {
+	if strings.Contains(response.Ref, "Problem") {
+		return true
+	}
+	if _, ok := response.Content["application/problem+json"]; ok {
+		return true
+	}
+	for _, contentType := range response.ContentTypes {
+		if strings.EqualFold(strings.TrimSpace(contentType), "application/problem+json") {
+			return true
+		}
+	}
+	return false
+}
+
+func boolField(fields map[string]any, name string) bool {
+	value, ok := fields[name]
+	if !ok {
+		return false
+	}
+	typed, _ := value.(bool)
+	return typed
+}
+
+func stringField(fields map[string]any, name string) string {
+	value, ok := fields[name]
+	if !ok {
+		return ""
+	}
+	typed, _ := value.(string)
+	return typed
 }
 
 func matchesAnyPath(path string, patterns []string) bool {

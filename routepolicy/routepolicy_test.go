@@ -72,6 +72,7 @@ func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
 		WithTenantRequired("header"),
 		WithIdempotencyRequired(),
 		WithRateLimit("write-standard"),
+		WithAdminPolicy("operators"),
 		WithProblemResponses(http.StatusBadRequest, http.StatusConflict),
 	)
 
@@ -92,6 +93,34 @@ func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
 	}
 	if _, ok := operation.Extensions[ExtensionIdempotencyKey]; !ok {
 		t.Fatalf("idempotency extension missing: %#v", operation.Extensions)
+	}
+	tenant, ok := TenantPolicyFromOperation(operation)
+	if !ok || !tenant.Required || tenant.Source != "header" {
+		t.Fatalf("tenant policy = %#v ok=%v", tenant, ok)
+	}
+	idempotency, ok := IdempotencyPolicyFromOperation(operation)
+	if !ok || !idempotency.Required || idempotency.Header != "Idempotency-Key" {
+		t.Fatalf("idempotency policy = %#v ok=%v", idempotency, ok)
+	}
+	deprecation, ok := DeprecationPolicyFromOperation(operation)
+	if !ok || !deprecation.Deprecated || deprecation.Sunset != "Wed, 01 Jul 2026 00:00:00 GMT" {
+		t.Fatalf("deprecation policy = %#v ok=%v", deprecation, ok)
+	}
+	auth, ok := AuthPolicyFromOperation(operation)
+	if !ok || len(auth.Security) != 1 || len(auth.Scopes) != 1 || auth.Scopes[0] != "widgets:write" {
+		t.Fatalf("auth policy = %#v ok=%v", auth, ok)
+	}
+	rateLimit, ok := RateLimitPolicyFromOperation(operation)
+	if !ok || rateLimit != "write-standard" {
+		t.Fatalf("rate limit = %q ok=%v", rateLimit, ok)
+	}
+	adminPolicy, ok := AdminPolicyFromOperation(operation)
+	if !ok || adminPolicy != "operators" {
+		t.Fatalf("admin policy = %q ok=%v", adminPolicy, ok)
+	}
+	problems := ProblemResponseStatuses(operation)
+	if len(problems) != 2 || problems[0] != http.StatusBadRequest || problems[1] != http.StatusConflict {
+		t.Fatalf("problem response statuses = %#v", problems)
 	}
 	if got := operation.Extensions[ExtensionRateLimit]; got != "write-standard" {
 		t.Fatalf("rate limit extension = %#v", got)
@@ -216,6 +245,63 @@ func TestLintOperationsFindsUnsafeWriteMissingTenantAndRateLimit(t *testing.T) {
 		if !hasFinding(findings, code) {
 			t.Fatalf("missing finding %s in %#v", code, findings)
 		}
+	}
+}
+
+func TestLintOperationsFindsUnsafeWriteNonRequiredTenantAndIdempotency(t *testing.T) {
+	findings := LintOperations([]specs.Operation{{
+		OperationID: "createWidget",
+		Method:      http.MethodPost,
+		Path:        "/widgets",
+		Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write"}}},
+		Responses: map[int]specs.Response{
+			http.StatusCreated:    {},
+			http.StatusBadRequest: specs.ProblemResponse("Bad Request"),
+		},
+		RequestBody: &specs.RequestBody{
+			Required: true,
+			Content:  map[string]specs.MediaType{"application/json": {}},
+		},
+		Extensions: map[string]any{
+			ExtensionTenant:         map[string]any{"required": false, "source": "header"},
+			ExtensionIdempotencyKey: map[string]any{"required": false, "header": "Idempotency-Key"},
+			ExtensionRateLimit:      "write-standard",
+		},
+	}}, LintOptions{
+		RequireUnsafeWriteTenant:      true,
+		RequireUnsafeWriteIdempotency: true,
+	})
+
+	for _, code := range []string{"unsafe_write_tenant_required", "unsafe_write_idempotency_required"} {
+		if !hasFinding(findings, code) {
+			t.Fatalf("missing finding %s in %#v", code, findings)
+		}
+	}
+}
+
+func TestLintOperationsFindsUnsafeWriteInvalidRateLimitPolicy(t *testing.T) {
+	findings := LintOperations([]specs.Operation{{
+		OperationID: "createWidget",
+		Method:      http.MethodPost,
+		Path:        "/widgets",
+		Security:    []specs.SecurityRequirement{{Name: "ApiKeyAuth", Scopes: []string{"widgets:write"}}},
+		Responses: map[int]specs.Response{
+			http.StatusCreated:    {},
+			http.StatusBadRequest: specs.ProblemResponse("Bad Request"),
+		},
+		RequestBody: &specs.RequestBody{
+			Required: true,
+			Content:  map[string]specs.MediaType{"application/json": {}},
+		},
+		Extensions: map[string]any{
+			ExtensionTenant:         map[string]any{"required": true, "source": "header"},
+			ExtensionIdempotencyKey: map[string]any{"required": true, "header": "Idempotency-Key"},
+			ExtensionRateLimit:      map[string]any{"policy": "write-standard"},
+		},
+	}}, LintOptions{RequireUnsafeWriteRateLimit: true})
+
+	if !hasFinding(findings, "unsafe_write_rate_limit_required") {
+		t.Fatalf("missing rate-limit finding in %#v", findings)
 	}
 }
 

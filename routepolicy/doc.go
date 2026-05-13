@@ -17,6 +17,11 @@
 // WithTenantRequired, WithIdempotencyRequired, WithRateLimit, WithAdminPolicy,
 // and WithProblemResponses keep route contracts code-first without relying on
 // raw OpenAPI extension maps at call sites.
+// Typed readers such as AuthPolicyFromOperation, TenantPolicyFromOperation,
+// IdempotencyPolicyFromOperation, RateLimitPolicyFromOperation,
+// DeprecationPolicyFromOperation, AdminPolicyFromOperation, and
+// ProblemResponseStatuses let contract tooling inspect the same metadata
+// without ad hoc map parsing.
 //
 // LintOperations provides release and CI checks for operation IDs, unique
 // operation identity, security metadata, Problem Details responses,
