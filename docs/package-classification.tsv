@@ -69,7 +69,7 @@ github.com/aatuh/api-toolkit/v2/webhooks	stable	direct-tests	Stable webhook veri
 github.com/aatuh/api-toolkit/v2/testutil/authtest	test-only	test-support	Root test support package; not stable public API.
 github.com/aatuh/api-toolkit/contrib/v2	excluded	excluded	Module marker package only; no stable API promise.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar	experimental	direct-tests	Third-party policy adapter.
-github.com/aatuh/api-toolkit/contrib/v2/adapters/chi	experimental	direct-tests	HTTP router adapter and authz route validation helpers.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/chi	supported-adapter	direct-tests	Supported chi router adapter and authz route validation helpers.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/clock	wrapper-only	wrapper-smoke-tested	Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar	experimental	direct-tests	Environment loading adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest	test-only	test-support	Reusable health checker adapter contract tests.
@@ -77,7 +77,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient	experimental	direct-
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter for dev/test.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis	supported-adapter	direct-tests	Redis idempotency adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencytest	test-only	test-support	Reusable idempotency adapter contract tests.
-github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap	experimental	direct-tests	Zap logger adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap	supported-adapter	direct-tests	Supported zap logger adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate	experimental	direct-tests	Database migration adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/opa	experimental	direct-tests	OPA policy adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool	supported-adapter	direct-tests	Postgres pool adapter.
