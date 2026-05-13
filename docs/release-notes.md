@@ -132,6 +132,10 @@ source of truth is `docs/release-runbook.md`.
   validation now accepts `ResponseValidationOptions.ShouldValidate` so services
   can skip response buffering for streaming, upgrade, or large-download routes
   while keeping request validation enabled.
+- `middleware/timeout.NewHard` now accepts `Options.EventHooks`, emitting
+  bounded operator metadata for timeout, panic, and response-capture overflow
+  outcomes without exposing panic values, paths, query strings, headers, or
+  bodies.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

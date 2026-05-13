@@ -43,6 +43,7 @@ var ErrHardTimeoutCaptureLimitExceeded = errors.New("hard timeout response captu
 type HardTimeout struct {
 	Timeout         time.Duration
 	MaxCaptureBytes int64
+	EventHooks      *HardTimeoutEventHooks
 }
 
 // Propagator applies a per-request context deadline without writing timeout
@@ -59,6 +60,39 @@ type Middleware = Propagator
 type Options struct {
 	Timeout         time.Duration
 	MaxCaptureBytes int64
+	EventHooks      *HardTimeoutEventHooks
+}
+
+// HardTimeoutOutcome classifies observable hard-timeout outcomes.
+type HardTimeoutOutcome string
+
+const (
+	HardTimeoutOutcomeTimeout         HardTimeoutOutcome = "timeout"
+	HardTimeoutOutcomePanic           HardTimeoutOutcome = "panic"
+	HardTimeoutOutcomeCaptureOverflow HardTimeoutOutcome = "capture_overflow"
+)
+
+// HardTimeoutEvent contains bounded, low-cardinality metadata for operator
+// hooks. It intentionally excludes panic values, paths, query strings, headers,
+// and response bodies.
+type HardTimeoutEvent struct {
+	Outcome         HardTimeoutOutcome
+	Method          string
+	Status          int
+	TimedOut        bool
+	Panicked        bool
+	CaptureOverflow bool
+	Duration        time.Duration
+	Timeout         time.Duration
+	CaptureLimit    int64
+}
+
+// HardTimeoutEventHooks configures operator callbacks for hard-timeout
+// outcomes. Keep callbacks non-blocking; panics from callbacks are contained.
+type HardTimeoutEventHooks struct {
+	// OnEvent receives bounded metadata for timeout, panic, and
+	// capture-overflow outcomes.
+	OnEvent func(HardTimeoutEvent)
 }
 
 // NewPropagator constructs a cooperative request-deadline propagator with the
@@ -89,6 +123,7 @@ func NewHard(opts Options) (*HardTimeout, error) {
 	return &HardTimeout{
 		Timeout:         opts.Timeout,
 		MaxCaptureBytes: hardTimeoutCaptureLimit(opts.MaxCaptureBytes),
+		EventHooks:      opts.EventHooks,
 	}, nil
 }
 
@@ -133,6 +168,7 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		ctx, cancel := context.WithTimeout(r.Context(), m.Timeout)
 		defer cancel()
 
@@ -152,16 +188,19 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		select {
 		case result := <-done:
 			if capture.overflowed() {
+				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeCaptureOverflow, defaultHardTimeoutCaptureOverflowStatus)
 				httpx.WriteProblem(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem)
 				return
 			}
 			if result.panicked {
+				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomePanic, defaultHardTimeoutPanicStatus)
 				httpx.WriteProblem(w, defaultHardTimeoutPanicStatus, defaultHardTimeoutPanicProblem)
 				return
 			}
 			capture.flushTo(w)
 		case <-ctx.Done():
 			capture.timeout()
+			m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
 			httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
 		}
 	})
@@ -176,6 +215,46 @@ func (m *HardTimeout) captureLimit() int64 {
 		return defaultHardTimeoutMaxCaptureBytes
 	}
 	return hardTimeoutCaptureLimit(m.MaxCaptureBytes)
+}
+
+func (m *HardTimeout) emitHardTimeoutEvent(r *http.Request, start time.Time, outcome HardTimeoutOutcome, status int) {
+	if m == nil || m.EventHooks == nil || m.EventHooks.OnEvent == nil {
+		return
+	}
+	event := HardTimeoutEvent{
+		Outcome:      outcome,
+		Method:       hardTimeoutMethodLabel(r),
+		Status:       status,
+		Duration:     time.Since(start),
+		Timeout:      m.Timeout,
+		CaptureLimit: m.captureLimit(),
+	}
+	switch outcome {
+	case HardTimeoutOutcomeTimeout:
+		event.TimedOut = true
+	case HardTimeoutOutcomePanic:
+		event.Panicked = true
+	case HardTimeoutOutcomeCaptureOverflow:
+		event.CaptureOverflow = true
+	}
+	defer func() {
+		_ = recover()
+	}()
+	m.EventHooks.OnEvent(event)
+}
+
+func hardTimeoutMethodLabel(r *http.Request) string {
+	if r == nil {
+		return "UNKNOWN"
+	}
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions, http.MethodTrace, http.MethodConnect:
+		return r.Method
+	case "":
+		return "UNKNOWN"
+	default:
+		return "OTHER"
+	}
 }
 
 func hardTimeoutCaptureLimit(limit int64) int64 {

@@ -10,4 +10,9 @@
 // inside the hard-timeout goroutine: before timeout they produce deterministic
 // Problem Details responses, and after timeout they are contained after the 504
 // response has already won.
+//
+// HardTimeoutEventHooks expose bounded outcome metadata for operators without
+// leaking panic values, URL paths, query strings, headers, or bodies. Use the
+// hook to increment low-cardinality counters or structured logs for timeout,
+// panic, and capture-overflow outcomes.
 package timeout
