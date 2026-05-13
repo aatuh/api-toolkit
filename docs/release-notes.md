@@ -116,6 +116,9 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts diff` now applies those conservative schema
   compatibility checks to inline request and response media schemas on existing
   operations, so handler-local contract narrowing is caught before release.
+- `api-toolkit contracts lint` now fails when an operation references a
+  security requirement that is not defined in `components.securitySchemes`,
+  preventing reviewed specs from declaring unenforceable auth.
 - `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
   OpenAPI component and inline request/response schema drift findings, so
   library tests and CLI release review stay aligned.
