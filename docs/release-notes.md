@@ -180,6 +180,9 @@ source of truth is `docs/release-runbook.md`.
 - `specs.Registry` now exposes `SetSecurity` for code-first top-level OpenAPI
   `security`, and `contracttest.SecuritySchemeDefinitionFindings` verifies
   those global requirements against `components.securitySchemes`.
+- Generated `api-toolkit new service` scaffolds now use `specs.Registry`
+  top-level OpenAPI security defaults in runtime docs and golden files while
+  keeping protected write operation scopes explicit.
 - `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility

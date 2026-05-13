@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -116,6 +117,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `dev-headers`.") {
 		t.Fatalf("generated README missing dev-header auth mode")
 	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "DevHeaderAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -185,6 +187,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `clerk`.") {
 		t.Fatalf("generated README missing Clerk auth mode")
 	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -254,6 +257,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `jwt`.") {
 		t.Fatalf("generated README missing JWT auth mode")
 	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -377,6 +381,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if !strings.Contains(string(generatedREADME), "Generated auth mode: `api-key`.") {
 		t.Fatalf("generated README missing auth mode")
 	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -1378,6 +1383,32 @@ func writeTestOpenAPI(t *testing.T, path, pathsJSON string) {
 	if err := os.WriteFile(path, []byte(spec), 0o600); err != nil {
 		t.Fatalf("write spec: %v", err)
 	}
+}
+
+func assertGeneratedGoldenHasGlobalSecurity(t *testing.T, serviceDir, scheme string) {
+	t.Helper()
+	golden, err := os.ReadFile(filepath.Join(serviceDir, "testdata", "openapi.golden.json"))
+	if err != nil {
+		t.Fatalf("read generated OpenAPI golden: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(golden, &doc); err != nil {
+		t.Fatalf("decode generated OpenAPI golden: %v", err)
+	}
+	security, ok := doc["security"].([]any)
+	if !ok || len(security) == 0 {
+		t.Fatalf("generated OpenAPI golden has no top-level security: %s", golden)
+	}
+	for _, entry := range security {
+		requirement, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, ok := requirement[scheme]; ok {
+			return
+		}
+	}
+	t.Fatalf("generated OpenAPI golden missing top-level security scheme %q: %s", scheme, golden)
 }
 
 func mustRepoRoot(t *testing.T) string {
