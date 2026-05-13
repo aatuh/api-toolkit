@@ -44,7 +44,7 @@ func TestPublicMarkdownUsesV2ModulePaths(t *testing.T) {
 	}
 }
 
-func TestGettingStartedGuideBuilds(t *testing.T) {
+func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docPath := filepath.Join(repoRoot, "docs", "getting-started.md")
 	content, err := os.ReadFile(docPath)
@@ -52,44 +52,58 @@ func TestGettingStartedGuideBuilds(t *testing.T) {
 		t.Fatalf("read %s: %v", docPath, err)
 	}
 
-	mainSrc := extractSectionCodeBlock(t, string(content), "## 2) Create `main.go`")
-	testSrc := extractSectionCodeBlock(t, string(content), "## 4) Add a tiny test")
-
 	tmpDir := t.TempDir()
-	tmpRoot, err := os.OpenRoot(tmpDir)
-	if err != nil {
-		t.Fatalf("open temp root: %v", err)
+	serviceDir := filepath.Join(tmpDir, "my-api")
+	doc := string(content)
+	for _, required := range []string{
+		"go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service",
+		"--module example.com/my-api",
+		"--profile saas-api",
+		"make finalize",
+		"make openapi-check",
+		"make contracts-lint",
+		"make contracts-diff",
+		"GET /readyz",
+		"GET /docs/openapi.json",
+		"POST /widgets",
+		"Idempotency-Key",
+	} {
+		if !strings.Contains(doc, required) {
+			t.Fatalf("getting-started guide missing scaffold instruction %q", required)
+		}
 	}
-	defer func() {
-		_ = tmpRoot.Close()
-	}()
-	writeFile(t, tmpRoot, "main.go", mainSrc)
-	writeFile(t, tmpRoot, "main_test.go", testSrc)
 
-	goMod := strings.Join([]string{
-		"module example.com/my-api",
-		"",
-		"go 1.25.0",
-		"",
-		"require (",
-		"\t" + rootModulePath + "/v2 v2.0.0",
-		"\t" + contribModulePath + " v2.0.0",
-		")",
-		"",
-		"replace " + rootModulePath + "/v2 => " + repoRoot,
-		"replace " + contribModulePath + " => " + filepath.Join(repoRoot, "contrib"),
-		"",
-	}, "\n")
-	writeFile(t, tmpRoot, "go.mod", goMod)
+	cmd := exec.CommandContext(context.Background(), "go", "run", "./cmd/api-toolkit",
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	)
+	cmd.Dir = filepath.Join(repoRoot, "contrib")
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generate getting-started service:\n%s\nerror: %v", out, err)
+	}
 
-	out, err := runGoCmd(tmpDir, "mod", "tidy")
+	out, err := runGoCmd(serviceDir, "mod", "tidy")
 	if err != nil {
 		t.Fatalf("getting-started guide dependencies do not resolve:\n%s\nerror: %v", out, err)
 	}
 
-	out, err = runGoCmd(tmpDir, "test", "./...")
+	out, err = runGoCmd(serviceDir, "test", "./...")
 	if err != nil {
 		t.Fatalf("getting-started guide does not build:\n%s\nerror: %v", out, err)
+	}
+
+	for _, target := range []string{"openapi-check", "contracts-lint", "contracts-diff"} {
+		cmd := exec.CommandContext(context.Background(), "make", target)
+		cmd.Dir = serviceDir
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("getting-started guide %s failed:\n%s\nerror: %v", target, out, err)
+		}
 	}
 }
 
@@ -2528,6 +2542,9 @@ func TestPublicMarkdownMakeTargetsExist(t *testing.T) {
 				if likelyProseAfterMake(target) {
 					continue
 				}
+				if generatedScaffoldMakeTarget(rel, target) {
+					continue
+				}
 				if !targets[target] {
 					t.Fatalf("%s references absent Makefile target %q", rel, target)
 				}
@@ -2541,10 +2558,25 @@ func TestPublicMarkdownMakeTargetsExist(t *testing.T) {
 			if likelyProseAfterMake(target) {
 				continue
 			}
+			if generatedScaffoldMakeTarget(rel, target) {
+				continue
+			}
 			if !targets[target] {
 				t.Fatalf("%s references absent Makefile target %q", rel, target)
 			}
 		}
+	}
+}
+
+func generatedScaffoldMakeTarget(rel, target string) bool {
+	if rel != "docs/getting-started.md" {
+		return false
+	}
+	switch target {
+	case "openapi-check", "contracts-lint", "contracts-diff":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -2825,42 +2857,6 @@ func mustRepoRoot(t *testing.T) string {
 		t.Fatalf("resolve repo root: %v", err)
 	}
 	return root
-}
-
-func extractSectionCodeBlock(t *testing.T, doc, heading string) string {
-	t.Helper()
-
-	sectionStart := strings.Index(doc, heading)
-	if sectionStart == -1 {
-		t.Fatalf("heading %q not found", heading)
-	}
-	section := doc[sectionStart:]
-
-	start := strings.Index(section, "```go\n")
-	if start == -1 {
-		t.Fatalf("go code block not found under %q", heading)
-	}
-	section = section[start+len("```go\n"):]
-
-	end := strings.Index(section, "\n```")
-	if end == -1 {
-		t.Fatalf("unterminated go code block under %q", heading)
-	}
-	return section[:end] + "\n"
-}
-
-func writeFile(t *testing.T, root *os.Root, name, content string) {
-	t.Helper()
-	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		t.Fatalf("open %s: %v", name, err)
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-	if _, err := f.Write([]byte(content)); err != nil {
-		t.Fatalf("write %s: %v", name, err)
-	}
 }
 
 func runGoCmd(dir string, args ...string) ([]byte, error) {

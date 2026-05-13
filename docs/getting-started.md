@@ -1,145 +1,89 @@
 # Getting Started (10 minutes)
 
-Audience: new users who want one minimal API, one run command, and one test that
-exercises the same toolkit wiring used by the server.
+Audience: new users who want a runnable production-oriented API skeleton with
+the standard service wiring already in place.
 
-## 1) Create a module
+## 1) Generate a service
 
 ```sh
-go mod init example.com/my-api
-go get github.com/aatuh/api-toolkit/v2
-go get github.com/aatuh/api-toolkit/contrib/v2
+go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service \
+  --module example.com/my-api \
+  --profile saas-api \
+  --dir my-api
+cd my-api
+cp .env.example .env
+go mod tidy
 ```
 
-## 2) Create `main.go`
+Expected result: `my-api` contains a Go module, chi-based API service,
+OpenAPI golden, Makefile, Dockerfile, Compose file, pinned GitHub Actions CI,
+tests, and a local `.env` file.
 
-```go
-package main
+## 2) Verify the scaffold
 
-import (
-	"errors"
-	"net/http"
-	"time"
-
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
-	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/ports"
-)
-
-type widget struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-func newRouter(log ports.Logger) (http.Handler, error) {
-	if log == nil {
-		log = ports.NopLogger{}
-	}
-	r := chi.New()
-	profile, err := bootstrap.ProfileStrictAPI(log)
-	if err != nil {
-		return nil, err
-	}
-	profile.Apply(r)
-
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
-	r.Post("/widgets", func(w http.ResponseWriter, r *http.Request) {
-		widget := widget{ID: "w_123", Name: "starter"}
-		httpx.WriteJSON(w, http.StatusCreated, widget)
-	})
-	return r, nil
-}
-
-func main() {
-	log := logzap.NewProduction()
-	handler, err := newRouter(log)
-	if err != nil {
-		log.Error("router init failed", "err", err)
-		return
-	}
-
-	srv := &http.Server{
-		Addr:              ":8080",
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Error("server failed", "err", err)
-	}
-}
+```sh
+make finalize
+make openapi-check
+make contracts-lint
+make contracts-diff
 ```
 
-Expected result: the application starts an HTTP server on `:8080` with the strict
-API profile applied to the same router that owns the routes.
+Expected result: tests pass, the binary builds, the generated OpenAPI golden is
+current, and route contract linting accepts the default production policies.
 
 ## 3) Run it
 
 ```sh
-go run ./main.go
+go run .
 ```
 
-Try the health and write endpoints from another shell:
+Try the public health and OpenAPI routes from another shell:
 
 ```sh
-curl -s http://localhost:8080/health
-curl -s -X POST http://localhost:8080/widgets
+curl -s http://localhost:8080/readyz
+curl -s http://localhost:8080/docs/openapi.json
 ```
 
-Expected responses:
-
-```json
-{"status":"ok"}
-```
-
-```json
-{"id":"w_123","name":"starter"}
-```
-
-## 4) Add a tiny test
-
-```go
-package main
-
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
-	"github.com/aatuh/api-toolkit/v2/ports"
-)
-
-func TestHealthUsesTutorialRouter(t *testing.T) {
-	handler, err := newRouter(ports.NopLogger{})
-	if err != nil {
-		t.Fatalf("new router: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Fatalf("expected JSON response, got %q", got)
-	}
-}
-```
-
-Run tests:
+Try the default protected write route:
 
 ```sh
-go test ./...
+curl -s -X POST http://localhost:8080/widgets \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: local-dev-key' \
+  -H 'X-Tenant-ID: tenant_1' \
+  -H 'Idempotency-Key: demo-1' \
+  -d '{"name":"starter"}'
 ```
 
-Next: use [cookbook.md](cookbook.md) for common patterns and
+Expected result: `GET /readyz` returns ready health, `GET /docs/openapi.json`
+returns the generated OpenAPI document, and `POST /widgets` returns a created
+widget. Repeating the same write with the same `Idempotency-Key` replays the
+stored response.
+
+## 4) Inspect operator routes
+
+```sh
+curl -s -H 'X-Admin-Key: local-admin-key' http://localhost:8080/health/detailed
+curl -s -H 'X-Admin-Key: local-admin-key' http://localhost:8080/metrics
+curl -s -H 'X-Admin-Key: local-admin-key' http://localhost:8080/debug/pprof/
+```
+
+The scaffold keeps detailed health, metrics, and pprof behind the generated
+admin middleware. The public routes remain limited to readiness, liveness,
+version, and OpenAPI/docs.
+
+## 5) Choose production settings
+
+The default `saas-api` profile starts with API-key auth for local development.
+For production, set explicit non-default `API_KEY`, `ADMIN_KEY`,
+`IDEMPOTENCY_STORE=redis`, and `RATE_LIMIT_STORE=redis`. JWT and Clerk modes are
+available from the generator:
+
+```sh
+api-toolkit new service --module example.com/my-api --profile saas-api --auth jwt
+api-toolkit new service --module example.com/my-api --profile saas-api --auth clerk
+```
+
+Next: use [cookbook.md](cookbook.md) for focused patterns and
 [../contrib/examples/README.md](../contrib/examples/README.md) for runnable
 example applications.

@@ -191,6 +191,9 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit new service` now emits a pinned GitHub Actions workflow that runs
   `make finalize`, keeping generated services on the same test, build,
   OpenAPI golden, and contract lint path documented by the scaffold.
+- The getting-started guide is now scaffold-first and verifies the generated
+  service, OpenAPI golden, and contract lint/diff workflow instead of teaching a
+  hand-written minimal starter as the primary path.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
