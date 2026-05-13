@@ -54,7 +54,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key|jwt]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
@@ -111,9 +111,9 @@ func validateScaffoldAuthMode(profile, authMode string) (string, error) {
 		authMode = scaffoldAuthAPIKey
 	}
 	switch authMode {
-	case scaffoldAuthAPIKey:
+	case scaffoldAuthAPIKey, scaffoldAuthJWT:
 		return authMode, nil
-	case scaffoldAuthJWT, scaffoldAuthClerk:
+	case scaffoldAuthClerk:
 		return "", fmt.Errorf("auth mode %q is not supported by profile %q yet", authMode, profile)
 	case scaffoldAuthDevHeaders:
 		return "", fmt.Errorf("auth mode %q requires an explicit development profile", authMode)
@@ -289,6 +289,7 @@ func generateService(cfg scaffoldConfig) error {
 	data := map[string]string{
 		"Module":         cfg.Module,
 		"AuthMode":       cfg.AuthMode,
+		"AuthSchemeName": scaffoldAuthSecuritySchemeName(cfg.AuthMode),
 		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
 		"ContribReplace": replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
 	}
@@ -301,7 +302,7 @@ func generateService(cfg scaffoldConfig) error {
 			return err
 		}
 	}
-	golden, err := renderSaaSAPIOpenAPIGolden()
+	golden, err := renderSaaSAPIOpenAPIGolden(cfg.AuthMode)
 	if err != nil {
 		return err
 	}
@@ -384,9 +385,9 @@ type scaffoldWidgetResponse struct {
 	Name     string `json:"name"`
 }
 
-func renderSaaSAPIOpenAPIGolden() ([]byte, error) {
+func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 	registry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
-	registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	registry.RegisterSecurityScheme(scaffoldAuthSecuritySchemeName(authMode), scaffoldAuthSecurityScheme(authMode))
 	if err := specs.RegisterSchemaFrom[scaffoldWidgetResponse](registry, "Widget", specs.SchemaOptions{}); err != nil {
 		return nil, fmt.Errorf("register scaffold schema: %w", err)
 	}
@@ -411,7 +412,7 @@ func renderSaaSAPIOpenAPIGolden() ([]byte, error) {
 		},
 	},
 		routepolicy.WithOperationID("createWidget"),
-		routepolicy.WithAuth("ApiKeyAuth", "widgets:write"),
+		routepolicy.WithAuth(scaffoldAuthSecuritySchemeName(authMode), "widgets:write"),
 		routepolicy.WithTenantRequired("header"),
 		routepolicy.WithIdempotencyRequired(),
 		routepolicy.WithRateLimit("write-standard"),
@@ -422,6 +423,20 @@ func renderSaaSAPIOpenAPIGolden() ([]byte, error) {
 		return nil, fmt.Errorf("render scaffold openapi: %w", err)
 	}
 	return normalizeJSON(doc)
+}
+
+func scaffoldAuthSecuritySchemeName(authMode string) string {
+	if authMode == scaffoldAuthJWT {
+		return "BearerAuth"
+	}
+	return "ApiKeyAuth"
+}
+
+func scaffoldAuthSecurityScheme(authMode string) specs.SecurityScheme {
+	if authMode == scaffoldAuthJWT {
+		return specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"}
+	}
+	return specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"}
 }
 
 func normalizeJSON(data []byte) ([]byte, error) {
@@ -1329,7 +1344,8 @@ go 1.25.0
 require (
 	github.com/aatuh/api-toolkit/v2 v2.1.0
 	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
-	github.com/redis/go-redis/v9 v9.19.0
+{{ if eq .AuthMode "jwt" }}	github.com/golang-jwt/jwt/v5 v5.3.0
+{{ end }}	github.com/redis/go-redis/v9 v9.19.0
 )
 
 {{ .CoreReplace }}{{ .ContribReplace }}`
@@ -1357,8 +1373,9 @@ import (
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
-	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
+{{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+{{ else }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
+{{ end }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
@@ -1388,7 +1405,9 @@ func main() {
 
 func newService() (*bootstrap.APIService, error) {
 	specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
-	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+{{ if eq .AuthMode "jwt" }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
+{{ else }}	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+{{ end }}
 	if err := specs.RegisterSchemaFrom[widgetResponse](specRegistry, "Widget", specs.SchemaOptions{}); err != nil {
 		return nil, err
 	}
@@ -1411,14 +1430,21 @@ func newService() (*bootstrap.APIService, error) {
 		EnableCaching:   true,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
-		ReadinessChecks: []string{"basic"},
+		ReadinessChecks: []string{"basic"{{ if eq .AuthMode "jwt" }}, "jwt"{{ end }}},
 	})
 	healthManager.RegisterChecker(health.NewBasicChecker())
 
+{{ if eq .AuthMode "jwt" }}	jwtMiddleware, jwtConfig, err := newJWTMiddleware(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	healthManager.RegisterChecker(jwtauth.HealthChecker(jwtConfig, nil))
+{{ else }}
 	apiKeyMiddleware, err := newAPIKeyMiddleware()
 	if err != nil {
 		return nil, err
 	}
+{{ end }}
 	tenantMiddleware, err := tenant.New(tenant.Options{
 		HeaderName:        "X-Tenant-ID",
 		TenantFromContext: authorization.TenantIDFromContext,
@@ -1469,7 +1495,7 @@ func newService() (*bootstrap.APIService, error) {
 				},
 			},
 				routepolicy.WithOperationID("createWidget"),
-				routepolicy.WithAuth("ApiKeyAuth", "widgets:write"),
+				routepolicy.WithAuth("{{ .AuthSchemeName }}", "widgets:write"),
 				routepolicy.WithTenantRequired("header"),
 				routepolicy.WithIdempotencyRequired(),
 				routepolicy.WithRateLimit("write-standard"),
@@ -1477,14 +1503,27 @@ func newService() (*bootstrap.APIService, error) {
 			)
 			widgetHandler := http.Handler(http.HandlerFunc(createWidget))
 			widgetHandler = idempotencyMiddleware.Handler(widgetHandler)
+{{ if eq .AuthMode "jwt" }}			widgetHandler = requireJWTScope("widgets:write")(widgetHandler)
+			widgetHandler = tenantMiddleware.Handler(widgetHandler)
+			widgetHandler = withJWTAuthorizationScope(widgetHandler)
+			widgetHandler = jwtMiddleware.Handler(widgetHandler)
+{{ else }}
 			widgetHandler = apikey.RequireScopeMiddleware("widgets:write")(widgetHandler)
 			widgetHandler = tenantMiddleware.Handler(widgetHandler)
 			widgetHandler = apiKeyMiddleware.Handler(widgetHandler)
+{{ end }}
 			if err := contracts.Post("/widgets", operation, widgetHandler); err != nil {
 				return err
 			}
 			return contracts.Validate()
 		},
+{{ if eq .AuthMode "jwt" }}		ShutdownHooks: []bootstrap.ShutdownHook{
+			{Name: "jwt", Hook: func(context.Context) error {
+				jwtMiddleware.Close()
+				return nil
+			}},
+		},
+{{ end }}
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  health.NewHandler(healthManager),
 			Docs:    docs.NewHandler(docsManager),
@@ -1499,6 +1538,37 @@ func newService() (*bootstrap.APIService, error) {
 	})
 }
 
+{{ if eq .AuthMode "jwt" }}func newJWTMiddleware(ctx context.Context) (*jwtauth.Middleware, jwtauth.Config, error) {
+	jwksURL, err := requiredEnv("JWT_JWKS_URL")
+	if err != nil {
+		return nil, jwtauth.Config{}, err
+	}
+	issuer, err := requiredEnv("JWT_ISSUER")
+	if err != nil {
+		return nil, jwtauth.Config{}, err
+	}
+	audience, err := requiredEnv("JWT_AUDIENCE")
+	if err != nil {
+		return nil, jwtauth.Config{}, err
+	}
+	cfg := jwtauth.Config{
+		Enabled:             true,
+		JWKSURL:             jwksURL,
+		Issuer:              issuer,
+		Audience:            audience,
+		AllowedAlgorithms:   splitCSV(env("JWT_ALLOWED_ALGORITHMS", "RS256")),
+		AllowedClockSkew:    30 * time.Second,
+		JWKSRefreshTimeout:  5 * time.Second,
+		JWKSRefreshInterval: 10 * time.Minute,
+	}
+	mw, err := jwtauth.NewMiddleware(ctx, cfg, ports.NopLogger{})
+	if err != nil {
+		return nil, cfg, err
+	}
+	return mw, cfg, nil
+}
+
+{{ else }}
 func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 	expectedKey, err := secretEnv("API_KEY", "local-dev-key")
 	if err != nil {
@@ -1519,6 +1589,7 @@ func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 		}),
 	})
 }
+{{ end }}
 
 func newIdempotencyStore() (ports.IdempotencyStore, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
@@ -1586,6 +1657,123 @@ func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
 	}
 }
 
+{{ if eq .AuthMode "jwt" }}func withJWTAuthorizationScope(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := jwtauth.SubjectFromContext(r.Context())
+		if !ok {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+			return
+		}
+		tenantID := tenantIDFromJWTSubject(subj)
+		if tenantID == "" {
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
+			return
+		}
+		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: tenantID, UserID: subj.UserID})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func requireJWTScope(required string) func(http.Handler) http.Handler {
+	required = strings.TrimSpace(required)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			subj, ok := jwtauth.SubjectFromContext(r.Context())
+			if !ok {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+				return
+			}
+			if !jwtSubjectHasScope(subj, required) {
+				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func tenantIDFromJWTSubject(subj jwtauth.Subject) string {
+	for _, key := range []string{"tenant_id", "tid", "org_id"} {
+		if tenantID := stringJWTClaim(subj.Claims, key); tenantID != "" {
+			return tenantID
+		}
+	}
+	return ""
+}
+
+func jwtSubjectHasScope(subj jwtauth.Subject, required string) bool {
+	if required == "" {
+		return true
+	}
+	for _, claim := range []string{"scope", "scp", "permissions"} {
+		for _, scope := range jwtScopeValues(subj.Claims[claim]) {
+			if strings.EqualFold(scope, required) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stringJWTClaim(claims map[string]any, key string) string {
+	if claims == nil {
+		return ""
+	}
+	value, ok := claims[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func jwtScopeValues(value any) []string {
+	switch v := value.(type) {
+	case string:
+		return splitScopeString(v)
+	case []string:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if item = strings.TrimSpace(item); item != "" {
+				out = append(out, item)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if scope, ok := item.(string); ok {
+				if scope = strings.TrimSpace(scope); scope != "" {
+					out = append(out, scope)
+				}
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func splitScopeString(value string) []string {
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ' ' || r == ','
+	})
+	out := parts[:0]
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func requiredEnv(key string) (string, error) {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value, nil
+	}
+	return "", fmt.Errorf("%s is required", key)
+}
+
+{{ end }}
 func secretEnv(key, fallback string) (string, error) {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value, nil
@@ -1624,15 +1812,22 @@ const mainTestTemplate = `package main
 
 import (
 	"bytes"
-	"encoding/json"
+{{ if eq .AuthMode "jwt" }}	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
+{{ end }}	"encoding/json"
 	"flag"
-	"net/http"
+{{ if eq .AuthMode "jwt" }}	"math/big"
+{{ end }}	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+{{ if eq .AuthMode "jwt" }}	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+{{ end }}
 	"github.com/aatuh/api-toolkit/v2/contracttest"
 	"github.com/aatuh/api-toolkit/v2/specs"
 )
@@ -1714,7 +1909,7 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"starter"}` + "`" + `))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", "local-dev-key")
+	authorizeWidgetRequest(t, req, "tenant_1")
 	req.Header.Set("X-Tenant-ID", "tenant_2")
 	req.Header.Set("Idempotency-Key", "tenant-mismatch-key")
 	rec = httptest.NewRecorder()
@@ -1728,8 +1923,7 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"   "}` + "`" + `))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", "local-dev-key")
-	req.Header.Set("X-Tenant-ID", "tenant_1")
+	authorizeWidgetRequest(t, req, "tenant_1")
 	req.Header.Set("Idempotency-Key", "validation-key")
 	rec = httptest.NewRecorder()
 	service.Handler().ServeHTTP(rec, req)
@@ -1741,8 +1935,7 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		req = httptest.NewRequest(http.MethodPost, "/widgets", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-API-Key", "local-dev-key")
-		req.Header.Set("X-Tenant-ID", "tenant_1")
+		authorizeWidgetRequest(t, req, "tenant_1")
 		req.Header.Set("Idempotency-Key", "create-key")
 		rec = httptest.NewRecorder()
 		service.Handler().ServeHTTP(rec, req)
@@ -1775,7 +1968,32 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 	}
 }
 
-func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
+{{ if eq .AuthMode "jwt" }}func TestGeneratedServiceRejectsProductionMissingJWTConfig(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("JWT_JWKS_URL", "")
+	t.Setenv("JWT_ISSUER", "https://issuer.example.com")
+	t.Setenv("JWT_AUDIENCE", "saas-api")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require JWT config")
+	} else if !strings.Contains(err.Error(), "JWT_JWKS_URL") {
+		t.Fatalf("startup error = %v, want JWT_JWKS_URL requirement", err)
+	}
+}
+
+func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
+	t.Setenv("ENV", "production")
+	setJWTAuthEnv(t)
+	t.Setenv("ADMIN_KEY", "")
+	t.Setenv("IDEMPOTENCY_STORE", "redis")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require admin key")
+	} else if !strings.Contains(err.Error(), "ADMIN_KEY") {
+		t.Fatalf("startup error = %v, want ADMIN_KEY requirement", err)
+	}
+}
+
+{{ else }}func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("API_KEY", "")
 	t.Setenv("ADMIN_KEY", "")
@@ -1786,11 +2004,15 @@ func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	}
 }
 
+{{ end }}
 func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 	t.Setenv("ENV", "production")
+{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else }}
 	t.Setenv("API_KEY", "prod-api-key")
-	t.Setenv("ADMIN_KEY", "prod-admin-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
+{{ end }}
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
 	t.Setenv("IDEMPOTENCY_STORE", "memory")
 	if _, err := newService(); err == nil {
 		t.Fatal("expected production service startup to reject memory idempotency")
@@ -1801,9 +2023,12 @@ func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 
 func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 	t.Setenv("ENV", "production")
+{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else }}
 	t.Setenv("API_KEY", "prod-api-key")
-	t.Setenv("ADMIN_KEY", "prod-admin-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
+{{ end }}
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
 	t.Setenv("IDEMPOTENCY_STORE", "redis")
 	t.Setenv("REDIS_ADDR", "")
 	if _, err := newService(); err == nil {
@@ -1816,11 +2041,84 @@ func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 func setLocalTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV", "development")
+{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else }}
 	t.Setenv("API_KEY", "local-dev-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
+{{ end }}
 	t.Setenv("ADMIN_KEY", "local-admin-key")
 	t.Setenv("IDEMPOTENCY_STORE", "memory")
 }
+
+func authorizeWidgetRequest(t *testing.T, req *http.Request, tenantID string) {
+	t.Helper()
+{{ if eq .AuthMode "jwt" }}	req.Header.Set("Authorization", "Bearer "+testJWT(t, tenantID, "widgets:write"))
+{{ else }}	req.Header.Set("X-API-Key", "local-dev-key")
+{{ end }}	req.Header.Set("X-Tenant-ID", tenantID)
+}
+
+{{ if eq .AuthMode "jwt" }}const (
+	testJWTKeyID    = "test-kid"
+	testJWTIssuer   = "https://issuer.example.test"
+	testJWTAudience = "saas-api"
+)
+
+var testJWTPrivateKey *rsa.PrivateKey
+
+func setJWTAuthEnv(t *testing.T) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate JWT key: %v", err)
+	}
+	testJWTPrivateKey = key
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{jwkFromRSAPublicKey(&key.PublicKey)}})
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("JWT_JWKS_URL", server.URL)
+	t.Setenv("JWT_ISSUER", testJWTIssuer)
+	t.Setenv("JWT_AUDIENCE", testJWTAudience)
+	t.Setenv("JWT_ALLOWED_ALGORITHMS", "RS256")
+}
+
+func testJWT(t *testing.T, tenantID string, scopes ...string) string {
+	t.Helper()
+	if testJWTPrivateKey == nil {
+		t.Fatal("JWT test key is not configured")
+	}
+	now := time.Now().UTC()
+	claims := jwt.MapClaims{
+		"sub":       "user_123",
+		"tenant_id": tenantID,
+		"scope":     strings.Join(scopes, " "),
+		"iss":       testJWTIssuer,
+		"aud":       testJWTAudience,
+		"iat":       now.Unix(),
+		"exp":       now.Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = testJWTKeyID
+	signed, err := token.SignedString(testJWTPrivateKey)
+	if err != nil {
+		t.Fatalf("sign JWT: %v", err)
+	}
+	return signed
+}
+
+func jwkFromRSAPublicKey(key *rsa.PublicKey) map[string]string {
+	return map[string]string{
+		"kty": "RSA",
+		"use": "sig",
+		"kid": testJWTKeyID,
+		"alg": "RS256",
+		"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
+	}
+}
+
+{{ end }}
 `
 
 const makefileTemplate = `GO ?= go
@@ -1853,8 +2151,14 @@ finalize: fmt test openapi-check contracts-lint contracts-diff
 
 const envTemplate = `ENV=development
 API_ADDR=:8080
+{{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
+JWT_ISSUER=
+JWT_AUDIENCE=saas-api
+JWT_ALLOWED_ALGORITHMS=RS256
+{{ else }}
 API_KEY=local-dev-key
 API_TENANT_ID=tenant_1
+{{ end }}
 ADMIN_KEY=local-admin-key
 IDEMPOTENCY_STORE=memory
 REDIS_ADDR=localhost:6379
@@ -1933,12 +2237,16 @@ Default routes:
 
 - ` + "`GET /readyz`" + `
 - ` + "`GET /docs/openapi.json`" + `
-- ` + "`POST /widgets`" + ` with ` + "`X-API-Key`" + `, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
+- ` + "`POST /widgets`" + ` with {{ if eq .AuthMode "jwt" }}` + "`Authorization: Bearer <token>`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
+{{ if eq .AuthMode "jwt" }}JWT mode validates bearer tokens with ` + "`JWT_JWKS_URL`" + `, ` + "`JWT_ISSUER`" + `, and ` + "`JWT_AUDIENCE`" + `. The ` + "`tenant_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
+When ` + "`ENV=production`" + `, startup requires explicit JWT configuration and ` + "`ADMIN_KEY`" + `.
+{{ else }}
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
+{{ end }}
 Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
