@@ -28,6 +28,12 @@ matching issuer, audience, and JWKS URL environment variables, extract tenant
 scope from validated token claims, and keep the same tenant mismatch,
 idempotency, OpenAPI, and admin-route defaults.
 
+Use `--profile dev-api --auth dev-headers` only for local development services
+that need debug-header authentication. The generated service requires explicit
+dev-bypass environment variables, trusts only configured loopback proxies by
+default, uses separate debug tenant and scope headers, and refuses to start with
+dev-header auth when `ENV=production`.
+
 The same CLI can review OpenAPI artifacts before release. `contracts lint`
 checks operation IDs, non-public security requirements, unsafe-write tenant,
 idempotency, rate-limit metadata, request body metadata, documented 2xx success

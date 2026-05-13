@@ -55,7 +55,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key|jwt|clerk]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|dev-api] [--auth api-key|jwt|clerk|dev-headers]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
@@ -74,11 +74,11 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	profileName := strings.TrimSpace(*profile)
-	if profileName != scaffoldProfileSaaSAPI {
+	if !isSupportedScaffoldProfile(profileName) {
 		fmt.Fprintf(stderr, "unsupported profile %q\n", *profile)
 		return 2
 	}
-	authName, err := validateScaffoldAuthMode(*authMode)
+	authName, err := validateScaffoldAuthMode(profileName, *authMode)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -86,6 +86,7 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	cfg := scaffoldConfig{
 		Module:         strings.TrimSpace(*module),
 		Dir:            strings.TrimSpace(*dir),
+		Profile:        profileName,
 		AuthMode:       authName,
 		CoreReplace:    strings.TrimSpace(*coreReplace),
 		ContribReplace: strings.TrimSpace(*contribReplace),
@@ -100,21 +101,42 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 const (
 	scaffoldProfileSaaSAPI = "saas-api"
+	scaffoldProfileDevAPI  = "dev-api"
 	scaffoldAuthAPIKey     = "api-key"
 	scaffoldAuthJWT        = "jwt"
 	scaffoldAuthClerk      = "clerk"
 	scaffoldAuthDevHeaders = "dev-headers"
 )
 
-func validateScaffoldAuthMode(authMode string) (string, error) {
+func isSupportedScaffoldProfile(profile string) bool {
+	switch strings.TrimSpace(profile) {
+	case scaffoldProfileSaaSAPI, scaffoldProfileDevAPI:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateScaffoldAuthMode(profile, authMode string) (string, error) {
+	profile = strings.TrimSpace(profile)
 	authMode = strings.ToLower(strings.TrimSpace(authMode))
 	if authMode == "" {
-		authMode = scaffoldAuthAPIKey
+		if profile == scaffoldProfileDevAPI {
+			authMode = scaffoldAuthDevHeaders
+		} else {
+			authMode = scaffoldAuthAPIKey
+		}
 	}
 	switch authMode {
 	case scaffoldAuthAPIKey, scaffoldAuthJWT, scaffoldAuthClerk:
+		if profile == scaffoldProfileDevAPI {
+			return "", fmt.Errorf("auth mode %q is not supported for profile %q", authMode, profile)
+		}
 		return authMode, nil
 	case scaffoldAuthDevHeaders:
+		if profile == scaffoldProfileDevAPI {
+			return authMode, nil
+		}
 		return "", fmt.Errorf("auth mode %q requires an explicit development profile", authMode)
 	default:
 		return "", fmt.Errorf("unsupported auth mode %q", authMode)
@@ -254,6 +276,7 @@ func defaultContractLintAdminPaths() []string {
 type scaffoldConfig struct {
 	Module         string
 	Dir            string
+	Profile        string
 	AuthMode       string
 	CoreReplace    string
 	ContribReplace string
@@ -263,8 +286,18 @@ func generateService(cfg scaffoldConfig) error {
 	if err := validateModulePath(cfg.Module); err != nil {
 		return err
 	}
+	if strings.TrimSpace(cfg.Profile) == "" {
+		cfg.Profile = scaffoldProfileSaaSAPI
+	}
+	if !isSupportedScaffoldProfile(cfg.Profile) {
+		return fmt.Errorf("unsupported profile %q", cfg.Profile)
+	}
 	if strings.TrimSpace(cfg.AuthMode) == "" {
-		cfg.AuthMode = scaffoldAuthAPIKey
+		authMode, err := validateScaffoldAuthMode(cfg.Profile, "")
+		if err != nil {
+			return err
+		}
+		cfg.AuthMode = authMode
 	}
 	outDir, err := safeOutputDir(cfg.Dir)
 	if err != nil {
@@ -287,6 +320,7 @@ func generateService(cfg scaffoldConfig) error {
 	defer root.Close()
 	data := map[string]string{
 		"Module":         cfg.Module,
+		"Profile":        cfg.Profile,
 		"AuthMode":       cfg.AuthMode,
 		"AuthSchemeName": scaffoldAuthSecuritySchemeName(cfg.AuthMode),
 		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
@@ -435,12 +469,18 @@ func scaffoldAuthSecuritySchemeName(authMode string) string {
 	if isScaffoldBearerAuth(authMode) {
 		return "BearerAuth"
 	}
+	if authMode == scaffoldAuthDevHeaders {
+		return "DevHeaderAuth"
+	}
 	return "ApiKeyAuth"
 }
 
 func scaffoldAuthSecurityScheme(authMode string) specs.SecurityScheme {
 	if isScaffoldBearerAuth(authMode) {
 		return specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"}
+	}
+	if authMode == scaffoldAuthDevHeaders {
+		return specs.SecurityScheme{Type: "apiKey", Name: "X-Debug-User", In: "header"}
 	}
 	return specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"}
 }
@@ -1376,6 +1416,9 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+{{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
+{{ end }}
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ end }}	"github.com/redis/go-redis/v9"
 	"github.com/aatuh/api-toolkit/v2/authorization"
@@ -1384,7 +1427,7 @@ import (
 	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/httpx"
-{{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "dev-headers") }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}{{ if eq .AuthMode "api-key" }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
 {{ end }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
@@ -1417,6 +1460,7 @@ func main() {
 func newService() (*bootstrap.APIService, error) {
 	specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
+{{ else if eq .AuthMode "dev-headers" }}	specRegistry.RegisterSecurityScheme("DevHeaderAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-Debug-User", In: "header"})
 {{ else }}	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 {{ end }}
 	if err := specs.RegisterSchemaFrom[widgetResponse](specRegistry, "Widget", specs.SchemaOptions{}); err != nil {
@@ -1455,6 +1499,10 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 	healthManager.RegisterChecker(clerkauth.HealthChecker(clerkConfig, nil))
+{{ else if eq .AuthMode "dev-headers" }}	devHeadersMiddleware, err := newDevHeadersMiddleware()
+	if err != nil {
+		return nil, err
+	}
 {{ else }}
 	apiKeyMiddleware, err := newAPIKeyMiddleware()
 	if err != nil {
@@ -1527,6 +1575,10 @@ func newService() (*bootstrap.APIService, error) {
 			widgetHandler = tenantMiddleware.Handler(widgetHandler)
 			widgetHandler = withClerkAuthorizationScope(widgetHandler)
 			widgetHandler = clerkMiddleware.Handler(widgetHandler)
+{{ else if eq .AuthMode "dev-headers" }}			widgetHandler = requireDevHeaderScope("widgets:write")(widgetHandler)
+			widgetHandler = tenantMiddleware.Handler(widgetHandler)
+			widgetHandler = withDevHeaderAuthorizationScope(widgetHandler)
+			widgetHandler = devHeadersMiddleware.Handler(widgetHandler)
 {{ else }}
 			widgetHandler = apikey.RequireScopeMiddleware("widgets:write")(widgetHandler)
 			widgetHandler = tenantMiddleware.Handler(widgetHandler)
@@ -1624,6 +1676,20 @@ func newService() (*bootstrap.APIService, error) {
 	return mw, cfg, nil
 }
 
+{{ else if eq .AuthMode "dev-headers" }}func newDevHeadersMiddleware() (*devheaders.Middleware, error) {
+	if isProduction() {
+		return nil, errors.New("dev header auth is not allowed when ENV=production")
+	}
+	cfg := devheaders.LoadConfig(config.NewLoader())
+	if !cfg.Enabled {
+		return nil, errors.New("DEV_AUTH_FALLBACK_ENABLED=true is required for dev-header auth")
+	}
+	if !cfg.AllowDangerousDevBypasses {
+		return nil, errors.New("DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES=true is required for dev-header auth")
+	}
+	return devheaders.New(cfg, ports.NopLogger{})
+}
+
 {{ else }}
 func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 	expectedKey, err := secretEnv("API_KEY", "local-dev-key")
@@ -1713,7 +1779,7 @@ func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
 	}
 }
 
-{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}{{ if eq .AuthMode "jwt" }}func withJWTAuthorizationScope(next http.Handler) http.Handler {
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "dev-headers") }}{{ if eq .AuthMode "jwt" }}func withJWTAuthorizationScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := jwtauth.SubjectFromContext(r.Context())
 		if !ok {
@@ -1853,6 +1919,63 @@ func clerkSubjectHasScope(subj clerkauth.Subject, required string) bool {
 		}
 	}
 	return false
+}
+
+{{ else if eq .AuthMode "dev-headers" }}func withDevHeaderAuthorizationScope(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := jwtauth.SubjectFromContext(r.Context())
+		if !ok {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
+			return
+		}
+		tenantID := strings.TrimSpace(r.Header.Get(devTenantHeader()))
+		if tenantID == "" {
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "development tenant header required"})
+			return
+		}
+		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: tenantID, UserID: subj.UserID})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func requireDevHeaderScope(required string) func(http.Handler) http.Handler {
+	required = strings.TrimSpace(required)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := jwtauth.SubjectFromContext(r.Context()); !ok {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
+				return
+			}
+			if !devHeaderHasScope(r, required) {
+				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required development scope missing"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func devHeaderHasScope(r *http.Request, required string) bool {
+	if required == "" {
+		return true
+	}
+	if r == nil {
+		return false
+	}
+	for _, scope := range splitScopeString(r.Header.Get(devScopeHeader())) {
+		if strings.EqualFold(scope, required) {
+			return true
+		}
+	}
+	return false
+}
+
+func devTenantHeader() string {
+	return env("DEV_AUTH_TENANT_HEADER", "X-Debug-Tenant-ID")
+}
+
+func devScopeHeader() string {
+	return env("DEV_AUTH_SCOPE_HEADER", "X-Debug-Scopes")
 }
 
 {{ end }}
@@ -2121,6 +2244,18 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 	}
 }
 
+{{ else if eq .AuthMode "dev-headers" }}func TestGeneratedServiceRejectsProductionDevHeaders(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("DEV_AUTH_FALLBACK_ENABLED", "true")
+	t.Setenv("DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES", "true")
+	t.Setenv("DEV_AUTH_TRUSTED_PROXIES", "127.0.0.1/32")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to reject dev-header auth")
+	} else if !strings.Contains(err.Error(), "dev header auth is not allowed") {
+		t.Fatalf("startup error = %v, want dev-header production rejection", err)
+	}
+}
+
 {{ else }}func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("API_KEY", "")
@@ -2133,6 +2268,7 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 }
 
 {{ end }}
+{{ if ne .AuthMode "dev-headers" }}
 func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 	t.Setenv("ENV", "production")
 {{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
@@ -2167,12 +2303,14 @@ func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 		t.Fatalf("startup error = %v, want REDIS_ADDR requirement", err)
 	}
 }
+{{ end }}
 
 func setLocalTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV", "development")
 {{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
 {{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
+{{ else if eq .AuthMode "dev-headers" }}	setDevHeaderAuthEnv(t)
 {{ else }}
 	t.Setenv("API_KEY", "local-dev-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
@@ -2185,10 +2323,29 @@ func authorizeWidgetRequest(t *testing.T, req *http.Request, tenantID string) {
 	t.Helper()
 {{ if eq .AuthMode "jwt" }}	req.Header.Set("Authorization", "Bearer "+testJWT(t, tenantID, "widgets:write"))
 {{ else if eq .AuthMode "clerk" }}	req.Header.Set("Authorization", "Bearer "+testClerkJWT(t, tenantID, "widgets:write"))
+{{ else if eq .AuthMode "dev-headers" }}	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-Debug-User", "user_123")
+	req.Header.Set("X-Debug-Tenant-ID", tenantID)
+	req.Header.Set("X-Debug-Scopes", "widgets:write")
 {{ else }}	req.Header.Set("X-API-Key", "local-dev-key")
 {{ end }}	req.Header.Set("X-Tenant-ID", tenantID)
 }
 
+{{ if eq .AuthMode "dev-headers" }}func setDevHeaderAuthEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("DEV_AUTH_FALLBACK_ENABLED", "true")
+	t.Setenv("DEV_AUTH_USER_HEADER", "X-Debug-User")
+	t.Setenv("DEV_AUTH_EMAIL_HEADER", "X-Debug-Email")
+	t.Setenv("DEV_AUTH_FIRST_NAME_HEADER", "X-Debug-First-Name")
+	t.Setenv("DEV_AUTH_LAST_NAME_HEADER", "X-Debug-Last-Name")
+	t.Setenv("DEV_AUTH_DEFAULT_LANGUAGE", "en")
+	t.Setenv("DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES", "true")
+	t.Setenv("DEV_AUTH_TRUSTED_PROXIES", "127.0.0.1/32,::1/128")
+	t.Setenv("DEV_AUTH_TENANT_HEADER", "X-Debug-Tenant-ID")
+	t.Setenv("DEV_AUTH_SCOPE_HEADER", "X-Debug-Scopes")
+}
+
+{{ end }}
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}const (
 	testBearerKeyID = "test-kid"
 {{ if eq .AuthMode "jwt" }}	testJWTIssuer   = "https://issuer.example.test"
@@ -2315,6 +2472,16 @@ JWT_ALLOWED_ALGORITHMS=RS256
 CLERK_ISSUER=
 CLERK_AUDIENCE=saas-api
 CLERK_ALLOWED_ALGORITHMS=RS256
+{{ else if eq .AuthMode "dev-headers" }}DEV_AUTH_FALLBACK_ENABLED=true
+DEV_AUTH_USER_HEADER=X-Debug-User
+DEV_AUTH_EMAIL_HEADER=X-Debug-Email
+DEV_AUTH_FIRST_NAME_HEADER=X-Debug-First-Name
+DEV_AUTH_LAST_NAME_HEADER=X-Debug-Last-Name
+DEV_AUTH_DEFAULT_LANGUAGE=en
+DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES=true
+DEV_AUTH_TRUSTED_PROXIES=127.0.0.1/32,::1/128
+DEV_AUTH_TENANT_HEADER=X-Debug-Tenant-ID
+DEV_AUTH_SCOPE_HEADER=X-Debug-Scopes
 {{ else }}
 API_KEY=local-dev-key
 API_TENANT_ID=tenant_1
@@ -2397,7 +2564,7 @@ Default routes:
 
 - ` + "`GET /readyz`" + `
 - ` + "`GET /docs/openapi.json`" + `
-- ` + "`POST /widgets`" + ` with {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}` + "`Authorization: Bearer <token>`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
+- ` + "`POST /widgets`" + ` with {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}` + "`Authorization: Bearer <token>`" + `{{ else if eq .AuthMode "dev-headers" }}` + "`X-Debug-User`" + `, ` + "`X-Debug-Tenant-ID`" + `, ` + "`X-Debug-Scopes`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
@@ -2405,6 +2572,7 @@ Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 When ` + "`ENV=production`" + `, startup requires explicit JWT configuration and ` + "`ADMIN_KEY`" + `.
 {{ else if eq .AuthMode "clerk" }}Clerk mode validates bearer tokens with ` + "`CLERK_JWKS_URL`" + `, ` + "`CLERK_ISSUER`" + `, and ` + "`CLERK_AUDIENCE`" + `. The ` + "`tenant_id`" + ` or ` + "`org_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
 When ` + "`ENV=production`" + `, startup requires explicit Clerk configuration and ` + "`ADMIN_KEY`" + `.
+{{ else if eq .AuthMode "dev-headers" }}Development-header mode is only generated by the explicit ` + "`dev-api`" + ` profile. ` + "`X-Debug-Tenant-ID`" + ` must match ` + "`X-Tenant-ID`" + `, ` + "`X-Debug-Scopes`" + ` must include ` + "`widgets:write`" + `, and startup refuses this auth mode when ` + "`ENV=production`" + `.
 {{ else }}
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.

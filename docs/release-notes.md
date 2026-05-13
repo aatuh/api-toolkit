@@ -109,6 +109,11 @@ source of truth is `docs/release-runbook.md`.
   validated token claims, enforce route scopes, close auth middleware through
   bootstrap shutdown hooks, and keep generated contract tests and OpenAPI
   goldens aligned. Development-header and unknown modes still fail closed.
+- `api-toolkit new service` now supports the explicit `dev-api` profile with
+  `--auth dev-headers`. The generated development service requires explicit
+  dangerous-bypass environment settings, separates debug user, tenant, and scope
+  headers, keeps tenant mismatch and idempotent write tests, and refuses to
+  start with dev-header auth when `ENV=production`.
 - `contrib/middleware/auth/clerk.Subject` now exposes tenant and scope strings
   derived from validated JWT claims while preserving subject comparability, so
   applications and generated services can enforce tenant and route-scope policy
