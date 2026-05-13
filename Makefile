@@ -177,6 +177,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
 	$(MAKE) release-api-check
+	$(MAKE) contrib-api-drift-report
 	$(MAKE) contrib-release-notes-check
 	$(MAKE) docs-check
 	$(MAKE) test

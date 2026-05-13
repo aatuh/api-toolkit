@@ -40,6 +40,7 @@ check_names=(
   "gosec"
   "ci-build-smoke"
   "release-api-check"
+  "contrib-api-drift-report"
   "contrib-release-notes-check"
   "docs-check"
   "test"
@@ -54,6 +55,7 @@ check_commands=(
   "make gosec"
   "make ci-build-smoke"
   "make release-api-check"
+  "make contrib-api-drift-report"
   "make contrib-release-notes-check"
   "make docs-check"
   "make test"
@@ -881,20 +883,14 @@ if [ "$run_checks" = true ]; then
       fi
     done
     if [ "$overall_status" = "passed" ]; then
-      contrib_drift_json_value="$(run_contrib_drift_report)"
-      contrib_exit=$?
-      if [ "$contrib_exit" -ne 0 ]; then
-        overall_status="failed"
-        overall_exit="$contrib_exit"
-      else
-        vuln_ids="$(vulnerability_ids_from_log "$log_dir/vuln.log")"
-        vuln_issues="$({
-          vulnerability_disposition_issues "$vuln_ids" "$(release_review_date)"
-          vulnerability_parser_issues "$log_dir/vuln.log" "$vuln_ids"
-        })"
-        contrib_packages="$(contrib_drift_packages_from_log "$log_dir/contrib-api-drift-report.log")"
-        contrib_issues="$(contrib_disposition_issues "$contrib_packages" "$(release_review_date)")"
-      fi
+      contrib_drift_json_value="$(contrib_drift_json "passed" "0" "" "$log_dir/contrib-api-drift-report.log" "true")"
+      vuln_ids="$(vulnerability_ids_from_log "$log_dir/vuln.log")"
+      vuln_issues="$({
+        vulnerability_disposition_issues "$vuln_ids" "$(release_review_date)"
+        vulnerability_parser_issues "$log_dir/vuln.log" "$vuln_ids"
+      })"
+      contrib_packages="$(contrib_drift_packages_from_log "$log_dir/contrib-api-drift-report.log")"
+      contrib_issues="$(contrib_disposition_issues "$contrib_packages" "$(release_review_date)")"
       if [ -n "${vuln_issues:-}" ] || [ -n "${contrib_issues:-}" ]; then
         overall_status="failed"
         overall_exit=1
@@ -903,7 +899,16 @@ if [ "$run_checks" = true ]; then
         fi
       fi
     else
-      contrib_drift_json_value="$(contrib_drift_json "skipped_after_failure" "" "" "$log_dir/contrib-api-drift-report.log" "false")"
+      contrib_log_abs="$repo_root/$log_dir/contrib-api-drift-report.log"
+      if [ -f "$contrib_log_abs" ]; then
+        if grep -q "Report complete:" "$contrib_log_abs"; then
+          contrib_drift_json_value="$(contrib_drift_json "passed" "0" "" "$log_dir/contrib-api-drift-report.log" "true")"
+        else
+          contrib_drift_json_value="$(contrib_drift_json "failed" "1" "" "$log_dir/contrib-api-drift-report.log" "true")"
+        fi
+      else
+        contrib_drift_json_value="$(contrib_drift_json "skipped_after_failure" "" "" "$log_dir/contrib-api-drift-report.log" "false")"
+      fi
     fi
   fi
 else

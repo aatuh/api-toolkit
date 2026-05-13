@@ -722,6 +722,9 @@ func TestMakefileGateIntent(t *testing.T) {
 	if !strings.Contains(releaseCheck, "$(MAKE) release-api-check") {
 		t.Fatal("release-check must call release-api-check")
 	}
+	if !strings.Contains(releaseCheck, "$(MAKE) contrib-api-drift-report") {
+		t.Fatal("release-check must call contrib-api-drift-report")
+	}
 	if !strings.Contains(releaseCheck, "$(MAKE) contrib-release-notes-check") {
 		t.Fatal("release-check must call contrib-release-notes-check")
 	}
