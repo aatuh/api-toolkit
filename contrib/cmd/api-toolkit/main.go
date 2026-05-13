@@ -131,8 +131,12 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			PublicPaths:                       publicPaths.Values(),
 			AdminPaths:                        adminPaths.Values(),
 		})
-		if len(findings) > 0 {
+		securityFindings := lintUndefinedSecuritySchemes(loaded.doc, operations)
+		if len(findings) > 0 || len(securityFindings) > 0 {
 			for _, finding := range findings {
+				fmt.Fprintln(stderr, finding.Error())
+			}
+			for _, finding := range securityFindings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
 			return 1
@@ -427,6 +431,54 @@ func (loaded loadedOpenAPI) validate() error {
 		return fmt.Errorf("validate openapi: %w", err)
 	}
 	return nil
+}
+
+type openAPILintFinding struct {
+	Code    string
+	Method  string
+	Path    string
+	Message string
+}
+
+func (f openAPILintFinding) Error() string {
+	return fmt.Sprintf("%s %s: %s: %s", strings.ToUpper(strings.TrimSpace(f.Method)), strings.TrimSpace(f.Path), f.Code, f.Message)
+}
+
+func lintUndefinedSecuritySchemes(doc *openapi3.T, operations []specs.Operation) []openAPILintFinding {
+	defined := definedSecuritySchemes(doc)
+	var findings []openAPILintFinding
+	for _, operation := range operations {
+		for _, requirement := range operation.Security {
+			name := strings.TrimSpace(requirement.Name)
+			if name == "" {
+				continue
+			}
+			if _, ok := defined[name]; ok {
+				continue
+			}
+			findings = append(findings, openAPILintFinding{
+				Code:    "security_scheme_undefined",
+				Method:  operation.Method,
+				Path:    operation.Path,
+				Message: fmt.Sprintf("security scheme %q is referenced but not defined in components.securitySchemes", name),
+			})
+		}
+	}
+	return findings
+}
+
+func definedSecuritySchemes(doc *openapi3.T) map[string]struct{} {
+	out := map[string]struct{}{}
+	if doc == nil || doc.Components == nil {
+		return out
+	}
+	for name := range doc.Components.SecuritySchemes {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			out[name] = struct{}{}
+		}
+	}
+	return out
 }
 
 func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
