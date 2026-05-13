@@ -1700,7 +1700,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 	if err != nil {
 		return nil, err
 	}
-	idempotencyStore, err := newIdempotencyStore()
+	idempotencyStore, idempotencyShutdown, err := newIdempotencyStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1720,6 +1720,19 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 	if err != nil {
 		return nil, err
 	}
+	shutdownHooks := []bootstrap.ShutdownHook{}
+	if idempotencyShutdown.Hook != nil {
+		shutdownHooks = append(shutdownHooks, idempotencyShutdown)
+	}
+{{ if eq .AuthMode "jwt" }}	shutdownHooks = append(shutdownHooks, bootstrap.ShutdownHook{Name: "jwt", Hook: func(context.Context) error {
+		jwtMiddleware.Close()
+		return nil
+	}})
+{{ else if eq .AuthMode "clerk" }}	shutdownHooks = append(shutdownHooks, bootstrap.ShutdownHook{Name: "clerk", Hook: func(context.Context) error {
+		clerkMiddleware.Close()
+		return nil
+	}})
+{{ end }}
 
 	return bootstrap.NewAPIService(bootstrap.APIServiceConfig{
 		Addr:                    env("API_ADDR", ":8080"),
@@ -1788,19 +1801,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 			}
 			return contracts.Validate()
 		},
-{{ if eq .AuthMode "jwt" }}		ShutdownHooks: []bootstrap.ShutdownHook{
-			{Name: "jwt", Hook: func(context.Context) error {
-				jwtMiddleware.Close()
-				return nil
-			}},
-		},
-{{ else if eq .AuthMode "clerk" }}		ShutdownHooks: []bootstrap.ShutdownHook{
-			{Name: "clerk", Hook: func(context.Context) error {
-				clerkMiddleware.Close()
-				return nil
-			}},
-		},
-{{ end }}
+		ShutdownHooks: shutdownHooks,
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  health.NewHandler(healthManager),
 			Docs:    docs.NewHandler(docsManager),
@@ -1912,7 +1913,7 @@ func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 }
 {{ end }}
 
-func newIdempotencyStore() (ports.IdempotencyStore, error) {
+func newIdempotencyStore() (ports.IdempotencyStore, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
 	if store == "" {
 		if isProduction() {
@@ -1924,27 +1925,29 @@ func newIdempotencyStore() (ports.IdempotencyStore, error) {
 	switch store {
 	case "memory":
 		if isProduction() {
-			return nil, errors.New("IDEMPOTENCY_STORE=memory is not allowed when ENV=production; use redis")
+			return nil, bootstrap.ShutdownHook{}, errors.New("IDEMPOTENCY_STORE=memory is not allowed when ENV=production; use redis")
 		}
-		return idempotency.NewMemoryStore(), nil
+		return idempotency.NewMemoryStore(), bootstrap.ShutdownHook{}, nil
 	case "redis":
 		addr := strings.TrimSpace(os.Getenv("REDIS_ADDR"))
 		if addr == "" {
 			if isProduction() {
-				return nil, errors.New("REDIS_ADDR is required when IDEMPOTENCY_STORE=redis")
+				return nil, bootstrap.ShutdownHook{}, errors.New("REDIS_ADDR is required when IDEMPOTENCY_STORE=redis")
 			}
 			addr = "localhost:6379"
 		}
 		addrs := splitCSV(addr)
 		if len(addrs) == 0 {
-			return nil, errors.New("REDIS_ADDR must include at least one address")
+			return nil, bootstrap.ShutdownHook{}, errors.New("REDIS_ADDR must include at least one address")
 		}
 		client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
 		return idempotencyredis.New(client, idempotencyredis.Options{
 			KeyPrefix: env("IDEMPOTENCY_KEY_PREFIX", "idempotency:"),
-		}), nil
+		}), bootstrap.ShutdownHook{Name: "idempotency-redis", Hook: func(context.Context) error {
+			return client.Close()
+		}}, nil
 	default:
-		return nil, fmt.Errorf("unsupported IDEMPOTENCY_STORE %q", store)
+		return nil, bootstrap.ShutdownHook{}, fmt.Errorf("unsupported IDEMPOTENCY_STORE %q", store)
 	}
 }
 
@@ -2247,6 +2250,7 @@ const mainTestTemplate = `package main
 
 import (
 	"bytes"
+	"context"
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -2463,6 +2467,22 @@ func TestGeneratedServiceRejectsUnsafeRateLimitBypassConfig(t *testing.T) {
 		t.Fatal("expected service startup to reject rate-limit bypass without trusted proxies")
 	} else if !strings.Contains(err.Error(), "trusted proxies are required") {
 		t.Fatalf("startup error = %v, want trusted proxy requirement", err)
+	}
+}
+
+func TestGeneratedIdempotencyRedisStoreHasShutdownHook(t *testing.T) {
+	setLocalTestEnv(t)
+	t.Setenv("IDEMPOTENCY_STORE", "redis")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	_, hook, err := newIdempotencyStore()
+	if err != nil {
+		t.Fatalf("new redis idempotency store: %v", err)
+	}
+	if hook.Name != "idempotency-redis" || hook.Hook == nil {
+		t.Fatalf("redis idempotency shutdown hook = %#v", hook)
+	}
+	if err := hook.Hook(context.Background()); err != nil {
+		t.Fatalf("redis idempotency shutdown hook failed: %v", err)
 	}
 }
 

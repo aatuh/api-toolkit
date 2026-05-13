@@ -159,6 +159,8 @@ source of truth is `docs/release-runbook.md`.
 - Generated services now load bootstrap router env controls for
   `TRUSTED_PROXIES` and rate-limit skip headers, failing startup on malformed
   proxy CIDRs or unsafe bypass settings.
+- Generated services now register a shutdown hook for Redis idempotency clients
+  so production stores are closed through the `bootstrap.APIService` lifecycle.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
