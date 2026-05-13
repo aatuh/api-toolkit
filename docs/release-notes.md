@@ -82,6 +82,10 @@ source of truth is `docs/release-runbook.md`.
   policy sequence of auth, tenant, and idempotency after the transport
   middleware stack, and generated `saas-api` services declare that order during
   startup validation.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now
+  canonicalizes Prometheus HTTP metric labels so methods stay within standard
+  HTTP verbs plus `OTHER`/`UNKNOWN`, invalid statuses collapse to `0`, and route
+  labels are trimmed before series creation.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

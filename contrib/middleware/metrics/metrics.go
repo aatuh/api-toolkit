@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -259,19 +260,58 @@ func itoa(n int) string {
 }
 
 func sanitizeHTTPLabels(labels Labels) (method, route, status string) {
-	method = labels["method"]
+	method = canonicalHTTPMethod(labels["method"])
 	if method == "" {
 		method = "UNKNOWN"
 	}
-	route = labels["route"]
+	route = strings.TrimSpace(labels["route"])
 	if route == "" {
 		route = "unknown"
 	}
-	status = labels["status"]
+	status = canonicalHTTPStatus(labels["status"])
 	if status == "" {
 		status = "0"
 	}
 	return method, route, status
+}
+
+func canonicalHTTPMethod(method string) string {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if method == "" {
+		return ""
+	}
+	switch method {
+	case http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace:
+		return method
+	default:
+		return "OTHER"
+	}
+}
+
+func canonicalHTTPStatus(status string) string {
+	status = strings.TrimSpace(status)
+	if len(status) != 3 {
+		return ""
+	}
+	code := 0
+	for _, ch := range status {
+		if ch < '0' || ch > '9' {
+			return ""
+		}
+		code = code*10 + int(ch-'0')
+	}
+	if code < 100 || code > 599 {
+		return ""
+	}
+	return status
 }
 
 func chiRoutePattern(r *http.Request) string {

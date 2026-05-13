@@ -15,9 +15,10 @@ The contrib metrics middleware emits:
 
 Required labels:
 
-- `method` (uppercase HTTP method)
+- `method` (uppercase standard HTTP method, `OTHER` for non-standard methods,
+  or `UNKNOWN` when missing)
 - `route` (router pattern, not raw path)
-- `status` (HTTP status code as string)
+- `status` (HTTP status code as string, or `0` when missing or invalid)
 
 ## Label policy
 
@@ -38,7 +39,8 @@ Avoid:
 ## Middleware behavior
 
 The metrics middleware derives `route` from the router pattern and defaults
-missing routes to `unknown`. This keeps cardinality stable by design.
+missing routes to `unknown`. The Prometheus recorder canonicalizes HTTP methods
+and status codes before writing series. This keeps cardinality stable by design.
 
 ## Bootstrap defaults
 

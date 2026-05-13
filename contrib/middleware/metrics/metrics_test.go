@@ -164,6 +164,25 @@ func TestNewPrometheusRecorderCheckedReturnsConflictErrorWithDefaultRegisterer(t
 	}
 }
 
+func TestSanitizeHTTPLabelsBoundsMethodAndStatus(t *testing.T) {
+	method, route, status := sanitizeHTTPLabels(Labels{
+		"method": "post",
+		"route":  " /widgets/{id} ",
+		"status": "201",
+	})
+	if method != "POST" || route != "/widgets/{id}" || status != "201" {
+		t.Fatalf("labels = %q %q %q, want POST /widgets/{id} 201", method, route, status)
+	}
+
+	method, route, status = sanitizeHTTPLabels(Labels{
+		"method": "BREW",
+		"status": "599x",
+	})
+	if method != "OTHER" || route != "unknown" || status != "0" {
+		t.Fatalf("labels = %q %q %q, want OTHER unknown 0", method, route, status)
+	}
+}
+
 func TestHandlerRecordsRecoveredPanicAs500BeforeCommit(t *testing.T) {
 	recorder := &captureRecorder{}
 	mw, err := New(Options{Recorder: recorder})
