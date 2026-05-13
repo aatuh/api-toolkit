@@ -324,6 +324,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"IdempotencyOutcomeLogHook",
 		"BackgroundTasks:",
 		"newIdempotencyStore()",
+		`bootstrap.ShutdownHook{Name: "idempotency-redis"`,
+		"client.Close()",
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",
 	} {
