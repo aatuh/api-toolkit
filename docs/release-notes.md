@@ -206,6 +206,10 @@ source of truth is `docs/release-runbook.md`.
   bounded operator metadata for timeout, panic, and response-capture overflow
   outcomes without exposing panic values, paths, query strings, headers, or
   bodies.
+- `securityprofile.StreamingRouteOverride` now provides an explicit route-level
+  opt-out for streaming, SSE, websocket, or large-download routes that must
+  avoid hard-timeout response buffering and preserve optional writer
+  interfaces.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

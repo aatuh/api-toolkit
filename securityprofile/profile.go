@@ -147,6 +147,22 @@ func WithRouteOverrides(overrides ...RouteOverride) Option {
 	}
 }
 
+// StreamingRouteOverride returns a route override for streaming, SSE,
+// websocket, or large-download routes that must not be wrapped by timeout
+// buffering. It disables both cooperative and hard timeout middleware for the
+// matching route while preserving the profile's other limits unless the caller
+// overrides them separately.
+func StreamingRouteOverride(pattern string, methods ...string) RouteOverride {
+	timeoutEnabled := false
+	hardTimeout := false
+	return RouteOverride{
+		Pattern:        pattern,
+		Methods:        append([]string(nil), methods...),
+		TimeoutEnabled: &timeoutEnabled,
+		HardTimeout:    &hardTimeout,
+	}
+}
+
 // WithRequireAuth sets whether authentication is required by default.
 func WithRequireAuth(required bool) Option {
 	return func(o *options) {
