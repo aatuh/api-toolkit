@@ -546,12 +546,40 @@ type openAPILintFinding struct {
 }
 
 func (f openAPILintFinding) Error() string {
-	return fmt.Sprintf("%s %s: %s: %s", strings.ToUpper(strings.TrimSpace(f.Method)), strings.TrimSpace(f.Path), f.Code, f.Message)
+	method := strings.ToUpper(strings.TrimSpace(f.Method))
+	path := strings.TrimSpace(f.Path)
+	if path == "" {
+		return fmt.Sprintf("%s: %s: %s", method, f.Code, f.Message)
+	}
+	return fmt.Sprintf("%s %s: %s: %s", method, path, f.Code, f.Message)
 }
 
 func lintUndefinedSecuritySchemes(doc *openapi3.T, operations []specs.Operation) []openAPILintFinding {
 	defined := definedSecuritySchemes(doc)
 	var findings []openAPILintFinding
+	if doc != nil {
+		seenGlobal := map[string]struct{}{}
+		for _, requirement := range doc.Security {
+			for name := range requirement {
+				name = strings.TrimSpace(name)
+				if name == "" {
+					continue
+				}
+				if _, seen := seenGlobal[name]; seen {
+					continue
+				}
+				seenGlobal[name] = struct{}{}
+				if _, ok := defined[name]; ok {
+					continue
+				}
+				findings = append(findings, openAPILintFinding{
+					Code:    "security_scheme_undefined",
+					Method:  "GLOBAL",
+					Message: fmt.Sprintf("security scheme %q is referenced by top-level security but not defined in components.securitySchemes", name),
+				})
+			}
+		}
+	}
 	for _, operation := range operations {
 		for _, requirement := range operation.Security {
 			name := strings.TrimSpace(requirement.Name)
