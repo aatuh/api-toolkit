@@ -83,6 +83,10 @@ source of truth is `docs/release-runbook.md`.
   multi-stage Dockerfile that runs tests during build, compiles a static binary,
   and runs it from a non-root distroless runtime image instead of `go run` in a
   full Go toolchain image.
+- Generated `saas-api` Makefiles now include `contracts-lint` and
+  `contracts-diff` targets backed by the api-toolkit CLI, and generated
+  `finalize` runs those contract checks alongside tests and OpenAPI golden
+  verification.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required
