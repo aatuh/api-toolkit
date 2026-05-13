@@ -3,6 +3,7 @@ package contracttest
 import (
 	"bytes"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
@@ -13,6 +14,7 @@ import (
 
 func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	specRegistry := specs.NewRegistry(specs.Info{Title: "Contracts", Version: "1"})
+	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 	specRegistry.Register(specs.Operation{
 		OperationID: "listWidgets",
 		Method:      http.MethodGet,
@@ -42,6 +44,7 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	AssertOperationHasResponse(t, specRegistry, http.MethodGet, "/widgets", http.StatusOK)
 	AssertOperationHasSecurity(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth")
 	AssertOperationHasSecurityScopes(t, specRegistry, http.MethodGet, "/widgets", "ApiKeyAuth", "widgets:read")
+	AssertSecuritySchemesDefined(t, specRegistry)
 	AssertOperationID(t, specRegistry, http.MethodGet, "/widgets", "listWidgets")
 	AssertAllOperationsHaveOperationID(t, specRegistry)
 	AssertUniqueOperationIDs(t, specRegistry)
@@ -55,6 +58,30 @@ func TestContractAssertionsPassForCoveredRoute(t *testing.T) {
 	AssertOperationHasAdminPolicy(t, specRegistry, http.MethodGet, "/widgets")
 	AssertOperationHasAdminPolicyNamed(t, specRegistry, http.MethodGet, "/widgets", "admin")
 	AssertProblemCatalogHas(t, httpx.DefaultProblemCatalog(), httpx.ProblemCode(httpx.TypeBadRequest))
+}
+
+func TestSecuritySchemeDefinitionFindingsReportsUndefinedSchemes(t *testing.T) {
+	registry := specs.NewRegistry(specs.Info{Title: "Contracts", Version: "1"})
+	registry.Register(specs.Operation{
+		OperationID: "listWidgets",
+		Method:      http.MethodGet,
+		Path:        "/widgets",
+		Security: []specs.SecurityRequirement{{
+			Name:   "MissingAuth",
+			Scopes: []string{"widgets:read"},
+		}},
+		Responses: map[int]specs.Response{http.StatusOK: {Description: "ok"}},
+	})
+
+	findings := SecuritySchemeDefinitionFindings(registry)
+	if len(findings) != 1 || !strings.Contains(findings[0], "security_scheme_undefined GET /widgets MissingAuth") {
+		t.Fatalf("findings = %v", findings)
+	}
+
+	registry.RegisterSecurityScheme("MissingAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	if findings := SecuritySchemeDefinitionFindings(registry); len(findings) != 0 {
+		t.Fatalf("findings after registering scheme = %v", findings)
+	}
 }
 
 func TestNormalizeAndGoldenOpenAPI(t *testing.T) {

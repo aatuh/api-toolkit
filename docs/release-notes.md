@@ -119,6 +119,9 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit contracts lint` now fails when an operation references a
   security requirement that is not defined in `components.securitySchemes`,
   preventing reviewed specs from declaring unenforceable auth.
+- `contracttest` now exposes `SecuritySchemeDefinitionFindings` and
+  `AssertSecuritySchemesDefined` so service tests can catch the same undefined
+  OpenAPI security-scheme references as CLI contract linting.
 - `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
   OpenAPI component and inline request/response schema drift findings, so
   library tests and CLI release review stay aligned.

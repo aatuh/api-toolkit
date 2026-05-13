@@ -97,6 +97,48 @@ func AssertOperationHasSecurityScopes(t testing.TB, registry *specs.Registry, me
 	t.Fatalf("operation %s %s missing security scheme %q", method, path, scheme)
 }
 
+// SecuritySchemeDefinitionFindings returns findings for operation security
+// requirements that reference schemes missing from components.securitySchemes.
+func SecuritySchemeDefinitionFindings(registry *specs.Registry) []string {
+	if registry == nil {
+		return []string{"spec registry is nil"}
+	}
+	doc, err := registry.OpenAPI()
+	if err != nil {
+		return []string{"openapi_error " + err.Error()}
+	}
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return []string{"openapi_decode_error " + err.Error()}
+	}
+	defined := openAPISecuritySchemeSet(root)
+	var findings []string
+	for _, operation := range registry.Operations() {
+		for _, requirement := range operation.Security {
+			name := strings.TrimSpace(requirement.Name)
+			if name == "" {
+				continue
+			}
+			if _, ok := defined[name]; ok {
+				continue
+			}
+			findings = append(findings, fmt.Sprintf("security_scheme_undefined %s %s %s", strings.ToUpper(strings.TrimSpace(operation.Method)), strings.TrimSpace(operation.Path), name))
+		}
+	}
+	sort.Strings(findings)
+	return findings
+}
+
+// AssertSecuritySchemesDefined fails when any operation security requirement
+// references a scheme missing from components.securitySchemes.
+func AssertSecuritySchemesDefined(t testing.TB, registry *specs.Registry) {
+	t.Helper()
+	findings := SecuritySchemeDefinitionFindings(registry)
+	if len(findings) > 0 {
+		t.Fatalf("security scheme definition findings: %v", findings)
+	}
+}
+
 // AssertOperationID fails the test when an OpenAPI operation lacks the expected operationId.
 func AssertOperationID(t testing.TB, registry *specs.Registry, method, path, operationID string) {
 	t.Helper()
@@ -426,6 +468,25 @@ func openAPISpecOperation(t testing.TB, registry *specs.Registry, method, path s
 		Responses:   specResponses(raw["responses"]),
 		Extensions:  specExtensions(raw),
 	}
+}
+
+func openAPISecuritySchemeSet(root map[string]any) map[string]struct{} {
+	out := map[string]struct{}{}
+	components, ok := root["components"].(map[string]any)
+	if !ok {
+		return out
+	}
+	schemes, ok := components["securitySchemes"].(map[string]any)
+	if !ok {
+		return out
+	}
+	for name := range schemes {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			out[name] = struct{}{}
+		}
+	}
+	return out
 }
 
 func specExtensions(raw map[string]any) map[string]any {
