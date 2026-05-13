@@ -1520,6 +1520,11 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 {{ end }}
+	healthScheduler := health.NewScheduler(healthManager, health.SchedulerConfig{
+		Interval:       30 * time.Second,
+		Logger:         log,
+		OnStatusChange: metricsmw.HealthStatusChangeHook(metricsRecorder),
+	})
 	tenantMiddleware, err := tenant.New(tenant.Options{
 		HeaderName:        "X-Tenant-ID",
 		TenantFromContext: authorization.TenantIDFromContext,
@@ -1550,6 +1555,15 @@ func newService() (*bootstrap.APIService, error) {
 		Router:                  router,
 		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
+		BackgroundTasks: []bootstrap.BackgroundTask{
+			{
+				Name: "health-scheduler",
+				Run: func(ctx context.Context) error {
+					healthScheduler.Start(ctx)
+					return nil
+				},
+			},
+		},
 		RegisterRoutes: func(r ports.HTTPRouter) error {
 			contracts := routecontracts.NewRegistry(r, specRegistry)
 			operation := routepolicy.ApplyMetadata(specs.Operation{

@@ -57,6 +57,9 @@
 // ---------
 //
 // `APIServiceConfig.StartupChecks` validates wiring before serving traffic.
+// `APIServiceConfig.BackgroundTasks` runs named tasks such as health refresh
+// schedulers with the service context; a task error fails the service and
+// triggers graceful shutdown.
 // `APIServiceConfig.ShutdownHooks` releases named resources after the HTTP
 // server exits, using a fresh timeout derived from the Start context with
 // cancellation stripped so shutdown work can complete.
