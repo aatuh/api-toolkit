@@ -120,6 +120,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "DevHeaderAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -193,6 +194,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -266,6 +268,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -399,6 +402,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -1470,6 +1474,19 @@ func assertGeneratedREADMEDocumentsIdempotencyRequirement(t *testing.T, readme s
 	} {
 		if !strings.Contains(readme, want) {
 			t.Fatalf("generated README missing idempotency guidance %q:\n%s", want, readme)
+		}
+	}
+}
+
+func assertGeneratedREADMEDocumentsRateLimitStore(t *testing.T, readme string) {
+	t.Helper()
+	for _, want := range []string{
+		"Local development uses `RATE_LIMIT_STORE=memory`",
+		"In production, the generated service defaults to `RATE_LIMIT_STORE=redis`",
+		"requires `RATE_LIMIT_REDIS_ADDR` or `REDIS_ADDR`",
+	} {
+		if !strings.Contains(readme, want) {
+			t.Fatalf("generated README missing rate-limit store guidance %q:\n%s", want, readme)
 		}
 	}
 }

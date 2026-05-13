@@ -164,6 +164,8 @@ source of truth is `docs/release-runbook.md`.
 - Generated services now support `RATE_LIMIT_STORE=redis` and default to Redis
   rate limiting in production, including startup validation and Redis client
   shutdown hooks.
+- Generated scaffold documentation now describes the local memory and
+  production Redis rate-limit store defaults.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

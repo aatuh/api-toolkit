@@ -2416,6 +2416,32 @@ func TestGeneratedScaffoldDocumentsFailClosedIdempotentWrites(t *testing.T) {
 	}
 }
 
+func TestGeneratedScaffoldDocumentsProductionRateLimitStore(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+
+	for _, required := range []string{
+		"RATE_LIMIT_STORE=memory",
+		"RATE_LIMIT_STORE=redis",
+		"RATE_LIMIT_REDIS_ADDR",
+		"rate-limit-redis",
+	} {
+		if !strings.Contains(scaffold, required) {
+			t.Fatalf("api-toolkit service scaffold missing rate-limit production contract %q", required)
+		}
+	}
+	for _, required := range []string{
+		"RATE_LIMIT_STORE=memory",
+		"RATE_LIMIT_STORE=redis",
+		"RATE_LIMIT_REDIS_ADDR",
+	} {
+		if !strings.Contains(security, required) {
+			t.Fatalf("docs/security.md missing generated rate-limit guidance %q", required)
+		}
+	}
+}
+
 func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))

@@ -39,6 +39,10 @@ Some features include explicit bypasses for local development only:
   is true and the request comes from a trusted proxy. Env wiring uses
   `RATE_LIMIT_SKIP_ENABLED`, `RATE_LIMIT_SKIP_HEADER`,
   `RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES`, and `TRUSTED_PROXIES`.
+- Generated services use `RATE_LIMIT_STORE=memory` for local development.
+  When `ENV=production`, generated services default to
+  `RATE_LIMIT_STORE=redis` and require `RATE_LIMIT_REDIS_ADDR` or `REDIS_ADDR`
+  so rate-limit state is shared across instances.
 - JWT auth skip header: same trusted-proxy restriction. Env wiring uses
   `JWT_SKIP_HEADER_ENABLED`, `JWT_SKIP_HEADER_NAME`,
   `JWT_SKIP_TRUSTED_PROXIES`, and `JWT_ALLOW_DANGEROUS_DEV_BYPASSES`.
