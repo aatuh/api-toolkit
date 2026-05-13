@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -14,6 +15,13 @@ import (
 type StartupCheck struct {
 	Name  string
 	Check func(context.Context) error
+}
+
+// ShutdownHook releases resources when APIService.Start returns after a
+// graceful shutdown or server failure.
+type ShutdownHook struct {
+	Name string
+	Hook func(context.Context) error
 }
 
 // APIServiceConfig configures a reusable production API composition root.
@@ -28,6 +36,7 @@ type APIServiceConfig struct {
 	RequiredMiddlewareOrder []MiddlewareStage
 	ServerOptions           []ServerOption
 	StartupChecks           []StartupCheck
+	ShutdownHooks           []ShutdownHook
 }
 
 // APIService is a reusable HTTP API composition root for generated services.
@@ -36,6 +45,7 @@ type APIService struct {
 	log           ports.Logger
 	router        ports.HTTPRouter
 	serverOptions []ServerOption
+	shutdownHooks []ShutdownHook
 }
 
 // NewAPIService validates wiring, builds default router/profile when needed,
@@ -83,6 +93,7 @@ func NewAPIService(config APIServiceConfig) (*APIService, error) {
 		log:           log,
 		router:        router,
 		serverOptions: append([]ServerOption(nil), config.ServerOptions...),
+		shutdownHooks: append([]ShutdownHook(nil), config.ShutdownHooks...),
 	}, nil
 }
 
@@ -103,7 +114,15 @@ func (s *APIService) Start(ctx context.Context) error {
 		s.log = ports.NopLogger{}
 	}
 	s.log.Info("http server starting", "addr", s.addr)
-	return runServer(ctx, HardenedServer(s.addr, s.Handler(), s.serverOptions...))
+	err := runServer(ctx, HardenedServer(s.addr, s.Handler(), s.serverOptions...))
+	hookErr := runShutdownHooks(context.WithoutCancel(ctx), s.shutdownHooks)
+	if err != nil {
+		if hookErr != nil {
+			s.log.Error("shutdown hook failed", "err", hookErr)
+		}
+		return err
+	}
+	return hookErr
 }
 
 func runStartupChecks(ctx context.Context, checks []StartupCheck) error {
@@ -117,6 +136,28 @@ func runStartupChecks(ctx context.Context, checks []StartupCheck) error {
 		}
 		if err := check.Check(ctx); err != nil {
 			return fmt.Errorf("startup check %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func runShutdownHooks(ctx context.Context, hooks []ShutdownHook) error {
+	if ctx == nil {
+		return errors.New("shutdown hook context is required")
+	}
+	for _, hook := range hooks {
+		if hook.Hook == nil {
+			continue
+		}
+		name := strings.TrimSpace(hook.Name)
+		if name == "" {
+			name = "unnamed"
+		}
+		hookCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := hook.Hook(hookCtx)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("shutdown hook %s: %w", name, err)
 		}
 	}
 	return nil

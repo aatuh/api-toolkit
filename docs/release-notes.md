@@ -73,6 +73,9 @@ source of truth is `docs/release-runbook.md`.
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and
   startup checks.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
+  accepts named shutdown hooks so composed services can close auth, telemetry,
+  or adapter background resources after the HTTP server stops.
 - `middleware/auth/tenant.Options.RequireAllSources` now lets services require
   every configured tenant source to be present and equal before a handler runs,
   which supports authenticated-tenant-to-header mismatch checks.

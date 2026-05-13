@@ -52,4 +52,12 @@
 // startup check. SaaS API services that add route-policy middleware outside the
 // transport profile can use `StrictSaaSAPIMiddlewareOrder` to require auth,
 // tenant, and idempotency stages after metrics.
+//
+// Lifecycle
+// ---------
+//
+// `APIServiceConfig.StartupChecks` validates wiring before serving traffic.
+// `APIServiceConfig.ShutdownHooks` releases named resources after the HTTP
+// server exits, using a fresh timeout derived from the Start context with
+// cancellation stripped so shutdown work can complete.
 package bootstrap
