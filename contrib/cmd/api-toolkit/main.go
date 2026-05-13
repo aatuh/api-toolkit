@@ -902,6 +902,7 @@ const mainGoTemplate = `package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -993,6 +994,10 @@ func newService() (*bootstrap.APIService, error) {
 	if err != nil {
 		return nil, err
 	}
+	adminKey, err := secretEnv("ADMIN_KEY", "local-admin-key")
+	if err != nil {
+		return nil, err
+	}
 
 	return bootstrap.NewAPIService(bootstrap.APIServiceConfig{
 		Addr:                    env("API_ADDR", ":8080"),
@@ -1045,14 +1050,17 @@ func newService() (*bootstrap.APIService, error) {
 			Pprof:   http.DefaultServeMux,
 		},
 		Admin: bootstrap.SystemEndpointAdminOptions{
-			RequireAdmin: requireAdmin,
+			RequireAdmin: requireAdmin(adminKey),
 			EnablePprof:  true,
 		},
 	})
 }
 
 func newAPIKeyMiddleware() (*apikey.Middleware, error) {
-	expectedKey := env("API_KEY", "local-dev-key")
+	expectedKey, err := secretEnv("API_KEY", "local-dev-key")
+	if err != nil {
+		return nil, err
+	}
 	tenantID := env("API_TENANT_ID", "tenant_1")
 	return apikey.NewMiddleware(apikey.Config{
 		HeaderNames: []string{"X-API-Key"},
@@ -1087,14 +1095,26 @@ func createWidget(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, widgetResponse{ID: "w_123", TenantID: tenantID, Name: strings.TrimSpace(input.Name)})
 }
 
-func requireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Admin-Key") != env("ADMIN_KEY", "local-admin-key") {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-Admin-Key") != expectedKey {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func secretEnv(key, fallback string) (string, error) {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value, nil
+	}
+	if strings.EqualFold(env("ENV", "development"), "production") {
+		return "", fmt.Errorf("%s is required when ENV=production", key)
+	}
+	return fallback, nil
 }
 
 func env(key, fallback string) string {
@@ -1109,8 +1129,8 @@ const mainTestTemplate = `package main
 
 import (
 	"bytes"
-	"flag"
 	"encoding/json"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1125,6 +1145,7 @@ import (
 var updateOpenAPI = flag.Bool("update-openapi", false, "rewrite testdata/openapi.golden.json")
 
 func TestGeneratedServiceHealthAndOpenAPI(t *testing.T) {
+	setLocalTestEnv(t)
 	service, err := newService()
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -1151,6 +1172,7 @@ func TestGeneratedServiceHealthAndOpenAPI(t *testing.T) {
 }
 
 func TestGeneratedServiceOpenAPIGolden(t *testing.T) {
+	setLocalTestEnv(t)
 	service, err := newService()
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -1181,6 +1203,7 @@ func TestGeneratedServiceOpenAPIGolden(t *testing.T) {
 }
 
 func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
+	setLocalTestEnv(t)
 	service, err := newService()
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -1238,6 +1261,7 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 }
 
 func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
+	setLocalTestEnv(t)
 	service, err := newService()
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -1254,6 +1278,25 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("metrics with admin status = %d", rec.Code)
 	}
+}
+
+func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("API_KEY", "")
+	t.Setenv("ADMIN_KEY", "")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require explicit secrets")
+	} else if !strings.Contains(err.Error(), "API_KEY") {
+		t.Fatalf("startup error = %v, want API_KEY requirement", err)
+	}
+}
+
+func setLocalTestEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("ENV", "development")
+	t.Setenv("API_KEY", "local-dev-key")
+	t.Setenv("API_TENANT_ID", "tenant_1")
+	t.Setenv("ADMIN_KEY", "local-admin-key")
 }
 `
 
@@ -1276,7 +1319,8 @@ openapi-update:
 finalize: fmt test openapi-check
 `
 
-const envTemplate = `API_ADDR=:8080
+const envTemplate = `ENV=development
+API_ADDR=:8080
 API_KEY=local-dev-key
 API_TENANT_ID=tenant_1
 ADMIN_KEY=local-admin-key
@@ -1324,4 +1368,5 @@ Default routes:
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
+When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
 `
