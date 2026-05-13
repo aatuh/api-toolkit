@@ -90,6 +90,15 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 			t.Fatalf("generated .dockerignore missing %q", want)
 		}
 	}
+	generatedMakefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))
+	if err != nil {
+		t.Fatalf("read generated Makefile: %v", err)
+	}
+	for _, want := range []string{"contracts-lint:", "contracts-diff:", "API_TOOLKIT ?=", "OPENAPI_BASE ?="} {
+		if !strings.Contains(string(generatedMakefile), want) {
+			t.Fatalf("generated Makefile missing %q", want)
+		}
+	}
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -108,6 +117,18 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated service openapi check failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-lint")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service contracts lint failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-diff")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service contracts diff failed:\n%s\nerror: %v", output, err)
 	}
 }
 

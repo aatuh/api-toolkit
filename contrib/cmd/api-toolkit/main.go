@@ -1374,8 +1374,11 @@ func setLocalTestEnv(t *testing.T) {
 `
 
 const makefileTemplate = `GO ?= go
+API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
+OPENAPI ?= testdata/openapi.golden.json
+OPENAPI_BASE ?= $(OPENAPI)
 
-.PHONY: test fmt openapi-check openapi-update finalize
+.PHONY: test fmt openapi-check openapi-update contracts-lint contracts-diff finalize
 
 test:
 	$(GO) test ./...
@@ -1389,7 +1392,13 @@ openapi-check:
 openapi-update:
 	$(GO) test ./... -run TestGeneratedServiceOpenAPIGolden -update-openapi
 
-finalize: fmt test openapi-check
+contracts-lint:
+	$(API_TOOLKIT) contracts lint --openapi $(OPENAPI)
+
+contracts-diff:
+	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
+
+finalize: fmt test openapi-check contracts-lint contracts-diff
 `
 
 const envTemplate = `ENV=development
