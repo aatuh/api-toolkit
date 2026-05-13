@@ -128,8 +128,8 @@ compatibility plan. Experimental and wrapper-only drift remains report-only
 review evidence. Local release evidence archives this report and summarizes
 compatible, incompatible, and enforced drift counts for reviewer visibility.
 
-Contrib supported-tier adapter, integration, middleware, bootstrap, and
-telemetry changes that alter public behavior should update
+Contrib supported-tier adapter, integration, middleware, bootstrap, telemetry,
+and production generator CLI changes that alter public behavior should update
 `docs/release-notes.md` with migration notes or an explicit no-user-impact
 rationale. `make contrib-release-notes-check` is a lightweight review gate for
 that policy and requires explicit acknowledgement when report-only drift is
@@ -163,7 +163,8 @@ command source of truth. `make api-check` is a local compatibility helper.
 `make release-evidence` runs the release-readiness subchecks through the evidence writer and writes `release-check-summary.json` schema v2.
 `make contrib-api-drift-report` enforces supported-adapter incompatible drift.
 `make contrib-release-notes-check` is a lightweight review gate for contrib
-adapter, integration, middleware, bootstrap, and telemetry behavior notes.
+adapter, integration, middleware, bootstrap, telemetry, and production generator
+CLI behavior notes.
 
 Publication evidence must come from a clean worktree with
 `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`. A local

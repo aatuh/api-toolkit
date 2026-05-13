@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Review gate: supported contrib adapter/integration/middleware behavior changes
-# need release notes or explicit no-user-impact rationale.
+# Review gate: supported contrib adapter/integration/middleware/tooling behavior
+# changes need release notes or explicit no-user-impact rationale.
 set -euo pipefail
 
 base_ref="${CONTRIB_RELEASE_BASE_REF:-${API_BASE_REF:-HEAD~1}}"
@@ -25,7 +25,7 @@ is_release_note_candidate_path() {
   esac
 }
 
-supported_import_path_for_changed_path() {
+reviewed_import_path_for_changed_path() {
   local path="$1"
   local package_path="${path%/*}"
   local import_path
@@ -41,6 +41,7 @@ supported_import_path_for_changed_path() {
     esac
     if awk -F '\t' -v import_path="$import_path" '
       $1 == import_path && $2 == "supported-adapter" { found = 1 }
+      $1 == "github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit" && $1 == import_path && $2 == "tooling" { found = 1 }
       END { exit found ? 0 : 1 }
     ' "$classification_manifest"; then
       printf '%s\n' "$import_path"
@@ -58,6 +59,7 @@ changed_contrib_candidates="$(git diff --name-only "$base_ref" -- \
   'contrib/adapters' \
   'contrib/integrations' \
   'contrib/bootstrap' \
+  'contrib/cmd/api-toolkit' \
   'contrib/middleware/auth/clerk' \
   'contrib/middleware/auth/devheaders' \
   'contrib/middleware/cors' \
@@ -80,7 +82,7 @@ if [ -n "$changed_contrib_candidates" ]; then
   fi
   while IFS= read -r path; do
     [ -n "$path" ] || continue
-    if import_path="$(supported_import_path_for_changed_path "$path")"; then
+    if import_path="$(reviewed_import_path_for_changed_path "$path")"; then
       changed_contrib="${changed_contrib}${path}"$'\n'
     fi
   done <<< "$changed_contrib_candidates"
@@ -88,7 +90,7 @@ if [ -n "$changed_contrib_candidates" ]; then
 fi
 
 if [ -z "$changed_contrib" ]; then
-  echo "No supported-tier contrib adapter/integration public behavior files changed."
+  echo "No supported-tier contrib public behavior files changed."
   exit 0
 fi
 
@@ -183,4 +185,4 @@ if [ "$incompatible_drift_count" -gt 0 ]; then
   echo "Incompatible contrib API drift has package-tied release-note acknowledgement and non-expired disposition coverage."
 fi
 
-echo "Contrib adapter/integration changes have release notes coverage."
+echo "Contrib supported-tier changes have release notes coverage."
