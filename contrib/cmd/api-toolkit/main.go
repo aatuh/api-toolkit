@@ -1702,6 +1702,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
 		Store:          idempotencyStore,
 		StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc(),
+		RequireKey:     true,
 		OnOutcome: idempotencyOutcomeHooks(
 			metricsmw.IdempotencyOutcomeHook(metricsRecorder),
 			requestlog.IdempotencyOutcomeLogHook(log),
@@ -2334,6 +2335,18 @@ func TestGeneratedServiceAuthValidationAndIdempotency(t *testing.T) {
 	service.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("missing auth status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"starter"}` + "`" + `))
+	req.Header.Set("Content-Type", "application/json")
+	authorizeWidgetRequest(t, req, "tenant_1")
+	rec = httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing idempotency key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "idempotency key is required") {
+		t.Fatalf("missing idempotency key body = %s", rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"starter"}` + "`" + `))

@@ -24,15 +24,18 @@ const tenantScopedStorageKeyPrefix = "atk:v1:"
 
 // Options configures the idempotency middleware.
 type Options struct {
-	Store               ports.IdempotencyStore
-	HeaderName          string
-	KeyFunc             KeyFunc
-	StorageKeyFunc      StorageKeyFunc
-	HashFunc            HashFunc
-	TTL                 time.Duration
-	InFlightTTL         time.Duration
-	MaxBodyBytes        int64
-	MaxResponseBytes    int64
+	Store            ports.IdempotencyStore
+	HeaderName       string
+	KeyFunc          KeyFunc
+	StorageKeyFunc   StorageKeyFunc
+	HashFunc         HashFunc
+	TTL              time.Duration
+	InFlightTTL      time.Duration
+	MaxBodyBytes     int64
+	MaxResponseBytes int64
+	// RequireKey rejects handled unsafe requests that omit the idempotency key.
+	// The default false preserves v2 pass-through behavior for existing callers.
+	RequireKey          bool
 	Clock               ports.Clock
 	ShouldHandle        func(*http.Request) bool
 	ShouldStore         func(status int) bool
@@ -201,6 +204,11 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 		clientKey := m.opts.KeyFunc(r)
 		if clientKey == "" {
+			if m.opts.RequireKey {
+				m.emitOutcome(r.Context(), r, IdempotencyOutcomeMissingKey, http.StatusBadRequest, false)
+				writeMissingKey(w)
+				return
+			}
 			m.emitOutcome(r.Context(), r, IdempotencyOutcomeMissingKey, 0, false)
 			next.ServeHTTP(w, r)
 			return
@@ -659,6 +667,14 @@ func writeInvalidKey(w http.ResponseWriter) {
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid idempotency key",
+	})
+}
+
+func writeMissingKey(w http.ResponseWriter) {
+	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
+		Title:  http.StatusText(http.StatusBadRequest),
+		Detail: "idempotency key is required",
 	})
 }
 
