@@ -108,6 +108,9 @@ source of truth is `docs/release-runbook.md`.
   `contracts-diff` targets backed by the api-toolkit CLI, and generated
   `finalize` runs those contract checks alongside tests and OpenAPI golden
   verification.
+- Generated `saas-api` Makefiles now make `coverage-check` enforce
+  `COVERAGE_MIN` instead of only writing a coverage profile, so generated CI
+  fails closed when test coverage drops below the configured floor.
 - Generated `saas-api` services now keep memory idempotency storage as the local
   default but reject it under `ENV=production`; production defaults to the Redis
   idempotency adapter and requires `REDIS_ADDR` before startup.
