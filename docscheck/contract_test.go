@@ -1461,6 +1461,62 @@ func TestSupportedAdapterPackagesAreInContribDriftManifest(t *testing.T) {
 	}
 }
 
+func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	contracts := loadSupportedAdapterContracts(t, repoRoot)
+
+	var missing []string
+	for _, cls := range classes {
+		if cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		if _, ok := contracts[cls.ImportPath]; !ok {
+			missing = append(missing, cls.ImportPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("supported-adapter packages missing from docs/supported-adapter-contracts.tsv:\n%s", strings.Join(missing, "\n"))
+	}
+
+	var stale []string
+	for importPath := range contracts {
+		if classes[importPath].APIStatus != "supported-adapter" {
+			stale = append(stale, importPath)
+		}
+	}
+	sort.Strings(stale)
+	if len(stale) > 0 {
+		t.Fatalf("docs/supported-adapter-contracts.tsv lists non-supported adapters:\n%s", strings.Join(stale, "\n"))
+	}
+
+	for _, importPath := range []string{
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/resend",
+		"github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe",
+		"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk",
+		"github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi",
+		"github.com/aatuh/api-toolkit/contrib/v2/middleware/oteltrace",
+		"github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog",
+		"github.com/aatuh/api-toolkit/contrib/v2/telemetry",
+	} {
+		contract, ok := contracts[importPath]
+		if !ok {
+			t.Fatalf("required supported adapter contract missing for %s", importPath)
+		}
+		for _, required := range []string{"direct tests", "release drift"} {
+			if !strings.Contains(strings.ToLower(contract.Evidence), required) {
+				t.Fatalf("supported adapter contract for %s evidence missing %q: %q", importPath, required, contract.Evidence)
+			}
+		}
+	}
+}
+
 func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -2981,6 +3037,12 @@ type packageClassification struct {
 	Notes      string
 }
 
+type supportedAdapterContract struct {
+	ImportPath string
+	Contract   string
+	Evidence   string
+}
+
 func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packageClassification {
 	t.Helper()
 
@@ -3042,6 +3104,39 @@ func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packag
 		t.Fatal("docs/package-classification.tsv has no classifications")
 	}
 	return classes
+}
+
+func loadSupportedAdapterContracts(t *testing.T, repoRoot string) map[string]supportedAdapterContract {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "supported-adapter-contracts.tsv"))
+	contracts := make(map[string]supportedAdapterContract)
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 3 {
+			t.Fatalf("docs/supported-adapter-contracts.tsv:%d: expected 3 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		contract := supportedAdapterContract{
+			ImportPath: strings.TrimSpace(cols[0]),
+			Contract:   strings.TrimSpace(cols[1]),
+			Evidence:   strings.TrimSpace(cols[2]),
+		}
+		if contract.ImportPath == "" || contract.Contract == "" || contract.Evidence == "" {
+			t.Fatalf("docs/supported-adapter-contracts.tsv:%d: empty contract field", lineNo+1)
+		}
+		if _, exists := contracts[contract.ImportPath]; exists {
+			t.Fatalf("docs/supported-adapter-contracts.tsv:%d: duplicate import path %s", lineNo+1, contract.ImportPath)
+		}
+		contracts[contract.ImportPath] = contract
+	}
+	if len(contracts) == 0 {
+		t.Fatal("docs/supported-adapter-contracts.tsv has no contracts")
+	}
+	return contracts
 }
 
 func moduleGoDirective(t *testing.T, path string) string {

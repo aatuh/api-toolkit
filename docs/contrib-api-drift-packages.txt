@@ -1,7 +1,9 @@
 # Selected high-use contrib packages reviewed by make contrib-api-drift-report.
 # Supported-adapter packages fail on incompatible public API drift; experimental
 # and wrapper-only packages remain report-only review evidence.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/chi
 github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis
+github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap
 github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool
 github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis
 github.com/aatuh/api-toolkit/contrib/v2/adapters/resend

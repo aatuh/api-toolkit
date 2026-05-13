@@ -59,6 +59,7 @@ api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
 | [Response writer inventory](response-writer-inventory.md) | Maintainers | Keep the legacy response helper package contained. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
+| `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
 
 ## Release and evidence
 
@@ -69,6 +70,7 @@ api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
 | `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |
+| `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Required supported-adapter behavior contracts with direct-test and release-drift evidence. |
 | `docs/contrib-api-drift-dispositions.tsv` | Release reviewers and automation | Owner, status, review date, expiry, and acknowledgement for current contrib drift. |
 | `docs/vulnerability-dispositions.tsv` | Release reviewers and automation | Owner, review, expiry, and upgrade trigger rows for imported-only vulnerability IDs when present. |
 | `release-check-summary.json` | Release reviewers | Generated local release evidence summary; only clean publication evidence is publishable. |
@@ -103,6 +105,7 @@ important public docs disappear from navigation:
 `docs/v3-compatibility-roadmap.md`, `docs/response-writer-inventory.md`,
 `docs/dependency-boundary.md`, `docs/dependency-risk.md`,
 `docs/package-doc-standard.md`, `docs/package-classification.tsv`,
+`docs/supported-adapter-contracts.tsv`,
 `docs/contrib-api-drift-packages.txt`,
 `docs/contrib-api-drift-dispositions.tsv`,
 `docs/vulnerability-dispositions.tsv`, `contrib/examples/README.md`,

@@ -153,6 +153,10 @@ source of truth is `docs/release-runbook.md`.
 - The contrib release-note review gate now includes package-owned runtime
   assets such as JSON, YAML, SQL, template, and policy files under supported
   contrib package directories.
+- `docs/supported-adapter-contracts.tsv` now defines behavior contracts and
+  direct-test/release-drift evidence for every `supported-adapter` contrib
+  package. The chi router adapter and zap logger adapter are promoted to
+  `supported-adapter` and included in the contrib drift gate.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest` adds reusable
   rate limiter adapter contract coverage, and `ratelimitredis` now runs it to
   prove empty-key bypass, per-key isolation, retry-after, and refill behavior.
