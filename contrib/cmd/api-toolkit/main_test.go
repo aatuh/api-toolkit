@@ -193,6 +193,7 @@ func TestContractsLintFailsForNonRequiredUnsafeWritePolicies(t *testing.T) {
 		"/widgets": {
 			"post": {
 				"operationId": "createWidget",
+				"deprecated": true,
 				"requestBody": {
 					"required": true,
 					"content": {"application/json": {"schema": {"type": "object"}}}
@@ -403,6 +404,88 @@ func TestContractsDiffFailsForBreakingChanges(t *testing.T) {
 		"operation_id_changed GET /widgets",
 		"response_removed GET /widgets",
 		"security_changed GET /widgets",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func TestContractsDiffFailsForRoutePolicyDrift(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {
+					"201": {"description": "created"},
+					"400": {
+						"description": "bad request",
+						"content": {"application/problem+json": {"schema": {"type": "object"}}}
+					}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}],
+				"x-tenant": {"required": true, "source": "header"},
+				"x-idempotency-key": {"required": true, "header": "Idempotency-Key"},
+				"x-rate-limit": "write-standard",
+				"x-sunset": "Wed, 01 Jul 2026 00:00:00 GMT"
+			}
+		},
+		"/metrics": {
+			"get": {
+				"operationId": "getMetrics",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["admin:read"]}],
+				"x-admin-policy": "admin"
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {
+					"201": {"description": "created"},
+					"400": {
+						"description": "bad request",
+						"content": {"application/problem+json": {"schema": {"type": "object"}}}
+					}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}],
+				"x-tenant": {"required": false, "source": "path"},
+				"x-rate-limit": "write-burst"
+			}
+		},
+		"/metrics": {
+			"get": {
+				"operationId": "getMetrics",
+				"responses": {"200": {"description": "ok"}},
+				"security": [{"ApiKeyAuth": ["admin:read"]}]
+			}
+		}
+	}`)
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", head}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected policy drift diff to fail")
+	}
+	for _, want := range []string{
+		"tenant_policy_changed POST /widgets",
+		"idempotency_policy_changed POST /widgets",
+		"rate_limit_policy_changed POST /widgets",
+		"deprecation_policy_changed POST /widgets",
+		"admin_policy_changed GET /metrics",
 	} {
 		if !strings.Contains(errOut.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
