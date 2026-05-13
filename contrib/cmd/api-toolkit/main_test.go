@@ -323,6 +323,9 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"IdempotencyOutcomeHook",
 		"IdempotencyOutcomeLogHook",
 		"BackgroundTasks:",
+		"newRateLimitLimiter(",
+		"ratelimitredis.New",
+		`bootstrap.ShutdownHook{Name: "rate-limit-redis"`,
 		"newIdempotencyStore()",
 		`bootstrap.ShutdownHook{Name: "idempotency-redis"`,
 		"client.Close()",
@@ -1478,6 +1481,9 @@ func assertGeneratedEnvDocumentsRateLimitConfig(t *testing.T, env string) {
 		"RATE_LIMIT_SKIP_ENABLED=false",
 		"RATE_LIMIT_SKIP_HEADER=",
 		"RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES=false",
+		"RATE_LIMIT_STORE=memory",
+		"RATE_LIMIT_REDIS_ADDR=",
+		"RATE_LIMIT_KEY_PREFIX=ratelimit:",
 	} {
 		if !strings.Contains(env, want) {
 			t.Fatalf("generated .env.example missing rate-limit config %q:\n%s", want, env)
