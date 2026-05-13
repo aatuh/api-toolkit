@@ -3026,6 +3026,7 @@ OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 OUTPUT_DIR ?= .ci-result
 SYFT ?= syft
+COVERAGE_MIN ?= 70.0
 GOVULNCHECK_VERSION ?= v1.2.0
 VERSION ?= dev
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -3052,6 +3053,8 @@ coverage:
 	$(GO) test ./... -coverprofile=coverage.out
 
 coverage-check: coverage
+	@coverage="$$($(GO) tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $$3); print $$3}')"; \
+	awk -v got="$$coverage" -v min="$(COVERAGE_MIN)" 'BEGIN { if ((got + 0) < (min + 0)) { printf "coverage %.1f%% below required %.1f%%\n", got, min; exit 1 } printf "coverage %.1f%% >= %.1f%%\n", got, min }'
 
 test-race:
 	$(GO) test ./... -race -count=1
@@ -3275,6 +3278,6 @@ Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the 
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
 ` + "`make build`" + ` produces ` + "`bin/api`" + ` and stamps ` + "`/version`" + ` with ` + "`VERSION`" + `, ` + "`BUILD_COMMIT`" + `, and ` + "`BUILD_DATE`" + `. The Dockerfile accepts matching build args and defaults to ` + "`dev`" + `/` + "`unknown`" + ` metadata.
-Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow. The generated Makefile also includes ` + "`make fast-check`" + ` for local iteration, ` + "`make audit-check`" + ` for coverage, race, vulnerability, OpenAPI, and contract review, and optional ` + "`make sbom-local`" + ` for SPDX JSON SBOM output under ` + "`.ci-result/sbom`" + ` when Syft is installed.
+Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow. The generated Makefile also includes ` + "`make fast-check`" + ` for local iteration, ` + "`make audit-check`" + ` for coverage floor, race, vulnerability, OpenAPI, and contract review, and optional ` + "`make sbom-local`" + ` for SPDX JSON SBOM output under ` + "`.ci-result/sbom`" + ` when Syft is installed.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `

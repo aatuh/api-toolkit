@@ -453,11 +453,13 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"LDFLAGS ?=",
 		"OUTPUT_DIR ?=",
 		"SYFT ?=",
+		"COVERAGE_MIN ?=",
 		"GOVULNCHECK_VERSION ?=",
 		"tools:",
 		"build:",
 		"-X main.appVersion=$(VERSION)",
 		"coverage-check:",
+		"tool cover -func=coverage.out",
 		"test-race:",
 		"vuln:",
 		"contracts-lint:",
@@ -560,6 +562,22 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(serviceDir, "bin", "api")); err != nil {
 		t.Fatalf("expected generated build artifact: %v", err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "coverage-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated service coverage check failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "coverage-check")
+	cmd.Dir = serviceDir
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local", "COVERAGE_MIN=100.0")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("generated service coverage check should fail below an explicit 100%% floor:\n%s", output)
+	}
+	if !strings.Contains(string(output), "coverage") || !strings.Contains(string(output), "below required") {
+		t.Fatalf("generated service coverage failure should explain the floor:\n%s", output)
 	}
 	cmd = exec.CommandContext(context.Background(), "make", "test-race")
 	cmd.Dir = serviceDir
