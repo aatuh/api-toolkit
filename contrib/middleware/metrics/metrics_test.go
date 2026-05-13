@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 type captureRecorder struct {
@@ -61,6 +63,9 @@ func TestNewPrometheusRecorderCheckedReusesRegisteredCollectors(t *testing.T) {
 	if first.durations != second.durations {
 		t.Fatal("expected duplicate histogram registration to reuse existing collector")
 	}
+	if first.healthStatusChanges != second.healthStatusChanges {
+		t.Fatal("expected duplicate health status counter registration to reuse existing collector")
+	}
 
 	first.IncCounter("", Labels{
 		"method": "GET",
@@ -100,6 +105,9 @@ func TestNewPrometheusRecorderCheckedReusesRegisteredCollectorsWithDefaultRegist
 	if first.durations != second.durations {
 		t.Fatal("expected duplicate histogram registration to reuse existing collector")
 	}
+	if first.healthStatusChanges != second.healthStatusChanges {
+		t.Fatal("expected duplicate health status counter registration to reuse existing collector")
+	}
 	first.IncCounter("", Labels{
 		"method": "GET",
 		"route":  "/widgets",
@@ -117,6 +125,78 @@ func TestNewPrometheusRecorderCheckedReusesRegisteredCollectorsWithDefaultRegist
 	}
 	if len(families) != 2 {
 		t.Fatalf("expected 2 metric families, got %d", len(families))
+	}
+}
+
+func TestPrometheusRecorderRecordsHealthStatusChangesWithBoundedLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	recorder.RecordHealthStatusChange(ports.HealthStatusHealthy, ports.HealthStatusUnhealthy, ports.DetailedHealthResponse{
+		Status: ports.HealthStatusUnhealthy,
+		Checks: map[string]ports.HealthResult{
+			"database-primary-with-unbounded-name": {Status: ports.HealthStatusUnhealthy, Message: "dial tcp 10.0.0.1:5432: timeout"},
+		},
+	})
+	recorder.RecordHealthStatusChange("unexpected-provider-status", "", ports.DetailedHealthResponse{})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	familyIndex := -1
+	for i, candidate := range families {
+		if candidate.GetName() == "health_status_changes_total" {
+			familyIndex = i
+			break
+		}
+	}
+	if familyIndex == -1 {
+		t.Fatal("health_status_changes_total was not gathered")
+	}
+	family := families[familyIndex]
+	if len(family.Metric) != 2 {
+		t.Fatalf("metric count = %d, want 2", len(family.Metric))
+	}
+	seen := map[string]bool{}
+	for _, metric := range family.Metric {
+		labels := map[string]string{}
+		for _, label := range metric.Label {
+			labels[label.GetName()] = label.GetValue()
+			switch label.GetName() {
+			case "from", "to":
+			default:
+				t.Fatalf("unexpected health metric label %q", label.GetName())
+			}
+			if strings.Contains(label.GetValue(), "database") || strings.Contains(label.GetValue(), "10.0.0.1") {
+				t.Fatalf("health metric leaked high-cardinality value %q", label.GetValue())
+			}
+		}
+		if len(labels) != 2 {
+			t.Fatalf("labels = %#v, want only from/to", labels)
+		}
+		seen[labels["from"]+"->"+labels["to"]] = true
+	}
+	for _, want := range []string{"healthy->unhealthy", "other->unknown"} {
+		if !seen[want] {
+			t.Fatalf("missing health transition labels %s in %#v", want, seen)
+		}
+	}
+}
+
+func TestHealthStatusChangeHookRecordsTransitions(t *testing.T) {
+	recorder := &captureHealthRecorder{}
+	hook := HealthStatusChangeHook(recorder)
+
+	hook(context.Background(), ports.HealthStatusDegraded, ports.HealthStatusHealthy, ports.DetailedHealthResponse{
+		Status: ports.HealthStatusHealthy,
+	})
+
+	if recorder.from != ports.HealthStatusDegraded || recorder.to != ports.HealthStatusHealthy {
+		t.Fatalf("recorded transition = %q -> %q", recorder.from, recorder.to)
 	}
 }
 
@@ -222,6 +302,18 @@ func cloneLabels(labels Labels) Labels {
 		out[key] = value
 	}
 	return out
+}
+
+type captureHealthRecorder struct {
+	from   ports.HealthStatus
+	to     ports.HealthStatus
+	result ports.DetailedHealthResponse
+}
+
+func (r *captureHealthRecorder) RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse) {
+	r.from = from
+	r.to = to
+	r.result = result
 }
 
 func withDefaultPrometheusRegistry(t *testing.T) *prometheus.Registry {
