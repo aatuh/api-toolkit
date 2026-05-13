@@ -169,6 +169,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated services now initialize contrib OpenTelemetry tracing from
   `OTEL_*` environment variables, fail startup when tracing is enabled without
   an OTLP endpoint, and close the tracer provider during service shutdown.
+- Generated compose files now include a Redis service, healthcheck, persistent
+  volume, and container-safe Redis address overrides for idempotency and rate
+  limiting.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
