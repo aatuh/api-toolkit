@@ -186,6 +186,8 @@ source of truth is `docs/release-runbook.md`.
   guardrails and is included in `make release-check` and release evidence logs,
   keeping major-version removal planning tied to roadmap, replacement guidance,
   and release-note requirements.
+- CI governance now runs `make v3-readiness-check` explicitly alongside
+  docs-check and contrib release-note/drift gates.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

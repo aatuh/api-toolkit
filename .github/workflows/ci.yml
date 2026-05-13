@@ -56,6 +56,8 @@ jobs:
           check-latest: true
       - name: Documentation governance
         run: make docs-check
+      - name: V3 readiness governance
+        run: make v3-readiness-check
       - name: Fetch pull request base for contrib release notes
         if: github.event_name == 'pull_request'
         run: git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" --depth=1

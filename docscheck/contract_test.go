@@ -759,6 +759,7 @@ func TestCIGovernanceWorkflowRunsDocsAndContribReleaseNoteGates(t *testing.T) {
 
 	for _, required := range []string{
 		"make docs-check",
+		"make v3-readiness-check",
 		"make contrib-release-notes-check",
 		"Contrib API drift gate (pull request base)",
 		"make contrib-api-drift-report",
