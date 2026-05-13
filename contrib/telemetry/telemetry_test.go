@@ -181,31 +181,39 @@ func TestExporterHelpersRequireEndpoint(t *testing.T) {
 	}
 }
 
-func TestInitTracingUsesNoopProviderWhenDisabledOrMissingEndpoint(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  TraceConfig
-	}{
-		{name: "disabled", cfg: TraceConfig{Enabled: false, Endpoint: "https://collector:4318"}},
-		{name: "missing endpoint", cfg: TraceConfig{Enabled: true, Endpoint: " "}},
+func TestInitTracingUsesNoopProviderWhenDisabled(t *testing.T) {
+	resetTracingState()
+
+	shutdown, enabled, err := InitTracing(context.Background(), TraceConfig{Enabled: false, Endpoint: "https://collector:4318"})
+	if err != nil {
+		t.Fatalf("InitTracing() error = %v", err)
 	}
+	if enabled {
+		t.Fatal("expected tracing disabled")
+	}
+	if shutdown == nil {
+		t.Fatal("expected shutdown func")
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown error = %v", err)
+	}
+}
 
-	for _, tc := range tests {
-		resetTracingState()
+func TestInitTracingFailsWhenEnabledWithoutEndpoint(t *testing.T) {
+	resetTracingState()
 
-		shutdown, enabled, err := InitTracing(context.Background(), tc.cfg)
-		if err != nil {
-			t.Fatalf("%s: InitTracing() error = %v", tc.name, err)
-		}
-		if enabled {
-			t.Fatalf("%s: expected tracing disabled", tc.name)
-		}
-		if shutdown == nil {
-			t.Fatalf("%s: expected shutdown func", tc.name)
-		}
-		if err := shutdown(context.Background()); err != nil {
-			t.Fatalf("%s: shutdown error = %v", tc.name, err)
-		}
+	shutdown, enabled, err := InitTracing(context.Background(), TraceConfig{Enabled: true, Endpoint: " "})
+	if !errors.Is(err, errEmptyEndpoint) {
+		t.Fatalf("InitTracing() error = %v, want %v", err, errEmptyEndpoint)
+	}
+	if enabled {
+		t.Fatal("expected tracing disabled")
+	}
+	if shutdown == nil {
+		t.Fatal("expected shutdown func")
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown error = %v", err)
 	}
 }
 
