@@ -312,21 +312,17 @@ func (p *PrometheusRecorder) RecordRoutePolicy(labels Labels) {
 	if p == nil || p.routePolicyRequests == nil {
 		return
 	}
-	method, route, status := sanitizeHTTPLabels(labels)
-	statusClassLabel := sanitizeStatusClass(labels["status_class"])
-	if statusClassLabel == "none" {
-		statusClassLabel = statusClass(status)
-	}
+	bounded := RoutePolicyLabels(labels)
 	p.routePolicyRequests.WithLabelValues(
-		method,
-		route,
-		statusClassLabel,
-		sanitizePolicyLabel(labels["auth"], "none"),
-		sanitizePolicyLabel(labels["tenant"], "none"),
-		sanitizePolicyLabel(labels["idempotency"], "none"),
-		sanitizePolicyLabel(labels["admin"], "none"),
-		sanitizePolicyLabel(labels["deprecated"], "false"),
-		sanitizePolicyLabel(labels["rate_limit"], "none"),
+		bounded["method"],
+		bounded["route"],
+		bounded["status_class"],
+		bounded["auth"],
+		bounded["tenant"],
+		bounded["idempotency"],
+		bounded["admin"],
+		bounded["deprecated"],
+		bounded["rate_limit"],
 	).Inc()
 }
 
@@ -395,6 +391,28 @@ func HardTimeoutEventLabels(event timeoutmw.HardTimeoutEvent) Labels {
 		"timed_out":        boolLabel(event.TimedOut),
 		"panicked":         boolLabel(event.Panicked),
 		"capture_overflow": boolLabel(event.CaptureOverflow),
+	}
+}
+
+// RoutePolicyLabels returns the bounded label set used for route-policy
+// request metrics. The route label should be a route pattern, not a raw request
+// path; blank routes are normalized to "unknown".
+func RoutePolicyLabels(labels Labels) Labels {
+	method, route, status := sanitizeHTTPLabels(labels)
+	statusClassLabel := sanitizeStatusClass(labels["status_class"])
+	if statusClassLabel == "none" {
+		statusClassLabel = statusClass(status)
+	}
+	return Labels{
+		"method":       method,
+		"route":        route,
+		"status_class": statusClassLabel,
+		"auth":         sanitizePolicyLabel(labels["auth"], "none"),
+		"tenant":       sanitizePolicyLabel(labels["tenant"], "none"),
+		"idempotency":  sanitizePolicyLabel(labels["idempotency"], "none"),
+		"admin":        sanitizePolicyLabel(labels["admin"], "none"),
+		"deprecated":   sanitizePolicyLabel(labels["deprecated"], "false"),
+		"rate_limit":   sanitizePolicyLabel(labels["rate_limit"], "none"),
 	}
 }
 

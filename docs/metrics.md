@@ -81,7 +81,9 @@ and status codes before writing series. When routes are registered through
 `routecontracts`, bounded `routepolicy` metadata is attached to the request and
 recorded by `http_route_policy_requests_total`. Raw scopes, tenant sources,
 rate-limit policy names, admin policy names, and identities are intentionally
-not exported as metric labels. This keeps cardinality stable by design.
+not exported as metric labels. This keeps cardinality stable by design. Custom
+recorders can call `metrics.RoutePolicyLabels` to reuse the same bounded label
+normalization as the Prometheus recorder.
 
 For periodic health refreshes, wire the scheduler callback to the same
 Prometheus recorder:

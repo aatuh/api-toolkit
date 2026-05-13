@@ -147,6 +147,9 @@ source of truth is `docs/release-runbook.md`.
   `http_route_policy_requests_total`, and contrib request logging emits
   `policy_*` fields without raw scopes, tenant sources, rate-limit policy
   names, or admin policy names.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now exposes
+  `RoutePolicyLabels` so custom recorders can reuse the same bounded
+  route-policy label normalization as the Prometheus recorder.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
