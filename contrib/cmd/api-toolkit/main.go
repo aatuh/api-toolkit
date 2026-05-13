@@ -1577,6 +1577,7 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
+	"github.com/aatuh/api-toolkit/contrib/v2/telemetry"
 {{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v2/config"
 	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
 {{ end }}
@@ -1620,6 +1621,10 @@ func main() {
 
 func newService() (*bootstrap.APIService, error) {
 	log := ports.NopLogger{}
+	tracingShutdown, err := newTracingShutdown(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	metricsRecorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
 	if err != nil {
 		return nil, err
@@ -1729,6 +1734,9 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 		return nil, err
 	}
 	shutdownHooks := []bootstrap.ShutdownHook{}
+	if tracingShutdown.Hook != nil {
+		shutdownHooks = append(shutdownHooks, tracingShutdown)
+	}
 	if rateLimitShutdown.Hook != nil {
 		shutdownHooks = append(shutdownHooks, rateLimitShutdown)
 	}
@@ -1923,6 +1931,21 @@ func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 	})
 }
 {{ end }}
+
+func newTracingShutdown(ctx context.Context) (bootstrap.ShutdownHook, error) {
+	cfg := telemetry.TraceConfigFromEnv()
+	if cfg.Enabled && strings.TrimSpace(cfg.Endpoint) == "" {
+		return bootstrap.ShutdownHook{}, errors.New("OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_TRACING_ENABLED=true")
+	}
+	shutdown, enabled, err := telemetry.InitTracing(ctx, cfg)
+	if err != nil {
+		return bootstrap.ShutdownHook{}, err
+	}
+	if !enabled {
+		return bootstrap.ShutdownHook{}, nil
+	}
+	return bootstrap.ShutdownHook{Name: "otel-tracing", Hook: shutdown}, nil
+}
 
 func newRateLimitLimiter(capacity, refillRate float64) (ports.RateLimiter, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("RATE_LIMIT_STORE")))
@@ -2559,6 +2582,17 @@ func TestGeneratedRateLimitRedisLimiterHasShutdownHook(t *testing.T) {
 	}
 }
 
+func TestGeneratedTracingRequiresEndpointWhenEnabled(t *testing.T) {
+	setLocalTestEnv(t)
+	t.Setenv("OTEL_TRACING_ENABLED", "true")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	if _, err := newTracingShutdown(context.Background()); err == nil {
+		t.Fatal("expected tracing startup to require an OTLP endpoint when enabled")
+	} else if !strings.Contains(err.Error(), "OTEL_EXPORTER_OTLP_ENDPOINT") {
+		t.Fatalf("startup error = %v, want OTLP endpoint requirement", err)
+	}
+}
+
 {{ if eq .AuthMode "jwt" }}func TestGeneratedServiceRejectsProductionMissingJWTConfig(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
@@ -2869,6 +2903,12 @@ RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES=false
 RATE_LIMIT_STORE=memory
 RATE_LIMIT_REDIS_ADDR=
 RATE_LIMIT_KEY_PREFIX=ratelimit:
+OTEL_TRACING_ENABLED=false
+OTEL_SERVICE_NAME=api
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_SAMPLER=parentbased_traceidratio
+OTEL_SAMPLE_RATIO=1
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api
@@ -2988,5 +3028,6 @@ When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_K
 {{ end }}
 Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
+OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
