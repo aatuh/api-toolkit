@@ -588,6 +588,7 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 	if doc == nil || doc.Paths == nil {
 		return nil
 	}
+	globalSecurity := securityRequirementsFromOpenAPI(doc.Security)
 	var operations []specs.Operation
 	for routePath, item := range doc.Paths.Map() {
 		if item == nil {
@@ -620,13 +621,7 @@ func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 					}
 				}
 			}
-			if op.Security != nil && len(*op.Security) > 0 {
-				for _, req := range *op.Security {
-					for name, scopes := range req {
-						operation.Security = append(operation.Security, specs.SecurityRequirement{Name: name, Scopes: scopes})
-					}
-				}
-			}
+			operation.Security = effectiveOperationSecurity(globalSecurity, op.Security)
 			for name, value := range op.Extensions {
 				if strings.HasPrefix(name, "x-") {
 					operation.Extensions[name] = value
@@ -694,6 +689,7 @@ func diffOpenAPI(basePath, headPath string) error {
 	head := operationsFromOpenAPIDocument(headLoaded.doc)
 	findings := diffOperations(base, head)
 	findings = append(findings, diffSecuritySchemes(baseLoaded.doc, headLoaded.doc)...)
+	findings = append(findings, diffGlobalSecurity(baseLoaded.doc, headLoaded.doc)...)
 	findings = append(findings, diffOperationSchemas(baseLoaded.doc, headLoaded.doc)...)
 	findings = append(findings, diffComponentSchemas(baseLoaded.doc, headLoaded.doc)...)
 	if len(findings) > 0 {
@@ -788,6 +784,18 @@ func diffOperations(base, head []specs.Operation) []openAPIDiffFinding {
 		findings = append(findings, diffRoutePolicies(baseOperation, headOperation)...)
 	}
 	return findings
+}
+
+func diffGlobalSecurity(baseDoc, headDoc *openapi3.T) []openAPIDiffFinding {
+	baseSecurity := securityFingerprint(securityRequirementsFromOpenAPI(baseDoc.Security))
+	headSecurity := securityFingerprint(securityRequirementsFromOpenAPI(headDoc.Security))
+	if baseSecurity == headSecurity {
+		return nil
+	}
+	return []openAPIDiffFinding{{
+		Code:   "global_security_changed",
+		Detail: fmt.Sprintf("%q -> %q", baseSecurity, headSecurity),
+	}}
 }
 
 func diffParameters(baseOperation, headOperation specs.Operation) []openAPIDiffFinding {
@@ -1427,6 +1435,50 @@ func stringSet(values []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		out[value] = struct{}{}
+	}
+	return out
+}
+
+func effectiveOperationSecurity(global []specs.SecurityRequirement, operation *openapi3.SecurityRequirements) []specs.SecurityRequirement {
+	if operation != nil {
+		return securityRequirementsFromOpenAPI(*operation)
+	}
+	return cloneSecurityRequirements(global)
+}
+
+func securityRequirementsFromOpenAPI(requirements openapi3.SecurityRequirements) []specs.SecurityRequirement {
+	var out []specs.SecurityRequirement
+	for _, requirement := range requirements {
+		for name, scopes := range requirement {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			out = append(out, specs.SecurityRequirement{
+				Name:   name,
+				Scopes: append([]string(nil), scopes...),
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name == out[j].Name {
+			return strings.Join(out[i].Scopes, ",") < strings.Join(out[j].Scopes, ",")
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func cloneSecurityRequirements(requirements []specs.SecurityRequirement) []specs.SecurityRequirement {
+	if len(requirements) == 0 {
+		return nil
+	}
+	out := make([]specs.SecurityRequirement, 0, len(requirements))
+	for _, requirement := range requirements {
+		out = append(out, specs.SecurityRequirement{
+			Name:   requirement.Name,
+			Scopes: append([]string(nil), requirement.Scopes...),
+		})
 	}
 	return out
 }

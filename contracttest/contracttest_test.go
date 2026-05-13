@@ -184,6 +184,47 @@ func TestOpenAPICompatibilityFindingsReportBreakingChanges(t *testing.T) {
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportGlobalSecurityDrift(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"security": [{"ApiKeyAuth": ["widgets:read"]}],
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		`global_security_changed "ApiKeyAuth:widgets:read" -> ""`,
+		"security_changed GET /widgets",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 func TestOpenAPICompatibilityFindingsReportRequestBodyBreakingChanges(t *testing.T) {
 	base := []byte(`{
 		"openapi": "3.0.0",

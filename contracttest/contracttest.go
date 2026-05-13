@@ -394,6 +394,11 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		return nil, err
 	}
 	findings = append(findings, securitySchemeFindings...)
+	globalSecurityFindings, err := globalSecurityCompatibilityFindings(base, head)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, globalSecurityFindings...)
 	schemaFindings, err := componentSchemaCompatibilityFindings(base, head)
 	if err != nil {
 		return nil, err
@@ -615,6 +620,7 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 	if !ok {
 		return nil, fmt.Errorf("OpenAPI document has no paths")
 	}
+	globalSecurity := securityRequirements(root["security"])
 	var operations []openAPIOperationSnapshot
 	for path, rawPathItem := range paths {
 		pathItem, ok := rawPathItem.(map[string]any)
@@ -626,6 +632,10 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 			if !ok {
 				continue
 			}
+			security := securityRequirements(rawOperation["security"])
+			if _, hasOperationSecurity := rawOperation["security"]; !hasOperationSecurity {
+				security = globalSecurity
+			}
 			operations = append(operations, openAPIOperationSnapshot{
 				Method:                  strings.ToUpper(method),
 				Path:                    path,
@@ -636,7 +646,7 @@ func openAPIOperationSnapshots(doc []byte) ([]openAPIOperationSnapshot, error) {
 				RequestBodyContentTypes: requestBodyContentTypes(rawOperation["requestBody"]),
 				ResponseStatuses:        responseStatuses(rawOperation["responses"]),
 				ResponseContentTypes:    responseContentTypes(rawOperation["responses"]),
-				Security:                securityRequirements(rawOperation["security"]),
+				Security:                security,
 				TenantPolicy:            tenantPolicyFingerprint(rawOperation),
 				IdempotencyPolicy:       idempotencyPolicyFingerprint(rawOperation),
 				RateLimitPolicy:         rateLimitPolicyFingerprint(rawOperation),
@@ -943,6 +953,29 @@ func securitySchemeCompatibilityFindings(base, head []byte) ([]string, error) {
 		}
 	}
 	return findings, nil
+}
+
+func globalSecurityCompatibilityFindings(base, head []byte) ([]string, error) {
+	baseSecurity, err := globalSecurityFingerprint(base)
+	if err != nil {
+		return nil, fmt.Errorf("base global security: %w", err)
+	}
+	headSecurity, err := globalSecurityFingerprint(head)
+	if err != nil {
+		return nil, fmt.Errorf("head global security: %w", err)
+	}
+	if baseSecurity == headSecurity {
+		return nil, nil
+	}
+	return []string{fmt.Sprintf("global_security_changed %q -> %q", baseSecurity, headSecurity)}, nil
+}
+
+func globalSecurityFingerprint(doc []byte) (string, error) {
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return "", err
+	}
+	return strings.Join(securityRequirements(root["security"]), "|"), nil
 }
 
 func componentSecuritySchemeMaps(doc []byte) (map[string]any, error) {

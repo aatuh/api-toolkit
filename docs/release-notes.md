@@ -170,6 +170,10 @@ source of truth is `docs/release-runbook.md`.
   `components.securitySchemes`, so auth header, bearer, OAuth, or OIDC
   contract drift is caught even when operation-level security requirements keep
   the same scheme name.
+- `api-toolkit contracts lint`, `api-toolkit contracts diff`, and
+  `contracttest.OpenAPICompatibilityFindings` now honor top-level OpenAPI
+  `security` as inherited operation security and report
+  `global_security_changed` when release-review specs change that default.
 - `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
