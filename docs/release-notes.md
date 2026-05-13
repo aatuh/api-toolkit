@@ -156,6 +156,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated service READMEs and security guidance now document that unsafe
   writes without `Idempotency-Key` fail with Problem Details 400 and that
   generated idempotency storage keys are tenant and actor scoped.
+- Generated services now load bootstrap router env controls for
+  `TRUSTED_PROXIES` and rate-limit skip headers, failing startup on malformed
+  proxy CIDRs or unsafe bypass settings.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

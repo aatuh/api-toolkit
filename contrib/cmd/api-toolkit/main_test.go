@@ -110,6 +110,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 			t.Fatalf("generated dev-header .env.example missing %q", want)
 		}
 	}
+	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -182,6 +183,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 			t.Fatalf("generated Clerk .env.example missing %q", want)
 		}
 	}
+	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -254,6 +256,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 			t.Fatalf("generated JWT .env.example missing %q", want)
 		}
 	}
+	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -314,7 +317,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"NewPrometheusRecorderChecked",
-		"DefaultRouterConfig{Metrics:",
+		"bootstrap.DefaultRouterConfigFromEnv(nil)",
+		"routerConfig.Metrics = metricsRecorder",
 		"HealthStatusChangeHook",
 		"IdempotencyOutcomeHook",
 		"IdempotencyOutcomeLogHook",
@@ -336,6 +340,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 			t.Fatalf("generated .env.example missing %q", want)
 		}
 	}
+	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
 	generatedDockerfile, err := os.ReadFile(filepath.Join(serviceDir, "Dockerfile"))
 	if err != nil {
 		t.Fatalf("read generated Dockerfile: %v", err)
@@ -1460,6 +1465,20 @@ func assertGeneratedREADMEDocumentsIdempotencyRequirement(t *testing.T, readme s
 	} {
 		if !strings.Contains(readme, want) {
 			t.Fatalf("generated README missing idempotency guidance %q:\n%s", want, readme)
+		}
+	}
+}
+
+func assertGeneratedEnvDocumentsRateLimitConfig(t *testing.T, env string) {
+	t.Helper()
+	for _, want := range []string{
+		"TRUSTED_PROXIES=",
+		"RATE_LIMIT_SKIP_ENABLED=false",
+		"RATE_LIMIT_SKIP_HEADER=",
+		"RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES=false",
+	} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("generated .env.example missing rate-limit config %q:\n%s", want, env)
 		}
 	}
 }
