@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,6 +26,14 @@ type MetricsRecorder interface {
 	ObserveHistogram(name string, value float64, labels Labels)
 }
 
+// HealthMetricsRecorder captures health-state transition metrics.
+//
+// Implementations must keep labels bounded and must not include dependency
+// names, error strings, request data, tenant identifiers, or health messages.
+type HealthMetricsRecorder interface {
+	RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse)
+}
+
 // PrometheusHandler returns a standard /metrics http.Handler if the
 // Prometheus client is linked; otherwise returns http.NotFoundHandler.
 // This indirection avoids hard dependency on the Prometheus client.
@@ -40,6 +49,10 @@ func (NoopMetrics) IncCounter(_ string, _ Labels) {}
 
 // ObserveHistogram is a no-op implementation.
 func (NoopMetrics) ObserveHistogram(_ string, _ float64, _ Labels) {}
+
+// RecordHealthStatusChange is a no-op implementation.
+func (NoopMetrics) RecordHealthStatusChange(_, _ ports.HealthStatus, _ ports.DetailedHealthResponse) {
+}
 
 // Middleware instruments HTTP traffic using a provided recorder.
 type Middleware struct {
@@ -83,8 +96,9 @@ func (mw *Middleware) Middleware() func(http.Handler) http.Handler {
 // PrometheusRecorder implements MetricsRecorder using Prometheus client.
 // This is a minimal adapter; applications can supply their own recorder.
 type PrometheusRecorder struct {
-	requests  *prometheus.CounterVec
-	durations *prometheus.HistogramVec
+	requests            *prometheus.CounterVec
+	durations           *prometheus.HistogramVec
+	healthStatusChanges *prometheus.CounterVec
 }
 
 // ErrIncompatibleCollectorRegistration reports that a Prometheus metric name is
@@ -121,6 +135,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		Help:    "HTTP request duration in seconds",
 		Buckets: buckets,
 	}, []string{"method", "route", "status"})
+	healthStatusChanges := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "health_status_changes_total",
+		Help: "Total number of health status transitions",
+	}, []string{"from", "to"})
 	registeredRequests, err := registerOrReuseCounterVec(reg, requests)
 	if err != nil {
 		return nil, fmt.Errorf("register http_requests_total: %w", err)
@@ -129,9 +147,14 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 	if err != nil {
 		return nil, fmt.Errorf("register http_request_duration_seconds: %w", err)
 	}
+	registeredHealthStatusChanges, err := registerOrReuseCounterVec(reg, healthStatusChanges)
+	if err != nil {
+		return nil, fmt.Errorf("register health_status_changes_total: %w", err)
+	}
 	return &PrometheusRecorder{
-		requests:  registeredRequests,
-		durations: registeredDurations,
+		requests:            registeredRequests,
+		durations:           registeredDurations,
+		healthStatusChanges: registeredHealthStatusChanges,
 	}, nil
 }
 
@@ -185,6 +208,50 @@ func (p *PrometheusRecorder) ObserveHistogram(_ string, value float64, labels La
 	}
 	method, route, status := sanitizeHTTPLabels(labels)
 	p.durations.WithLabelValues(method, route, status).Observe(value)
+}
+
+// RecordHealthStatusChange records a bounded health-state transition counter.
+func (p *PrometheusRecorder) RecordHealthStatusChange(from, to ports.HealthStatus, _ ports.DetailedHealthResponse) {
+	if p == nil || p.healthStatusChanges == nil {
+		return
+	}
+	labels := HealthStatusChangeLabels(from, to)
+	p.healthStatusChanges.WithLabelValues(labels["from"], labels["to"]).Inc()
+}
+
+// HealthStatusChangeHook converts a health scheduler status-change callback
+// into a metrics recorder call.
+func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context, ports.HealthStatus, ports.HealthStatus, ports.DetailedHealthResponse) {
+	return func(_ context.Context, from, to ports.HealthStatus, result ports.DetailedHealthResponse) {
+		if recorder == nil {
+			return
+		}
+		recorder.RecordHealthStatusChange(from, to, result)
+	}
+}
+
+// HealthStatusChangeLabels returns the bounded label set used for health status
+// transition metrics.
+func HealthStatusChangeLabels(from, to ports.HealthStatus) Labels {
+	return Labels{
+		"from": sanitizeHealthStatus(from),
+		"to":   sanitizeHealthStatus(to),
+	}
+}
+
+func sanitizeHealthStatus(status ports.HealthStatus) string {
+	switch status {
+	case ports.HealthStatusHealthy:
+		return string(ports.HealthStatusHealthy)
+	case ports.HealthStatusUnhealthy:
+		return string(ports.HealthStatusUnhealthy)
+	case ports.HealthStatusDegraded:
+		return string(ports.HealthStatusDegraded)
+	case ports.HealthStatusUnknown, "":
+		return string(ports.HealthStatusUnknown)
+	default:
+		return "other"
+	}
 }
 
 // Handler wraps the next handler to record counters and duration.

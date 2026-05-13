@@ -121,6 +121,10 @@ source of truth is `docs/release-runbook.md`.
 - `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
   idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
   method, store class, outcome, and status class for metrics.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now records
+  bounded `health_status_changes_total` Prometheus counters through
+  `HealthStatusChangeHook`, using only `from` and `to` health-status labels for
+  scheduler transitions.
 - `api-toolkit contracts diff` now performs compatibility review over parsed
   OpenAPI operations. Additive operations pass, while removed operations,
   changed operation IDs, removed documented parameters, added required

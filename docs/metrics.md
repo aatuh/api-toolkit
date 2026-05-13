@@ -13,12 +13,22 @@ The contrib metrics middleware emits:
 - `http_requests_total` (counter)
 - `http_request_duration_seconds` (histogram)
 
+The Prometheus recorder also exposes health-state transition metrics when wired
+to the health scheduler with `metrics.HealthStatusChangeHook`:
+
+- `health_status_changes_total` (counter)
+
 Required labels:
 
 - `method` (uppercase standard HTTP method, `OTHER` for non-standard methods,
   or `UNKNOWN` when missing)
 - `route` (router pattern, not raw path)
 - `status` (HTTP status code as string, or `0` when missing or invalid)
+
+Health transition labels:
+
+- `from` (one of `healthy`, `degraded`, `unhealthy`, `unknown`, or `other`)
+- `to` (one of `healthy`, `degraded`, `unhealthy`, `unknown`, or `other`)
 
 ## Label policy
 
@@ -41,6 +51,24 @@ Avoid:
 The metrics middleware derives `route` from the router pattern and defaults
 missing routes to `unknown`. The Prometheus recorder canonicalizes HTTP methods
 and status codes before writing series. This keeps cardinality stable by design.
+
+For periodic health refreshes, wire the scheduler callback to the same
+Prometheus recorder:
+
+```go
+recorder, err := metrics.NewPrometheusRecorderChecked(nil, nil)
+if err != nil {
+	return err
+}
+scheduler := health.NewScheduler(manager, health.SchedulerConfig{
+	OnStatusChange: metrics.HealthStatusChangeHook(recorder),
+})
+go scheduler.Start(ctx)
+```
+
+Health status metrics intentionally omit checker names, dependency messages,
+request data, and tenant data. Keep detailed health information in protected
+admin endpoints, structured logs, or traces.
 
 ## Bootstrap defaults
 
