@@ -183,6 +183,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated `api-toolkit new service` scaffolds now use `specs.Registry`
   top-level OpenAPI security defaults in runtime docs and golden files while
   keeping protected write operation scopes explicit.
+- Generated service READMEs now list admin-protected detailed health and pprof
+  routes, and scaffold tests assert detailed health, metrics, and pprof all
+  require `X-Admin-Key`.
 - `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
