@@ -13,9 +13,10 @@ The contrib metrics middleware emits:
 - `http_requests_total` (counter)
 - `http_request_duration_seconds` (histogram)
 
-The Prometheus recorder also exposes health-state transition metrics when wired
-to the health scheduler with `metrics.HealthStatusChangeHook`:
+The Prometheus recorder also exposes bounded route-policy and health-state
+metrics when the relevant hooks are present:
 
+- `http_route_policy_requests_total` (counter)
 - `health_status_changes_total` (counter)
 
 Required labels:
@@ -29,6 +30,15 @@ Health transition labels:
 
 - `from` (one of `healthy`, `degraded`, `unhealthy`, `unknown`, or `other`)
 - `to` (one of `healthy`, `degraded`, `unhealthy`, `unknown`, or `other`)
+
+Route-policy labels:
+
+- `method` (same bounded method label as HTTP metrics)
+- `route` (same router-pattern label as HTTP metrics)
+- `status_class` (`1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`)
+- `auth`, `tenant`, `idempotency`, and `admin` (`required` or `none`)
+- `rate_limit` (`configured` or `none`)
+- `deprecated` (`true` or `false`)
 
 ## Label policy
 
@@ -50,7 +60,11 @@ Avoid:
 
 The metrics middleware derives `route` from the router pattern and defaults
 missing routes to `unknown`. The Prometheus recorder canonicalizes HTTP methods
-and status codes before writing series. This keeps cardinality stable by design.
+and status codes before writing series. When routes are registered through
+`routecontracts`, bounded `routepolicy` metadata is attached to the request and
+recorded by `http_route_policy_requests_total`. Raw scopes, tenant sources,
+rate-limit policy names, admin policy names, and identities are intentionally
+not exported as metric labels. This keeps cardinality stable by design.
 
 For periodic health refreshes, wire the scheduler callback to the same
 Prometheus recorder:

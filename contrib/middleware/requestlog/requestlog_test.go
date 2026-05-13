@@ -6,7 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/aatuh/api-toolkit/v2/routecontracts"
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 type captureLogger struct {
@@ -165,6 +170,50 @@ func TestRequestLogPayloadRedactionHelpers(t *testing.T) {
 	}
 	if redacted["nested_secret_id"] != redactedValue {
 		t.Fatal("suffixed secret not redacted")
+	}
+}
+
+func TestRequestLogIncludesBoundedRoutePolicyLabels(t *testing.T) {
+	log := &captureLogger{}
+	mw, err := New(log)
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+	router := chi.NewRouter()
+	router.Use(mw.Middleware())
+	registry := routecontracts.NewRegistry(router, nil)
+	operation := routepolicy.ApplyMetadata(specs.Operation{Method: http.MethodPost, Path: "/widgets"},
+		routepolicy.WithAuth("ApiKeyAuth", "widgets:write"),
+		routepolicy.WithTenantRequired("header"),
+		routepolicy.WithIdempotencyRequired(),
+		routepolicy.WithRateLimit("tenant-specific-write-standard"),
+		routepolicy.WithAdminPolicy("platform-admins"),
+		routepolicy.WithDeprecated(),
+	)
+	if err := registry.Post("/widgets", operation, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	})); err != nil {
+		t.Fatalf("register route: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets", nil))
+
+	fields := kvToMap(log.kv)
+	for key, want := range map[string]any{
+		FieldPolicyAuth:        "required",
+		FieldPolicyTenant:      "required",
+		FieldPolicyIdempotency: "required",
+		FieldPolicyRateLimit:   "configured",
+		FieldPolicyAdmin:       "required",
+		FieldPolicyDeprecated:  "true",
+	} {
+		if got := fields[key]; got != want {
+			t.Fatalf("field %s = %#v, want %#v; fields=%#v", key, got, want, fields)
+		}
+	}
+	if fields[FieldPolicyRateLimit] == "tenant-specific-write-standard" || fields[FieldPolicyAdmin] == "platform-admins" {
+		t.Fatalf("policy log leaked raw policy values: %#v", fields)
 	}
 }
 

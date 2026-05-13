@@ -130,6 +130,47 @@ func TestMetadataHelpersApplyStablePolicyExtensions(t *testing.T) {
 	}
 }
 
+func TestObservabilityLabelsFromOperationAreBounded(t *testing.T) {
+	operation := ApplyMetadata(specs.Operation{Method: http.MethodPost, Path: "/widgets"},
+		WithAuth("ApiKeyAuth", "widgets:write"),
+		WithTenantRequired("tenant-from-request"),
+		WithIdempotencyRequired(),
+		WithRateLimit("per-customer-write-burst"),
+		WithAdminPolicy("platform-admins"),
+		WithDeprecated(),
+	)
+
+	labels := ObservabilityLabelsFromOperation(operation)
+	if labels.Auth != "required" {
+		t.Fatalf("auth label = %q", labels.Auth)
+	}
+	if labels.Tenant != "required" {
+		t.Fatalf("tenant label = %q", labels.Tenant)
+	}
+	if labels.Idempotency != "required" {
+		t.Fatalf("idempotency label = %q", labels.Idempotency)
+	}
+	if labels.RateLimit != "configured" {
+		t.Fatalf("rate-limit label = %q", labels.RateLimit)
+	}
+	if labels.Admin != "required" {
+		t.Fatalf("admin label = %q", labels.Admin)
+	}
+	if labels.Deprecated != "true" {
+		t.Fatalf("deprecated label = %q", labels.Deprecated)
+	}
+	for key, value := range labels.Map() {
+		if strings.Contains(value, "customer") || strings.Contains(value, "platform") || strings.Contains(value, "tenant-from-request") {
+			t.Fatalf("label %s leaked raw policy value %q", key, value)
+		}
+	}
+
+	empty := ObservabilityLabelsFromOperation(specs.Operation{})
+	if empty.Auth != "none" || empty.Tenant != "none" || empty.Idempotency != "none" || empty.RateLimit != "none" || empty.Admin != "none" || empty.Deprecated != "false" {
+		t.Fatalf("empty labels = %#v", empty)
+	}
+}
+
 func TestLintOperationsFindsMissingProductionPolicy(t *testing.T) {
 	findings := LintOperations([]specs.Operation{{
 		Method:    http.MethodPost,

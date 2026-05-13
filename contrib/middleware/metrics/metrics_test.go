@@ -8,9 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v2/routecontracts"
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
+	"github.com/aatuh/api-toolkit/v2/specs"
 )
 
 type captureRecorder struct {
@@ -30,6 +34,15 @@ func (r *captureRecorder) ObserveHistogram(name string, value float64, labels La
 	r.histName = name
 	r.histValue = value
 	r.hist = cloneLabels(labels)
+}
+
+type capturePolicyRecorder struct {
+	captureRecorder
+	routePolicy Labels
+}
+
+func (r *capturePolicyRecorder) RecordRoutePolicy(labels Labels) {
+	r.routePolicy = cloneLabels(labels)
 }
 
 func TestNewDefaults(t *testing.T) {
@@ -197,6 +210,50 @@ func TestHealthStatusChangeHookRecordsTransitions(t *testing.T) {
 
 	if recorder.from != ports.HealthStatusDegraded || recorder.to != ports.HealthStatusHealthy {
 		t.Fatalf("recorded transition = %q -> %q", recorder.from, recorder.to)
+	}
+}
+
+func TestHandlerRecordsRoutePolicyLabelsFromRouteContracts(t *testing.T) {
+	recorder := &capturePolicyRecorder{}
+	mw, err := New(Options{Recorder: recorder})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	router := chi.NewRouter()
+	router.Use(mw.Middleware())
+	registry := routecontracts.NewRegistry(router, nil)
+	operation := routepolicy.ApplyMetadata(specs.Operation{Method: http.MethodPost, Path: "/widgets"},
+		routepolicy.WithAuth("ApiKeyAuth", "widgets:write"),
+		routepolicy.WithTenantRequired("header"),
+		routepolicy.WithIdempotencyRequired(),
+		routepolicy.WithRateLimit("write-standard"),
+	)
+	if err := registry.Post("/widgets", operation, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	})); err != nil {
+		t.Fatalf("register route: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets", nil))
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusCreated)
+	}
+	if recorder.routePolicy["method"] != http.MethodPost || recorder.routePolicy["route"] != "/widgets" || recorder.routePolicy["status_class"] != "2xx" {
+		t.Fatalf("route policy transport labels = %#v", recorder.routePolicy)
+	}
+	for key, want := range map[string]string{
+		"auth":        "required",
+		"tenant":      "required",
+		"idempotency": "required",
+		"rate_limit":  "configured",
+		"admin":       "none",
+		"deprecated":  "false",
+	} {
+		if got := recorder.routePolicy[key]; got != want {
+			t.Fatalf("route policy label %s = %q, want %q; labels=%#v", key, got, want, recorder.routePolicy)
+		}
 	}
 }
 
