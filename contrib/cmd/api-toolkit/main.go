@@ -429,17 +429,6 @@ func (loaded loadedOpenAPI) validate() error {
 	return nil
 }
 
-func operationsFromOpenAPI(path string) ([]specs.Operation, error) {
-	loaded, err := loadOpenAPI(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := loaded.validate(); err != nil {
-		return nil, err
-	}
-	return operationsFromOpenAPIDocument(loaded.doc), nil
-}
-
 func operationsFromOpenAPIDocument(doc *openapi3.T) []specs.Operation {
 	if doc == nil || doc.Paths == nil {
 		return nil
@@ -532,15 +521,24 @@ func stringPtrValue(value *string) string {
 }
 
 func diffOpenAPI(basePath, headPath string) error {
-	base, err := operationsFromOpenAPI(basePath)
+	baseLoaded, err := loadOpenAPI(basePath)
 	if err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
-	head, err := operationsFromOpenAPI(headPath)
+	if err := baseLoaded.validate(); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+	headLoaded, err := loadOpenAPI(headPath)
 	if err != nil {
 		return fmt.Errorf("head: %w", err)
 	}
+	if err := headLoaded.validate(); err != nil {
+		return fmt.Errorf("head: %w", err)
+	}
+	base := operationsFromOpenAPIDocument(baseLoaded.doc)
+	head := operationsFromOpenAPIDocument(headLoaded.doc)
 	findings := diffOperations(base, head)
+	findings = append(findings, diffComponentSchemas(baseLoaded.doc, headLoaded.doc)...)
 	if len(findings) > 0 {
 		return openAPIDiffError{Findings: findings}
 	}
@@ -803,6 +801,156 @@ func deprecationPolicyFingerprint(operation specs.Operation) string {
 		return ""
 	}
 	return fmt.Sprintf("deprecated=%t;sunset=%s", policy.Deprecated, strings.TrimSpace(policy.Sunset))
+}
+
+func diffComponentSchemas(baseDoc, headDoc *openapi3.T) []openAPIDiffFinding {
+	baseSchemas := componentSchemas(baseDoc)
+	headSchemas := componentSchemas(headDoc)
+	var findings []openAPIDiffFinding
+	for _, name := range sortedSchemaNames(baseSchemas) {
+		baseSchema := baseSchemas[name]
+		headSchema, ok := headSchemas[name]
+		if !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "schema_removed",
+				Detail: name,
+			})
+			continue
+		}
+		findings = append(findings, diffSchemaRef(name, baseSchema, headSchema)...)
+	}
+	return findings
+}
+
+func componentSchemas(doc *openapi3.T) openapi3.Schemas {
+	if doc == nil || doc.Components == nil {
+		return nil
+	}
+	return doc.Components.Schemas
+}
+
+func sortedSchemaNames(schemas openapi3.Schemas) []string {
+	names := make([]string, 0, len(schemas))
+	for name := range schemas {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func diffSchemaRef(path string, baseRef, headRef *openapi3.SchemaRef) []openAPIDiffFinding {
+	if baseRef == nil {
+		return nil
+	}
+	if headRef == nil {
+		return []openAPIDiffFinding{{
+			Code:   "schema_removed",
+			Detail: path,
+		}}
+	}
+	baseRefName := strings.TrimSpace(baseRef.Ref)
+	headRefName := strings.TrimSpace(headRef.Ref)
+	if baseRefName != headRefName {
+		return []openAPIDiffFinding{{
+			Code:   "schema_ref_changed",
+			Detail: fmt.Sprintf("%s %q -> %q", path, baseRefName, headRefName),
+		}}
+	}
+	if baseRef.Value == nil || headRef.Value == nil {
+		return nil
+	}
+	return diffSchemaValue(path, baseRef.Value, headRef.Value)
+}
+
+func diffSchemaValue(path string, baseSchema, headSchema *openapi3.Schema) []openAPIDiffFinding {
+	var findings []openAPIDiffFinding
+	baseType := schemaTypeFingerprint(baseSchema)
+	headType := schemaTypeFingerprint(headSchema)
+	if baseType != headType {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_type_changed",
+			Detail: fmt.Sprintf("%s %q -> %q", path, baseType, headType),
+		})
+	}
+	for _, required := range sortedStringSetDiff(schemaRequiredSet(headSchema), schemaRequiredSet(baseSchema)) {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_required_property_added",
+			Detail: path + " " + required,
+		})
+	}
+	for _, enumValue := range sortedStringSetDiff(schemaEnumSet(baseSchema), schemaEnumSet(headSchema)) {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_enum_value_removed",
+			Detail: path + " " + enumValue,
+		})
+	}
+	headProperties := headSchema.Properties
+	for _, property := range sortedSchemaNames(baseSchema.Properties) {
+		baseProperty := baseSchema.Properties[property]
+		headProperty, ok := headProperties[property]
+		propertyPath := path + "." + property
+		if !ok {
+			findings = append(findings, openAPIDiffFinding{
+				Code:   "schema_property_removed",
+				Detail: path + " " + property,
+			})
+			continue
+		}
+		findings = append(findings, diffSchemaRef(propertyPath, baseProperty, headProperty)...)
+	}
+	return findings
+}
+
+func schemaTypeFingerprint(schema *openapi3.Schema) string {
+	if schema == nil || schema.Type == nil {
+		return ""
+	}
+	types := append([]string(nil), schema.Type.Slice()...)
+	sort.Strings(types)
+	return strings.Join(types, "|")
+}
+
+func schemaRequiredSet(schema *openapi3.Schema) map[string]struct{} {
+	out := map[string]struct{}{}
+	if schema == nil {
+		return out
+	}
+	for _, required := range schema.Required {
+		required = strings.TrimSpace(required)
+		if required != "" {
+			out[required] = struct{}{}
+		}
+	}
+	return out
+}
+
+func schemaEnumSet(schema *openapi3.Schema) map[string]struct{} {
+	out := map[string]struct{}{}
+	if schema == nil {
+		return out
+	}
+	for _, value := range schema.Enum {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			encoded = []byte(fmt.Sprint(value))
+		}
+		out[string(encoded)] = struct{}{}
+	}
+	return out
+}
+
+func sortedStringSetDiff(left, right map[string]struct{}) []string {
+	var out []string
+	for value := range left {
+		if _, ok := right[value]; !ok {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func operationKey(method, path string) string {
