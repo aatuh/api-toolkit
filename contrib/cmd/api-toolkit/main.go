@@ -2987,5 +2987,6 @@ The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests f
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
 {{ end }}
 Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
+Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
