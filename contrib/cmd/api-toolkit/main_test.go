@@ -351,7 +351,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("new service failed: %s", out.String())
 	}
-	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", ".gitignore", ".dockerignore", "Dockerfile", "docker-compose.yml", "README.md"} {
+	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", ".gitignore", ".dockerignore", ".github/workflows/ci.yml", "Dockerfile", "docker-compose.yml", "README.md"} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
@@ -449,6 +449,25 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	for _, want := range []string{"VERSION ?= dev", "BUILD_COMMIT ?=", "BUILD_DATE ?=", "LDFLAGS ?=", "build:", "-X main.appVersion=$(VERSION)", "contracts-lint:", "contracts-diff:", "API_TOOLKIT ?=", "OPENAPI_BASE ?="} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated Makefile missing %q", want)
+		}
+	}
+	generatedCI, err := os.ReadFile(filepath.Join(serviceDir, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("read generated CI workflow: %v", err)
+	}
+	for _, want := range []string{
+		"name: ci",
+		"pull_request:",
+		"permissions:",
+		"contents: read",
+		"GOTOOLCHAIN: local",
+		"actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+		"go-version: 1.25.x",
+		"make finalize",
+	} {
+		if !strings.Contains(string(generatedCI), want) {
+			t.Fatalf("generated CI workflow missing %q:\n%s", want, generatedCI)
 		}
 	}
 	generatedCompose, err := os.ReadFile(filepath.Join(serviceDir, "docker-compose.yml"))

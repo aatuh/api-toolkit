@@ -1642,6 +1642,7 @@ var scaffoldFiles = []scaffoldFile{
 	{Name: ".env.example", Body: envTemplate},
 	{Name: ".gitignore", Body: gitignoreTemplate},
 	{Name: ".dockerignore", Body: dockerignoreTemplate},
+	{Name: ".github/workflows/ci.yml", Body: ciWorkflowTemplate},
 	{Name: "Dockerfile", Body: dockerfileTemplate},
 	{Name: "docker-compose.yml", Body: composeTemplate},
 	{Name: "README.md", Body: readmeTemplate},
@@ -3056,6 +3057,30 @@ contracts-diff:
 finalize: fmt test build openapi-check contracts-lint contracts-diff
 `
 
+const ciWorkflowTemplate = `name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Finalize
+        run: make finalize
+`
+
 const envTemplate = `ENV=development
 API_ADDR=:8080
 TRUSTED_PROXIES=
@@ -3221,5 +3246,6 @@ Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the 
 Local development uses ` + "`RATE_LIMIT_STORE=memory`" + `. In production, the generated service defaults to ` + "`RATE_LIMIT_STORE=redis`" + ` and requires ` + "`RATE_LIMIT_REDIS_ADDR`" + ` or ` + "`REDIS_ADDR`" + ` so rate limits are shared across instances.
 OpenTelemetry tracing is disabled by default with ` + "`OTEL_TRACING_ENABLED=false`" + `. ` + "`OTEL_EXPORTER_OTLP_ENDPOINT`" + ` is required when tracing is enabled, and the tracer provider is closed through the service shutdown hooks.
 ` + "`make build`" + ` produces ` + "`bin/api`" + ` and stamps ` + "`/version`" + ` with ` + "`VERSION`" + `, ` + "`BUILD_COMMIT`" + `, and ` + "`BUILD_DATE`" + `. The Dockerfile accepts matching build args and defaults to ` + "`dev`" + `/` + "`unknown`" + ` metadata.
+Generated CI runs ` + "`make finalize`" + ` on pushes and pull requests with a pinned checkout/setup-go workflow.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `

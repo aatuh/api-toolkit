@@ -188,6 +188,9 @@ source of truth is `docs/release-runbook.md`.
   and release-note requirements.
 - CI governance now runs `make v3-readiness-check` explicitly alongside
   docs-check and contrib release-note/drift gates.
+- `api-toolkit new service` now emits a pinned GitHub Actions workflow that runs
+  `make finalize`, keeping generated services on the same test, build,
+  OpenAPI golden, and contract lint path documented by the scaffold.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
