@@ -2442,6 +2442,32 @@ func TestGeneratedScaffoldDocumentsProductionRateLimitStore(t *testing.T) {
 	}
 }
 
+func TestGeneratedScaffoldDocumentsTelemetryDefaults(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+
+	for _, required := range []string{
+		"OTEL_TRACING_ENABLED=false",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+		"telemetry.InitTracing",
+		"otel-tracing",
+	} {
+		if !strings.Contains(scaffold, required) {
+			t.Fatalf("api-toolkit service scaffold missing telemetry contract %q", required)
+		}
+	}
+	for _, required := range []string{
+		"OTEL_TRACING_ENABLED=false",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+		"tracer provider",
+	} {
+		if !strings.Contains(security, required) {
+			t.Fatalf("docs/security.md missing generated telemetry guidance %q", required)
+		}
+	}
+}
+
 func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))

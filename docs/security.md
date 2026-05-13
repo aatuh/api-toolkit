@@ -43,6 +43,9 @@ Some features include explicit bypasses for local development only:
   When `ENV=production`, generated services default to
   `RATE_LIMIT_STORE=redis` and require `RATE_LIMIT_REDIS_ADDR` or `REDIS_ADDR`
   so rate-limit state is shared across instances.
+- Generated services set `OTEL_TRACING_ENABLED=false` by default. When tracing
+  is enabled, `OTEL_EXPORTER_OTLP_ENDPOINT` is required and the OpenTelemetry
+  tracer provider is closed through the service shutdown hooks.
 - JWT auth skip header: same trusted-proxy restriction. Env wiring uses
   `JWT_SKIP_HEADER_ENABLED`, `JWT_SKIP_HEADER_NAME`,
   `JWT_SKIP_TRUSTED_PROXIES`, and `JWT_ALLOW_DANGEROUS_DEV_BYPASSES`.

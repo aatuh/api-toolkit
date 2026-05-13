@@ -111,6 +111,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 		}
 	}
 	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
+	assertGeneratedEnvDocumentsTelemetryConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -121,6 +122,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsTelemetry(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "DevHeaderAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -185,6 +187,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 		}
 	}
 	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
+	assertGeneratedEnvDocumentsTelemetryConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -195,6 +198,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsTelemetry(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -259,6 +263,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 		}
 	}
 	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
+	assertGeneratedEnvDocumentsTelemetryConfig(t, string(generatedEnv))
 	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
 	if err != nil {
 		t.Fatalf("read generated README.md: %v", err)
@@ -269,6 +274,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsTelemetry(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -326,6 +332,9 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"IdempotencyOutcomeHook",
 		"IdempotencyOutcomeLogHook",
 		"BackgroundTasks:",
+		"newTracingShutdown(",
+		"telemetry.InitTracing",
+		`bootstrap.ShutdownHook{Name: "otel-tracing"`,
 		"newRateLimitLimiter(",
 		"ratelimitredis.New",
 		`bootstrap.ShutdownHook{Name: "rate-limit-redis"`,
@@ -349,6 +358,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		}
 	}
 	assertGeneratedEnvDocumentsRateLimitConfig(t, string(generatedEnv))
+	assertGeneratedEnvDocumentsTelemetryConfig(t, string(generatedEnv))
 	generatedDockerfile, err := os.ReadFile(filepath.Join(serviceDir, "Dockerfile"))
 	if err != nil {
 		t.Fatalf("read generated Dockerfile: %v", err)
@@ -403,6 +413,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedREADMEDocumentsRateLimitStore(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsTelemetry(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -1491,6 +1502,19 @@ func assertGeneratedREADMEDocumentsRateLimitStore(t *testing.T, readme string) {
 	}
 }
 
+func assertGeneratedREADMEDocumentsTelemetry(t *testing.T, readme string) {
+	t.Helper()
+	for _, want := range []string{
+		"OpenTelemetry tracing is disabled by default with `OTEL_TRACING_ENABLED=false`",
+		"`OTEL_EXPORTER_OTLP_ENDPOINT` is required when tracing is enabled",
+		"tracer provider is closed through the service shutdown hooks",
+	} {
+		if !strings.Contains(readme, want) {
+			t.Fatalf("generated README missing telemetry guidance %q:\n%s", want, readme)
+		}
+	}
+}
+
 func assertGeneratedEnvDocumentsRateLimitConfig(t *testing.T, env string) {
 	t.Helper()
 	for _, want := range []string{
@@ -1504,6 +1528,22 @@ func assertGeneratedEnvDocumentsRateLimitConfig(t *testing.T, env string) {
 	} {
 		if !strings.Contains(env, want) {
 			t.Fatalf("generated .env.example missing rate-limit config %q:\n%s", want, env)
+		}
+	}
+}
+
+func assertGeneratedEnvDocumentsTelemetryConfig(t *testing.T, env string) {
+	t.Helper()
+	for _, want := range []string{
+		"OTEL_TRACING_ENABLED=false",
+		"OTEL_SERVICE_NAME=api",
+		"OTEL_EXPORTER_OTLP_ENDPOINT=",
+		"OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf",
+		"OTEL_TRACES_SAMPLER=parentbased_traceidratio",
+		"OTEL_SAMPLE_RATIO=1",
+	} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("generated .env.example missing telemetry config %q:\n%s", want, env)
 		}
 	}
 }

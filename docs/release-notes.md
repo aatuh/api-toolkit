@@ -166,6 +166,9 @@ source of truth is `docs/release-runbook.md`.
   shutdown hooks.
 - Generated scaffold documentation now describes the local memory and
   production Redis rate-limit store defaults.
+- Generated services now initialize contrib OpenTelemetry tracing from
+  `OTEL_*` environment variables, fail startup when tracing is enabled without
+  an OTLP endpoint, and close the tracer provider during service shutdown.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
