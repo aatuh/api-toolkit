@@ -306,6 +306,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"NewPrometheusRecorderChecked",
 		"DefaultRouterConfig{Metrics:",
 		"HealthStatusChangeHook",
+		"IdempotencyOutcomeHook",
+		"IdempotencyOutcomeLogHook",
 		"BackgroundTasks:",
 		"newIdempotencyStore()",
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",

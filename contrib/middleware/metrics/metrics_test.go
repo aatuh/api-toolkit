@@ -10,7 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
+	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
 	"github.com/aatuh/api-toolkit/v2/routepolicy"
@@ -213,6 +215,79 @@ func TestHealthStatusChangeHookRecordsTransitions(t *testing.T) {
 	}
 }
 
+func TestPrometheusRecorderRecordsIdempotencyOutcomesWithBoundedLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	recorder.RecordIdempotencyOutcome(idempotencymw.OutcomeEvent{
+		Method:    "BREW",
+		Status:    http.StatusCreated,
+		StoreType: "customer-acme-memory-primary",
+		Outcome:   idempotencymw.OutcomeEventName("customer-acme-outcome"),
+		FailOpen:  true,
+	})
+	recorder.RecordIdempotencyOutcome(idempotencymw.OutcomeEvent{
+		Method:    http.MethodPost,
+		Status:    http.StatusServiceUnavailable,
+		StoreType: "redis-cluster-customer-acme",
+		Outcome:   idempotencymw.IdempotencyOutcomeReplayed,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	family := metricFamilyByName(t, families, "idempotency_outcomes_total")
+	if len(family.Metric) != 2 {
+		t.Fatalf("metric count = %d, want 2", len(family.Metric))
+	}
+	seen := map[string]bool{}
+	for _, metric := range family.Metric {
+		labels := map[string]string{}
+		for _, label := range metric.Label {
+			labels[label.GetName()] = label.GetValue()
+			switch label.GetName() {
+			case "method", "store_class", "outcome", "status_class", "fail_open":
+			default:
+				t.Fatalf("unexpected idempotency metric label %q", label.GetName())
+			}
+			if strings.Contains(label.GetValue(), "customer") || strings.Contains(label.GetValue(), "acme") {
+				t.Fatalf("idempotency metric leaked high-cardinality label %q", label.GetValue())
+			}
+		}
+		if len(labels) != 5 {
+			t.Fatalf("labels = %#v, want five bounded labels", labels)
+		}
+		seen[labels["method"]+"|"+labels["store_class"]+"|"+labels["outcome"]+"|"+labels["status_class"]+"|"+labels["fail_open"]] = true
+	}
+	for _, want := range []string{
+		"OTHER|memory|unknown|2xx|true",
+		"POST|redis|replayed|5xx|false",
+	} {
+		if !seen[want] {
+			t.Fatalf("missing idempotency outcome labels %s in %#v", want, seen)
+		}
+	}
+}
+
+func TestIdempotencyOutcomeHookRecordsOutcomes(t *testing.T) {
+	recorder := &captureIdempotencyOutcomeRecorder{}
+	hook := IdempotencyOutcomeHook(recorder)
+
+	hook(context.Background(), idempotencymw.OutcomeEvent{
+		Method:  http.MethodPost,
+		Status:  http.StatusCreated,
+		Outcome: idempotencymw.IdempotencyOutcomeCompletedStored,
+	})
+
+	if recorder.event.Outcome != idempotencymw.IdempotencyOutcomeCompletedStored || recorder.event.Method != http.MethodPost {
+		t.Fatalf("recorded event = %#v", recorder.event)
+	}
+}
+
 func TestHandlerRecordsRoutePolicyLabelsFromRouteContracts(t *testing.T) {
 	recorder := &capturePolicyRecorder{}
 	mw, err := New(Options{Recorder: recorder})
@@ -371,6 +446,25 @@ func (r *captureHealthRecorder) RecordHealthStatusChange(from, to ports.HealthSt
 	r.from = from
 	r.to = to
 	r.result = result
+}
+
+type captureIdempotencyOutcomeRecorder struct {
+	event idempotencymw.OutcomeEvent
+}
+
+func (r *captureIdempotencyOutcomeRecorder) RecordIdempotencyOutcome(event idempotencymw.OutcomeEvent) {
+	r.event = event
+}
+
+func metricFamilyByName(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
+	t.Helper()
+	for _, family := range families {
+		if family.GetName() == name {
+			return family
+		}
+	}
+	t.Fatalf("%s was not gathered", name)
+	return nil
 }
 
 func withDefaultPrometheusRegistry(t *testing.T) *prometheus.Registry {

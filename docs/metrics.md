@@ -18,6 +18,7 @@ metrics when the relevant hooks are present:
 
 - `http_route_policy_requests_total` (counter)
 - `health_status_changes_total` (counter)
+- `idempotency_outcomes_total` (counter)
 
 Required labels:
 
@@ -39,6 +40,14 @@ Route-policy labels:
 - `auth`, `tenant`, `idempotency`, and `admin` (`required` or `none`)
 - `rate_limit` (`configured` or `none`)
 - `deprecated` (`true` or `false`)
+
+Idempotency outcome labels:
+
+- `method` (same bounded method label as HTTP metrics)
+- `store_class` (`memory`, `redis`, `sql`, `custom`, or `unknown`)
+- `outcome` (stable idempotency outcome enum or `unknown`)
+- `status_class` (`1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`)
+- `fail_open` (`true` or `false`)
 
 ## Label policy
 
@@ -94,7 +103,10 @@ The contrib bootstrap helpers keep metrics opt-in:
   mounts `specs.Metrics` when you set `SystemEndpoints.Metrics` explicitly.
 - Generated `saas-api` services create one Prometheus recorder, pass it to the
   default router, and run the health scheduler as an `APIService` background
-  task with `metrics.HealthStatusChangeHook`.
+  task with `metrics.HealthStatusChangeHook`. They also wire idempotency
+  middleware outcome events to `metrics.IdempotencyOutcomeHook` and
+  `requestlog.IdempotencyOutcomeLogHook`, so write/replay/conflict decisions are
+  observable without raw idempotency keys or tenant labels.
 - Prefer `bootstrap.MountSystemEndpointsToWithAdmin` for new system endpoint
   wiring so metrics are mounted behind an explicit admin or internal-network
   wrapper.
@@ -132,6 +144,11 @@ only:
   `completed_released`, `replayed`, `conflict`, `in_flight`, `ambiguous`,
   `fail_open`, or `persistence_failed`
 - `status_class`: `1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`
+
+Contrib services can use `metrics.IdempotencyOutcomeHook(recorder)` to emit the
+same bounded labels to `idempotency_outcomes_total`; `fail_open` is added as a
+boolean label. Use `requestlog.IdempotencyOutcomeLogHook(log)` for structured
+logs with the same bounded shape.
 
 Outcome events intentionally omit raw paths, query strings, request IDs, tenant
 IDs, idempotency keys, bodies, and error strings.
