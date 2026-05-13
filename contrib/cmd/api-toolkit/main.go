@@ -427,7 +427,9 @@ type scaffoldWidgetResponse struct {
 
 func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 	registry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
-	registry.RegisterSecurityScheme(scaffoldAuthSecuritySchemeName(authMode), scaffoldAuthSecurityScheme(authMode))
+	authSchemeName := scaffoldAuthSecuritySchemeName(authMode)
+	registry.RegisterSecurityScheme(authSchemeName, scaffoldAuthSecurityScheme(authMode))
+	registry.SetSecurity([]specs.SecurityRequirement{{Name: authSchemeName}})
 	if err := specs.RegisterSchemaFrom[scaffoldWidgetResponse](registry, "Widget", specs.SchemaOptions{}); err != nil {
 		return nil, fmt.Errorf("register scaffold schema: %w", err)
 	}
@@ -1598,11 +1600,14 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 
-	specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
+specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 {{ else if eq .AuthMode "dev-headers" }}	specRegistry.RegisterSecurityScheme("DevHeaderAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-Debug-User", In: "header"})
 {{ else }}	specRegistry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 {{ end }}
+	specRegistry.SetSecurity([]specs.SecurityRequirement{
+		{Name: "{{ .AuthSchemeName }}"},
+	})
 	if err := specs.RegisterSchemaFrom[widgetResponse](specRegistry, "Widget", specs.SchemaOptions{}); err != nil {
 		return nil, err
 	}
@@ -2757,6 +2762,7 @@ Default routes:
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
+The generated OpenAPI document declares ` + "`{{ .AuthSchemeName }}`" + ` as the top-level security default and keeps operation scopes explicit on protected writes.
 {{ if eq .AuthMode "jwt" }}JWT mode validates bearer tokens with ` + "`JWT_JWKS_URL`" + `, ` + "`JWT_ISSUER`" + `, and ` + "`JWT_AUDIENCE`" + `. The ` + "`tenant_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
 When ` + "`ENV=production`" + `, startup requires explicit JWT configuration and ` + "`ADMIN_KEY`" + `.
 {{ else if eq .AuthMode "clerk" }}Clerk mode validates bearer tokens with ` + "`CLERK_JWKS_URL`" + `, ` + "`CLERK_ISSUER`" + `, and ` + "`CLERK_AUDIENCE`" + `. The ` + "`tenant_id`" + ` or ` + "`org_id`" + ` token claim must match ` + "`X-Tenant-ID`" + `, and write requests require the ` + "`widgets:write`" + ` scope.
