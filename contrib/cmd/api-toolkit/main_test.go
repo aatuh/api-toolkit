@@ -516,6 +516,30 @@ func TestContractsLintFailsForUndefinedSecurityScheme(t *testing.T) {
 	}
 }
 
+func TestContractsLintFailsForUndefinedGlobalSecurityScheme(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	if err := os.WriteFile(specPath, []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"security": [{"MissingGlobalAuth": []}],
+		"paths": {}
+	}`), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	for _, want := range []string{"security_scheme_undefined", "GLOBAL", "MissingGlobalAuth"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func TestContractsLintUsesGlobalSecurityRequirements(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
