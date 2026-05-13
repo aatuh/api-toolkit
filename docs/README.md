@@ -18,6 +18,7 @@ The contrib CLI can scaffold the fuller reusable service baseline:
 go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service \
   --module example.com/my-api \
   --profile saas-api \
+  --auth api-key \
   --dir ./my-api
 ```
 

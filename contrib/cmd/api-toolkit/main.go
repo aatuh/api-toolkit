@@ -54,13 +54,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api] [--auth api-key]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	module := fs.String("module", "", "Go module path")
 	profile := fs.String("profile", "saas-api", "service profile")
+	authMode := fs.String("auth", "api-key", "authentication mode")
 	dir := fs.String("dir", ".", "output directory")
 	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v2")
 	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v2")
@@ -71,13 +72,20 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "context canceled: %v\n", err)
 		return 1
 	}
-	if strings.TrimSpace(*profile) != "saas-api" {
+	profileName := strings.TrimSpace(*profile)
+	if profileName != scaffoldProfileSaaSAPI {
 		fmt.Fprintf(stderr, "unsupported profile %q\n", *profile)
+		return 2
+	}
+	authName, err := validateScaffoldAuthMode(profileName, *authMode)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	cfg := scaffoldConfig{
 		Module:         strings.TrimSpace(*module),
 		Dir:            strings.TrimSpace(*dir),
+		AuthMode:       authName,
 		CoreReplace:    strings.TrimSpace(*coreReplace),
 		ContribReplace: strings.TrimSpace(*contribReplace),
 	}
@@ -87,6 +95,31 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "created %s\n", cfg.Dir)
 	return 0
+}
+
+const (
+	scaffoldProfileSaaSAPI = "saas-api"
+	scaffoldAuthAPIKey     = "api-key"
+	scaffoldAuthJWT        = "jwt"
+	scaffoldAuthClerk      = "clerk"
+	scaffoldAuthDevHeaders = "dev-headers"
+)
+
+func validateScaffoldAuthMode(profile, authMode string) (string, error) {
+	authMode = strings.ToLower(strings.TrimSpace(authMode))
+	if authMode == "" {
+		authMode = scaffoldAuthAPIKey
+	}
+	switch authMode {
+	case scaffoldAuthAPIKey:
+		return authMode, nil
+	case scaffoldAuthJWT, scaffoldAuthClerk:
+		return "", fmt.Errorf("auth mode %q is not supported by profile %q yet", authMode, profile)
+	case scaffoldAuthDevHeaders:
+		return "", fmt.Errorf("auth mode %q requires an explicit development profile", authMode)
+	default:
+		return "", fmt.Errorf("unsupported auth mode %q", authMode)
+	}
 }
 
 func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -222,6 +255,7 @@ func defaultContractLintAdminPaths() []string {
 type scaffoldConfig struct {
 	Module         string
 	Dir            string
+	AuthMode       string
 	CoreReplace    string
 	ContribReplace string
 }
@@ -229,6 +263,9 @@ type scaffoldConfig struct {
 func generateService(cfg scaffoldConfig) error {
 	if err := validateModulePath(cfg.Module); err != nil {
 		return err
+	}
+	if strings.TrimSpace(cfg.AuthMode) == "" {
+		cfg.AuthMode = scaffoldAuthAPIKey
 	}
 	outDir, err := safeOutputDir(cfg.Dir)
 	if err != nil {
@@ -251,6 +288,7 @@ func generateService(cfg scaffoldConfig) error {
 	defer root.Close()
 	data := map[string]string{
 		"Module":         cfg.Module,
+		"AuthMode":       cfg.AuthMode,
 		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
 		"ContribReplace": replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
 	}
@@ -1898,6 +1936,7 @@ Default routes:
 - ` + "`POST /widgets`" + ` with ` + "`X-API-Key`" + `, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 
+Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
 Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
