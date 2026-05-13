@@ -182,6 +182,34 @@ func TestResponseValidationBuffersResponsesWithoutOptionalInterfaces(t *testing.
 	assertOptionalInterfaceHeadersFalse(t, rec.Header())
 }
 
+func TestResponseValidationCanSkipStreamingRoutes(t *testing.T) {
+	spec := buildPingSpec()
+	mw, err := New(spec, WithResponseValidation(ResponseValidationOptions{
+		Enabled: true,
+		ShouldValidate: func(r *http.Request) bool {
+			return r.URL.Path != "/ping"
+		},
+	}))
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setOptionalInterfaceHeaders(w)
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"bad": true})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected skipped response validation to preserve handler status, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-Has-Flusher"); got != "true" {
+		t.Fatalf("expected skipped response validation to preserve flusher, got %q", got)
+	}
+}
+
 func buildSearchSpec() *openapi3.T {
 	responses := openapi3.NewResponses(
 		openapi3.WithStatus(http.StatusOK, &openapi3.ResponseRef{

@@ -1,14 +1,18 @@
 package openapi
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 const defaultResponseMaxBodyBytes int64 = 1 << 20
 
 var errResponseTooLarge = errors.New("response body exceeds validation limit")
 
 type responseValidation struct {
-	maxBodyBytes int64
-	errorHandler ErrorHandler
+	maxBodyBytes   int64
+	shouldValidate func(*http.Request) bool
+	errorHandler   ErrorHandler
 }
 
 func newResponseValidation(opts ResponseValidationOptions, fallback ErrorHandler) *responseValidation {
@@ -26,8 +30,13 @@ func newResponseValidation(opts ResponseValidationOptions, fallback ErrorHandler
 	if handler == nil {
 		handler = fallback
 	}
+	shouldValidate := opts.ShouldValidate
+	if shouldValidate == nil {
+		shouldValidate = func(*http.Request) bool { return true }
+	}
 	return &responseValidation{
-		maxBodyBytes: maxBytes,
-		errorHandler: handler,
+		maxBodyBytes:   maxBytes,
+		shouldValidate: shouldValidate,
+		errorHandler:   handler,
 	}
 }
