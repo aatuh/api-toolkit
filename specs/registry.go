@@ -55,7 +55,7 @@ type Parameter struct {
 	Schema      map[string]any
 }
 
-// SecurityRequirement describes an operation security requirement.
+// SecurityRequirement describes an OpenAPI security requirement.
 type SecurityRequirement struct {
 	Name   string
 	Scopes []string
@@ -103,6 +103,7 @@ type Registry struct {
 	mu         sync.RWMutex
 	info       Info
 	servers    []Server
+	security   []SecurityRequirement
 	ops        []Operation
 	components Components
 }
@@ -117,6 +118,16 @@ func (r *Registry) SetServers(servers []Server) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.servers = append([]Server(nil), servers...)
+}
+
+// SetSecurity replaces top-level OpenAPI security requirements.
+func (r *Registry) SetSecurity(requirements []SecurityRequirement) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.security = cloneSecurityRequirements(requirements)
 }
 
 // SetComponents replaces reusable OpenAPI components.
@@ -213,6 +224,7 @@ func (r *Registry) OpenAPI() ([]byte, error) {
 	r.mu.RLock()
 	info := r.info
 	servers := append([]Server(nil), r.servers...)
+	security := cloneSecurityRequirements(r.security)
 	ops := append([]Operation(nil), r.ops...)
 	components := cloneComponents(r.components)
 	r.mu.RUnlock()
@@ -242,6 +254,9 @@ func (r *Registry) OpenAPI() ([]byte, error) {
 			})
 		}
 		spec["servers"] = outServers
+	}
+	if outSecurity := securityObjects(security); len(outSecurity) > 0 {
+		spec["security"] = outSecurity
 	}
 	if outComponents := componentsObject(components); len(outComponents) > 0 {
 		spec["components"] = outComponents
@@ -376,6 +391,27 @@ func securityObjects(requirements []SecurityRequirement) []map[string][]string {
 			continue
 		}
 		out = append(out, map[string][]string{name: sortedStrings(req.Scopes)})
+	}
+	return out
+}
+
+func cloneSecurityRequirements(requirements []SecurityRequirement) []SecurityRequirement {
+	if len(requirements) == 0 {
+		return nil
+	}
+	out := make([]SecurityRequirement, 0, len(requirements))
+	for _, req := range requirements {
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			continue
+		}
+		out = append(out, SecurityRequirement{
+			Name:   name,
+			Scopes: append([]string(nil), req.Scopes...),
+		})
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

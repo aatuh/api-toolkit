@@ -548,6 +548,7 @@ registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{
 	Name: "X-API-Key",
 	In:   "header",
 })
+registry.SetSecurity([]specs.SecurityRequirement{{Name: "ApiKeyAuth"}})
 registry.RegisterResponse("Problem", specs.Response{
 	Description: "Problem Details",
 	Content: map[string]specs.MediaType{
@@ -556,7 +557,7 @@ registry.RegisterResponse("Problem", specs.Response{
 })
 ```
 
-- Expected response shape: `/openapi.json` includes deterministic `components.schemas`, `components.responses`, and `components.securitySchemes`.
+- Expected response shape: `/openapi.json` includes deterministic top-level `security`, `components.schemas`, `components.responses`, and `components.securitySchemes`.
 - Production caveat: route registration and runtime middleware still need to be kept in sync by tests or review.
 
 ## Guarded outbound HTTP client

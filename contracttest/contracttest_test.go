@@ -84,6 +84,30 @@ func TestSecuritySchemeDefinitionFindingsReportsUndefinedSchemes(t *testing.T) {
 	}
 }
 
+func TestSecuritySchemeDefinitionFindingsReportsUndefinedGlobalSchemes(t *testing.T) {
+	registry := specs.NewRegistry(specs.Info{Title: "Contracts", Version: "1"})
+	registry.SetSecurity([]specs.SecurityRequirement{{
+		Name:   "MissingGlobalAuth",
+		Scopes: []string{"widgets:read"},
+	}})
+	registry.Register(specs.Operation{
+		OperationID: "listWidgets",
+		Method:      http.MethodGet,
+		Path:        "/widgets",
+		Responses:   map[int]specs.Response{http.StatusOK: {Description: "ok"}},
+	})
+
+	findings := SecuritySchemeDefinitionFindings(registry)
+	if len(findings) != 1 || !strings.Contains(findings[0], "security_scheme_undefined GLOBAL MissingGlobalAuth") {
+		t.Fatalf("findings = %v", findings)
+	}
+
+	registry.RegisterSecurityScheme("MissingGlobalAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	if findings := SecuritySchemeDefinitionFindings(registry); len(findings) != 0 {
+		t.Fatalf("findings after registering scheme = %v", findings)
+	}
+}
+
 func TestNormalizeAndGoldenOpenAPI(t *testing.T) {
 	got, err := NormalizeOpenAPI([]byte(`{"b":2,"a":1}`))
 	if err != nil {

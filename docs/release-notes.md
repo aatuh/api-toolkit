@@ -174,6 +174,9 @@ source of truth is `docs/release-runbook.md`.
   `contracttest.OpenAPICompatibilityFindings` now honor top-level OpenAPI
   `security` as inherited operation security and report
   `global_security_changed` when release-review specs change that default.
+- `specs.Registry` now exposes `SetSecurity` for code-first top-level OpenAPI
+  `security`, and `contracttest.SecuritySchemeDefinitionFindings` verifies
+  those global requirements against `components.securitySchemes`.
 - `api-toolkit contracts diff` now also reviews OpenAPI component schemas and
   reports removed schemas, added required properties, removed object
   properties, type/ref changes, and enum value removals as compatibility
