@@ -20,12 +20,14 @@ import (
 )
 
 const cleanupTimeout = 5 * time.Second
+const tenantScopedStorageKeyPrefix = "atk:v1:"
 
 // Options configures the idempotency middleware.
 type Options struct {
 	Store               ports.IdempotencyStore
 	HeaderName          string
 	KeyFunc             KeyFunc
+	StorageKeyFunc      StorageKeyFunc
 	HashFunc            HashFunc
 	TTL                 time.Duration
 	InFlightTTL         time.Duration
@@ -197,11 +199,20 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		key := m.opts.KeyFunc(r)
-		if key == "" {
+		clientKey := m.opts.KeyFunc(r)
+		if clientKey == "" {
 			m.emitOutcome(r.Context(), r, IdempotencyOutcomeMissingKey, 0, false)
 			next.ServeHTTP(w, r)
 			return
+		}
+		key := clientKey
+		if m.opts.StorageKeyFunc != nil {
+			key = strings.TrimSpace(m.opts.StorageKeyFunc(r, clientKey))
+			if key == "" {
+				m.emitOutcome(r.Context(), r, IdempotencyOutcomeInvalidRequest, http.StatusBadRequest, false)
+				writeInvalidKey(w)
+				return
+			}
 		}
 
 		body, err := readBody(r, m.opts.MaxBodyBytes)
@@ -280,7 +291,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			switch record.State {
 			case ports.IdempotencyStateCompleted:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
-				writeReplay(w, key, record, m.opts.ReplayHeaderName)
+				writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 				return
 			case ports.IdempotencyStateInFlight:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
@@ -388,7 +399,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				switch record.State {
 				case ports.IdempotencyStateCompleted:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
-					writeReplay(w, key, record, m.opts.ReplayHeaderName)
+					writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 					return
 				case ports.IdempotencyStateInFlight:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
@@ -542,6 +553,40 @@ func DefaultHash(r *http.Request, body []byte) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// TenantScopedStorageKeyFunc returns a StorageKeyFunc that hashes the client
+// idempotency key with authenticated tenant and actor scope before it reaches
+// the backing store. Use it after auth and tenant middleware have populated the
+// request context. The returned store key is stable and intentionally does not
+// include raw tenant IDs, user IDs, or client-supplied keys.
+func TenantScopedStorageKeyFunc() StorageKeyFunc {
+	return func(r *http.Request, clientKey string) string {
+		clientKey = strings.TrimSpace(clientKey)
+		if r == nil || clientKey == "" {
+			return ""
+		}
+		var actorID string
+		var tenantID string
+		if actor, ok := authorization.ActorFromContext(r.Context()); ok {
+			actorID = actor.UserID
+		}
+		if scope, ok := authorization.ScopeFromContext(r.Context()); ok {
+			tenantID = scope.TenantID
+			if actorID == "" {
+				actorID = scope.UserID
+			}
+		}
+		h := sha256.New()
+		_, _ = io.WriteString(h, "api-toolkit:idempotency-storage-key:v1")
+		h.Write([]byte{0})
+		_, _ = io.WriteString(h, tenantID)
+		h.Write([]byte{0})
+		_, _ = io.WriteString(h, actorID)
+		h.Write([]byte{0})
+		_, _ = io.WriteString(h, clientKey)
+		return tenantScopedStorageKeyPrefix + hex.EncodeToString(h.Sum(nil))
+	}
+}
+
 func requestPath(u *url.URL) string {
 	if u == nil {
 		return ""
@@ -606,6 +651,14 @@ func writeBodyError(w http.ResponseWriter, err error) {
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid request body",
+	})
+}
+
+func writeInvalidKey(w http.ResponseWriter) {
+	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
+		Title:  http.StatusText(http.StatusBadRequest),
+		Detail: "invalid idempotency key",
 	})
 }
 

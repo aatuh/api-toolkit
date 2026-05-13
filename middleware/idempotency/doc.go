@@ -7,7 +7,10 @@
 // Buffered responses that exceed Options.MaxResponseBytes follow the same
 // ambiguous-outcome path. The default request hash includes authenticated actor
 // and tenant scope when earlier middleware has populated them in request
-// context.
+// context. For multi-tenant APIs backed by shared idempotency storage, set
+// Options.StorageKeyFunc to TenantScopedStorageKeyFunc() after auth and tenant
+// middleware so the backing store receives a stable hashed key scoped by tenant
+// and actor while replay responses still return the original client key.
 //
 // Compatibility helpers:
 //

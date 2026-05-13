@@ -124,6 +124,11 @@ source of truth is `docs/release-runbook.md`.
 - `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
   idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
   method, store class, outcome, and status class for metrics.
+- `middleware/idempotency` now supports `Options.StorageKeyFunc` plus
+  `TenantScopedStorageKeyFunc()` so multi-tenant services can hash
+  client-supplied idempotency keys with tenant and actor scope before shared
+  storage access. Generated `saas-api` services opt into the helper while
+  preserving the original `Idempotency-Key` response header on replay.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now records
   bounded `health_status_changes_total` Prometheus counters through
   `HealthStatusChangeHook`, using only `from` and `to` health-status labels for

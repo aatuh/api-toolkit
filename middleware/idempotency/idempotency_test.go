@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1755,6 +1756,71 @@ func TestIdempotencyRejectsReplayAcrossDifferentTenants(t *testing.T) {
 	}
 }
 
+func TestTenantScopedStorageKeyFuncIsolatesTenantsAndPreservesClientReplayKey(t *testing.T) {
+	store := &recordingMemoryStore{memoryStore: newMemoryStore()}
+	mw, err := New(Options{
+		Store:          store,
+		MaxBodyBytes:   1024,
+		StorageKeyFunc: TenantScopedStorageKeyFunc(),
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	var calls int
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		httpx.WriteJSON(w, http.StatusCreated, map[string]int{"calls": calls})
+	}))
+
+	makeRequest := func(tenantID string) *httptest.ResponseRecorder {
+		ctx := authorization.WithActor(context.Background(), authorization.Actor{UserID: "user-secret-z"})
+		ctx = authorization.WithScope(ctx, authorization.Scope{TenantID: tenantID, UserID: "user-secret-z"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/charge", strings.NewReader("alpha"))
+		req.Header.Set("Idempotency-Key", "customer-visible-key-z")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec1 := makeRequest("tenant-secret-a-z")
+	if rec1.Code != http.StatusCreated {
+		t.Fatalf("first tenant-a status = %d body=%s", rec1.Code, rec1.Body.String())
+	}
+	rec2 := makeRequest("tenant-secret-b-z")
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("tenant-b status = %d body=%s", rec2.Code, rec2.Body.String())
+	}
+	rec3 := makeRequest("tenant-secret-a-z")
+	if rec3.Code != http.StatusCreated {
+		t.Fatalf("tenant-a replay status = %d body=%s", rec3.Code, rec3.Body.String())
+	}
+	if calls != 2 {
+		t.Fatalf("expected separate tenant records and one tenant-a replay, got %d handler calls", calls)
+	}
+	if got := rec3.Header().Get("Idempotency-Replayed"); got != "true" {
+		t.Fatalf("replay header = %q", got)
+	}
+	if got := rec3.Header().Get("Idempotency-Key"); got != "customer-visible-key-z" {
+		t.Fatalf("expected replay to preserve client key, got %q", got)
+	}
+
+	keys := store.UniqueKeys()
+	if len(keys) != 2 {
+		t.Fatalf("expected two tenant-scoped storage keys, got %#v", keys)
+	}
+	for _, key := range keys {
+		if !strings.HasPrefix(key, "atk:v1:") {
+			t.Fatalf("expected versioned storage key prefix, got %q", key)
+		}
+		for _, forbidden := range []string{"customer-visible-key-z", "tenant-secret", "user-secret"} {
+			if strings.Contains(key, forbidden) {
+				t.Fatalf("storage key %q leaked raw material %q", key, forbidden)
+			}
+		}
+	}
+}
+
 func TestNewRequiresStore(t *testing.T) {
 	if _, err := New(Options{}); err == nil {
 		t.Fatal("expected error for missing store")
@@ -2208,6 +2274,12 @@ type memoryStore struct {
 	now  func() time.Time
 }
 
+type recordingMemoryStore struct {
+	*memoryStore
+	keyMu sync.Mutex
+	keys  []string
+}
+
 type saveFailStore struct {
 	*memoryStore
 	mu                sync.Mutex
@@ -2251,6 +2323,56 @@ func newMemoryStore() *memoryStore {
 		data: make(map[string]memoryEntry),
 		now:  time.Now,
 	}
+}
+
+func (m *recordingMemoryStore) recordKey(key string) {
+	m.keyMu.Lock()
+	defer m.keyMu.Unlock()
+	m.keys = append(m.keys, key)
+}
+
+func (m *recordingMemoryStore) UniqueKeys() []string {
+	m.keyMu.Lock()
+	defer m.keyMu.Unlock()
+	seen := make(map[string]struct{}, len(m.keys))
+	out := make([]string, 0, len(m.keys))
+	for _, key := range m.keys {
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (m *recordingMemoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+	m.recordKey(key)
+	return m.memoryStore.Get(ctx, key)
+}
+
+func (m *recordingMemoryStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+	m.recordKey(key)
+	return m.memoryStore.TryBegin(ctx, key, record, ttl)
+}
+
+func (m *recordingMemoryStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+	m.recordKey(key)
+	return m.memoryStore.Save(ctx, key, record, ttl)
+}
+
+func (m *recordingMemoryStore) Release(ctx context.Context, key string) error {
+	m.recordKey(key)
+	return m.memoryStore.Release(ctx, key)
+}
+
+func (m *recordingMemoryStore) ReleaseReservation(ctx context.Context, key, token string) error {
+	m.recordKey(key)
+	return m.memoryStore.ReleaseReservation(ctx, key, token)
 }
 
 func (m *memoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {

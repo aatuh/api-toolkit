@@ -291,7 +291,7 @@ curl -s -X POST http://localhost:8080/checkout \
 ```
 
 - Expected response shape: `200` JSON checkout session with `id` and `url`; repeat the same request and key to replay the stored response.
-- Production caveat: use a durable store such as Redis, apply auth and tenant middleware before idempotency, and exclude streaming or large-download routes with `ShouldHandle`.
+- Production caveat: use a durable store such as Redis, apply auth and tenant middleware before idempotency, set `Options.StorageKeyFunc` to `idempotency.TenantScopedStorageKeyFunc()` for shared multi-tenant storage, and exclude streaming or large-download routes with `ShouldHandle`.
 
 ## Webhook receiver with signature verification
 

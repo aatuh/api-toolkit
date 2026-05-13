@@ -158,6 +158,11 @@ operator-only surfaces.
   them.
 - Adapter legacy idempotency recovery events hash keys by default. Enable the
   explicit raw-key option only for short, access-controlled incident review.
+- Multi-tenant APIs that share idempotency storage should configure
+  `middleware/idempotency.Options.StorageKeyFunc` with
+  `TenantScopedStorageKeyFunc()` after auth and tenant middleware, so storage
+  keys are scoped by tenant and actor without embedding raw tenant IDs, user
+  IDs, or client-supplied idempotency keys.
 - Prefer upstream network policy plus application authorization for admin
   routes; endpoint helpers do not create legal compliance by themselves.
 
