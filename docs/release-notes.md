@@ -180,6 +180,10 @@ source of truth is `docs/release-runbook.md`.
 - Generated services now stamp `/version` from `appVersion`, `buildCommit`, and
   `buildDate`, and the generated Makefile/Dockerfile pass those fields through
   build flags with local `dev`/`unknown` defaults.
+- `make v3-readiness-check` now runs focused compatibility-sensitive cleanup
+  guardrails and is included in `make release-check` and release evidence logs,
+  keeping major-version removal planning tied to roadmap, replacement guidance,
+  and release-note requirements.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

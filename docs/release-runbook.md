@@ -30,6 +30,7 @@ baseline table in another document.
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
+| `GOTOOLCHAIN=local make v3-readiness-check` | Focused compatibility-sensitive surface guardrails. | Verifies the v3 roadmap, replacement guidance, docs/examples, and release-note requirements for known cleanup surfaces. |
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
@@ -69,10 +70,15 @@ counts before accepting local publication evidence.
 - The command fails immediately if `API_BASE_REF` is missing.
 - The command fails immediately if `API_BASE_REF` does not resolve to a local or fetched supported baseline.
 - The command compares all stable packages listed in `VERSIONING.md` through `scripts/apicheck.sh`.
-- The command also runs linting, vulnerability checks, gosec, build smoke tests, docs contracts, unit tests, race tests, fuzz smoke tests, and cleanup.
+- The command also runs linting, vulnerability checks, gosec, build smoke tests,
+  v3 readiness guardrails, docs contracts, unit tests, race tests, fuzz smoke
+  tests, and cleanup.
 - The command includes `make contrib-release-notes-check`, so incompatible
   report-only contrib drift must have release-note acknowledgement before
   publication evidence can pass.
+- The command includes `make v3-readiness-check`, so compatibility-only surface
+  removal planning, replacement guidance, and release-note requirements stay
+  visible before any major-version cleanup.
 - For local release evidence, `make release-evidence` runs the same release
   subchecks through the evidence writer before writing `release-check-summary.json`.
 

@@ -110,6 +110,7 @@ Use the narrowest check that matches the change:
 | Change type | Preferred command | Notes |
 | --- | --- | --- |
 | Documentation-only edits | `GOTOOLCHAIN=local make docs-check` | Runs documentation contracts, getting-started build extraction, API/docs policy checks, and release evidence parser contracts. |
+| V3 cleanup readiness | `GOTOOLCHAIN=local make v3-readiness-check` | Runs focused compatibility-sensitive surface guardrails for major-version cleanup planning and release-note requirements. |
 | Docs plus ordinary code changes | `GOTOOLCHAIN=local make fast-check` | Runs `docs-check` and unit tests without rewriting files. |
 | Reviewer or audit pass | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer gate with lint, vuln, gosec, build smoke, docs contracts, tests, race, and fuzz smoke. |
 | Generated files, examples, scripts, package docs, or repo-wide contracts | `GOTOOLCHAIN=local make finalize` when practical | Installs tools and may rewrite Go formatting and module files through `fmt` and `tidy`; avoid it in shared dirty worktrees unless that mutation is intended. |

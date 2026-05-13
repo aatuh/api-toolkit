@@ -67,6 +67,7 @@ verify_log_archive() {
     "ci-build-smoke.log"
     "release-api-check.log"
     "contrib-release-notes-check.log"
+    "v3-readiness-check.log"
     "docs-check.log"
     "test.log"
     "test-race.log"

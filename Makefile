@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check v3-readiness-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -62,6 +62,9 @@ contrib-api-drift-report: tools ## Check selected contrib API drift without maki
 
 contrib-release-notes-check: tools ## Review gate requiring release notes for supported contrib behavior/runtime changes
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
+
+v3-readiness-check: ## Run compatibility-sensitive v3 readiness guardrails
+	@$(GO) test ./docscheck -count=1 -run 'TestCompatibilitySensitivePortsManifestIsCurrent|TestContribPackageClassificationAndCompatibilityPolicy|TestCompatibilityShimLifecycleRoadmap|TestIdempotencyCompatibilityMetricDocsStayBounded|TestResponseWriterInventoryMatchesCurrentImports|TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces|TestV3RemovalMatrixHasExecutableEvidence|TestV3DebtChecklistRowsStayExecutable|TestCompatibilityRoadmapCoversDocumentedSensitiveSurfaces|TestCompatibilitySensitivePortsGovernanceDocs|TestCompatibilitySensitivePackageDocsPointToReplacements|TestExamplesAndGuidesPreferCompatibilityReplacements|TestReleaseNotesIncludeStableSurfaceChecklist|TestDeprecatedBillingPortsPointToCompatPackage|TestDeprecatedBillingPortsStayInCompatibilitySource|TestDatabaseStatsStayInCompatibilityOrAdapterSource|TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault|TestIdempotencyCaptureDoesNotUseLegacyResponseWriter'
 
 contrib-review-contract: ## Run contrib drift/release-note script contract tests
 	@env -u API_BASE_REF -u CONTRIB_API_BASE_REF -u CONTRIB_RELEASE_BASE_REF scripts/contrib_review_contract_test.sh
@@ -179,6 +182,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) release-api-check
 	$(MAKE) contrib-api-drift-report
 	$(MAKE) contrib-release-notes-check
+	$(MAKE) v3-readiness-check
 	$(MAKE) docs-check
 	$(MAKE) test
 	$(MAKE) test-race
