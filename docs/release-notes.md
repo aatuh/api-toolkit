@@ -103,10 +103,12 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` services now keep memory idempotency storage as the local
   default but reject it under `ENV=production`; production defaults to the Redis
   idempotency adapter and requires `REDIS_ADDR` before startup.
-- `api-toolkit new service` now has an explicit `--auth` flag. The `saas-api`
-  profile currently generates the API-key scaffold and fails closed for JWT,
-  Clerk, development-header, or unknown modes until those templates are
-  implemented.
+- `api-toolkit new service` now supports `--auth jwt` for the `saas-api`
+  profile. Generated JWT services validate bearer tokens through JWKS, require
+  issuer and audience configuration, extract tenant scope from token claims,
+  enforce route scopes, close JWT middleware through bootstrap shutdown hooks,
+  and keep generated contract tests and OpenAPI goldens aligned. Clerk,
+  development-header, and unknown modes still fail closed.
 - `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
   idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
   method, store class, outcome, and status class for metrics.
