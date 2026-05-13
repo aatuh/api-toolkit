@@ -287,7 +287,8 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // parameters, added required parameters, removed documented responses,
 // request-body tightening or content removal, response content removal, and
 // changed security requirements are findings. Tenant, idempotency, rate-limit,
-// admin, and deprecation/sunset route policy drift are findings too.
+// admin, deprecation/sunset route policy drift, and obvious component schema
+// removals or narrowing are findings too.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -341,6 +342,11 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		}
 		findings = append(findings, policyCompatibilityFindings(baseOperation, headOperation)...)
 	}
+	schemaFindings, err := componentSchemaCompatibilityFindings(base, head)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, schemaFindings...)
 	return findings, nil
 }
 
@@ -657,6 +663,150 @@ func policyCompatibilityFindings(baseOperation, headOperation openAPIOperationSn
 		findings = append(findings, fmt.Sprintf("%s %s %s", check.code, baseOperation.Method, baseOperation.Path))
 	}
 	return findings
+}
+
+func componentSchemaCompatibilityFindings(base, head []byte) ([]string, error) {
+	baseSchemas, err := componentSchemaMaps(base)
+	if err != nil {
+		return nil, fmt.Errorf("base schemas: %w", err)
+	}
+	headSchemas, err := componentSchemaMaps(head)
+	if err != nil {
+		return nil, fmt.Errorf("head schemas: %w", err)
+	}
+	var findings []string
+	for _, name := range sortedMapKeys(baseSchemas) {
+		baseSchema := baseSchemas[name]
+		headSchema, ok := headSchemas[name]
+		if !ok {
+			findings = append(findings, "schema_removed "+name)
+			continue
+		}
+		findings = append(findings, schemaCompatibilityFindings(name, baseSchema, headSchema)...)
+	}
+	return findings, nil
+}
+
+func componentSchemaMaps(doc []byte) (map[string]any, error) {
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return nil, err
+	}
+	components, ok := root["components"].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		return map[string]any{}, nil
+	}
+	return schemas, nil
+}
+
+func schemaCompatibilityFindings(path string, baseRaw, headRaw any) []string {
+	baseSchema, ok := baseRaw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	headSchema, ok := headRaw.(map[string]any)
+	if !ok {
+		return []string{"schema_removed " + path}
+	}
+	baseRef := fmtString(baseSchema["$ref"])
+	headRef := fmtString(headSchema["$ref"])
+	if baseRef != headRef {
+		return []string{fmt.Sprintf("schema_ref_changed %s", path)}
+	}
+	var findings []string
+	baseType := schemaTypeFingerprint(baseSchema)
+	headType := schemaTypeFingerprint(headSchema)
+	if baseType != headType {
+		findings = append(findings, fmt.Sprintf("schema_type_changed %s", path))
+	}
+	for _, required := range sortedSetDifference(schemaRequiredSet(headSchema), schemaRequiredSet(baseSchema)) {
+		findings = append(findings, fmt.Sprintf("schema_required_property_added %s %s", path, required))
+	}
+	for _, enumValue := range sortedSetDifference(schemaEnumSet(baseSchema), schemaEnumSet(headSchema)) {
+		findings = append(findings, fmt.Sprintf("schema_enum_value_removed %s %s", path, enumValue))
+	}
+	headProperties, _ := headSchema["properties"].(map[string]any)
+	if len(headProperties) == 0 {
+		headProperties = nil
+	}
+	baseProperties, _ := baseSchema["properties"].(map[string]any)
+	for _, property := range sortedMapKeys(baseProperties) {
+		baseProperty := baseProperties[property]
+		headProperty, ok := headProperties[property]
+		propertyPath := path + "." + property
+		if !ok {
+			findings = append(findings, fmt.Sprintf("schema_property_removed %s %s", path, property))
+			continue
+		}
+		findings = append(findings, schemaCompatibilityFindings(propertyPath, baseProperty, headProperty)...)
+	}
+	return findings
+}
+
+func schemaTypeFingerprint(schema map[string]any) string {
+	raw := schema["type"]
+	switch typed := raw.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case []any:
+		var values []string
+		for _, value := range typed {
+			text := fmtString(value)
+			if text != "" {
+				values = append(values, text)
+			}
+		}
+		sort.Strings(values)
+		return strings.Join(values, "|")
+	default:
+		return ""
+	}
+}
+
+func schemaRequiredSet(schema map[string]any) map[string]struct{} {
+	out := map[string]struct{}{}
+	values, ok := schema["required"].([]any)
+	if !ok {
+		return out
+	}
+	for _, value := range values {
+		required := fmtString(value)
+		if required != "" {
+			out[required] = struct{}{}
+		}
+	}
+	return out
+}
+
+func schemaEnumSet(schema map[string]any) map[string]struct{} {
+	out := map[string]struct{}{}
+	values, ok := schema["enum"].([]any)
+	if !ok {
+		return out
+	}
+	for _, value := range values {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			encoded = []byte(fmt.Sprint(value))
+		}
+		out[string(encoded)] = struct{}{}
+	}
+	return out
+}
+
+func sortedSetDifference(left, right map[string]struct{}) []string {
+	var out []string
+	for value := range left {
+		if _, ok := right[value]; !ok {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func operationParameters(rawPathParameters, rawOperationParameters any) []openAPIParameterSnapshot {

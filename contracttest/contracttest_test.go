@@ -428,6 +428,75 @@ func TestOpenAPICompatibilityFindingsReportRoutePolicyDrift(t *testing.T) {
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportComponentSchemaDrift(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Legacy": {"type": "object", "properties": {"id": {"type": "string"}}},
+				"Widget": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"},
+						"status": {"type": "string", "enum": ["active", "disabled"]},
+						"tenant_id": {"type": "string"}
+					}
+				}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Widget": {
+					"type": "object",
+					"required": ["name", "status"],
+					"properties": {
+						"name": {"type": "integer"},
+						"status": {"type": "string", "enum": ["active"]}
+					}
+				}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"schema_removed Legacy",
+		"schema_required_property_added Widget status",
+		"schema_property_removed Widget tenant_id",
+		"schema_type_changed Widget.name",
+		"schema_enum_value_removed Widget.status \"disabled\"",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}
