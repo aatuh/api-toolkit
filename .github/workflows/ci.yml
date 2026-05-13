@@ -64,6 +64,11 @@ jobs:
         env:
           CONTRIB_RELEASE_BASE_REF: origin/${{ github.base_ref }}
         run: make contrib-release-notes-check
+      - name: Contrib API drift gate (pull request base)
+        if: github.event_name == 'pull_request'
+        env:
+          API_BASE_REF: origin/${{ github.base_ref }}
+        run: make contrib-api-drift-report
   api-check:
     runs-on: ubuntu-latest
     env:
