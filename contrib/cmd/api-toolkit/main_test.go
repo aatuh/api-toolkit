@@ -47,7 +47,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("new service failed: %s", out.String())
 	}
-	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", ".dockerignore", "Dockerfile", "docker-compose.yml", "README.md"} {
+	for _, name := range []string{"go.mod", "main.go", "main_test.go", "testdata/openapi.golden.json", "Makefile", ".env.example", ".gitignore", ".dockerignore", "Dockerfile", "docker-compose.yml", "README.md"} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
@@ -88,6 +88,15 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	for _, want := range []string{".env", ".git"} {
 		if !strings.Contains(string(generatedDockerignore), want) {
 			t.Fatalf("generated .dockerignore missing %q", want)
+		}
+	}
+	generatedGitignore, err := os.ReadFile(filepath.Join(serviceDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read generated .gitignore: %v", err)
+	}
+	for _, want := range []string{".env", "!.env.example", "coverage.out", ".ci-result/"} {
+		if !strings.Contains(string(generatedGitignore), want) {
+			t.Fatalf("generated .gitignore missing %q", want)
 		}
 	}
 	generatedMakefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))

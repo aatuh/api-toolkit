@@ -953,6 +953,7 @@ var scaffoldFiles = []scaffoldFile{
 	{Name: "main_test.go", Body: mainTestTemplate},
 	{Name: "Makefile", Body: makefileTemplate},
 	{Name: ".env.example", Body: envTemplate},
+	{Name: ".gitignore", Body: gitignoreTemplate},
 	{Name: ".dockerignore", Body: dockerignoreTemplate},
 	{Name: "Dockerfile", Body: dockerfileTemplate},
 	{Name: "docker-compose.yml", Body: composeTemplate},
@@ -1408,6 +1409,17 @@ API_TENANT_ID=tenant_1
 ADMIN_KEY=local-admin-key
 `
 
+const gitignoreTemplate = `.env
+.env.*
+!.env.example
+.ci-result/
+coverage.out
+bin/
+tmp/
+api
+*.test
+`
+
 const dockerignoreTemplate = `.git
 .env
 .env.*
@@ -1474,4 +1486,5 @@ Default routes:
 
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
+Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
