@@ -37,7 +37,6 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 		auth string
 		want string
 	}{
-		{name: "clerk not yet generated", auth: "clerk", want: "auth mode \"clerk\" is not supported by profile \"saas-api\" yet"},
 		{name: "dev headers require development profile", auth: "dev-headers", want: "auth mode \"dev-headers\" requires an explicit development profile"},
 		{name: "unknown", auth: "session", want: "unsupported auth mode \"session\""},
 	}
@@ -59,6 +58,75 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api",
+		"--auth", "clerk",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new service failed: %s", out.String())
+	}
+
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "main.go"))
+	if err != nil {
+		t.Fatalf("read generated main.go: %v", err)
+	}
+	for _, want := range []string{
+		`RegisterSecurityScheme("BearerAuth"`,
+		"newClerkMiddleware",
+		"ShutdownHooks:",
+		"withClerkAuthorizationScope",
+	} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated Clerk main.go missing %q", want)
+		}
+	}
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated .env.example: %v", err)
+	}
+	for _, want := range []string{"CLERK_JWKS_URL=", "CLERK_ISSUER=", "CLERK_AUDIENCE=saas-api"} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated Clerk .env.example missing %q", want)
+		}
+	}
+	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read generated README.md: %v", err)
+	}
+	if !strings.Contains(string(generatedREADME), "Generated auth mode: `clerk`.") {
+		t.Fatalf("generated README missing Clerk auth mode")
+	}
+
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated Clerk service tidy failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated Clerk service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-lint")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated Clerk service contracts lint failed:\n%s\nerror: %v", output, err)
 	}
 }
 

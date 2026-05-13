@@ -103,12 +103,12 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` services now keep memory idempotency storage as the local
   default but reject it under `ENV=production`; production defaults to the Redis
   idempotency adapter and requires `REDIS_ADDR` before startup.
-- `api-toolkit new service` now supports `--auth jwt` for the `saas-api`
-  profile. Generated JWT services validate bearer tokens through JWKS, require
-  issuer and audience configuration, extract tenant scope from token claims,
-  enforce route scopes, close JWT middleware through bootstrap shutdown hooks,
-  and keep generated contract tests and OpenAPI goldens aligned. Clerk,
-  development-header, and unknown modes still fail closed.
+- `api-toolkit new service` now supports `--auth jwt` and `--auth clerk` for the
+  `saas-api` profile. Generated bearer-token services validate tokens through
+  JWKS, require issuer and audience configuration, extract tenant scope from
+  validated token claims, enforce route scopes, close auth middleware through
+  bootstrap shutdown hooks, and keep generated contract tests and OpenAPI
+  goldens aligned. Development-header and unknown modes still fail closed.
 - `contrib/middleware/auth/clerk.Subject` now exposes tenant and scope strings
   derived from validated JWT claims while preserving subject comparability, so
   applications and generated services can enforce tenant and route-scope policy
