@@ -118,6 +118,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 		t.Fatalf("generated README missing dev-header auth mode")
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "DevHeaderAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -189,6 +190,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 		t.Fatalf("generated README missing Clerk auth mode")
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -260,6 +262,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 		t.Fatalf("generated README missing JWT auth mode")
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -385,6 +388,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		t.Fatalf("generated README missing auth mode")
 	}
 	assertGeneratedREADMEListsOperatorRoutes(t, string(generatedREADME))
+	assertGeneratedREADMEDocumentsIdempotencyRequirement(t, string(generatedREADME))
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
@@ -1444,6 +1448,18 @@ func assertGeneratedREADMEListsOperatorRoutes(t *testing.T, readme string) {
 	for _, want := range []string{"`GET /health/detailed` with `X-Admin-Key`", "`GET /metrics` with `X-Admin-Key`", "`GET /debug/pprof/` with `X-Admin-Key`"} {
 		if !strings.Contains(readme, want) {
 			t.Fatalf("generated README missing operator route %q:\n%s", want, readme)
+		}
+	}
+}
+
+func assertGeneratedREADMEDocumentsIdempotencyRequirement(t *testing.T, readme string) {
+	t.Helper()
+	for _, want := range []string{
+		"Unsafe writes without `Idempotency-Key` fail with Problem Details 400",
+		"Idempotency storage keys are tenant and actor scoped",
+	} {
+		if !strings.Contains(readme, want) {
+			t.Fatalf("generated README missing idempotency guidance %q:\n%s", want, readme)
 		}
 	}
 }

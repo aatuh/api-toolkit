@@ -168,6 +168,9 @@ operator-only surfaces.
   `TenantScopedStorageKeyFunc()` after auth and tenant middleware, so storage
   keys are scoped by tenant and actor without embedding raw tenant IDs, user
   IDs, or client-supplied idempotency keys.
+- For unsafe writes whose route contracts require idempotency, configure
+  `middleware/idempotency.Options.RequireKey` so missing `Idempotency-Key`
+  requests fail with Problem Details 400 before side effects run.
 - Prefer upstream network policy plus application authorization for admin
   routes; endpoint helpers do not create legal compliance by themselves.
 

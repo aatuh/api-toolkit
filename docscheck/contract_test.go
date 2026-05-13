@@ -2388,6 +2388,34 @@ func TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault(t *testing.T) {
 	}
 }
 
+func TestGeneratedScaffoldDocumentsFailClosedIdempotentWrites(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+
+	for _, required := range []string{
+		"RequireKey:     true",
+		"TenantScopedStorageKeyFunc()",
+		"Unsafe writes without",
+		"Idempotency-Key",
+		"Problem Details 400",
+		"Idempotency storage keys are tenant and actor scoped",
+	} {
+		if !strings.Contains(scaffold, required) {
+			t.Fatalf("api-toolkit service scaffold missing idempotency contract %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Options.RequireKey",
+		"Problem Details 400",
+		"TenantScopedStorageKeyFunc()",
+	} {
+		if !strings.Contains(security, required) {
+			t.Fatalf("docs/security.md missing generated idempotency guidance %q", required)
+		}
+	}
+}
+
 func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))
