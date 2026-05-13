@@ -106,6 +106,29 @@ func TestProfileStrictAPIReportsProductionMiddlewareOrder(t *testing.T) {
 	}
 }
 
+func TestStrictSaaSAPIMiddlewareOrderIncludesPolicyStages(t *testing.T) {
+	expected := []MiddlewareStage{
+		MiddlewareRequestID,
+		MiddlewareRecovery,
+		MiddlewareTracing,
+		MiddlewareSecureHeaders,
+		MiddlewareRateLimit,
+		MiddlewareBodyLimit,
+		MiddlewareQueryLimit,
+		MiddlewareJSON,
+		MiddlewareTimeout,
+		MiddlewareRequestLogging,
+		MiddlewareMetrics,
+		MiddlewareAuth,
+		MiddlewareTenant,
+		MiddlewareIdempotency,
+	}
+
+	if err := ValidateMiddlewareOrder(StrictSaaSAPIMiddlewareOrder(), expected...); err != nil {
+		t.Fatalf("strict SaaS API middleware order: %v", err)
+	}
+}
+
 func TestValidateMiddlewareOrderRejectsMissingOrReorderedStages(t *testing.T) {
 	err := ValidateMiddlewareOrder(
 		[]MiddlewareStage{MiddlewareRequestID, MiddlewareTracing, MiddlewareRecovery},

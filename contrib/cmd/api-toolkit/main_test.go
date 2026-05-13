@@ -52,6 +52,18 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
 	}
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "main.go"))
+	if err != nil {
+		t.Fatalf("read generated main.go: %v", err)
+	}
+	for _, want := range []string{
+		"MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder()",
+		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
+	} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated main.go missing %q", want)
+		}
+	}
 
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir

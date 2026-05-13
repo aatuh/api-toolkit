@@ -995,8 +995,10 @@ func newService() (*bootstrap.APIService, error) {
 	}
 
 	return bootstrap.NewAPIService(bootstrap.APIServiceConfig{
-		Addr: env("API_ADDR", ":8080"),
-		Log:  ports.NopLogger{},
+		Addr:                    env("API_ADDR", ":8080"),
+		Log:                     ports.NopLogger{},
+		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
+		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RegisterRoutes: func(r ports.HTTPRouter) error {
 			contracts := routecontracts.NewRegistry(r, specRegistry)
 			operation := routepolicy.ApplyMetadata(specs.Operation{
