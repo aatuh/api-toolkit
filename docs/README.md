@@ -7,7 +7,7 @@ without scanning the root README.
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
-| [Getting started](getting-started.md) | New users | Build a minimal API, run it, and test the actual toolkit wiring. |
+| [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
