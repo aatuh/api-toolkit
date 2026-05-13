@@ -114,6 +114,9 @@ source of truth is `docs/release-runbook.md`.
   dangerous-bypass environment settings, separates debug user, tenant, and scope
   headers, keeps tenant mismatch and idempotent write tests, and refuses to
   start with dev-header auth when `ENV=production`.
+- Generated services now wire `bootstrap.NewDefaultRouterWithConfig` to the
+  contrib Prometheus recorder, so protected `/metrics` exposes bounded HTTP
+  request counters and histograms instead of only runtime collector output.
 - `contrib/middleware/auth/clerk.Subject` now exposes tenant and scope strings
   derived from validated JWT claims while preserving subject comparability, so
   applications and generated services can enforce tenant and route-scope policy

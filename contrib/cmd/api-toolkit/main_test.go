@@ -303,6 +303,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	for _, want := range []string{
 		"MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder()",
 		"RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder()",
+		"NewPrometheusRecorderChecked",
+		"DefaultRouterConfig{Metrics:",
 		"newIdempotencyStore()",
 		"idempotencyredis.New",
 	} {

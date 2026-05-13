@@ -1416,6 +1416,7 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 {{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v2/config"
 	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
 {{ end }}
@@ -1458,6 +1459,16 @@ func main() {
 }
 
 func newService() (*bootstrap.APIService, error) {
+	log := ports.NopLogger{}
+	metricsRecorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	router, err := bootstrap.NewDefaultRouterWithConfig(log, bootstrap.DefaultRouterConfig{Metrics: metricsRecorder})
+	if err != nil {
+		return nil, err
+	}
+
 	specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") }}	specRegistry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 {{ else if eq .AuthMode "dev-headers" }}	specRegistry.RegisterSecurityScheme("DevHeaderAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-Debug-User", In: "header"})
@@ -1534,7 +1545,8 @@ func newService() (*bootstrap.APIService, error) {
 
 	return bootstrap.NewAPIService(bootstrap.APIServiceConfig{
 		Addr:                    env("API_ADDR", ":8080"),
-		Log:                     ports.NopLogger{},
+		Log:                     log,
+		Router:                  router,
 		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RegisterRoutes: func(r ports.HTTPRouter) error {
@@ -2191,6 +2203,9 @@ func TestGeneratedServiceProtectsOperatorRoutes(t *testing.T) {
 	service.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("metrics with admin status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "http_requests_total") {
+		t.Fatalf("metrics body missing HTTP metrics:\n%s", rec.Body.String())
 	}
 }
 
