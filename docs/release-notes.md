@@ -153,6 +153,9 @@ source of truth is `docs/release-runbook.md`.
 - `middleware/idempotency.Options` now includes additive `RequireKey` support.
   Generated SaaS services enable it so unsafe writes without `Idempotency-Key`
   fail closed with Problem Details 400 instead of executing untracked.
+- Generated service READMEs and security guidance now document that unsafe
+  writes without `Idempotency-Key` fail with Problem Details 400 and that
+  generated idempotency storage keys are tenant and actor scoped.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
