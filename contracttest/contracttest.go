@@ -287,8 +287,8 @@ func AssertOpenAPICompatible(t testing.TB, base, head []byte) {
 // parameters, added required parameters, removed documented responses,
 // request-body tightening or content removal, response content removal, and
 // changed security requirements are findings. Tenant, idempotency, rate-limit,
-// admin, deprecation/sunset route policy drift, and obvious component schema
-// removals or narrowing are findings too.
+// admin, deprecation/sunset route policy drift, and obvious inline or component
+// schema removals or narrowing are findings too.
 func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 	baseOperations, err := openAPIOperationSnapshots(base)
 	if err != nil {
@@ -342,6 +342,11 @@ func OpenAPICompatibilityFindings(base, head []byte) ([]string, error) {
 		}
 		findings = append(findings, policyCompatibilityFindings(baseOperation, headOperation)...)
 	}
+	operationSchemaFindings, err := operationSchemaCompatibilityFindings(base, head)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, operationSchemaFindings...)
 	schemaFindings, err := componentSchemaCompatibilityFindings(base, head)
 	if err != nil {
 		return nil, err
@@ -663,6 +668,169 @@ func policyCompatibilityFindings(baseOperation, headOperation openAPIOperationSn
 		findings = append(findings, fmt.Sprintf("%s %s %s", check.code, baseOperation.Method, baseOperation.Path))
 	}
 	return findings
+}
+
+type openAPIRawOperation struct {
+	Method    string
+	Path      string
+	Operation map[string]any
+}
+
+func (operation openAPIRawOperation) key() string {
+	return strings.ToUpper(strings.TrimSpace(operation.Method)) + " " + strings.TrimSpace(operation.Path)
+}
+
+func operationSchemaCompatibilityFindings(base, head []byte) ([]string, error) {
+	baseOperations, err := openAPIRawOperations(base)
+	if err != nil {
+		return nil, fmt.Errorf("base operations: %w", err)
+	}
+	headOperations, err := openAPIRawOperations(head)
+	if err != nil {
+		return nil, fmt.Errorf("head operations: %w", err)
+	}
+	headByKey := make(map[string]openAPIRawOperation, len(headOperations))
+	for _, operation := range headOperations {
+		headByKey[operation.key()] = operation
+	}
+	var findings []string
+	for _, baseOperation := range baseOperations {
+		headOperation, ok := headByKey[baseOperation.key()]
+		if !ok {
+			continue
+		}
+		findings = append(findings, requestSchemaCompatibilityFindings(baseOperation, headOperation)...)
+		findings = append(findings, responseSchemaCompatibilityFindings(baseOperation, headOperation)...)
+	}
+	return findings, nil
+}
+
+func openAPIRawOperations(doc []byte) ([]openAPIRawOperation, error) {
+	var root map[string]any
+	if err := json.Unmarshal(doc, &root); err != nil {
+		return nil, err
+	}
+	paths, ok := root["paths"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("OpenAPI document has no paths")
+	}
+	var operations []openAPIRawOperation
+	for path, rawPathItem := range paths {
+		pathItem, ok := rawPathItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, method := range []string{httpMethodGet, httpMethodPost, httpMethodPut, httpMethodPatch, httpMethodDelete} {
+			rawOperation, ok := pathItem[method].(map[string]any)
+			if !ok {
+				continue
+			}
+			operations = append(operations, openAPIRawOperation{
+				Method:    strings.ToUpper(method),
+				Path:      path,
+				Operation: rawOperation,
+			})
+		}
+	}
+	sort.Slice(operations, func(i, j int) bool {
+		if operations[i].Path == operations[j].Path {
+			return operations[i].Method < operations[j].Method
+		}
+		return operations[i].Path < operations[j].Path
+	})
+	return operations, nil
+}
+
+func requestSchemaCompatibilityFindings(baseOperation, headOperation openAPIRawOperation) []string {
+	baseBody, ok := baseOperation.Operation["requestBody"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	headBody, ok := headOperation.Operation["requestBody"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	baseContent, ok := baseBody["content"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	headContent, ok := headBody["content"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var findings []string
+	for _, contentType := range sortedMapKeys(baseContent) {
+		headMedia, ok := headContent[contentType]
+		if !ok {
+			continue
+		}
+		baseSchema := mediaSchema(baseContent[contentType])
+		if baseSchema == nil {
+			continue
+		}
+		schemaPath := fmt.Sprintf("%s %s requestBody %s", baseOperation.Method, baseOperation.Path, contentType)
+		findings = append(findings, schemaCompatibilityFindings(schemaPath, baseSchema, mediaSchema(headMedia))...)
+	}
+	return findings
+}
+
+func responseSchemaCompatibilityFindings(baseOperation, headOperation openAPIRawOperation) []string {
+	baseResponses, ok := baseOperation.Operation["responses"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	headResponses, ok := headOperation.Operation["responses"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var findings []string
+	for _, status := range sortedMapKeys(baseResponses) {
+		if status == "default" {
+			continue
+		}
+		headResponse, ok := headResponses[status]
+		if !ok {
+			continue
+		}
+		baseContent, ok := responseContent(baseResponses[status])
+		if !ok {
+			continue
+		}
+		headContent, ok := responseContent(headResponse)
+		if !ok {
+			continue
+		}
+		for _, contentType := range sortedMapKeys(baseContent) {
+			headMedia, ok := headContent[contentType]
+			if !ok {
+				continue
+			}
+			baseSchema := mediaSchema(baseContent[contentType])
+			if baseSchema == nil {
+				continue
+			}
+			schemaPath := fmt.Sprintf("%s %s response %s %s", baseOperation.Method, baseOperation.Path, status, contentType)
+			findings = append(findings, schemaCompatibilityFindings(schemaPath, baseSchema, mediaSchema(headMedia))...)
+		}
+	}
+	return findings
+}
+
+func responseContent(raw any) (map[string]any, bool) {
+	response, ok := raw.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	content, ok := response["content"].(map[string]any)
+	return content, ok
+}
+
+func mediaSchema(raw any) any {
+	media, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return media["schema"]
 }
 
 func componentSchemaCompatibilityFindings(base, head []byte) ([]string, error) {

@@ -114,8 +114,8 @@ source of truth is `docs/release-runbook.md`.
   compatibility checks to inline request and response media schemas on existing
   operations, so handler-local contract narrowing is caught before release.
 - `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
-  OpenAPI component-schema drift findings, so library tests and CLI release
-  review stay aligned.
+  OpenAPI component and inline request/response schema drift findings, so
+  library tests and CLI release review stay aligned.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.

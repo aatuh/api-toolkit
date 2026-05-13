@@ -497,6 +497,110 @@ func TestOpenAPICompatibilityFindingsReportComponentSchemaDrift(t *testing.T) {
 	}
 }
 
+func TestOpenAPICompatibilityFindingsReportInlineSchemaDrift(t *testing.T) {
+	base := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["name"],
+									"properties": {
+										"name": {"type": "string"},
+										"status": {"type": "string", "enum": ["active", "disabled"]}
+									}
+								}
+							}
+						}
+					},
+					"responses": {
+						"201": {
+							"description": "created",
+							"content": {
+								"application/json": {
+									"schema": {
+										"type": "object",
+										"properties": {
+											"id": {"type": "string"},
+											"status": {"type": "string"}
+										}
+									}
+								}
+							}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			}
+		}
+	}`)
+	head := []byte(`{
+		"openapi": "3.0.0",
+		"info": {"title": "test", "version": "1"},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["name", "status"],
+									"properties": {
+										"name": {"type": "integer"},
+										"status": {"type": "string", "enum": ["active"]}
+									}
+								}
+							}
+						}
+					},
+					"responses": {
+						"201": {
+							"description": "created",
+							"content": {
+								"application/json": {
+									"schema": {
+										"type": "object",
+										"properties": {
+											"id": {"type": "integer"}
+										}
+									}
+								}
+							}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			}
+		}
+	}`)
+
+	findings, err := OpenAPICompatibilityFindings(base, head)
+	if err != nil {
+		t.Fatalf("compatibility findings: %v", err)
+	}
+	for _, want := range []string{
+		"schema_required_property_added POST /widgets requestBody application/json status",
+		"schema_type_changed POST /widgets requestBody application/json.name",
+		"schema_enum_value_removed POST /widgets requestBody application/json.status \"disabled\"",
+		"schema_type_changed POST /widgets response 201 application/json.id",
+		"schema_property_removed POST /widgets response 201 application/json status",
+	} {
+		if !containsString(findings, want) {
+			t.Fatalf("findings missing %q: %v", want, findings)
+		}
+	}
+}
+
 type fakeRouter struct{}
 
 func (fakeRouter) Get(pattern string, h http.HandlerFunc)    {}
