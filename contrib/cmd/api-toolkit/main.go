@@ -1239,6 +1239,7 @@ go 1.25.0
 require (
 	github.com/aatuh/api-toolkit/v2 v2.1.0
 	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
+	github.com/redis/go-redis/v9 v9.19.0
 )
 
 {{ .CoreReplace }}{{ .ContribReplace }}`
@@ -1257,7 +1258,9 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	"github.com/redis/go-redis/v9"
 	"github.com/aatuh/api-toolkit/v2/authorization"
 	"github.com/aatuh/api-toolkit/v2/binding"
 	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
@@ -1334,8 +1337,12 @@ func newService() (*bootstrap.APIService, error) {
 	if err != nil {
 		return nil, err
 	}
+	idempotencyStore, err := newIdempotencyStore()
+	if err != nil {
+		return nil, err
+	}
 	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
-		Store: idempotency.NewMemoryStore(),
+		Store: idempotencyStore,
 	})
 	if err != nil {
 		return nil, err
@@ -1423,6 +1430,42 @@ func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 	})
 }
 
+func newIdempotencyStore() (ports.IdempotencyStore, error) {
+	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
+	if store == "" {
+		if isProduction() {
+			store = "redis"
+		} else {
+			store = "memory"
+		}
+	}
+	switch store {
+	case "memory":
+		if isProduction() {
+			return nil, errors.New("IDEMPOTENCY_STORE=memory is not allowed when ENV=production; use redis")
+		}
+		return idempotency.NewMemoryStore(), nil
+	case "redis":
+		addr := strings.TrimSpace(os.Getenv("REDIS_ADDR"))
+		if addr == "" {
+			if isProduction() {
+				return nil, errors.New("REDIS_ADDR is required when IDEMPOTENCY_STORE=redis")
+			}
+			addr = "localhost:6379"
+		}
+		addrs := splitCSV(addr)
+		if len(addrs) == 0 {
+			return nil, errors.New("REDIS_ADDR must include at least one address")
+		}
+		client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
+		return idempotencyredis.New(client, idempotencyredis.Options{
+			KeyPrefix: env("IDEMPOTENCY_KEY_PREFIX", "idempotency:"),
+		}), nil
+	default:
+		return nil, fmt.Errorf("unsupported IDEMPOTENCY_STORE %q", store)
+	}
+}
+
 func createWidget(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := authorization.TenantIDFromContext(r.Context())
 	if !ok {
@@ -1457,10 +1500,26 @@ func secretEnv(key, fallback string) (string, error) {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value, nil
 	}
-	if strings.EqualFold(env("ENV", "development"), "production") {
+	if isProduction() {
 		return "", fmt.Errorf("%s is required when ENV=production", key)
 	}
 	return fallback, nil
+}
+
+func isProduction() bool {
+	return strings.EqualFold(env("ENV", "development"), "production")
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := parts[:0]
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func env(key, fallback string) string {
@@ -1637,12 +1696,40 @@ func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	}
 }
 
+func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("API_KEY", "prod-api-key")
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("API_TENANT_ID", "tenant_1")
+	t.Setenv("IDEMPOTENCY_STORE", "memory")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to reject memory idempotency")
+	} else if !strings.Contains(err.Error(), "IDEMPOTENCY_STORE=memory") {
+		t.Fatalf("startup error = %v, want memory-store rejection", err)
+	}
+}
+
+func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("API_KEY", "prod-api-key")
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("API_TENANT_ID", "tenant_1")
+	t.Setenv("IDEMPOTENCY_STORE", "redis")
+	t.Setenv("REDIS_ADDR", "")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require Redis address")
+	} else if !strings.Contains(err.Error(), "REDIS_ADDR") {
+		t.Fatalf("startup error = %v, want REDIS_ADDR requirement", err)
+	}
+}
+
 func setLocalTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV", "development")
 	t.Setenv("API_KEY", "local-dev-key")
 	t.Setenv("API_TENANT_ID", "tenant_1")
 	t.Setenv("ADMIN_KEY", "local-admin-key")
+	t.Setenv("IDEMPOTENCY_STORE", "memory")
 }
 `
 
@@ -1679,6 +1766,9 @@ API_ADDR=:8080
 API_KEY=local-dev-key
 API_TENANT_ID=tenant_1
 ADMIN_KEY=local-admin-key
+IDEMPOTENCY_STORE=memory
+REDIS_ADDR=localhost:6379
+IDEMPOTENCY_KEY_PREFIX=idempotency:
 `
 
 const gitignoreTemplate = `.env
@@ -1758,5 +1848,6 @@ Default routes:
 
 The default API key is scoped to ` + "`API_TENANT_ID`" + `, and write requests fail when ` + "`X-Tenant-ID`" + ` does not match that authenticated tenant.
 When ` + "`ENV=production`" + `, startup requires explicit non-empty ` + "`API_KEY`" + ` and ` + "`ADMIN_KEY`" + ` values instead of local fallback keys.
+Local development uses ` + "`IDEMPOTENCY_STORE=memory`" + `. In production, the generated service defaults to ` + "`IDEMPOTENCY_STORE=redis`" + ` and requires ` + "`REDIS_ADDR`" + ` so unsafe writes can be replayed across instances.
 Local ` + "`.env`" + ` files, coverage output, temporary files, and built binaries are ignored by default.
 `
