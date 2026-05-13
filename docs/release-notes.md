@@ -161,6 +161,9 @@ source of truth is `docs/release-runbook.md`.
   proxy CIDRs or unsafe bypass settings.
 - Generated services now register a shutdown hook for Redis idempotency clients
   so production stores are closed through the `bootstrap.APIService` lifecycle.
+- Generated services now support `RATE_LIMIT_STORE=redis` and default to Redis
+  rate limiting in production, including startup validation and Redis client
+  shutdown hooks.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.

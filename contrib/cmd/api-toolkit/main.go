@@ -1573,6 +1573,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
@@ -1628,6 +1629,13 @@ func newService() (*bootstrap.APIService, error) {
 		return nil, err
 	}
 	routerConfig.Metrics = metricsRecorder
+	rateLimiter, rateLimitShutdown, err := newRateLimitLimiter(routerConfig.RateLimit.Capacity, routerConfig.RateLimit.RefillRate)
+	if err != nil {
+		return nil, err
+	}
+	if rateLimiter != nil {
+		routerConfig.RateLimit.Limiter = rateLimiter
+	}
 	router, err := bootstrap.NewDefaultRouterWithConfig(log, routerConfig)
 	if err != nil {
 		return nil, err
@@ -1721,6 +1729,9 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: "dev"})
 		return nil, err
 	}
 	shutdownHooks := []bootstrap.ShutdownHook{}
+	if rateLimitShutdown.Hook != nil {
+		shutdownHooks = append(shutdownHooks, rateLimitShutdown)
+	}
 	if idempotencyShutdown.Hook != nil {
 		shutdownHooks = append(shutdownHooks, idempotencyShutdown)
 	}
@@ -1912,6 +1923,49 @@ func newAPIKeyMiddleware() (*apikey.Middleware, error) {
 	})
 }
 {{ end }}
+
+func newRateLimitLimiter(capacity, refillRate float64) (ports.RateLimiter, bootstrap.ShutdownHook, error) {
+	store := strings.ToLower(strings.TrimSpace(os.Getenv("RATE_LIMIT_STORE")))
+	if store == "" {
+		if isProduction() {
+			store = "redis"
+		} else {
+			store = "memory"
+		}
+	}
+	switch store {
+	case "memory":
+		if isProduction() {
+			return nil, bootstrap.ShutdownHook{}, errors.New("RATE_LIMIT_STORE=memory is not allowed when ENV=production; use redis")
+		}
+		return nil, bootstrap.ShutdownHook{}, nil
+	case "redis":
+		addr := strings.TrimSpace(os.Getenv("RATE_LIMIT_REDIS_ADDR"))
+		if addr == "" {
+			addr = strings.TrimSpace(os.Getenv("REDIS_ADDR"))
+		}
+		if addr == "" {
+			if isProduction() {
+				return nil, bootstrap.ShutdownHook{}, errors.New("RATE_LIMIT_REDIS_ADDR or REDIS_ADDR is required when RATE_LIMIT_STORE=redis")
+			}
+			addr = "localhost:6379"
+		}
+		addrs := splitCSV(addr)
+		if len(addrs) == 0 {
+			return nil, bootstrap.ShutdownHook{}, errors.New("RATE_LIMIT_REDIS_ADDR or REDIS_ADDR must include at least one address")
+		}
+		client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
+		return ratelimitredis.New(client, ratelimitredis.Options{
+			Capacity:   capacity,
+			RefillRate: refillRate,
+			KeyPrefix:  env("RATE_LIMIT_KEY_PREFIX", "ratelimit:"),
+		}), bootstrap.ShutdownHook{Name: "rate-limit-redis", Hook: func(context.Context) error {
+			return client.Close()
+		}}, nil
+	default:
+		return nil, bootstrap.ShutdownHook{}, fmt.Errorf("unsupported RATE_LIMIT_STORE %q", store)
+	}
+}
 
 func newIdempotencyStore() (ports.IdempotencyStore, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
@@ -2486,8 +2540,28 @@ func TestGeneratedIdempotencyRedisStoreHasShutdownHook(t *testing.T) {
 	}
 }
 
+func TestGeneratedRateLimitRedisLimiterHasShutdownHook(t *testing.T) {
+	setLocalTestEnv(t)
+	t.Setenv("RATE_LIMIT_STORE", "redis")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
+	limiter, hook, err := newRateLimitLimiter(30, 15)
+	if err != nil {
+		t.Fatalf("new redis rate limiter: %v", err)
+	}
+	if limiter == nil {
+		t.Fatal("redis rate limiter = nil")
+	}
+	if hook.Name != "rate-limit-redis" || hook.Hook == nil {
+		t.Fatalf("redis rate-limit shutdown hook = %#v", hook)
+	}
+	if err := hook.Hook(context.Background()); err != nil {
+		t.Fatalf("redis rate-limit shutdown hook failed: %v", err)
+	}
+}
+
 {{ if eq .AuthMode "jwt" }}func TestGeneratedServiceRejectsProductionMissingJWTConfig(t *testing.T) {
 	t.Setenv("ENV", "production")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("JWT_JWKS_URL", "")
 	t.Setenv("JWT_ISSUER", "https://issuer.example.com")
 	t.Setenv("JWT_AUDIENCE", "saas-api")
@@ -2513,6 +2587,7 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 
 {{ else if eq .AuthMode "clerk" }}func TestGeneratedServiceRejectsProductionMissingClerkConfig(t *testing.T) {
 	t.Setenv("ENV", "production")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("CLERK_JWKS_URL", "")
 	t.Setenv("CLERK_ISSUER", "https://issuer.example.com")
 	t.Setenv("CLERK_AUDIENCE", "saas-api")
@@ -2538,6 +2613,7 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 
 {{ else if eq .AuthMode "dev-headers" }}func TestGeneratedServiceRejectsProductionDevHeaders(t *testing.T) {
 	t.Setenv("ENV", "production")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("DEV_AUTH_FALLBACK_ENABLED", "true")
 	t.Setenv("DEV_AUTH_ALLOW_DANGEROUS_DEV_BYPASSES", "true")
 	t.Setenv("DEV_AUTH_TRUSTED_PROXIES", "127.0.0.1/32")
@@ -2550,6 +2626,7 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 
 {{ else }}func TestGeneratedServiceRejectsProductionDefaultSecrets(t *testing.T) {
 	t.Setenv("ENV", "production")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("API_KEY", "")
 	t.Setenv("ADMIN_KEY", "")
 	if _, err := newService(); err == nil {
@@ -2561,15 +2638,39 @@ func TestGeneratedServiceRejectsProductionMissingAdminKey(t *testing.T) {
 
 {{ end }}
 {{ if ne .AuthMode "dev-headers" }}
+func TestGeneratedServiceRejectsProductionMemoryRateLimit(t *testing.T) {
+	t.Setenv("ENV", "production")
+	setProductionAuthEnv(t)
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("RATE_LIMIT_STORE", "memory")
+	t.Setenv("IDEMPOTENCY_STORE", "redis")
+	t.Setenv("REDIS_ADDR", "localhost:6379")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to reject memory rate limiting")
+	} else if !strings.Contains(err.Error(), "RATE_LIMIT_STORE=memory") {
+		t.Fatalf("startup error = %v, want memory rate-limit rejection", err)
+	}
+}
+
+func TestGeneratedServiceRejectsProductionMissingRateLimitRedisAddress(t *testing.T) {
+	t.Setenv("ENV", "production")
+	setProductionAuthEnv(t)
+	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("RATE_LIMIT_STORE", "redis")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "")
+	t.Setenv("REDIS_ADDR", "")
+	if _, err := newService(); err == nil {
+		t.Fatal("expected production service startup to require Redis rate-limit address")
+	} else if !strings.Contains(err.Error(), "RATE_LIMIT_REDIS_ADDR") {
+		t.Fatalf("startup error = %v, want rate-limit Redis address requirement", err)
+	}
+}
+
 func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 	t.Setenv("ENV", "production")
-{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
-{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
-{{ else }}
-	t.Setenv("API_KEY", "prod-api-key")
-	t.Setenv("API_TENANT_ID", "tenant_1")
-{{ end }}
+	setProductionAuthEnv(t)
 	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("IDEMPOTENCY_STORE", "memory")
 	if _, err := newService(); err == nil {
 		t.Fatal("expected production service startup to reject memory idempotency")
@@ -2580,13 +2681,9 @@ func TestGeneratedServiceRejectsProductionMemoryIdempotency(t *testing.T) {
 
 func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 	t.Setenv("ENV", "production")
-{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
-{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
-{{ else }}
-	t.Setenv("API_KEY", "prod-api-key")
-	t.Setenv("API_TENANT_ID", "tenant_1")
-{{ end }}
+	setProductionAuthEnv(t)
 	t.Setenv("ADMIN_KEY", "prod-admin-key")
+	t.Setenv("RATE_LIMIT_REDIS_ADDR", "localhost:6379")
 	t.Setenv("IDEMPOTENCY_STORE", "redis")
 	t.Setenv("REDIS_ADDR", "")
 	if _, err := newService(); err == nil {
@@ -2597,6 +2694,15 @@ func TestGeneratedServiceRejectsProductionMissingRedisAddress(t *testing.T) {
 }
 {{ end }}
 
+{{ if ne .AuthMode "dev-headers" }}func setProductionAuthEnv(t *testing.T) {
+	t.Helper()
+{{ if eq .AuthMode "jwt" }}	setJWTAuthEnv(t)
+{{ else if eq .AuthMode "clerk" }}	setClerkAuthEnv(t)
+{{ else }}	t.Setenv("API_KEY", "prod-api-key")
+	t.Setenv("API_TENANT_ID", "tenant_1")
+{{ end }}}
+
+{{ end }}
 func setLocalTestEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV", "development")
@@ -2760,6 +2866,9 @@ TRUSTED_PROXIES=
 RATE_LIMIT_SKIP_ENABLED=false
 RATE_LIMIT_SKIP_HEADER=
 RATE_LIMIT_ALLOW_DANGEROUS_DEV_BYPASSES=false
+RATE_LIMIT_STORE=memory
+RATE_LIMIT_REDIS_ADDR=
+RATE_LIMIT_KEY_PREFIX=ratelimit:
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api
