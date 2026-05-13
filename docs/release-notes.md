@@ -94,6 +94,10 @@ source of truth is `docs/release-runbook.md`.
   canonicalizes Prometheus HTTP metric labels so methods stay within standard
   HTTP verbs plus `OTHER`/`UNKNOWN`, invalid statuses collapse to `0`, and route
   labels are trimmed before series creation.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi` response
+  validation now accepts `ResponseValidationOptions.ShouldValidate` so services
+  can skip response buffering for streaming, upgrade, or large-download routes
+  while keeping request validation enabled.
 
 - `contrib/adapters/idempotencyredis.ReleaseReservation` now performs atomic
   token-aware compare-and-delete cleanup so stale releasers cannot delete newer

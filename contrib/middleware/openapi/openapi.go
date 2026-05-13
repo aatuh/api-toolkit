@@ -59,10 +59,13 @@ func WithIgnoreNotFound(ignore bool) Option {
 // ResponseValidationOptions configures response validation.
 // When enabled, responses are buffered for validation and do not preserve
 // optional http.ResponseWriter interfaces such as Flusher, Hijacker, or Pusher.
+// Use ShouldValidate to exclude streaming, upgrade, or large-download routes
+// from response buffering while keeping request validation enabled.
 type ResponseValidationOptions struct {
-	Enabled      bool
-	MaxBodyBytes int64
-	ErrorHandler ErrorHandler
+	Enabled        bool
+	MaxBodyBytes   int64
+	ShouldValidate func(*http.Request) bool
+	ErrorHandler   ErrorHandler
 }
 
 // WithResponseValidation configures response validation.
@@ -167,7 +170,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			m.errorHandler(w, r, status, err)
 			return
 		}
-		if m.responseValidation == nil {
+		if m.responseValidation == nil || !m.responseValidation.shouldValidate(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

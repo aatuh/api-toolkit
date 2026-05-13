@@ -93,6 +93,9 @@ The toolkit provides concrete controls for resource limits:
 
 - Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines; `securityprofile.WithHardTimeout` and `middleware/timeout.NewHard` add a hard wall-clock response cutoff that writes a 504 Problem Details timeout response and discards late handler writes
 - Hard-timeout capture limits: `securityprofile.WithHardTimeoutMaxCaptureBytes`, `RouteOverride.HardTimeoutMaxCaptureBytes`, and `middleware/timeout.Options.MaxCaptureBytes` bound buffered non-streaming responses
+- OpenAPI response validation: `openapi.ResponseValidationOptions.ShouldValidate`
+  excludes streaming, upgrade, or large-download routes from response buffering
+  while leaving OpenAPI request validation enabled
 - Payload size: `securityprofile.WithMaxBodyBytes` and `RouteOverride.MaxBodyBytes`
 - Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
 - Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
@@ -114,6 +117,13 @@ these knobs do not make streaming routes safe. Handler panics inside hard
 timeout are contained in the child goroutine. Before the timeout response wins,
 the middleware returns a deterministic 500 Problem Details response; after the
 timeout response wins, late panics are dropped with late writes.
+
+OpenAPI response validation also buffers handler responses so it can validate
+the final status, headers, and body against the route contract. Do not apply it
+to streaming responses, server-sent events, websocket upgrades, or routes that
+need optional writer interfaces. Keep request validation enabled globally and
+use `openapi.ResponseValidationOptions.ShouldValidate` to opt those routes out
+of response validation.
 
 ## Admin-only endpoints and EU privacy posture
 
