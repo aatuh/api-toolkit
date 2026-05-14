@@ -144,6 +144,12 @@ source of truth is `docs/release-runbook.md`.
   raw HTTP S3-compatible adapter with SigV4 request signing, presigned URL
   hooks, content-type and object-size policy checks, metadata secret-shape
   rejection, not-found mapping, and a bucket health checker.
+- `github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery` adds
+  experimental outbound webhook delivery contracts with a fail-closed event
+  catalog, tenant-scoped endpoint matching, HMAC-signed HTTP delivery, bounded
+  retry backoff helpers, replay commands, sanitized attempt results, and
+  `contrib/async` worker integration that keeps endpoint signing secrets out
+  of durable job payloads.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc` and
   `github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc` add
   experimental provider-neutral OIDC/JWKS bearer-token middleware with optional

@@ -109,6 +109,7 @@ github.com/aatuh/api-toolkit/contrib/v2/email/markdown	experimental	direct-tests
 github.com/aatuh/api-toolkit/contrib/v2/email/noop	wrapper-only	wrapper-smoke-tested	No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.
 github.com/aatuh/api-toolkit/contrib/v2/objectstore	experimental	direct-tests	Experimental object storage contracts.
 github.com/aatuh/api-toolkit/contrib/v2/objectstore/objectstoretest	test-only	test-support	Reusable object storage adapter contract tests.
+github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery	experimental	direct-tests	Experimental outbound webhook delivery contracts, signing, dispatch, retry, and async worker helpers.
 github.com/aatuh/api-toolkit/contrib/v2/examples/api-key	example-only	example-only	Example application.
 github.com/aatuh/api-toolkit/contrib/v2/examples/auth	example-only	example-only	Example application.
 github.com/aatuh/api-toolkit/contrib/v2/examples/file-upload	example-only	example-only	Example application.

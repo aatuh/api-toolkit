@@ -20,10 +20,11 @@ Current implementation status: the generator emits the initial full-profile
 foundation with API-key auth, tenant-scoped widget writes, idempotent create
 replay, optimistic-update ETags, Postgres migrations, Docker Compose with
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
-checks, contract lint/diff targets, and generated HTTP smoke tests. The roadmap
-continues with wiring the reusable durable Postgres repositories, async/outbox
-workers, audit, webhook delivery, object storage, OpenAPI 3.1, and generated Go
-client output into the generated application boundary.
+checks, contract lint/diff targets, and generated HTTP smoke tests. Reusable
+building blocks now exist for durable operations, transactional outbox work,
+audit events, object storage, outbound webhook delivery, OpenAPI 3.1, and
+generated Go client output; the roadmap continues with wiring those reusable
+pieces deeper into the generated application boundary.
 
 ## Runtime Contract
 
@@ -39,8 +40,9 @@ The full profile standardizes these defaults:
   transactional outbox work, and expose pollable operation resources.
 - Audit events record actor type, actor ID, tenant, action, resource, result,
   request ID, and redaction-safe metadata.
-- Webhook delivery signs outbound events, retries with bounded backoff, stores
-  delivery history, and supports operator replay.
+- Webhook delivery signs outbound tenant-scoped events, rejects unsafe endpoint
+  headers, retries with bounded backoff, stores sanitized delivery history, and
+  supports operator replay.
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
