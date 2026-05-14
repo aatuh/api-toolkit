@@ -157,7 +157,7 @@ func versionValue(value string) string {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|dev-api] [--auth api-key|jwt|clerk|dev-headers]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
@@ -202,17 +202,19 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 const (
-	scaffoldProfileSaaSAPI = "saas-api"
-	scaffoldProfileDevAPI  = "dev-api"
-	scaffoldAuthAPIKey     = "api-key"
-	scaffoldAuthJWT        = "jwt"
-	scaffoldAuthClerk      = "clerk"
-	scaffoldAuthDevHeaders = "dev-headers"
+	scaffoldProfileSaaSAPI     = "saas-api"
+	scaffoldProfileSaaSAPIFull = "saas-api-full"
+	scaffoldProfileDevAPI      = "dev-api"
+	scaffoldAuthAPIKey         = "api-key"
+	scaffoldAuthJWT            = "jwt"
+	scaffoldAuthClerk          = "clerk"
+	scaffoldAuthOIDC           = "oidc"
+	scaffoldAuthDevHeaders     = "dev-headers"
 )
 
 func isSupportedScaffoldProfile(profile string) bool {
 	switch strings.TrimSpace(profile) {
-	case scaffoldProfileSaaSAPI, scaffoldProfileDevAPI:
+	case scaffoldProfileSaaSAPI, scaffoldProfileSaaSAPIFull, scaffoldProfileDevAPI:
 		return true
 	default:
 		return false
@@ -233,6 +235,11 @@ func validateScaffoldAuthMode(profile, authMode string) (string, error) {
 	case scaffoldAuthAPIKey, scaffoldAuthJWT, scaffoldAuthClerk:
 		if profile == scaffoldProfileDevAPI {
 			return "", fmt.Errorf("auth mode %q is not supported for profile %q", authMode, profile)
+		}
+		return authMode, nil
+	case scaffoldAuthOIDC:
+		if profile != scaffoldProfileSaaSAPIFull {
+			return "", fmt.Errorf("auth mode %q requires profile %q", authMode, scaffoldProfileSaaSAPIFull)
 		}
 		return authMode, nil
 	case scaffoldAuthDevHeaders:
@@ -428,7 +435,8 @@ func generateService(cfg scaffoldConfig) error {
 		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
 		"ContribReplace": replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
 	}
-	for _, file := range scaffoldFiles {
+	files := scaffoldFilesForProfile(cfg.Profile)
+	for _, file := range files {
 		rendered, err := renderTemplate(file.Name, file.Body, data)
 		if err != nil {
 			return err
@@ -444,7 +452,12 @@ func generateService(cfg scaffoldConfig) error {
 			return err
 		}
 	}
-	golden, err := renderSaaSAPIOpenAPIGolden(cfg.AuthMode)
+	var golden []byte
+	if cfg.Profile == scaffoldProfileSaaSAPIFull {
+		golden, err = renderSaaSAPIFullOpenAPIGolden()
+	} else {
+		golden, err = renderSaaSAPIOpenAPIGolden(cfg.AuthMode)
+	}
 	if err != nil {
 		return err
 	}
@@ -569,6 +582,168 @@ func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 	return normalizeJSON(doc)
 }
 
+func renderSaaSAPIFullOpenAPIGolden() ([]byte, error) {
+	registry := specs.NewRegistry(specs.Info{
+		Title:       "Full SaaS API",
+		Description: "Generated api-toolkit full SaaS/API profile.",
+		Version:     "dev",
+	})
+	authSchemeName := "ApiKeyAuth"
+	registry.RegisterSecurityScheme(authSchemeName, specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	registry.SetSecurity([]specs.SecurityRequirement{{Name: authSchemeName}})
+	registerFullScaffoldSchemas(registry)
+	specs.RegisterProblemCatalog(registry, nil)
+	for _, operation := range fullScaffoldOperations(authSchemeName) {
+		registry.Register(operation)
+	}
+	doc, err := registry.OpenAPI()
+	if err != nil {
+		return nil, fmt.Errorf("render full scaffold openapi: %w", err)
+	}
+	return normalizeJSON(doc)
+}
+
+func registerFullScaffoldSchemas(registry *specs.Registry) {
+	registry.RegisterSchema("Widget", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "name", "version"},
+		"properties": map[string]any{
+			"id":        map[string]any{"type": "string"},
+			"tenant_id": map[string]any{"type": "string"},
+			"name":      map[string]any{"type": "string"},
+			"version":   map[string]any{"type": "integer", "format": "int64"},
+		},
+	})
+	registry.RegisterSchema("WidgetCreateRequest", map[string]any{
+		"type":     "object",
+		"required": []string{"name"},
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+		},
+		"additionalProperties": false,
+	})
+	registry.RegisterSchema("WidgetList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Widget"}},
+			"next_cursor": map[string]any{"type": "string", "nullable": true},
+		},
+	})
+}
+
+func fullScaffoldOperations(authSchemeName string) []specs.Operation {
+	auth := func(scopes ...string) []specs.SecurityRequirement {
+		return []specs.SecurityRequirement{{Name: authSchemeName, Scopes: scopes}}
+	}
+	problemStatuses := []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed, http.StatusTooManyRequests}
+	jsonBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetCreateRequest"},
+		},
+	}
+	widgetResponse := specs.Response{
+		Description: "Widget",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	return []specs.Operation{
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getReadiness",
+			Method:      http.MethodGet,
+			Path:        "/readyz",
+			Summary:     "Readiness",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Ready"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOpenAPI",
+			Method:      http.MethodGet,
+			Path:        "/docs/openapi.json",
+			Summary:     "OpenAPI document",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "OpenAPI document"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getDetailedHealth",
+			Method:      http.MethodGet,
+			Path:        "/health/detailed",
+			Summary:     "Detailed health",
+			Security:    auth("admin:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Detailed health"}},
+		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getMetrics",
+			Method:      http.MethodGet,
+			Path:        "/metrics",
+			Summary:     "Metrics",
+			Security:    auth("admin:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Metrics"}},
+		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listWidgets",
+			Method:      http.MethodGet,
+			Path:        "/widgets",
+			Summary:     "List widgets",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "cursor", In: "query", Required: false, Schema: map[string]any{"type": "string"}},
+				{Name: "limit", In: "query", Required: false, Schema: map[string]any{"type": "integer", "minimum": 1, "maximum": 100}},
+			},
+			Security: auth("widgets:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Widget list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/WidgetList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createWidget",
+			Method:      http.MethodPost,
+			Path:        "/widgets",
+			Summary:     "Create widget",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: jsonBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: widgetResponse, http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "updateWidget",
+			Method:      http.MethodPatch,
+			Path:        "/widgets/{id}",
+			Summary:     "Update widget",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "If-Match", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: jsonBody,
+			Responses:   map[int]specs.Response{http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "deleteWidget",
+			Method:      http.MethodDelete,
+			Path:        "/widgets/{id}",
+			Summary:     "Delete widget",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("widgets:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+	}
+}
+
 func scaffoldAuthSecuritySchemeName(authMode string) string {
 	if isScaffoldBearerAuth(authMode) {
 		return "BearerAuth"
@@ -590,7 +765,7 @@ func scaffoldAuthSecurityScheme(authMode string) specs.SecurityScheme {
 }
 
 func isScaffoldBearerAuth(authMode string) bool {
-	return authMode == scaffoldAuthJWT || authMode == scaffoldAuthClerk
+	return authMode == scaffoldAuthJWT || authMode == scaffoldAuthClerk || authMode == scaffoldAuthOIDC
 }
 
 func normalizeJSON(data []byte) ([]byte, error) {
@@ -1647,6 +1822,1365 @@ var scaffoldFiles = []scaffoldFile{
 	{Name: "docker-compose.yml", Body: composeTemplate},
 	{Name: "README.md", Body: readmeTemplate},
 }
+
+func scaffoldFilesForProfile(profile string) []scaffoldFile {
+	if profile == scaffoldProfileSaaSAPIFull {
+		return fullScaffoldFiles
+	}
+	return scaffoldFiles
+}
+
+var fullScaffoldFiles = []scaffoldFile{
+	{Name: "go.mod", Body: fullGoModTemplate},
+	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
+	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
+	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
+	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
+	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
+	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
+	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
+	{Name: "migrations/0001_platform.sql", Body: fullMigrationTemplate},
+	{Name: "Makefile", Body: fullMakefileTemplate},
+	{Name: ".env.example", Body: fullEnvTemplate},
+	{Name: ".gitignore", Body: fullGitignoreTemplate},
+	{Name: ".dockerignore", Body: fullDockerignoreTemplate},
+	{Name: ".github/workflows/ci.yml", Body: fullCIWorkflowTemplate},
+	{Name: "Dockerfile", Body: fullDockerfileTemplate},
+	{Name: "docker-compose.yml", Body: fullComposeTemplate},
+	{Name: "deploy/kubernetes/deployment.yaml", Body: fullKubernetesDeploymentTemplate},
+	{Name: "deploy/kubernetes/service.yaml", Body: fullKubernetesServiceTemplate},
+	{Name: "deploy/kubernetes/admin-service.yaml", Body: fullKubernetesAdminServiceTemplate},
+	{Name: "README.md", Body: fullReadmeTemplate},
+}
+
+const fullGoModTemplate = `module {{ .Module }}
+
+go 1.25.0
+
+require (
+	github.com/aatuh/api-toolkit/v2 v2.1.0
+	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
+)
+
+{{ .CoreReplace }}{{ .ContribReplace }}`
+
+const fullCmdMainTemplate = `package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"{{ .Module }}/internal/app"
+	"{{ .Module }}/internal/httpapi"
+)
+
+const (
+	appVersion  = "dev"
+	buildCommit = "unknown"
+	buildDate   = "unknown"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context) error {
+	cfg, err := httpapi.ConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	widgets := app.NewWidgetService()
+	publicServer := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           httpapi.NewRouter(httpapi.RouterConfig{Widgets: widgets, APIKey: cfg.APIKey, AdminKey: cfg.AdminKey}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	servers := []*http.Server{publicServer}
+	errCh := make(chan error, 2)
+	for _, srv := range servers {
+		server := srv
+		go func() {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
+		}()
+	}
+	if cfg.AdminAddr != "" {
+		adminServer := &http.Server{
+			Addr:              cfg.AdminAddr,
+			Handler:           httpapi.NewAdminRouter(httpapi.RouterConfig{AdminKey: cfg.AdminKey}),
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+		servers = append(servers, adminServer)
+		go func() {
+			if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
+		}()
+	}
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for _, srv := range servers {
+			_ = srv.Shutdown(shutdownCtx)
+		}
+		return nil
+	case err := <-errCh:
+		return err
+	}
+}
+`
+
+const fullDomainWidgetTemplate = `package domain
+
+import (
+	"fmt"
+	"time"
+)
+
+type Widget struct {
+	ID        string
+	TenantID  string
+	Name      string
+	Version   int64
+	Deleted   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (w Widget) ETag() string {
+	return fmt.Sprintf("%q", w.Version)
+}
+
+func (w Widget) Public() map[string]any {
+	return map[string]any{
+		"id":        w.ID,
+		"tenant_id": w.TenantID,
+		"name":      w.Name,
+		"version":   w.Version,
+	}
+}
+`
+
+// #nosec G101 -- generated source uses idempotency-key variable names, not hardcoded secrets.
+const fullAppWidgetsTemplate = `package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var (
+	ErrValidation         = errors.New("validation failed")
+	ErrNotFound           = errors.New("not found")
+	ErrPreconditionFailed = errors.New("precondition failed")
+)
+
+type WidgetService struct {
+	mu            sync.Mutex
+	next          int
+	widgets       map[string]domain.Widget
+	createReplays map[string]domain.Widget
+	updateReplays map[string]domain.Widget
+	deleteReplays map[string]struct{}
+	now           func() time.Time
+}
+
+func NewWidgetService() *WidgetService {
+	return &WidgetService{
+		widgets:       map[string]domain.Widget{},
+		createReplays: map[string]domain.Widget{},
+		updateReplays: map[string]domain.Widget{},
+		deleteReplays: map[string]struct{}{},
+		now:           time.Now,
+	}
+}
+
+func (s *WidgetService) List(ctx context.Context, tenantID string) ([]domain.Widget, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return nil, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]domain.Widget, 0, len(s.widgets))
+	for _, widget := range s.widgets {
+		if widget.TenantID == tenantID && !widget.Deleted {
+			out = append(out, widget)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *WidgetService) Create(ctx context.Context, tenantID, name, idempotencyKey string) (domain.Widget, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Widget{}, false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	name = strings.TrimSpace(name)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if tenantID == "" || name == "" || idempotencyKey == "" {
+		return domain.Widget{}, false, ErrValidation
+	}
+	replayKey := tenantID + "\x00create\x00" + idempotencyKey
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if widget, ok := s.createReplays[replayKey]; ok {
+		return widget, true, nil
+	}
+	s.next++
+	now := s.now().UTC()
+	widget := domain.Widget{
+		ID:        fmt.Sprintf("wgt_%06d", s.next),
+		TenantID:  tenantID,
+		Name:      name,
+		Version:   1,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	s.widgets[widget.ID] = widget
+	s.createReplays[replayKey] = widget
+	return widget, false, nil
+}
+
+func (s *WidgetService) Update(ctx context.Context, tenantID, id, name, ifMatch, idempotencyKey string) (domain.Widget, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Widget{}, false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	ifMatch = strings.TrimSpace(ifMatch)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if tenantID == "" || id == "" || name == "" || ifMatch == "" || idempotencyKey == "" {
+		return domain.Widget{}, false, ErrValidation
+	}
+	replayKey := tenantID + "\x00update\x00" + id + "\x00" + idempotencyKey
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if widget, ok := s.updateReplays[replayKey]; ok {
+		return widget, true, nil
+	}
+	widget, ok := s.widgets[id]
+	if !ok || widget.Deleted || widget.TenantID != tenantID {
+		return domain.Widget{}, false, ErrNotFound
+	}
+	if widget.ETag() != ifMatch {
+		return domain.Widget{}, false, ErrPreconditionFailed
+	}
+	widget.Name = name
+	widget.Version++
+	widget.UpdatedAt = s.now().UTC()
+	s.widgets[id] = widget
+	s.updateReplays[replayKey] = widget
+	return widget, false, nil
+}
+
+func (s *WidgetService) Delete(ctx context.Context, tenantID, id, idempotencyKey string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if tenantID == "" || id == "" || idempotencyKey == "" {
+		return false, ErrValidation
+	}
+	replayKey := tenantID + "\x00delete\x00" + id + "\x00" + idempotencyKey
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.deleteReplays[replayKey]; ok {
+		return true, nil
+	}
+	widget, ok := s.widgets[id]
+	if !ok || widget.Deleted || widget.TenantID != tenantID {
+		return false, ErrNotFound
+	}
+	widget.Deleted = true
+	widget.Version++
+	widget.UpdatedAt = s.now().UTC()
+	s.widgets[id] = widget
+	s.deleteReplays[replayKey] = struct{}{}
+	return false, nil
+}
+`
+
+const fullPostgresAdapterTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+)
+
+var ErrPoolRequired = errors.New("postgres pool is required")
+
+type Pinger interface {
+	Ping(context.Context) error
+}
+
+type HealthChecker struct {
+	Pool Pinger
+}
+
+func (h HealthChecker) Check(ctx context.Context) error {
+	if h.Pool == nil {
+		return ErrPoolRequired
+	}
+	return h.Pool.Ping(ctx)
+}
+`
+
+const fullHTTPAPIOpenAPITemplate = `package httpapi
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/aatuh/api-toolkit/v2/routepolicy"
+	"github.com/aatuh/api-toolkit/v2/specs"
+)
+
+func OpenAPIDocument() ([]byte, error) {
+	registry := specs.NewRegistry(specs.Info{
+		Title:       "Full SaaS API",
+		Description: "Generated api-toolkit full SaaS/API profile.",
+		Version:     "dev",
+	})
+	registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
+	registry.SetSecurity([]specs.SecurityRequirement{ {Name: "ApiKeyAuth"} })
+	registerSchemas(registry)
+	specs.RegisterProblemCatalog(registry, nil)
+	for _, operation := range operations() {
+		registry.Register(operation)
+	}
+	doc, err := registry.OpenAPI()
+	if err != nil {
+		return nil, fmt.Errorf("render openapi: %w", err)
+	}
+	return normalizeJSON(doc)
+}
+
+func registerSchemas(registry *specs.Registry) {
+	registry.RegisterSchema("Widget", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "name", "version"},
+		"properties": map[string]any{
+			"id":        map[string]any{"type": "string"},
+			"tenant_id": map[string]any{"type": "string"},
+			"name":      map[string]any{"type": "string"},
+			"version":   map[string]any{"type": "integer", "format": "int64"},
+		},
+	})
+	registry.RegisterSchema("WidgetCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+		},
+	})
+	registry.RegisterSchema("WidgetList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Widget"}},
+			"next_cursor": map[string]any{"type": "string", "nullable": true},
+		},
+	})
+}
+
+func operations() []specs.Operation {
+	auth := func(scopes ...string) []specs.SecurityRequirement {
+		return []specs.SecurityRequirement{ {Name: "ApiKeyAuth", Scopes: scopes} }
+	}
+	problemStatuses := []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed, http.StatusTooManyRequests}
+	jsonBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetCreateRequest"},
+		},
+	}
+	widgetResponse := specs.Response{
+		Description: "Widget",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	return []specs.Operation{
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getReadiness",
+			Method:      http.MethodGet,
+			Path:        "/readyz",
+			Summary:     "Readiness",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Ready"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOpenAPI",
+			Method:      http.MethodGet,
+			Path:        "/docs/openapi.json",
+			Summary:     "OpenAPI document",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "OpenAPI document"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getDetailedHealth",
+			Method:      http.MethodGet,
+			Path:        "/health/detailed",
+			Summary:     "Detailed health",
+			Security:    auth("admin:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Detailed health"}},
+		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getMetrics",
+			Method:      http.MethodGet,
+			Path:        "/metrics",
+			Summary:     "Metrics",
+			Security:    auth("admin:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Metrics"}},
+		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listWidgets",
+			Method:      http.MethodGet,
+			Path:        "/widgets",
+			Summary:     "List widgets",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "cursor", In: "query", Required: false, Schema: map[string]any{"type": "string"}},
+				{Name: "limit", In: "query", Required: false, Schema: map[string]any{"type": "integer", "minimum": 1, "maximum": 100}},
+			},
+			Security: auth("widgets:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Widget list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/WidgetList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createWidget",
+			Method:      http.MethodPost,
+			Path:        "/widgets",
+			Summary:     "Create widget",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: jsonBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: widgetResponse, http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "updateWidget",
+			Method:      http.MethodPatch,
+			Path:        "/widgets/{id}",
+			Summary:     "Update widget",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "If-Match", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: jsonBody,
+			Responses:   map[int]specs.Response{http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "deleteWidget",
+			Method:      http.MethodDelete,
+			Path:        "/widgets/{id}",
+			Summary:     "Delete widget",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("widgets:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+	}
+}
+
+func normalizeJSON(data []byte) ([]byte, error) {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	out, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
+}
+`
+
+const fullHTTPAPIRouterTemplate = `package httpapi
+
+import (
+	"crypto/subtle"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"os"
+	"strings"
+
+	"github.com/aatuh/api-toolkit/v2/httpx"
+
+	"{{ .Module }}/internal/app"
+)
+
+type Config struct {
+	Addr         string
+	AdminAddr    string
+	APIKey       string
+	AdminKey     string
+	DatabaseURL  string
+	RedisAddr    string
+	APIKeyPepper string
+}
+
+func ConfigFromEnv() (Config, error) {
+	cfg := Config{
+		Addr:         envDefault("API_ADDR", ":8080"),
+		AdminAddr:    strings.TrimSpace(os.Getenv("ADMIN_ADDR")),
+		APIKey:       envDefault("API_KEY", "local-dev-key"),
+		AdminKey:     envDefault("ADMIN_KEY", "local-admin-key"),
+		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		RedisAddr:    envDefault("REDIS_ADDR", "localhost:6379"),
+		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
+	}
+	if strings.EqualFold(os.Getenv("ENV"), "production") {
+		var missing []string
+		if cfg.DatabaseURL == "" {
+			missing = append(missing, "DATABASE_URL")
+		}
+		if cfg.RedisAddr == "" {
+			missing = append(missing, "REDIS_ADDR")
+		}
+		if cfg.APIKeyPepper == "" {
+			missing = append(missing, "API_KEY_PEPPER")
+		}
+		if cfg.APIKey == "" || cfg.APIKey == "local-dev-key" {
+			missing = append(missing, "API_KEY")
+		}
+		if cfg.AdminKey == "" || cfg.AdminKey == "local-admin-key" {
+			missing = append(missing, "ADMIN_KEY")
+		}
+		if len(missing) > 0 {
+			return Config{}, errors.New("production configuration missing: " + strings.Join(missing, ", "))
+		}
+	}
+	return cfg, nil
+}
+
+func envDefault(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+type RouterConfig struct {
+	Widgets  *app.WidgetService
+	APIKey   string
+	AdminKey string
+}
+
+func NewRouter(cfg RouterConfig) http.Handler {
+	cfg = cfg.withDefaults()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /readyz", handleReady)
+	mux.HandleFunc("GET /docs/openapi.json", handleOpenAPI)
+	mux.HandleFunc("GET /widgets", cfg.handleListWidgets)
+	mux.HandleFunc("POST /widgets", cfg.handleCreateWidget)
+	mux.HandleFunc("PATCH /widgets/{id}", cfg.handleUpdateWidget)
+	mux.HandleFunc("DELETE /widgets/{id}", cfg.handleDeleteWidget)
+	return mux
+}
+
+func NewAdminRouter(cfg RouterConfig) http.Handler {
+	cfg = cfg.withDefaults()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health/detailed", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+	}))
+	mux.HandleFunc("GET /metrics", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte("# HELP api_requests_total Total API requests\n# TYPE api_requests_total counter\napi_requests_total 0\n"))
+	}))
+	mux.HandleFunc("GET /debug/pprof/", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"pprof": "mounted on the admin listener"})
+	}))
+	return mux
+}
+
+func (cfg RouterConfig) withDefaults() RouterConfig {
+	if cfg.Widgets == nil {
+		cfg.Widgets = app.NewWidgetService()
+	}
+	if cfg.APIKey == "" {
+		cfg.APIKey = "local-dev-key"
+	}
+	if cfg.AdminKey == "" {
+		cfg.AdminKey = "local-admin-key"
+	}
+	return cfg
+}
+
+func handleReady(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	doc, err := OpenAPIDocument()
+	if err != nil {
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "openapi document unavailable"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(doc)
+}
+
+func (cfg RouterConfig) handleListWidgets(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	widgets, err := cfg.Widgets.List(r.Context(), tenantID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(widgets))
+	for _, widget := range widgets {
+		items = append(items, widget.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": nil})
+}
+
+func (cfg RouterConfig) handleCreateWidget(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireHeader(w, r, "Idempotency-Key")
+	if !ok {
+		return
+	}
+	req, ok := decodeWidgetRequest(w, r)
+	if !ok {
+		return
+	}
+	widget, replayed, err := cfg.Widgets.Create(r.Context(), tenantID, req.Name, idempotencyKey)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.Header().Set("ETag", widget.ETag())
+	status := http.StatusCreated
+	if replayed {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, widget.Public())
+}
+
+func (cfg RouterConfig) handleUpdateWidget(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireHeader(w, r, "Idempotency-Key")
+	if !ok {
+		return
+	}
+	ifMatch, ok := requireHeader(w, r, "If-Match")
+	if !ok {
+		return
+	}
+	req, ok := decodeWidgetRequest(w, r)
+	if !ok {
+		return
+	}
+	widget, _, err := cfg.Widgets.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch, idempotencyKey)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.Header().Set("ETag", widget.ETag())
+	writeJSON(w, http.StatusOK, widget.Public())
+}
+
+func (cfg RouterConfig) handleDeleteWidget(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireHeader(w, r, "Idempotency-Key")
+	if !ok {
+		return
+	}
+	if _, err := cfg.Widgets.Delete(r.Context(), tenantID, r.PathValue("id"), idempotencyKey); err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type widgetRequest struct {
+	Name string
+}
+
+func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw map[string]string
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return widgetRequest{}, false
+	}
+	name := strings.TrimSpace(raw["name"])
+	if name == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		return widgetRequest{}, false
+	}
+	return widgetRequest{Name: name}, true
+}
+
+func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		return "", false
+	}
+	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
+	if !ok {
+		return "", false
+	}
+	return tenantID, true
+}
+
+func (cfg RouterConfig) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !sameSecret(r.Header.Get("X-Admin-Key"), cfg.AdminKey) {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
+			return
+		}
+		next(w, r)
+	}
+}
+
+func requireHeader(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
+	value := strings.TrimSpace(r.Header.Get(name))
+	if value == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: name + " header is required"})
+		return "", false
+	}
+	return value, true
+}
+
+func sameSecret(got, want string) bool {
+	got = strings.TrimSpace(got)
+	want = strings.TrimSpace(want)
+	if got == "" || want == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+}
+
+func writeAppError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, app.ErrValidation):
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "request validation failed"})
+	case errors.Is(err, app.ErrNotFound):
+		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{Title: http.StatusText(http.StatusNotFound), Detail: "resource not found"})
+	case errors.Is(err, app.ErrPreconditionFailed):
+		httpx.WriteProblem(w, http.StatusPreconditionFailed, httpx.Problem{Title: http.StatusText(http.StatusPreconditionFailed), Detail: "If-Match does not match current resource version"})
+	default:
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "request failed"})
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+`
+
+const fullHTTPAPIRouterTestTemplate = `package httpapi
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"{{ .Module }}/internal/app"
+)
+
+func TestReadinessAndOpenAPI(t *testing.T) {
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), APIKey: "test-key"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ready status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/docs/openapi.json", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "\"operationId\": \"createWidget\"") {
+		t.Fatalf("openapi missing createWidget operation: %s", rec.Body.String())
+	}
+}
+
+func TestCreateWidgetRequiresAuth(t *testing.T) {
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), APIKey: "test-key"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader("{\"name\":\"alpha\"}"))
+	req.Header.Set("X-Tenant-ID", "org_1")
+	req.Header.Set("Idempotency-Key", "idem_1")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing auth status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "application/problem+json") {
+		t.Fatalf("auth failure content type = %q", got)
+	}
+}
+
+func TestCreateWidgetValidatesBody(t *testing.T) {
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), APIKey: "test-key"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader("{\"name\":\"\"}"))
+	req.Header.Set("X-API-Key", "test-key")
+	req.Header.Set("X-Tenant-ID", "org_1")
+	req.Header.Set("Idempotency-Key", "idem_1")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("validation status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateWidgetReplaysIdempotencyKey(t *testing.T) {
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), APIKey: "test-key"})
+	first := createWidget(t, handler, "idem_1")
+	second := createWidget(t, handler, "idem_1")
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first status = %d body=%s", first.Code, first.Body.String())
+	}
+	if second.Code != http.StatusOK {
+		t.Fatalf("second replay status = %d body=%s", second.Code, second.Body.String())
+	}
+	var firstBody, secondBody map[string]any
+	if err := json.Unmarshal(first.Body.Bytes(), &firstBody); err != nil {
+		t.Fatalf("decode first body: %v", err)
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondBody); err != nil {
+		t.Fatalf("decode second body: %v", err)
+	}
+	if firstBody["id"] != secondBody["id"] {
+		t.Fatalf("idempotent replay changed id: first=%v second=%v", firstBody["id"], secondBody["id"])
+	}
+	if first.Header().Get("ETag") == "" || second.Header().Get("ETag") == "" {
+		t.Fatalf("missing ETag on create/replay")
+	}
+}
+
+func TestUpdateWidgetRequiresMatchingETag(t *testing.T) {
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), APIKey: "test-key"})
+	created := createWidget(t, handler, "idem_create")
+	var body map[string]any
+	if err := json.Unmarshal(created.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode created body: %v", err)
+	}
+	id, _ := body["id"].(string)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/widgets/"+id, strings.NewReader("{\"name\":\"beta\"}"))
+	req.Header.Set("X-API-Key", "test-key")
+	req.Header.Set("X-Tenant-ID", "org_1")
+	req.Header.Set("Idempotency-Key", "idem_update")
+	req.Header.Set("If-Match", "\"999\"")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusPreconditionFailed {
+		t.Fatalf("conflict status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestOpenAPIGolden(t *testing.T) {
+	got, err := OpenAPIDocument()
+	if err != nil {
+		t.Fatalf("render openapi: %v", err)
+	}
+	goldenPath := filepath.Join("..", "..", "testdata", "openapi.golden.json")
+	if os.Getenv("UPDATE_OPENAPI") == "1" {
+		if err := os.WriteFile(goldenPath, got, 0o600); err != nil {
+			t.Fatalf("update golden: %v", err)
+		}
+		return
+	}
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("openapi golden drift\nwant:\n%s\n\ngot:\n%s", want, got)
+	}
+}
+
+func createWidget(t *testing.T, handler http.Handler, idem string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader("{\"name\":\"alpha\"}"))
+	req.Header.Set("X-API-Key", "test-key")
+	req.Header.Set("X-Tenant-ID", "org_1")
+	req.Header.Set("Idempotency-Key", idem)
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+`
+
+const fullMigrationTemplate = `CREATE TABLE organizations (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE memberships (
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	user_id TEXT NOT NULL,
+	role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (organization_id, user_id)
+);
+
+CREATE TABLE invitations (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	email TEXT NOT NULL,
+	role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+	token_hash BYTEA NOT NULL,
+	expires_at TIMESTAMPTZ NOT NULL,
+	accepted_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE api_keys (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	prefix TEXT NOT NULL,
+	key_hash BYTEA NOT NULL,
+	scopes TEXT[] NOT NULL DEFAULT '{}',
+	expires_at TIMESTAMPTZ,
+	last_used_at TIMESTAMPTZ,
+	revoked_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE widgets (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	version BIGINT NOT NULL DEFAULT 1,
+	deleted_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE operations (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	state TEXT NOT NULL,
+	result JSONB,
+	error JSONB,
+	lease_owner TEXT,
+	lease_expires_at TIMESTAMPTZ,
+	retry_count INTEGER NOT NULL DEFAULT 0,
+	next_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE outbox_events (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	event_type TEXT NOT NULL,
+	payload JSONB NOT NULL,
+	state TEXT NOT NULL DEFAULT 'pending',
+	lease_owner TEXT,
+	lease_expires_at TIMESTAMPTZ,
+	retry_count INTEGER NOT NULL DEFAULT 0,
+	next_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE audit_events (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT,
+	actor_id TEXT,
+	action TEXT NOT NULL,
+	resource_type TEXT NOT NULL,
+	resource_id TEXT,
+	result TEXT NOT NULL,
+	request_id TEXT,
+	metadata JSONB NOT NULL DEFAULT '{}',
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE webhook_endpoints (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	url TEXT NOT NULL,
+	event_types TEXT[] NOT NULL,
+	secret_hash BYTEA NOT NULL,
+	disabled_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE webhook_deliveries (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	endpoint_id TEXT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+	event_type TEXT NOT NULL,
+	payload JSONB NOT NULL,
+	state TEXT NOT NULL DEFAULT 'pending',
+	attempts INTEGER NOT NULL DEFAULT 0,
+	next_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	last_error TEXT,
+	delivered_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`
+
+const fullMakefileTemplate = `GO ?= go
+API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
+OPENAPI ?= testdata/openapi.golden.json
+OPENAPI_BASE ?= $(OPENAPI)
+COMPOSE ?= docker compose
+
+.PHONY: test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check integration-check clean finalize
+
+test:
+	$(GO) test ./...
+
+fmt:
+	$(GO) fmt ./...
+
+build:
+	$(GO) build -trimpath -o bin/api ./cmd/api
+
+openapi-check:
+	$(GO) test ./internal/httpapi -run TestOpenAPIGolden
+
+openapi-update:
+	UPDATE_OPENAPI=1 $(GO) test ./internal/httpapi -run TestOpenAPIGolden
+
+contracts-lint:
+	$(API_TOOLKIT) contracts lint --openapi $(OPENAPI)
+
+contracts-diff:
+	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
+
+client-check:
+	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient
+
+integration-check:
+	$(COMPOSE) up -d postgres redis
+	$(GO) test ./...
+	$(COMPOSE) down -v
+
+clean:
+	$(GO) clean -testcache
+
+finalize: fmt test build openapi-check contracts-lint contracts-diff clean
+`
+
+const fullEnvTemplate = `ENV=development
+API_ADDR=:8080
+ADMIN_ADDR=:9090
+DATABASE_URL=
+REDIS_ADDR=localhost:6379
+API_KEY=local-dev-key
+API_KEY_PEPPER=
+ADMIN_KEY=local-admin-key
+IDEMPOTENCY_KEY_PREFIX=idempotency:
+RATE_LIMIT_KEY_PREFIX=ratelimit:
+OIDC_ISSUER=
+OIDC_AUDIENCE=saas-api-full
+OIDC_JWKS_URL=
+OIDC_TENANT_CLAIM=tenant_id
+`
+
+const fullGitignoreTemplate = `.env
+.env.*
+!.env.example
+bin/
+coverage.out
+.ci-result/
+.tools/
+tmp/
+api
+*.test
+internal/client/apiclient/
+`
+
+const fullDockerignoreTemplate = `.git
+.env
+.env.*
+!.env.example
+bin/
+coverage.out
+.ci-result
+.tools
+tmp/
+`
+
+const fullCIWorkflowTemplate = `name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Finalize
+        run: make finalize
+`
+
+const fullDockerfileTemplate = `FROM golang:1.25 AS build
+WORKDIR /src
+COPY go.mod ./
+RUN go mod download
+COPY . .
+RUN go test ./...
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /
+COPY --from=build /out/api /api
+USER nonroot:nonroot
+EXPOSE 8080 9090
+ENTRYPOINT ["/api"]
+`
+
+// #nosec G101 -- generated compose credentials are local development placeholders documented as non-production defaults.
+const fullComposeTemplate = `services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://api:api@postgres:5432/api?sslmode=disable
+      REDIS_ADDR: redis:6379
+      ADMIN_ADDR: :9090
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: api
+      POSTGRES_PASSWORD: api
+      POSTGRES_DB: api
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U api -d api"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  minio:
+    image: minio/minio:latest
+    profiles: [objectstore]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+`
+
+const fullKubernetesDeploymentTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: example/api:dev
+          ports:
+            - name: public
+              containerPort: 8080
+            - name: admin
+              containerPort: 9090
+          env:
+            - name: API_ADDR
+              value: ":8080"
+            - name: ADMIN_ADDR
+              value: ":9090"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: database-url
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: redis-addr
+            - name: API_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: api-key-pepper
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: public
+          livenessProbe:
+            httpGet:
+              path: /readyz
+              port: public
+`
+
+const fullKubernetesServiceTemplate = `apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector:
+    app: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: public
+`
+
+const fullKubernetesAdminServiceTemplate = `apiVersion: v1
+kind: Service
+metadata:
+  name: api-admin
+spec:
+  selector:
+    app: api
+  ports:
+    - name: admin
+      port: 9090
+      targetPort: admin
+`
+
+const fullReadmeTemplate = `# Generated api-toolkit Full SaaS API
+
+Generated profile: ` + "`{{ .Profile }}`" + `.
+Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
+
+Run locally:
+
+` + "```sh" + `
+go test ./...
+go run ./cmd/api
+` + "```" + `
+
+Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
+Redis is reserved for shared idempotency, rate limiting, and cache state.
+The generated HTTP layer starts with API-key tenant isolation and tenant-scoped idempotent widget writes; JWT, Clerk, and OIDC modes are accepted by the generator and are wired in later platform slices.
+
+Useful checks:
+
+` + "```sh" + `
+make openapi-check
+make contracts-lint
+make contracts-diff
+make integration-check
+` + "```" + `
+
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose. The default finalize target stays local and deterministic.
+
+Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
+`
 
 const goModTemplate = `module {{ .Module }}
 
