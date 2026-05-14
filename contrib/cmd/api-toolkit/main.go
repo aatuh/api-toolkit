@@ -895,6 +895,87 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 			"next_cursor": map[string]any{"type": "string", "nullable": true},
 		},
 	})
+	registry.RegisterSchema("Organization", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "name", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"id":         map[string]any{"type": "string"},
+			"name":       map[string]any{"type": "string"},
+			"created_at": map[string]any{"type": "string", "format": "date-time"},
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("OrganizationCreateRequest", map[string]any{
+		"type":     "object",
+		"required": []string{"name"},
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 160},
+		},
+		"additionalProperties": false,
+	})
+	registry.RegisterSchema("OrganizationList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Organization"}},
+		},
+	})
+	registry.RegisterSchema("Membership", map[string]any{
+		"type":     "object",
+		"required": []string{"organization_id", "user_id", "role", "created_at"},
+		"properties": map[string]any{
+			"organization_id": map[string]any{"type": "string"},
+			"user_id":         map[string]any{"type": "string"},
+			"role":            map[string]any{"type": "string", "enum": []string{"owner", "admin", "member", "viewer"}},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("MembershipList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Membership"}},
+		},
+	})
+	registry.RegisterSchema("Invitation", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "organization_id", "email", "role", "token_prefix", "expires_at", "created_at"},
+		"properties": map[string]any{
+			"id":              map[string]any{"type": "string"},
+			"organization_id": map[string]any{"type": "string"},
+			"email":           map[string]any{"type": "string", "format": "email"},
+			"role":            map[string]any{"type": "string", "enum": []string{"owner", "admin", "member", "viewer"}},
+			"token_prefix":    map[string]any{"type": "string"},
+			"expires_at":      map[string]any{"type": "string", "format": "date-time"},
+			"accepted_at":     map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("InvitationCreateRequest", map[string]any{
+		"type":     "object",
+		"required": []string{"email", "role"},
+		"properties": map[string]any{
+			"email": map[string]any{"type": "string", "format": "email"},
+			"role":  map[string]any{"type": "string", "enum": []string{"admin", "member", "viewer"}},
+		},
+		"additionalProperties": false,
+	})
+	registry.RegisterSchema("InvitationCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"invitation", "token"},
+		"properties": map[string]any{
+			"invitation": map[string]any{"$ref": "#/components/schemas/Invitation"},
+			"token":      map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("InvitationAcceptRequest", map[string]any{
+		"type":     "object",
+		"required": []string{"token"},
+		"properties": map[string]any{
+			"token": map[string]any{"type": "string", "minLength": 1},
+		},
+		"additionalProperties": false,
+	})
 }
 
 func fullScaffoldOperations(authSchemeName string) []specs.Operation {
@@ -912,6 +993,42 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		Description: "Widget",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	organizationCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/OrganizationCreateRequest"},
+		},
+	}
+	invitationCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationCreateRequest"},
+		},
+	}
+	invitationAcceptBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationAcceptRequest"},
+		},
+	}
+	organizationResponse := specs.Response{
+		Description: "Organization",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Organization"},
+		},
+	}
+	membershipResponse := specs.Response{
+		Description: "Membership",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Membership"},
+		},
+	}
+	invitationCreatedResponse := specs.Response{
+		Description: "Invitation created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationCreated"},
 		},
 	}
 	return []specs.Operation{
@@ -945,6 +1062,79 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Security:    auth("admin:read"),
 			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Metrics"}},
 		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizations",
+			Method:      http.MethodGet,
+			Path:        "/organizations",
+			Summary:     "List organizations",
+			Security:    auth("organizations:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Organization list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/OrganizationList"},
+					},
+				},
+			},
+		}, routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganization",
+			Method:      http.MethodPost,
+			Path:        "/organizations",
+			Summary:     "Create organization",
+			Parameters: []specs.Parameter{
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("organizations:write"),
+			RequestBody: organizationCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: organizationResponse},
+		}, routepolicy.WithTenantRequired("actor"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationMembers",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/members",
+			Summary:     "List organization members",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security: auth("members:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Membership list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/MembershipList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationInvitation",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/invitations",
+			Summary:     "Create organization invitation",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("invitations:write"),
+			RequestBody: invitationCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: invitationCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "acceptInvitation",
+			Method:      http.MethodPost,
+			Path:        "/invitations/{id}/accept",
+			Summary:     "Accept invitation",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("invitations:accept"),
+			RequestBody: invitationAcceptBody,
+			Responses:   map[int]specs.Response{http.StatusOK: membershipResponse},
+		}, routepolicy.WithTenantRequired("invitation"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "listWidgets",
 			Method:      http.MethodGet,
@@ -2408,13 +2598,14 @@ func run(ctx context.Context) error {
 		return err
 	}
 	widgets := app.NewWidgetService()
+	tenancy := app.NewTenancyService()
 {{ if eq .AuthMode "oidc" }}	oidcMiddleware, err := newOIDCMiddleware(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, AdminKey: cfg.AdminKey{{ if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, AdminKey: cfg.AdminKey{{ if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -3202,6 +3393,87 @@ func registerSchemas(registry *specs.Registry) {
 			"next_cursor": map[string]any{"type": "string", "nullable": true},
 		},
 	})
+	registry.RegisterSchema("Organization", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "name", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"id":         map[string]any{"type": "string"},
+			"name":       map[string]any{"type": "string"},
+			"created_at": map[string]any{"type": "string", "format": "date-time"},
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("OrganizationCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 160},
+		},
+	})
+	registry.RegisterSchema("OrganizationList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Organization"}},
+		},
+	})
+	registry.RegisterSchema("Membership", map[string]any{
+		"type":     "object",
+		"required": []string{"organization_id", "user_id", "role", "created_at"},
+		"properties": map[string]any{
+			"organization_id": map[string]any{"type": "string"},
+			"user_id":         map[string]any{"type": "string"},
+			"role":            map[string]any{"type": "string", "enum": []string{"owner", "admin", "member", "viewer"}},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("MembershipList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Membership"}},
+		},
+	})
+	registry.RegisterSchema("Invitation", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "organization_id", "email", "role", "token_prefix", "expires_at", "created_at"},
+		"properties": map[string]any{
+			"id":              map[string]any{"type": "string"},
+			"organization_id": map[string]any{"type": "string"},
+			"email":           map[string]any{"type": "string", "format": "email"},
+			"role":            map[string]any{"type": "string", "enum": []string{"owner", "admin", "member", "viewer"}},
+			"token_prefix":    map[string]any{"type": "string"},
+			"expires_at":      map[string]any{"type": "string", "format": "date-time"},
+			"accepted_at":     map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("InvitationCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"email", "role"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"email": map[string]any{"type": "string", "format": "email"},
+			"role":  map[string]any{"type": "string", "enum": []string{"admin", "member", "viewer"}},
+		},
+	})
+	registry.RegisterSchema("InvitationCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"invitation", "token"},
+		"properties": map[string]any{
+			"invitation": map[string]any{"$ref": "#/components/schemas/Invitation"},
+			"token":      map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("InvitationAcceptRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"token"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"token": map[string]any{"type": "string", "minLength": 1},
+		},
+	})
 }
 
 func operations() []specs.Operation {
@@ -3219,6 +3491,42 @@ func operations() []specs.Operation {
 		Description: "Widget",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	organizationCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/OrganizationCreateRequest"},
+		},
+	}
+	invitationCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationCreateRequest"},
+		},
+	}
+	invitationAcceptBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationAcceptRequest"},
+		},
+	}
+	organizationResponse := specs.Response{
+		Description: "Organization",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Organization"},
+		},
+	}
+	membershipResponse := specs.Response{
+		Description: "Membership",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Membership"},
+		},
+	}
+	invitationCreatedResponse := specs.Response{
+		Description: "Invitation created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/InvitationCreated"},
 		},
 	}
 	return []specs.Operation{
@@ -3252,6 +3560,79 @@ func operations() []specs.Operation {
 			Security:    auth("admin:read"),
 			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Metrics"}},
 		}, routepolicy.WithAdminPolicy("admin"), routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizations",
+			Method:      http.MethodGet,
+			Path:        "/organizations",
+			Summary:     "List organizations",
+			Security:    auth("organizations:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Organization list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/OrganizationList"},
+					},
+				},
+			},
+		}, routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganization",
+			Method:      http.MethodPost,
+			Path:        "/organizations",
+			Summary:     "Create organization",
+			Parameters: []specs.Parameter{
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("organizations:write"),
+			RequestBody: organizationCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: organizationResponse},
+		}, routepolicy.WithTenantRequired("actor"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationMembers",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/members",
+			Summary:     "List organization members",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security: auth("members:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "Membership list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/MembershipList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationInvitation",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/invitations",
+			Summary:     "Create organization invitation",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("invitations:write"),
+			RequestBody: invitationCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: invitationCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "acceptInvitation",
+			Method:      http.MethodPost,
+			Path:        "/invitations/{id}/accept",
+			Summary:     "Accept invitation",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("invitations:accept"),
+			RequestBody: invitationAcceptBody,
+			Responses:   map[int]specs.Response{http.StatusOK: membershipResponse},
+		}, routepolicy.WithTenantRequired("invitation"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "listWidgets",
 			Method:      http.MethodGet,
@@ -3344,6 +3725,7 @@ import (
 	"github.com/aatuh/api-toolkit/v2/httpx"
 
 	"{{ .Module }}/internal/app"
+	"{{ .Module }}/internal/domain"
 )
 
 type Config struct {
@@ -3423,6 +3805,7 @@ func envDefault(name, fallback string) string {
 
 type RouterConfig struct {
 	Widgets  *app.WidgetService
+	Tenancy  *app.TenancyService
 	APIKey   string
 	AdminKey string
 {{ if eq .AuthMode "oidc" }}	OIDC     *oidcauth.Middleware
@@ -3434,6 +3817,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /readyz", handleReady)
 	mux.HandleFunc("GET /docs/openapi.json", handleOpenAPI)
+	mux.Handle("GET /organizations", cfg.protect("organizations:read", http.HandlerFunc(cfg.handleListOrganizations)))
+	mux.Handle("POST /organizations", cfg.protect("organizations:write", http.HandlerFunc(cfg.handleCreateOrganization)))
+	mux.Handle("GET /organizations/{organization_id}/members", cfg.protect("members:read", http.HandlerFunc(cfg.handleListMembers)))
+	mux.Handle("POST /organizations/{organization_id}/invitations", cfg.protect("invitations:write", http.HandlerFunc(cfg.handleCreateInvitation)))
+	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
 	mux.Handle("POST /widgets", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidget)))
 	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleUpdateWidget)))
@@ -3461,6 +3849,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Widgets == nil {
 		cfg.Widgets = app.NewWidgetService()
 	}
+	if cfg.Tenancy == nil {
+		cfg.Tenancy = app.NewTenancyService()
+	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
 	}
@@ -3483,6 +3874,113 @@ func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(doc)
+}
+
+func (cfg RouterConfig) handleListOrganizations(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	orgs, err := cfg.Tenancy.ListOrganizations(r.Context(), actorID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(orgs))
+	for _, org := range orgs {
+		items = append(items, org.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (cfg RouterConfig) handleCreateOrganization(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeOrganizationRequest(w, r)
+	if !ok {
+		return
+	}
+	org, _, err := cfg.Tenancy.CreateOrganization(r.Context(), actorID, req.Name)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, org.Public())
+}
+
+func (cfg RouterConfig) handleListMembers(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	members, err := cfg.Tenancy.ListMembers(r.Context(), actorID, organizationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(members))
+	for _, member := range members {
+		items = append(items, member.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (cfg RouterConfig) handleCreateInvitation(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeInvitationRequest(w, r)
+	if !ok {
+		return
+	}
+	invitation, token, err := cfg.Tenancy.InviteMember(r.Context(), actorID, organizationID, req.Email, req.Role)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"invitation": invitation.Public(), "token": token})
+}
+
+func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	invitationID := strings.TrimSpace(r.PathValue("id"))
+	if invitationID == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invitation id is required"})
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeAcceptInvitationRequest(w, r)
+	if !ok {
+		return
+	}
+	member, err := cfg.Tenancy.AcceptInvitation(r.Context(), invitationID, req.Token, actorID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, member.Public())
 }
 
 func (cfg RouterConfig) handleListWidgets(w http.ResponseWriter, r *http.Request) {
@@ -3574,6 +4072,71 @@ type widgetRequest struct {
 	Name string
 }
 
+type organizationRequest struct {
+	Name string
+}
+
+type invitationRequest struct {
+	Email string
+	Role  domain.Role
+}
+
+type acceptInvitationRequest struct {
+	Token string
+}
+
+func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organizationRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw map[string]string
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return organizationRequest{}, false
+	}
+	name := strings.TrimSpace(raw["name"])
+	if name == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		return organizationRequest{}, false
+	}
+	return organizationRequest{Name: name}, true
+}
+
+func decodeInvitationRequest(w http.ResponseWriter, r *http.Request) (invitationRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw map[string]string
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return invitationRequest{}, false
+	}
+	email := strings.TrimSpace(raw["email"])
+	role := domain.Role(strings.TrimSpace(raw["role"]))
+	if email == "" || !strings.Contains(email, "@") || !role.Valid() || role == domain.RoleOwner {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "valid email and non-owner role are required"})
+		return invitationRequest{}, false
+	}
+	return invitationRequest{Email: email, Role: role}, true
+}
+
+func decodeAcceptInvitationRequest(w http.ResponseWriter, r *http.Request) (acceptInvitationRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw map[string]string
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return acceptInvitationRequest{}, false
+	}
+	token := strings.TrimSpace(raw["token"])
+	if token == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "token is required"})
+		return acceptInvitationRequest{}, false
+	}
+	return acceptInvitationRequest{Token: token}, true
+}
+
 func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
 	defer r.Body.Close()
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -3589,6 +4152,51 @@ func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest,
 		return widgetRequest{}, false
 	}
 	return widgetRequest{Name: name}, true
+}
+
+func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request) (string, bool) {
+{{ if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
+	if !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		return "", false
+	}
+	actorID := strings.TrimSpace(subj.UserID)
+	if actorID == "" {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		return "", false
+	}
+	return actorID, true
+{{ else }}
+	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		return "", false
+	}
+	actorID := strings.TrimSpace(os.Getenv("API_ACTOR_ID"))
+	if actorID == "" && !strings.EqualFold(os.Getenv("ENV"), "production") {
+		actorID = strings.TrimSpace(r.Header.Get("X-Actor-ID"))
+	}
+	if actorID == "" {
+		actorID = "local-api-key"
+	}
+	return actorID, true
+{{ end }}
+}
+
+func (cfg RouterConfig) authenticateOrganizationTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
+	organizationID := strings.TrimSpace(r.PathValue("organization_id"))
+	if organizationID == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "organization id is required"})
+		return "", false
+	}
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return "", false
+	}
+	if tenantID != organizationID {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant path mismatch"})
+		return "", false
+	}
+	return organizationID, true
 }
 
 func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -3689,6 +4297,8 @@ func writeAppError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrValidation):
 		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "request validation failed"})
+	case errors.Is(err, app.ErrForbidden):
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "permission denied"})
 	case errors.Is(err, app.ErrNotFound):
 		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{Title: http.StatusText(http.StatusNotFound), Detail: "resource not found"})
 	case errors.Is(err, app.ErrPreconditionFailed):
@@ -3824,6 +4434,97 @@ func TestUpdateWidgetRequiresMatchingETag(t *testing.T) {
 	}
 }
 
+func TestOrganizationInvitationFlow(t *testing.T) {
+	handler := newTestRouter(t)
+	orgID := createOrganization(t, handler, "owner_1", "Acme")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/organizations", nil)
+	authorizeTestRequestAs(t, req, "", "owner_1", "organizations:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), orgID) {
+		t.Fatalf("list organizations status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/members", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "members:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "owner_1") {
+		t.Fatalf("list members status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/invitations", strings.NewReader(` + "`" + `{"email":"other@example.com","role":"member"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "stranger_1", "invitations:write")
+	req.Header.Set("Idempotency-Key", "invite-stranger")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("stranger invite status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/invitations", strings.NewReader(` + "`" + `{"email":"Member@Example.com","role":"member"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "invitations:write")
+	req.Header.Set("Idempotency-Key", "invite-member")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("invite status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var inviteBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &inviteBody); err != nil {
+		t.Fatalf("decode invite body: %v", err)
+	}
+	token, _ := inviteBody["token"].(string)
+	if token == "" {
+		t.Fatalf("invite body missing token: %#v", inviteBody)
+	}
+	invitation, _ := inviteBody["invitation"].(map[string]any)
+	invitationID, _ := invitation["id"].(string)
+	if invitationID == "" || invitation["email"] != "member@example.com" {
+		t.Fatalf("invitation body = %#v", inviteBody)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/invitations/"+invitationID+"/accept", strings.NewReader(` + "`" + `{"token":"wrong-token"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "member_1", "invitations:accept")
+	req.Header.Set("Idempotency-Key", "accept-wrong")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("wrong token accept status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), token) {
+		t.Fatalf("wrong-token problem leaked invitation token: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/invitations/"+invitationID+"/accept", strings.NewReader("{\"token\":\""+token+"\"}"))
+	authorizeTestRequestAs(t, req, orgID, "member_1", "invitations:accept")
+	req.Header.Set("Idempotency-Key", "accept-member")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "member_1") {
+		t.Fatalf("accept status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/invitations/"+invitationID+"/accept", strings.NewReader("{\"token\":\""+token+"\"}"))
+	authorizeTestRequestAs(t, req, orgID, "member_2", "invitations:accept")
+	req.Header.Set("Idempotency-Key", "accept-replay")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("replay accept status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/invitations", strings.NewReader(` + "`" + `{"email":"second@example.com","role":"viewer"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "member_1", "invitations:write")
+	req.Header.Set("Idempotency-Key", "invite-second")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("member invite status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestOpenAPIGolden(t *testing.T) {
 	got, err := OpenAPIDocument()
 	if err != nil {
@@ -3850,20 +4551,54 @@ func createWidget(t *testing.T, handler http.Handler, idem string) *httptest.Res
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader("{\"name\":\"alpha\"}"))
 	authorizeTestRequest(t, req, "org_1")
-	req.Header.Set("X-Tenant-ID", "org_1")
 	req.Header.Set("Idempotency-Key", idem)
 	handler.ServeHTTP(rec, req)
 	return rec
 }
 
+func createOrganization(t *testing.T, handler http.Handler, actorID, name string) string {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/organizations", strings.NewReader("{\"name\":\""+name+"\"}"))
+	authorizeTestRequestAs(t, req, "", actorID, "organizations:write")
+	req.Header.Set("Idempotency-Key", "create-org-"+actorID)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create organization status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode organization body: %v", err)
+	}
+	id, _ := body["id"].(string)
+	if id == "" {
+		t.Fatalf("organization body missing id: %#v", body)
+	}
+	return id
+}
+
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
-	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(){{ if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: app.NewTenancyService(){{ if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {
 	t.Helper()
-{{ if eq .AuthMode "oidc" }}	req.Header.Set("Authorization", "Bearer "+testOIDCJWT(t, tenantID, "widgets:write"))
+	authorizeTestRequestAs(t, req, tenantID, "user_123", "widgets:write")
+}
+
+func authorizeTestRequestAs(t *testing.T, req *http.Request, tenantID, actorID string, scopes ...string) {
+	t.Helper()
+	if len(scopes) == 0 {
+		scopes = []string{"widgets:write"}
+	}
+	if tenantID != "" {
+		req.Header.Set("X-Tenant-ID", tenantID)
+	}
+	if actorID != "" {
+		req.Header.Set("X-Actor-ID", actorID)
+	}
+{{ if eq .AuthMode "oidc" }}	req.Header.Set("Authorization", "Bearer "+testOIDCJWTForActor(t, actorID, tenantID, scopes...))
 {{ else }}	req.Header.Set("X-API-Key", "test-key")
 {{ end }}}
 
@@ -3904,12 +4639,17 @@ func newTestOIDC(t *testing.T) *oidcauth.Middleware {
 
 func testOIDCJWT(t *testing.T, tenantID string, scopes ...string) string {
 	t.Helper()
+	return testOIDCJWTForActor(t, "user_123", tenantID, scopes...)
+}
+
+func testOIDCJWTForActor(t *testing.T, actorID, tenantID string, scopes ...string) string {
+	t.Helper()
 	if testOIDCPrivateKey == nil {
 		t.Fatal("OIDC test key is not configured")
 	}
 	now := time.Now().UTC()
 	claims := jwt.MapClaims{
-		"sub":       "user_123",
+		"sub":       actorID,
 		"tenant_id": tenantID,
 		"scope":     strings.Join(scopes, " "),
 		"iss":       testOIDCIssuer,
@@ -4111,6 +4851,7 @@ ADMIN_ADDR=:9090
 DATABASE_URL=
 REDIS_ADDR=localhost:6379
 API_KEY=local-dev-key
+API_ACTOR_ID=
 API_KEY_PEPPER=
 ADMIN_KEY=local-admin-key
 IDEMPOTENCY_KEY_PREFIX=idempotency:
@@ -4342,7 +5083,9 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
-The generated HTTP layer starts with tenant isolation and tenant-scoped idempotent widget writes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
+The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, and tenant-scoped idempotent widget writes. API-key and OIDC modes are wired with fail-closed startup validation.
+Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
+API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
 
 Useful checks:
 

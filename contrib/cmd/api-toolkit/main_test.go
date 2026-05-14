@@ -763,6 +763,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"DATABASE_URL=",
 		"REDIS_ADDR=localhost:6379",
+		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
 		"ADMIN_ADDR=:9090",
 	} {
@@ -799,7 +800,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -809,7 +810,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile client: %v", err)
 	}
-	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) UpdateWidget", "PathParam(\"id\","} {
+	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "PathParam(\"id\",", "PathParam(\"organization_id\","} {
 		if !strings.Contains(string(generatedClient), want) {
 			t.Fatalf("generated full-profile client missing %q", want)
 		}

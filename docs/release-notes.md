@@ -50,6 +50,10 @@ source of truth is `docs/release-runbook.md`.
   storage, returns the raw invitation token only from the create-invitation use
   case, and includes generated unit tests for owner membership, role failures,
   wrong-token failures, and single-use invitation acceptance.
+- Generated `saas-api-full` HTTP routers now expose organization create/list,
+  member list, invitation create, and invitation accept routes with OpenAPI
+  contracts, generated Go client methods, idempotency metadata, tenant policy
+  metadata, and generated HTTP tests for role failures and token replay.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
