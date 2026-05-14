@@ -2098,7 +2098,10 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
 	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
+	{Name: "internal/domain/tenancy.go", Body: fullDomainTenancyTemplate},
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
+	{Name: "internal/app/tenancy.go", Body: fullAppTenancyTemplate},
+	{Name: "internal/app/tenancy_test.go", Body: fullAppTenancyTestTemplate},
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -2472,6 +2475,104 @@ func run(ctx context.Context) error {
 {{ end }}
 `
 
+const fullDomainTenancyTemplate = `package domain
+
+import "time"
+
+type Role string
+
+const (
+	RoleOwner  Role = "owner"
+	RoleAdmin  Role = "admin"
+	RoleMember Role = "member"
+	RoleViewer Role = "viewer"
+)
+
+func (r Role) Valid() bool {
+	switch r {
+	case RoleOwner, RoleAdmin, RoleMember, RoleViewer:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r Role) Allows(required Role) bool {
+	return roleRank(r) >= roleRank(required)
+}
+
+func roleRank(role Role) int {
+	switch role {
+	case RoleOwner:
+		return 4
+	case RoleAdmin:
+		return 3
+	case RoleMember:
+		return 2
+	case RoleViewer:
+		return 1
+	default:
+		return 0
+	}
+}
+
+type Organization struct {
+	ID        string
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (o Organization) Public() map[string]any {
+	return map[string]any{
+		"id":         o.ID,
+		"name":       o.Name,
+		"created_at": o.CreatedAt,
+		"updated_at": o.UpdatedAt,
+	}
+}
+
+type Membership struct {
+	OrganizationID string
+	UserID         string
+	Role           Role
+	CreatedAt      time.Time
+}
+
+func (m Membership) Public() map[string]any {
+	return map[string]any{
+		"organization_id": m.OrganizationID,
+		"user_id":         m.UserID,
+		"role":            string(m.Role),
+		"created_at":      m.CreatedAt,
+	}
+}
+
+type Invitation struct {
+	ID             string
+	OrganizationID string
+	Email          string
+	Role           Role
+	TokenPrefix    string
+	ExpiresAt      time.Time
+	AcceptedAt     *time.Time
+	CreatedAt      time.Time
+}
+
+func (i Invitation) Public() map[string]any {
+	return map[string]any{
+		"id":              i.ID,
+		"organization_id": i.OrganizationID,
+		"email":           i.Email,
+		"role":            string(i.Role),
+		"token_prefix":    i.TokenPrefix,
+		"expires_at":      i.ExpiresAt,
+		"accepted_at":     i.AcceptedAt,
+		"created_at":      i.CreatedAt,
+	}
+}
+`
+
 const fullDomainWidgetTemplate = `package domain
 
 import (
@@ -2500,6 +2601,362 @@ func (w Widget) Public() map[string]any {
 		"name":      w.Name,
 		"version":   w.Version,
 	}
+}
+`
+
+// #nosec G101 -- generated source uses invitation token variables, not hardcoded secrets.
+const fullAppTenancyTemplate = `package app
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var ErrForbidden = errors.New("forbidden")
+
+type TenancyService struct {
+	mu          sync.Mutex
+	nextOrg     int
+	nextInvite  int
+	orgs        map[string]domain.Organization
+	memberships map[string]map[string]domain.Membership
+	invitations map[string]invitationRecord
+	now         func() time.Time
+	newToken    func() (string, error)
+}
+
+type invitationRecord struct {
+	invitation domain.Invitation
+	tokenHash  string
+}
+
+func NewTenancyService() *TenancyService {
+	return &TenancyService{
+		orgs:        map[string]domain.Organization{},
+		memberships: map[string]map[string]domain.Membership{},
+		invitations: map[string]invitationRecord{},
+		now:         time.Now,
+		newToken:    randomToken,
+	}
+}
+
+func (s *TenancyService) CreateOrganization(ctx context.Context, actorID, name string) (domain.Organization, domain.Membership, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Organization{}, domain.Membership{}, err
+	}
+	actorID = strings.TrimSpace(actorID)
+	name = strings.TrimSpace(name)
+	if actorID == "" || name == "" {
+		return domain.Organization{}, domain.Membership{}, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextOrg++
+	now := s.now().UTC()
+	org := domain.Organization{
+		ID:        fmt.Sprintf("org_%06d", s.nextOrg),
+		Name:      name,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	member := domain.Membership{
+		OrganizationID: org.ID,
+		UserID:         actorID,
+		Role:           domain.RoleOwner,
+		CreatedAt:      now,
+	}
+	s.orgs[org.ID] = org
+	s.memberships[org.ID] = map[string]domain.Membership{actorID: member}
+	return org, member, nil
+}
+
+func (s *TenancyService) ListOrganizations(ctx context.Context, actorID string) ([]domain.Organization, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return nil, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]domain.Organization, 0)
+	for orgID, members := range s.memberships {
+		if _, ok := members[actorID]; ok {
+			if org, exists := s.orgs[orgID]; exists {
+				out = append(out, org)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *TenancyService) ListMembers(ctx context.Context, actorID, organizationID string) ([]domain.Membership, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	actorID = strings.TrimSpace(actorID)
+	organizationID = strings.TrimSpace(organizationID)
+	if actorID == "" || organizationID == "" {
+		return nil, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hasRoleLocked(organizationID, actorID, domain.RoleViewer) {
+		return nil, ErrForbidden
+	}
+	members := s.memberships[organizationID]
+	out := make([]domain.Membership, 0, len(members))
+	for _, member := range members {
+		out = append(out, member)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].UserID < out[j].UserID
+	})
+	return out, nil
+}
+
+func (s *TenancyService) InviteMember(ctx context.Context, actorID, organizationID, email string, role domain.Role) (domain.Invitation, string, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Invitation{}, "", err
+	}
+	actorID = strings.TrimSpace(actorID)
+	organizationID = strings.TrimSpace(organizationID)
+	email = strings.ToLower(strings.TrimSpace(email))
+	if actorID == "" || organizationID == "" || email == "" || !strings.Contains(email, "@") || !role.Valid() {
+		return domain.Invitation{}, "", ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hasRoleLocked(organizationID, actorID, domain.RoleAdmin) {
+		return domain.Invitation{}, "", ErrForbidden
+	}
+	if role == domain.RoleOwner && !s.hasRoleLocked(organizationID, actorID, domain.RoleOwner) {
+		return domain.Invitation{}, "", ErrForbidden
+	}
+	token, err := s.newToken()
+	if err != nil {
+		return domain.Invitation{}, "", err
+	}
+	s.nextInvite++
+	now := s.now().UTC()
+	prefix := token
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	invitation := domain.Invitation{
+		ID:             fmt.Sprintf("inv_%06d", s.nextInvite),
+		OrganizationID: organizationID,
+		Email:          email,
+		Role:           role,
+		TokenPrefix:    prefix,
+		ExpiresAt:      now.Add(7 * 24 * time.Hour),
+		CreatedAt:      now,
+	}
+	s.invitations[invitation.ID] = invitationRecord{
+		invitation: invitation,
+		tokenHash:  hashToken(token),
+	}
+	return invitation, token, nil
+}
+
+func (s *TenancyService) AcceptInvitation(ctx context.Context, invitationID, token, userID string) (domain.Membership, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Membership{}, err
+	}
+	invitationID = strings.TrimSpace(invitationID)
+	token = strings.TrimSpace(token)
+	userID = strings.TrimSpace(userID)
+	if invitationID == "" || token == "" || userID == "" {
+		return domain.Membership{}, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.invitations[invitationID]
+	if !ok {
+		return domain.Membership{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	if record.invitation.AcceptedAt != nil || !now.Before(record.invitation.ExpiresAt) {
+		return domain.Membership{}, ErrNotFound
+	}
+	if hashToken(token) != record.tokenHash {
+		return domain.Membership{}, ErrNotFound
+	}
+	member := domain.Membership{
+		OrganizationID: record.invitation.OrganizationID,
+		UserID:         userID,
+		Role:           record.invitation.Role,
+		CreatedAt:      now,
+	}
+	if s.memberships[member.OrganizationID] == nil {
+		s.memberships[member.OrganizationID] = map[string]domain.Membership{}
+	}
+	s.memberships[member.OrganizationID][userID] = member
+	record.invitation.AcceptedAt = &now
+	s.invitations[invitationID] = record
+	return member, nil
+}
+
+func (s *TenancyService) HasRole(ctx context.Context, organizationID, actorID string, required domain.Role) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	actorID = strings.TrimSpace(actorID)
+	if organizationID == "" || actorID == "" || !required.Valid() {
+		return false, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.hasRoleLocked(organizationID, actorID, required), nil
+}
+
+func (s *TenancyService) hasRoleLocked(organizationID, actorID string, required domain.Role) bool {
+	members := s.memberships[organizationID]
+	if members == nil {
+		return false
+	}
+	member, ok := members[actorID]
+	return ok && member.Role.Allows(required)
+}
+
+func randomToken() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
+}
+`
+
+const fullAppTenancyTestTemplate = `package app
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"{{ .Module }}/internal/domain"
+)
+
+func TestTenancyServiceCreatesOrganizationWithOwnerMembership(t *testing.T) {
+	service := NewTenancyService()
+	service.now = fixedTenancyTime
+
+	org, member, err := service.CreateOrganization(context.Background(), "user_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	if org.ID == "" || org.Name != "Acme" {
+		t.Fatalf("organization = %#v", org)
+	}
+	if member.OrganizationID != org.ID || member.UserID != "user_1" || member.Role != domain.RoleOwner {
+		t.Fatalf("membership = %#v", member)
+	}
+	orgs, err := service.ListOrganizations(context.Background(), "user_1")
+	if err != nil {
+		t.Fatalf("ListOrganizations() error = %v", err)
+	}
+	if len(orgs) != 1 || orgs[0].ID != org.ID {
+		t.Fatalf("organizations = %#v", orgs)
+	}
+}
+
+func TestTenancyServiceInvitationHashesTokenAndAcceptsOnce(t *testing.T) {
+	service := NewTenancyService()
+	service.now = fixedTenancyTime
+	service.newToken = func() (string, error) { return "invite-token-value", nil }
+	org, _, err := service.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+
+	invitation, token, err := service.InviteMember(context.Background(), "owner_1", org.ID, "Member@Example.com", domain.RoleMember)
+	if err != nil {
+		t.Fatalf("InviteMember() error = %v", err)
+	}
+	if token != "invite-token-value" {
+		t.Fatalf("token = %q", token)
+	}
+	record := service.invitations[invitation.ID]
+	if record.tokenHash == "" || record.tokenHash == token {
+		t.Fatalf("invitation token hash was not stored safely: %#v", record)
+	}
+	if invitation.Email != "member@example.com" || invitation.TokenPrefix == "" {
+		t.Fatalf("invitation = %#v", invitation)
+	}
+	if _, err := service.AcceptInvitation(context.Background(), invitation.ID, "wrong-token", "user_2"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("wrong token error = %v, want %v", err, ErrNotFound)
+	}
+	member, err := service.AcceptInvitation(context.Background(), invitation.ID, token, "user_2")
+	if err != nil {
+		t.Fatalf("AcceptInvitation() error = %v", err)
+	}
+	if member.OrganizationID != org.ID || member.UserID != "user_2" || member.Role != domain.RoleMember {
+		t.Fatalf("accepted member = %#v", member)
+	}
+	if _, err := service.AcceptInvitation(context.Background(), invitation.ID, token, "user_3"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("replay accept error = %v, want %v", err, ErrNotFound)
+	}
+}
+
+func TestTenancyServiceEnforcesRoleChecks(t *testing.T) {
+	service := NewTenancyService()
+	service.now = fixedTenancyTime
+	service.newToken = func() (string, error) { return "invite-token-value", nil }
+	org, _, err := service.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	invitation, token, err := service.InviteMember(context.Background(), "owner_1", org.ID, "viewer@example.com", domain.RoleViewer)
+	if err != nil {
+		t.Fatalf("InviteMember() error = %v", err)
+	}
+	if _, err := service.AcceptInvitation(context.Background(), invitation.ID, token, "viewer_1"); err != nil {
+		t.Fatalf("AcceptInvitation() error = %v", err)
+	}
+	if _, _, err := service.InviteMember(context.Background(), "viewer_1", org.ID, "member@example.com", domain.RoleMember); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("viewer invite error = %v, want %v", err, ErrForbidden)
+	}
+	ok, err := service.HasRole(context.Background(), org.ID, "viewer_1", domain.RoleViewer)
+	if err != nil {
+		t.Fatalf("HasRole() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("viewer should satisfy viewer role")
+	}
+	ok, err = service.HasRole(context.Background(), org.ID, "viewer_1", domain.RoleAdmin)
+	if err != nil {
+		t.Fatalf("HasRole() admin error = %v", err)
+	}
+	if ok {
+		t.Fatal("viewer should not satisfy admin role")
+	}
+}
+
+func fixedTenancyTime() time.Time {
+	return time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 }
 `
 

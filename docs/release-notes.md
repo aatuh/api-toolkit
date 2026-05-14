@@ -44,6 +44,12 @@ source of truth is `docs/release-runbook.md`.
   contract lint/diff/client-check targets, checked-in Go client output, and
   generated HTTP smoke tests for readiness, OpenAPI, auth failure, validation
   failure, idempotent create replay, and ETag conflicts.
+- Generated `saas-api-full` services now include tenant domain and application
+  services for organizations, memberships, invitations, role checks, and
+  invitation acceptance. The generated service hashes invitation tokens before
+  storage, returns the raw invitation token only from the create-invitation use
+  case, and includes generated unit tests for owner membership, role failures,
+  wrong-token failures, and single-use invitation acceptance.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
