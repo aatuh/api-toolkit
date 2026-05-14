@@ -32,6 +32,9 @@ building blocks now exist for durable operations, transactional outbox work,
 audit events, object storage, outbound webhook delivery, OpenAPI 3.1, and
 generated Go client output; the roadmap continues with wiring those reusable
 pieces deeper into the generated application boundary.
+When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
+checks required platform tables at startup, and makes readiness/admin health
+fail closed if Postgres becomes unavailable.
 
 ## Runtime Contract
 
@@ -39,6 +42,9 @@ The full profile standardizes these defaults:
 
 - Postgres stores durable application data, operation state, transactional
   outbox rows, audit events, webhook endpoints, and webhook delivery attempts.
+- Generated services only connect to Postgres when `DATABASE_URL` is set; in
+  production it is mandatory, startup pings the database, and required table
+  checks catch unapplied migrations before serving traffic.
 - Redis stores shared idempotency, rate-limit, and cache state.
 - Organizations, memberships, invitations, roles, and scoped API keys provide
   the generated tenant model.

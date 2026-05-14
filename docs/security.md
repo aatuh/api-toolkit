@@ -102,6 +102,11 @@ Goal:
   sanitized operation failure problems. Do not put raw request payloads,
   provider errors, secrets, tenant identifiers, or idempotency keys into async
   logs, metrics labels, Problem Details, or operation results.
+- Generated full-profile Postgres startup checks should fail closed before
+  serving production traffic when `DATABASE_URL` is configured but the database
+  is unreachable or required tables are missing. Readiness and admin detailed
+  health expose only generic unavailable responses; keep DSNs, SQL errors, and
+  migration details in operator logs, not HTTP Problem Details.
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.

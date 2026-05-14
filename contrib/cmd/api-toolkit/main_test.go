@@ -738,6 +738,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/app/tenancy_test.go",
 		"internal/app/widgets.go",
 		"internal/adapters/postgres/postgres.go",
+		"internal/adapters/postgres/postgres_test.go",
 		"internal/httpapi/router.go",
 		"internal/httpapi/router_test.go",
 		"internal/httpapi/openapi.go",
@@ -805,9 +806,19 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "Readiness HealthChecker"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
+		}
+	}
+
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "api", "main.go"))
+	if err != nil {
+		t.Fatalf("read generated full-profile main.go: %v", err)
+	}
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "Readiness: readiness"} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
 	}
 
