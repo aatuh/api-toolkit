@@ -107,7 +107,19 @@ source of truth is `docs/release-runbook.md`.
   bucket, and run the same object checks through the S3-compatible adapter.
   Fresh generated checkouts now materialize `.env` from `.env.example` before
   invoking Docker Compose, and the generated Postgres volume mount uses the
-  PostgreSQL 18-compatible `/var/lib/postgresql` parent directory.
+  PostgreSQL 18-compatible `/var/lib/postgresql` parent directory. Generated
+  full-profile Makefile, Dockerfile, and integration checks now hydrate module
+  sums with `go mod tidy` before build or test commands, and generated `go.mod`
+  files use the installed toolkit release version instead of pinning the stale
+  v2.1.0 baseline when the CLI is installed from a SemVer tag. The generated
+  integration script now feeds SQL through stdin so psql variables are expanded,
+  isolates generated auth tests from integration actor environment variables,
+  uses current-compatible MinIO `mc mb --ignore-existing` flags, and tears down
+  Compose with the objectstore profile enabled so optional MinIO resources do
+  not remain running after S3 checks.
+- Postgres audit and outbox adapters now exercise real-SQL failure paths more
+  closely: audit SQL no longer includes Go comment text, and outbox retry
+  scheduling casts the retry base timestamp before adding interval backoff.
 - Generated `saas-api-full` widget services now use an application storage
   port, and the generated runtime switches to a Postgres widget store when
   `DATABASE_URL` is configured. The store persists widget create/update/delete

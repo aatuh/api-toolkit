@@ -59,6 +59,65 @@ func TestRunVersionJSON(t *testing.T) {
 	}
 }
 
+func TestScaffoldDependencyVersionUsesInstalledSemver(t *testing.T) {
+	tests := []struct {
+		name string
+		info versionMetadata
+		want string
+	}{
+		{
+			name: "contrib release",
+			info: versionMetadata{ContribVersion: "v2.3.4", CoreVersion: "v2.0.0"},
+			want: "v2.3.4",
+		},
+		{
+			name: "main release",
+			info: versionMetadata{MainVersion: "v2.4.0"},
+			want: "v2.4.0",
+		},
+		{
+			name: "development fallback",
+			info: versionMetadata{MainVersion: "dev", CoreVersion: "local", ContribVersion: "unknown"},
+			want: defaultScaffoldModuleVersion,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := scaffoldDependencyVersion(tt.info); got != tt.want {
+				t.Fatalf("scaffoldDependencyVersion() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
+	serviceDir := filepath.Join(t.TempDir(), "service")
+	if err := generateService(scaffoldConfig{
+		Module:         "example.com/my-api",
+		Dir:            serviceDir,
+		Profile:        scaffoldProfileSaaSAPIFull,
+		AuthMode:       scaffoldAuthAPIKey,
+		ToolkitVersion: "v2.3.4",
+	}); err != nil {
+		t.Fatalf("generate service: %v", err)
+	}
+	generatedMod, err := os.ReadFile(filepath.Join(serviceDir, "go.mod"))
+	if err != nil {
+		t.Fatalf("read generated go.mod: %v", err)
+	}
+	for _, want := range []string{
+		"github.com/aatuh/api-toolkit/v2 v2.3.4",
+		"github.com/aatuh/api-toolkit/contrib/v2 v2.3.4",
+	} {
+		if !strings.Contains(string(generatedMod), want) {
+			t.Fatalf("generated go.mod missing %q:\n%s", want, generatedMod)
+		}
+	}
+	if strings.Contains(string(generatedMod), "v2.1.0") {
+		t.Fatalf("generated go.mod kept stale default version:\n%s", generatedMod)
+	}
+}
+
 func TestClientsGoGeneratesBuildableClient(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
@@ -838,6 +897,15 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
 	}
+	generatedRouterTest, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "router_test.go"))
+	if err != nil {
+		t.Fatalf("read generated full-profile router_test.go: %v", err)
+	}
+	for _, want := range []string{"configureTestAuthEnv(t)", `t.Setenv("API_ACTOR_ID", "")`} {
+		if !strings.Contains(string(generatedRouterTest), want) {
+			t.Fatalf("generated full-profile router_test.go missing %q", want)
+		}
+	}
 
 	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "api", "main.go"))
 	if err != nil {
@@ -863,7 +931,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
@@ -876,6 +944,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"compose up -d postgres redis",
 		"cp .env.example .env",
 		"psql -v ON_ERROR_STOP=1 -U api -d api",
+		"go mod tidy",
 		"go test ./...",
 		"go run ./cmd/api",
 		"command -v python3",
@@ -897,8 +966,10 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"If-Match: stale-etag",
 		"/widgets/imports",
 		"operation did not succeed",
+		"psql_exec \"insert into outbox_events",
 		"operation outbox did not complete",
 		"integration-poison-outbox",
+		"psql_scalar \"select state from outbox_events",
 		"outbox retry was not recorded",
 		"webhook delivery list leaked signing secret",
 		"replay webhook delivery",
@@ -906,7 +977,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"audit_events",
 		"audit events were not recorded",
 		"public pprof endpoint should be isolated",
-		"docker compose down -v",
+		"docker compose --profile objectstore down -v",
 	} {
 		if !strings.Contains(string(generatedIntegration), want) {
 			t.Fatalf("generated full-profile integration script missing %q", want)
@@ -932,9 +1003,23 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"minio:",
 		"profiles: [objectstore]",
 		"minio-init:",
+		"mc mb --ignore-existing local/api-objects",
 	} {
 		if !strings.Contains(string(generatedCompose), want) {
 			t.Fatalf("generated full-profile docker-compose.yml missing %q:\n%s", want, generatedCompose)
+		}
+	}
+	if strings.Contains(string(generatedCompose), "mc mb -p --ignore-existing") {
+		t.Fatalf("generated full-profile docker-compose.yml uses incompatible mc flags:\n%s", generatedCompose)
+	}
+
+	generatedDockerfile, err := os.ReadFile(filepath.Join(serviceDir, "Dockerfile"))
+	if err != nil {
+		t.Fatalf("read generated full-profile Dockerfile: %v", err)
+	}
+	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath"} {
+		if !strings.Contains(string(generatedDockerfile), want) {
+			t.Fatalf("generated full-profile Dockerfile missing %q:\n%s", want, generatedDockerfile)
 		}
 	}
 

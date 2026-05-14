@@ -46,6 +46,9 @@ func TestRecordInsertsExpectedColumns(t *testing.T) {
 		t.Fatalf("Exec() calls = %d, want 1", len(conn.execCalls))
 	}
 	call := conn.execCalls[0]
+	if strings.Contains(call.sql, "// #nosec") {
+		t.Fatalf("Exec() SQL leaked Go comment text: %s", call.sql)
+	}
 	for _, want := range []string{
 		`insert into "app"."audit_events"`,
 		"organization_id",

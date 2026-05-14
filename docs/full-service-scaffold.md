@@ -165,16 +165,18 @@ The profile generates or is expected to generate:
   generated `api-objects` bucket.
 - opt-in Docker integration tests through a generated `integration-check`
   target; the generated script starts Postgres and Redis, applies migrations,
-  runs `go test ./...`, starts the API on localhost, and performs HTTP smoke
-  checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key
-  auth, idempotent widget writes, ETag conflict handling, async operation
-  polling, outbox completion/retry behavior, webhook delivery/replay, object
-  write/readback, audit writes, admin health, admin metrics, admin pprof, and
-  public admin-route isolation. Set `INTEGRATION_OBJECT_STORE=s3` to run the
-  object checks against MinIO. The script materializes `.env` from
-  `.env.example` when needed so Docker Compose can parse the generated services
-  in a fresh checkout. These checks are intentionally outside default `make
-  finalize` so local and CI release gates stay reliable without Docker.
+  hydrates module sums with `go mod tidy`, runs `go test ./...`, starts the API
+  on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth
+  failure, tenant routes, managed API-key auth, idempotent widget writes, ETag
+  conflict handling, async operation polling, outbox completion/retry behavior,
+  webhook delivery/replay, object write/readback, audit writes, admin health,
+  admin metrics, admin pprof, and public admin-route isolation. Set
+  `INTEGRATION_OBJECT_STORE=s3` to run the object checks against MinIO. The
+  script materializes `.env` from `.env.example` when needed so Docker Compose
+  can parse the generated services in a fresh checkout and tears down Compose
+  with the objectstore profile enabled so optional MinIO resources are removed.
+  These checks are intentionally outside default `make finalize` so local and
+  CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
 - A checked-in typed Go client plus a generated `client-check` target.
