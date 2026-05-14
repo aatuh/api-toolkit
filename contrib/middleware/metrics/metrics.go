@@ -563,7 +563,7 @@ func (mw *Middleware) Handler(next http.Handler) http.Handler {
 }
 
 func (mw *Middleware) observeRequest(r *http.Request, start time.Time, status int) {
-	route := chiRoutePattern(r)
+	route := routePattern(r)
 	if route == "" {
 		route = "unknown"
 	}
@@ -712,13 +712,15 @@ func sanitizePolicyLabel(value, fallback string) string {
 	}
 }
 
-func chiRoutePattern(r *http.Request) string {
+func routePattern(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
 	ctx := chi.RouteContext(r.Context())
-	if ctx == nil {
-		return ""
+	if ctx != nil {
+		if pattern := ctx.RoutePattern(); pattern != "" {
+			return pattern
+		}
 	}
-	return ctx.RoutePattern()
+	return strings.TrimSpace(r.Pattern)
 }

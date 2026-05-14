@@ -253,6 +253,10 @@ operator-only surfaces.
 - Keep request log payloads redacted, keep metrics labels bounded, and avoid raw
   idempotency keys unless a short access-controlled incident review requires
   them.
+- Generated `saas-api-full` metrics use the contrib Prometheus recorder behind
+  admin authentication. HTTP metric labels come from router patterns, not raw
+  paths, and generated tests check that tenant IDs, actors, API keys, admin
+  keys, and idempotency keys are not exported.
 - Adapter legacy idempotency recovery events hash keys by default. Enable the
   explicit raw-key option only for short, access-controlled incident review.
 - Multi-tenant APIs that share idempotency storage should configure

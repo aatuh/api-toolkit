@@ -75,9 +75,10 @@ Avoid:
 
 ## Middleware behavior
 
-The metrics middleware derives `route` from the router pattern and defaults
-missing routes to `unknown`. The Prometheus recorder canonicalizes HTTP methods
-and status codes before writing series. When routes are registered through
+The metrics middleware derives `route` from chi route patterns or
+`net/http.ServeMux` request patterns and defaults missing routes to `unknown`.
+The Prometheus recorder canonicalizes HTTP methods and status codes before
+writing series. When routes are registered through
 `routecontracts`, bounded `routepolicy` metadata is attached to the request and
 recorded by `http_route_policy_requests_total`. Raw scopes, tenant sources,
 rate-limit policy names, admin policy names, and identities are intentionally
@@ -117,6 +118,11 @@ The contrib bootstrap helpers keep metrics opt-in:
   middleware outcome events to `metrics.IdempotencyOutcomeHook` and
   `requestlog.IdempotencyOutcomeLogHook`, so write/replay/conflict decisions are
   observable without raw idempotency keys or tenant labels.
+- Generated `saas-api-full` services create one Prometheus recorder, wrap the
+  public `net/http` router with the contrib metrics middleware, and mount the
+  standard Prometheus handler behind admin authentication. The generated tests
+  assert HTTP counters/histograms use route patterns and do not expose API keys,
+  admin keys, idempotency keys, actors, or tenants as labels.
 - Prefer `bootstrap.MountSystemEndpointsToWithAdmin` for new system endpoint
   wiring so metrics are mounted behind an explicit admin or internal-network
   wrapper.

@@ -30,6 +30,34 @@ func TestHandlerRecordsNormalStatusAndUnknownRoute(t *testing.T) {
 	}
 }
 
+func TestHandlerRecordsServeMuxRoutePattern(t *testing.T) {
+	recorder := &captureRecorder{}
+	mw, err := New(Options{Recorder: recorder})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /organizations/{organization_id}/widgets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/organizations/org_secret/widgets/widget_secret", nil)
+	mw.Handler(mux).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if recorder.counter["route"] != "GET /organizations/{organization_id}/widgets/{id}" {
+		t.Fatalf("counter route label = %q, want ServeMux pattern; labels=%#v", recorder.counter["route"], recorder.counter)
+	}
+	for _, value := range recorder.counter {
+		if value == "org_secret" || value == "widget_secret" {
+			t.Fatalf("counter labels leaked path value: %#v", recorder.counter)
+		}
+	}
+}
+
 func TestNilMiddlewareAdaptersAndNoopRecorder(t *testing.T) {
 	var mw *Middleware
 	called := false

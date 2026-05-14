@@ -41,6 +41,9 @@ through a Postgres adapter when `DATABASE_URL` is configured.
 When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
 checks required platform tables at startup, and makes readiness/admin health
 fail closed if Postgres becomes unavailable.
+Generated full-profile services now also wrap public traffic with the contrib
+Prometheus metrics middleware and serve the standard Prometheus handler only
+from the admin router, with route-pattern labels instead of raw paths.
 
 ## Runtime Contract
 
@@ -117,6 +120,10 @@ The full profile standardizes these defaults:
   audience, algorithms, and JWKS material. OIDC can also discover `jwks_uri`
   from provider metadata; all bearer modes map tenant and scope claims into
   generated tenant checks.
+- Prometheus HTTP request counters and duration histograms are enabled by
+  default. Metrics use bounded method/status labels and router patterns from
+  `net/http.ServeMux`; generated tests assert tenant IDs, actors, API keys,
+  admin keys, and idempotency keys are not exported.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
 - Detailed health, metrics, and pprof remain operator-only; a separate admin
   listener is preferred when configured.
