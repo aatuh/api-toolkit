@@ -531,6 +531,67 @@ func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
 	}
 }
 
+func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
+	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic"},
+	})
+	manager.RegisterChecker(health.NewBasicChecker())
+
+	service, err := NewAPIService(APIServiceConfig{
+		Addr:      ":0",
+		AdminAddr: "127.0.0.1:0",
+		Log:       ports.NopLogger{},
+		SystemEndpoints: SystemEndpoints{
+			Health: health.NewHandler(manager),
+			Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}),
+			Pprof: pprofStub(),
+		},
+		Admin: SystemEndpointAdminOptions{
+			RequireAdmin: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Admin-Wrapper", "true")
+					next.ServeHTTP(w, r)
+				})
+			},
+			EnablePprof: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new API service: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	service.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("public readiness status = %d", rec.Code)
+	}
+
+	for _, path := range []string{specs.HealthDetailed, specs.Metrics, specs.PprofIndex} {
+		rec = httptest.NewRecorder()
+		service.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("public %s status = %d, want 404", path, rec.Code)
+		}
+
+		rec = httptest.NewRecorder()
+		service.AdminHandler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
+		if got := rec.Header().Get("X-Admin-Wrapper"); got != "true" {
+			t.Fatalf("admin %s wrapper header = %q", path, got)
+		}
+	}
+
+	rec = httptest.NewRecorder()
+	service.AdminHandler().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("admin readiness status = %d, want 404", rec.Code)
+	}
+}
+
 func TestNewAPIServiceRequiresAdminWrapperForSystemEndpoints(t *testing.T) {
 	_, err := NewAPIService(APIServiceConfig{
 		Addr: ":0",

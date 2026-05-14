@@ -110,6 +110,10 @@ source of truth is `docs/release-runbook.md`.
   generated services, with safe admin-wrapper system endpoint mounting and
   startup checks.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
+  accepts `AdminAddr` and `AdminRouter` for a separate admin listener, and
+  `APIService.AdminHandler()` exposes the composed admin handler for tests and
+  custom server wiring.
+- `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.
 - `middleware/auth/tenant.Options.RequireAllSources` now lets services require

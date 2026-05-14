@@ -197,17 +197,36 @@ func MountSystemEndpointsToWithAdmin(r ports.MethodRouteRegistrar, se SystemEndp
 	if r == nil {
 		return nil
 	}
+	mountPublicSystemEndpointsTo(r, se)
+	return mountAdminSystemEndpointsTo(r, se, opts)
+}
+
+func mountPublicSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
+	if r == nil {
+		return
+	}
 	if se.Health != nil {
 		se.Health.RegisterPublicRoutesTo(r)
-		if err := se.Health.RegisterAdminDetailedHealthRoute(r, opts.RequireAdmin); err != nil {
-			return err
-		}
 	}
 	if se.Docs != nil {
 		se.Docs.RegisterRoutesTo(r)
 	}
 	if se.Version != nil {
 		se.Version.RegisterRoutesTo(r)
+	}
+}
+
+func mountAdminSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
+	if opts.RequireAdmin == nil {
+		return errors.New("system endpoint admin routes require an authorization wrapper")
+	}
+	if r == nil {
+		return nil
+	}
+	if se.Health != nil {
+		if err := se.Health.RegisterAdminDetailedHealthRoute(r, opts.RequireAdmin); err != nil {
+			return err
+		}
 	}
 	if opts.EnablePprof && se.Pprof != nil {
 		pprofx.RegisterRoutes(pprofRouter{
