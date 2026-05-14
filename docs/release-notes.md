@@ -148,6 +148,11 @@ source of truth is `docs/release-runbook.md`.
   `pprof.RegisterAdminRoutes` instead of returning a placeholder response.
   Generated tests assert pprof is absent from the public handler and requires
   `X-Admin-Key` on the admin handler.
+- Generated `saas-api-full` API-key auth mode now verifies generated API keys
+  through the generated API-key service when the static bootstrap `API_KEY`
+  does not match. Managed keys enforce route scopes, bind requests to their
+  organization, update last-used state, fail after revocation, and keep raw key
+  secrets out of Problem Details.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.
