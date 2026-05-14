@@ -192,8 +192,8 @@ tests are opt-in:
   production wiring is enabled.
 - Integration checks verify migrations, tenant isolation, scoped API keys,
   managed API-key authentication, idempotent writes, ETag conflict handling,
-  async polling, webhook delivery/replay, object writes, admin health, metrics,
-  pprof, audit writes, and admin listener isolation; deeper checks for outbox
-  retry behavior can remain opt-in extensions as the generated script grows.
+  async polling, outbox completion/retry behavior, webhook delivery/replay,
+  object writes, admin health, metrics, pprof, audit writes, and admin listener
+  isolation.
 - Default `make finalize` must not require Docker, cloud credentials, or network
   services outside module downloads and tool installation.

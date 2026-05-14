@@ -13975,6 +13975,10 @@ header_value() {
   ' "${file}"
 }
 
+psql_scalar() {
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -tA -U api -d api "$@" | tr -d '[:space:]'
+}
+
 export ENV=integration
 export API_ADDR="${INTEGRATION_API_ADDR:-127.0.0.1:18080}"
 export ADMIN_ADDR="${INTEGRATION_ADMIN_ADDR:-127.0.0.1:19090}"
@@ -14027,6 +14031,12 @@ if [ -z "${org_id}" ]; then
   echo "create organization response did not include id" >&2
   exit 1
 fi
+
+poison_outbox_id="integration-poison-outbox"
+compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api \
+  -v organization_id="${org_id}" \
+  -v outbox_id="${poison_outbox_id}" \
+  -c "insert into outbox_events (id, organization_id, event_type, payload, state, next_at, created_at) values (:'outbox_id', :'organization_id', 'integration.poison', '{}'::jsonb, 'pending', now(), now()) on conflict (id) do update set state='pending', lease_owner=null, lease_expires_at=null, retry_count=0, next_at=now()" >/dev/null
 
 curl -fsS "${api_url}/organizations/${org_id}/members" \
   -H "X-API-Key: ${API_KEY}" \
@@ -14185,6 +14195,40 @@ if [ "${operation_state}" != "succeeded" ]; then
   exit 1
 fi
 
+operation_outbox_state=""
+for _ in $(seq 1 30); do
+  operation_outbox_state="$(psql_scalar \
+    -v organization_id="${org_id}" \
+    -v operation_id="${operation_id}" \
+    -c "select state from outbox_events where organization_id = :'organization_id' and event_type = 'widgets.import' and payload->>'operation_id' = :'operation_id' order by created_at desc limit 1;")"
+  if [ "${operation_outbox_state}" = "succeeded" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "${operation_outbox_state}" != "succeeded" ]; then
+  echo "operation outbox did not complete, last state ${operation_outbox_state}" >&2
+  exit 1
+fi
+
+poison_retry_count=""
+for _ in $(seq 1 30); do
+  poison_retry_count="$(psql_scalar \
+    -v organization_id="${org_id}" \
+    -v outbox_id="${poison_outbox_id}" \
+    -c "select retry_count from outbox_events where organization_id = :'organization_id' and id = :'outbox_id' and retry_count >= 1 order by retry_count desc limit 1;")"
+  if [ -n "${poison_retry_count}" ]; then
+    break
+  fi
+  sleep 1
+done
+case "${poison_retry_count}" in
+  ""|*[!0-9]*)
+    echo "outbox retry was not recorded" >&2
+    exit 1
+    ;;
+esac
+
 curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ${API_KEY}" \
@@ -14193,9 +14237,9 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Idempotency-Key: integration-put-object" \
   --data '{"key":"integration.txt","content_type":"text/plain","content_base64":"aGVsbG8="}' >/dev/null
 
-audit_count="$(compose exec -T postgres psql -v ON_ERROR_STOP=1 -tA -U api -d api \
+audit_count="$(psql_scalar \
   -v organization_id="${org_id}" \
-  -c "select count(*) from audit_events where organization_id = :'organization_id';" | tr -d '[:space:]')"
+  -c "select count(*) from audit_events where organization_id = :'organization_id';")"
 case "${audit_count}" in
   ""|*[!0-9]*)
     echo "audit event count query returned ${audit_count}" >&2
@@ -14517,7 +14561,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, webhook delivery/replay, object writes, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object writes, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
