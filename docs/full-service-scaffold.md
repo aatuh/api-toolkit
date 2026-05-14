@@ -29,10 +29,13 @@ and routes for create/list/revoke, scoped permissions, last-used tracking, and
 peppered SHA-256 secret hashes. The generated HTTP router exposes these
 workflows with OpenAPI contracts and generated Go client methods. Generated
 write routes now record audit events with actor, tenant, action, resource,
-result, request ID, and redaction-safe metadata. Reusable building blocks now
-exist for durable operations, transactional outbox work, object storage,
-outbound webhook delivery, OpenAPI 3.1, and generated Go client output; the
-roadmap continues with wiring those reusable pieces deeper into the generated
+result, request ID, and redaction-safe metadata. The generated HTTP layer now
+also includes outbound webhook event catalog, endpoint create/list, delivery
+list, and replay routes; widget writes enqueue tenant-scoped webhook delivery
+records for subscribed endpoints without exposing signing secrets. Reusable
+building blocks now exist for durable operations, transactional outbox work,
+object storage, OpenAPI 3.1, and generated Go client output; the roadmap
+continues with wiring those reusable pieces deeper into the generated
 application boundary.
 When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
 checks required platform tables at startup, and makes readiness/admin health
@@ -67,10 +70,15 @@ The full profile standardizes these defaults:
 - Generated audit events record actor type, actor ID, tenant, action, resource,
   result, request ID, and redaction-safe metadata for organization, invitation,
   API-key, widget, and async import writes.
+- Generated webhook routes expose the outbound event catalog, create/list
+  tenant-scoped endpoints, list delivery history, and replay deliveries.
+  Endpoint creation returns the signing secret once; list, delivery, audit, and
+  Problem Details responses do not include raw webhook signing secrets.
 - Webhook delivery signs outbound tenant-scoped events, rejects unsafe endpoint
   headers, retries with bounded backoff, stores sanitized delivery history, and
-  supports operator replay. The Postgres adapter owns endpoint/delivery/outbox
-  rows while endpoint signing secrets stay behind an application-owned resolver.
+  supports operator replay. The reusable Postgres adapter owns
+  endpoint/delivery/outbox rows while endpoint signing secrets stay behind an
+  application-owned resolver.
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.

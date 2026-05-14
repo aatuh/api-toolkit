@@ -75,6 +75,11 @@ source of truth is `docs/release-runbook.md`.
   and write-route hooks for organization, invitation, API-key, widget, and
   async import actions, with generated tests proving audit metadata redaction
   and no raw API-key secret leakage.
+- Generated `saas-api-full` services now include outbound webhook event
+  catalog, endpoint create/list, delivery list, and delivery replay routes;
+  widget writes enqueue tenant-scoped pending deliveries for subscribed
+  endpoints, generated OpenAPI/client output covers those operations, and tests
+  prove webhook signing secrets are returned only at endpoint creation.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
