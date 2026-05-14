@@ -84,6 +84,11 @@ api-toolkit new service --module example.com/my-api --profile saas-api --auth jw
 api-toolkit new service --module example.com/my-api --profile saas-api --auth clerk
 ```
 
+For the heavier production foundation, use the planned `saas-api-full` profile.
+It keeps this quick-start profile small and adds the Postgres + Redis tenant,
+persistence, async, audit, webhook, client, integration-test, and deployment
+assets documented in [full-service-scaffold.md](full-service-scaffold.md).
+
 Next: use [cookbook.md](cookbook.md) for focused patterns and
 [../contrib/examples/README.md](../contrib/examples/README.md) for runnable
 example applications.

@@ -2499,6 +2499,56 @@ func TestGeneratedScaffoldDocumentsTelemetryDefaults(t *testing.T) {
 	}
 }
 
+func TestFullScaffoldPlatformContractIsDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	gettingStarted := readText(t, filepath.Join(repoRoot, "docs", "getting-started.md"))
+	fullScaffold := readText(t, filepath.Join(repoRoot, "docs", "full-service-scaffold.md"))
+	releaseManifests := readText(t, filepath.Join(repoRoot, "docs", "release-manifests.md"))
+
+	for _, required := range []string{
+		"saas-api-full",
+		"full-service-scaffold.md",
+	} {
+		if !strings.Contains(docsIndex, required) {
+			t.Fatalf("docs/README.md missing full scaffold contract reference %q", required)
+		}
+		if !strings.Contains(gettingStarted, required) {
+			t.Fatalf("docs/getting-started.md missing full scaffold guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Postgres",
+		"Redis",
+		"organizations",
+		"memberships",
+		"invitations",
+		"scoped API keys",
+		"durable async",
+		"transactional outbox",
+		"audit events",
+		"webhook delivery",
+		"OpenAPI 3.1",
+		"typed Go client",
+		"opt-in Docker integration tests",
+		"Kubernetes manifests",
+		"experimental",
+	} {
+		if !strings.Contains(fullScaffold, required) {
+			t.Fatalf("docs/full-service-scaffold.md missing full scaffold contract %q", required)
+		}
+	}
+	for _, required := range []string{
+		"saas-api-full",
+		"full-profile runtime assets",
+		"opt-in integration checks",
+	} {
+		if !strings.Contains(releaseManifests, required) {
+			t.Fatalf("docs/release-manifests.md missing full scaffold governance text %q", required)
+		}
+	}
+}
+
 func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))
