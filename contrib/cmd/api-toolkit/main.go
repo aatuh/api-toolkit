@@ -491,6 +491,16 @@ func writeGeneratedFileReplace(root *os.Root, name string, data []byte) error {
 }
 
 func renderGoClient(packageName string, operations []specs.Operation) []byte {
+	operations = append([]specs.Operation(nil), operations...)
+	sort.SliceStable(operations, func(i, j int) bool {
+		if operations[i].Path != operations[j].Path {
+			return operations[i].Path < operations[j].Path
+		}
+		if operations[i].Method != operations[j].Method {
+			return operations[i].Method < operations[j].Method
+		}
+		return operations[i].OperationID < operations[j].OperationID
+	})
 	seenMethods := map[string]int{}
 	var methods strings.Builder
 	for _, operation := range operations {
@@ -697,6 +707,15 @@ func generateService(cfg scaffoldConfig) error {
 	if err := writeGeneratedFile(root, "testdata/openapi.golden.json", golden); err != nil {
 		return err
 	}
+	if cfg.Profile == scaffoldProfileSaaSAPIFull {
+		client, err := renderSaaSAPIFullGoClient()
+		if err != nil {
+			return err
+		}
+		if err := writeGeneratedFile(root, "internal/client/apiclient/client.go", client); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -834,6 +853,15 @@ func renderSaaSAPIFullOpenAPIGolden() ([]byte, error) {
 		return nil, fmt.Errorf("render full scaffold openapi: %w", err)
 	}
 	return normalizeJSON(doc)
+}
+
+func renderSaaSAPIFullGoClient() ([]byte, error) {
+	client := renderGoClient("apiclient", fullScaffoldOperations("ApiKeyAuth"))
+	formatted, err := format.Source(client)
+	if err != nil {
+		return nil, fmt.Errorf("format full scaffold Go client: %w", err)
+	}
+	return formatted, nil
 }
 
 func registerFullScaffoldSchemas(registry *specs.Registry) {
@@ -3387,7 +3415,11 @@ contracts-diff:
 	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
 
 client-check:
-	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient
+	@tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	cp internal/client/apiclient/client.go "$$tmp/client.go"; \
+	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient; \
+	cmp -s "$$tmp/client.go" internal/client/apiclient/client.go || { echo "generated Go client is out of date"; diff -u "$$tmp/client.go" internal/client/apiclient/client.go; exit 1; }
 	$(GO) test ./internal/client/apiclient
 
 integration-check:

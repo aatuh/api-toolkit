@@ -41,9 +41,9 @@ source of truth is `docs/release-runbook.md`.
   `internal/adapters/postgres`, and `internal/httpapi` boundaries, Postgres
   migrations for tenant/platform tables, Docker Compose Postgres/Redis assets
   with optional MinIO, Kubernetes starter manifests, OpenAPI golden checks,
-  contract lint/diff targets, and generated HTTP smoke tests for readiness,
-  OpenAPI, auth failure, validation failure, idempotent create replay, and ETag
-  conflicts.
+  contract lint/diff/client-check targets, checked-in Go client output, and
+  generated HTTP smoke tests for readiness, OpenAPI, auth failure, validation
+  failure, idempotent create replay, and ETag conflicts.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

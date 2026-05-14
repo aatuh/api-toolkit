@@ -733,6 +733,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/httpapi/router.go",
 		"internal/httpapi/router_test.go",
 		"internal/httpapi/openapi.go",
+		"internal/client/apiclient/client.go",
 		"migrations/0001_platform.sql",
 		"testdata/openapi.golden.json",
 		"Makefile",
@@ -795,6 +796,16 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
+		}
+	}
+
+	generatedClient, err := os.ReadFile(filepath.Join(serviceDir, "internal", "client", "apiclient", "client.go"))
+	if err != nil {
+		t.Fatalf("read generated full-profile client: %v", err)
+	}
+	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) UpdateWidget", "PathParam(\"id\","} {
+		if !strings.Contains(string(generatedClient), want) {
+			t.Fatalf("generated full-profile client missing %q", want)
 		}
 	}
 
@@ -875,9 +886,6 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service client check failed:\n%s\nerror: %v", output, err)
-	}
-	if _, err := os.Stat(filepath.Join(serviceDir, "internal", "client", "apiclient", "client.go")); err != nil {
-		t.Fatalf("expected generated full-profile client output: %v", err)
 	}
 }
 
