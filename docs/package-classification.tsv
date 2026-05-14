@@ -82,6 +82,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencytest	test-only	test-
 github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap	supported-adapter	direct-tests	Supported zap logger adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate	experimental	direct-tests	Database migration adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/opa	experimental	direct-tests	OPA policy adapter.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres	experimental	direct-tests	Postgres operation repository adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool	supported-adapter	direct-tests	Postgres pool adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis	supported-adapter	direct-tests	Redis rate-limit adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimittest	test-only	test-support	Reusable rate-limit adapter contract tests.
