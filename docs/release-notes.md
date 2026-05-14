@@ -44,6 +44,9 @@ source of truth is `docs/release-runbook.md`.
   contract lint/diff targets, and generated HTTP smoke tests for readiness,
   OpenAPI, auth failure, validation failure, idempotent create replay, and ETag
   conflicts.
+- `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
+  `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
+  preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
