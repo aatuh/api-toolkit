@@ -95,8 +95,9 @@ The full profile standardizes these defaults:
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
 - Generated object routes provide create/list/read/delete behavior for
   tenant-scoped objects with single-segment keys, bounded payloads, and
-  allow-listed content types. The local scaffold uses in-process storage; plug
-  in the contrib S3-compatible adapter for production object persistence.
+  allow-listed content types. The local scaffold uses in-process storage;
+  `OBJECT_STORE=s3` wires object bytes to the contrib S3-compatible adapter
+  through a generated app-level blob-store port.
 - JWT, Clerk, and OIDC auth validate bearer tokens against configured issuer,
   audience, algorithms, and JWKS material. OIDC can also discover `jwks_uri`
   from provider metadata; all bearer modes map tenant and scope claims into

@@ -119,6 +119,10 @@ source of truth is `docs/release-runbook.md`.
   service writes tenant-scoped pollable operation rows, enqueues outbox work,
   and the generated outbox store leases work through contrib async while
   keeping failure problems sanitized.
+- Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
+  generated blob-store port and S3-compatible adapter wrapper. Tenant and role
+  checks remain in the app service; object bytes are written, read, and deleted
+  through the contrib S3 adapter with bounded size and content-type policy.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.

@@ -2793,6 +2793,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/adapters/postgres/api_keys_test.go", Body: fullPostgresAPIKeyStoreTestTemplate},
 	{Name: "internal/adapters/postgres/async.go", Body: fullPostgresAsyncStoreTemplate},
 	{Name: "internal/adapters/postgres/async_test.go", Body: fullPostgresAsyncStoreTestTemplate},
+	{Name: "internal/adapters/objectstore/s3.go", Body: fullObjectStoreS3AdapterTemplate},
+	{Name: "internal/adapters/objectstore/s3_test.go", Body: fullObjectStoreS3AdapterTestTemplate},
 	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
 	{Name: "internal/adapters/redis/cache_test.go", Body: fullRedisCacheAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -3081,6 +3083,7 @@ import (
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/ports"
+	objectstorage "{{ .Module }}/internal/adapters/objectstore"
 	"{{ .Module }}/internal/adapters/postgres"
 	rediscache "{{ .Module }}/internal/adapters/redis"
 	"{{ .Module }}/internal/app"
@@ -3140,6 +3143,19 @@ func run(ctx context.Context) error {
 		webhooks = app.NewWebhookService(tenancy)
 		objects = app.NewObjectService(tenancy)
 		readiness = postgres.HealthChecker{Pool: pool}
+	}
+	if strings.EqualFold(cfg.ObjectStore, "s3") {
+		blobStore, err := objectstorage.OpenS3BlobStore(objectstorage.S3Config{
+			Endpoint:        cfg.S3Endpoint,
+			Region:          cfg.S3Region,
+			Bucket:          cfg.S3Bucket,
+			AccessKeyID:     cfg.S3AccessKeyID,
+			SecretAccessKey: cfg.S3SecretAccessKey,
+		})
+		if err != nil {
+			return err
+		}
+		objects = app.NewObjectServiceWithBlobStore(tenancy, blobStore)
 	}
 	if strings.EqualFold(cfg.CacheStore, "redis") {
 		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -5497,6 +5513,24 @@ type ObjectService struct {
 	now     func() time.Time
 	objects map[string]Object
 	data    map[string][]byte
+	blobs   ObjectBlobStore
+}
+
+type ObjectBlobStore interface {
+	PutObject(ctx context.Context, ref ObjectRef, data []byte, contentType string) error
+	GetObject(ctx context.Context, ref ObjectRef) (ObjectBlob, bool, error)
+	DeleteObject(ctx context.Context, ref ObjectRef) (bool, error)
+}
+
+type ObjectRef struct {
+	TenantID string
+	Key      string
+}
+
+type ObjectBlob struct {
+	ContentType string
+	Size        int64
+	Data        []byte
 }
 
 type Object struct {
@@ -5521,6 +5555,12 @@ func (o Object) Public() map[string]any {
 
 func NewObjectService(tenancy *TenancyService) *ObjectService {
 	return &ObjectService{tenancy: tenancy, now: time.Now, objects: map[string]Object{}, data: map[string][]byte{}}
+}
+
+func NewObjectServiceWithBlobStore(tenancy *TenancyService, blobs ObjectBlobStore) *ObjectService {
+	service := NewObjectService(tenancy)
+	service.blobs = blobs
+	return service
 }
 
 func (s *ObjectService) Put(ctx context.Context, actorID, tenantID, key, contentType string, data []byte) (Object, error) {
@@ -5557,6 +5597,11 @@ func (s *ObjectService) Put(ctx context.Context, actorID, tenantID, key, content
 	if existing, ok := s.objects[id]; ok {
 		obj.CreatedAt = existing.CreatedAt
 	}
+	if s.blobs != nil {
+		if err := s.blobs.PutObject(ctx, ObjectRef{TenantID: tenantID, Key: key}, append([]byte(nil), data...), contentType); err != nil {
+			return Object{}, err
+		}
+	}
 	s.objects[id] = obj
 	s.data[id] = append([]byte(nil), data...)
 	return obj, nil
@@ -5578,6 +5623,15 @@ func (s *ObjectService) Get(ctx context.Context, actorID, tenantID, key string) 
 	}
 	if !ok {
 		return Object{}, nil, false, ErrForbidden
+	}
+	if s.blobs != nil {
+		blob, ok, err := s.blobs.GetObject(ctx, ObjectRef{TenantID: strings.TrimSpace(tenantID), Key: strings.TrimSpace(key)})
+		if err != nil || !ok {
+			return Object{}, nil, ok, err
+		}
+		now := s.now().UTC()
+		obj := Object{TenantID: strings.TrimSpace(tenantID), Key: strings.TrimSpace(key), ContentType: blob.ContentType, Size: blob.Size, CreatedAt: now, UpdatedAt: now}
+		return obj, append([]byte(nil), blob.Data...), true, nil
 	}
 	id := objectID(tenantID, key)
 	s.mu.Lock()
@@ -5632,6 +5686,21 @@ func (s *ObjectService) Delete(ctx context.Context, actorID, tenantID, key strin
 	}
 	if !ok {
 		return ErrForbidden
+	}
+	if s.blobs != nil {
+		ok, err := s.blobs.DeleteObject(ctx, ObjectRef{TenantID: strings.TrimSpace(tenantID), Key: strings.TrimSpace(key)})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrNotFound
+		}
+		id := objectID(tenantID, key)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.objects, id)
+		delete(s.data, id)
+		return nil
 	}
 	id := objectID(tenantID, key)
 	s.mu.Lock()
@@ -5725,6 +5794,69 @@ func TestObjectServiceRejectsUnsafeInputs(t *testing.T) {
 	if _, err := service.Put(ctx, "stranger_1", org.ID, "readme.txt", "text/plain", []byte("hello")); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("stranger Put() error = %v, want %v", err, ErrForbidden)
 	}
+}
+
+func TestObjectServiceWithBlobStoreKeepsTenantPolicy(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	blobs := newRecordingObjectBlobStore()
+	service := NewObjectServiceWithBlobStore(tenancy, blobs)
+	if _, err := service.Put(ctx, "owner_1", org.ID, "readme.txt", "text/plain", []byte("hello")); err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	if blobs.putRef.TenantID != org.ID || blobs.putRef.Key != "readme.txt" || string(blobs.data) != "hello" {
+		t.Fatalf("blob put ref=%#v data=%q", blobs.putRef, blobs.data)
+	}
+	got, data, ok, err := service.Get(ctx, "owner_1", org.ID, "readme.txt")
+	if err != nil || !ok || got.Size != 5 || string(data) != "hello" {
+		t.Fatalf("Get() object=%#v data=%q ok=%v err=%v", got, data, ok, err)
+	}
+	if _, _, _, err := service.Get(ctx, "other_user", org.ID, "readme.txt"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("cross-actor Get() error = %v, want %v", err, ErrForbidden)
+	}
+	if err := service.Delete(ctx, "owner_1", org.ID, "readme.txt"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if !blobs.deleted {
+		t.Fatalf("blob was not deleted")
+	}
+}
+
+type recordingObjectBlobStore struct {
+	putRef      ObjectRef
+	contentType string
+	data        []byte
+	deleted     bool
+}
+
+func newRecordingObjectBlobStore() *recordingObjectBlobStore {
+	return &recordingObjectBlobStore{}
+}
+
+func (s *recordingObjectBlobStore) PutObject(_ context.Context, ref ObjectRef, data []byte, contentType string) error {
+	s.putRef = ref
+	s.contentType = contentType
+	s.data = append([]byte(nil), data...)
+	return nil
+}
+
+func (s *recordingObjectBlobStore) GetObject(_ context.Context, ref ObjectRef) (ObjectBlob, bool, error) {
+	if ref != s.putRef {
+		return ObjectBlob{}, false, nil
+	}
+	return ObjectBlob{ContentType: s.contentType, Size: int64(len(s.data)), Data: append([]byte(nil), s.data...)}, true, nil
+}
+
+func (s *recordingObjectBlobStore) DeleteObject(_ context.Context, ref ObjectRef) (bool, error) {
+	if ref != s.putRef {
+		return false, nil
+	}
+	s.deleted = true
+	return true, nil
 }
 
 `
@@ -8201,6 +8333,221 @@ func operationsOperationForTest() operations.Operation[app.WidgetImportResult] {
 }
 `
 
+const fullObjectStoreS3AdapterTemplate = `package objectstore
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/objectstores3"
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+
+	"{{ .Module }}/internal/app"
+)
+
+const maxS3ObjectBytes = 1024 * 1024
+
+var ErrS3ConfigRequired = errors.New("s3 object store configuration is required")
+
+type S3Config struct {
+	Endpoint        string
+	Region          string
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+}
+
+type S3BlobStore struct {
+	store toolkitobjectstore.Store
+}
+
+func OpenS3BlobStore(cfg S3Config) (*S3BlobStore, error) {
+	if strings.TrimSpace(cfg.Endpoint) == "" ||
+		strings.TrimSpace(cfg.Region) == "" ||
+		strings.TrimSpace(cfg.Bucket) == "" ||
+		strings.TrimSpace(cfg.AccessKeyID) == "" ||
+		strings.TrimSpace(cfg.SecretAccessKey) == "" {
+		return nil, ErrS3ConfigRequired
+	}
+	store, err := objectstores3.New(objectstores3.Options{
+		Endpoint:            cfg.Endpoint,
+		Region:              cfg.Region,
+		Bucket:              cfg.Bucket,
+		AccessKeyID:         cfg.AccessKeyID,
+		SecretAccessKey:     cfg.SecretAccessKey,
+		MaxObjectSize:       maxS3ObjectBytes,
+		AllowedContentTypes: []string{"application/json", "application/pdf", "image/jpeg", "image/png", "text/plain"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &S3BlobStore{store: store}, nil
+}
+
+func NewS3BlobStore(store toolkitobjectstore.Store) *S3BlobStore {
+	return &S3BlobStore{store: store}
+}
+
+func (s *S3BlobStore) PutObject(ctx context.Context, ref app.ObjectRef, data []byte, contentType string) error {
+	if s == nil || s.store == nil {
+		return ErrS3ConfigRequired
+	}
+	objectRef, err := toObjectRef(ref)
+	if err != nil {
+		return err
+	}
+	return s.store.Put(ctx, objectRef, bytes.NewReader(data), toolkitobjectstore.PutOptions{
+		Size:        int64(len(data)),
+		ContentType: strings.TrimSpace(contentType),
+		Metadata:    map[string]string{"tenant_id": strings.TrimSpace(ref.TenantID)},
+	})
+}
+
+func (s *S3BlobStore) GetObject(ctx context.Context, ref app.ObjectRef) (app.ObjectBlob, bool, error) {
+	if s == nil || s.store == nil {
+		return app.ObjectBlob{}, false, ErrS3ConfigRequired
+	}
+	objectRef, err := toObjectRef(ref)
+	if err != nil {
+		return app.ObjectBlob{}, false, err
+	}
+	result, err := s.store.Get(ctx, objectRef)
+	if errors.Is(err, toolkitobjectstore.ErrObjectNotFound) {
+		return app.ObjectBlob{}, false, nil
+	}
+	if err != nil {
+		return app.ObjectBlob{}, false, err
+	}
+	defer result.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(result.Body, maxS3ObjectBytes+1))
+	if err != nil {
+		return app.ObjectBlob{}, false, err
+	}
+	if len(data) > maxS3ObjectBytes {
+		return app.ObjectBlob{}, false, toolkitobjectstore.ErrObjectTooLarge
+	}
+	return app.ObjectBlob{ContentType: result.ContentType, Size: int64(len(data)), Data: data}, true, nil
+}
+
+func (s *S3BlobStore) DeleteObject(ctx context.Context, ref app.ObjectRef) (bool, error) {
+	if s == nil || s.store == nil {
+		return false, ErrS3ConfigRequired
+	}
+	objectRef, err := toObjectRef(ref)
+	if err != nil {
+		return false, err
+	}
+	if err := s.store.Delete(ctx, objectRef); errors.Is(err, toolkitobjectstore.ErrObjectNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func toObjectRef(ref app.ObjectRef) (toolkitobjectstore.Ref, error) {
+	tenantID := strings.TrimSpace(ref.TenantID)
+	key := strings.TrimSpace(ref.Key)
+	if tenantID == "" || key == "" {
+		return toolkitobjectstore.Ref{}, toolkitobjectstore.ErrInvalidRef
+	}
+	objectRef := toolkitobjectstore.Ref{Key: fmt.Sprintf("%s/%s", tenantID, key)}
+	if err := toolkitobjectstore.ValidateRef(toolkitobjectstore.Ref{Bucket: "api-objects", Key: objectRef.Key}); err != nil {
+		return toolkitobjectstore.Ref{}, err
+	}
+	return objectRef, nil
+}
+`
+
+const fullObjectStoreS3AdapterTestTemplate = `package objectstore
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+
+	"{{ .Module }}/internal/app"
+)
+
+func TestOpenS3BlobStoreRequiresConfig(t *testing.T) {
+	if _, err := OpenS3BlobStore(S3Config{}); !errors.Is(err, ErrS3ConfigRequired) {
+		t.Fatalf("OpenS3BlobStore() error = %v, want %v", err, ErrS3ConfigRequired)
+	}
+}
+
+func TestS3BlobStorePutGetDelete(t *testing.T) {
+	store := &recordingObjectStore{}
+	blobs := NewS3BlobStore(store)
+	ref := app.ObjectRef{TenantID: "org_1", Key: "readme.txt"}
+	if err := blobs.PutObject(context.Background(), ref, []byte("hello"), "text/plain"); err != nil {
+		t.Fatalf("PutObject() error = %v", err)
+	}
+	if store.ref.Key != "org_1/readme.txt" || store.contentType != "text/plain" || string(store.data) != "hello" {
+		t.Fatalf("put ref=%#v contentType=%q data=%q", store.ref, store.contentType, store.data)
+	}
+	got, ok, err := blobs.GetObject(context.Background(), ref)
+	if err != nil || !ok || got.ContentType != "text/plain" || string(got.Data) != "hello" {
+		t.Fatalf("GetObject() blob=%#v ok=%v err=%v", got, ok, err)
+	}
+	ok, err = blobs.DeleteObject(context.Background(), ref)
+	if err != nil || !ok || !store.deleted {
+		t.Fatalf("DeleteObject() ok=%v deleted=%v err=%v", ok, store.deleted, err)
+	}
+}
+
+func TestS3BlobStoreRejectsUnsafeRef(t *testing.T) {
+	blobs := NewS3BlobStore(&recordingObjectStore{})
+	if err := blobs.PutObject(context.Background(), app.ObjectRef{TenantID: "org_1", Key: "../secret"}, []byte("hello"), "text/plain"); !errors.Is(err, toolkitobjectstore.ErrInvalidRef) {
+		t.Fatalf("PutObject() error = %v, want %v", err, toolkitobjectstore.ErrInvalidRef)
+	}
+}
+
+type recordingObjectStore struct {
+	ref         toolkitobjectstore.Ref
+	contentType string
+	data        []byte
+	deleted     bool
+}
+
+func (s *recordingObjectStore) Put(_ context.Context, ref toolkitobjectstore.Ref, body io.Reader, opts toolkitobjectstore.PutOptions) error {
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return err
+	}
+	s.ref = ref
+	s.contentType = opts.ContentType
+	s.data = data
+	return nil
+}
+
+func (s *recordingObjectStore) Get(_ context.Context, ref toolkitobjectstore.Ref) (toolkitobjectstore.GetResult, error) {
+	if ref != s.ref {
+		return toolkitobjectstore.GetResult{}, toolkitobjectstore.ErrObjectNotFound
+	}
+	return toolkitobjectstore.GetResult{
+		Body:        io.NopCloser(strings.NewReader(string(s.data))),
+		ContentType: s.contentType,
+		Size:        int64(len(s.data)),
+	}, nil
+}
+
+func (s *recordingObjectStore) Delete(_ context.Context, ref toolkitobjectstore.Ref) error {
+	if ref != s.ref {
+		return toolkitobjectstore.ErrObjectNotFound
+	}
+	s.deleted = true
+	return nil
+}
+`
+
 const fullRedisCacheAdapterTemplate = `package redis
 
 import (
@@ -9188,6 +9535,12 @@ type Config struct {
 	RedisAddr    string
 	CacheStore   string
 	APIKeyPepper string
+	ObjectStore       string
+	S3Endpoint        string
+	S3Region          string
+	S3Bucket          string
+	S3AccessKeyID     string
+	S3SecretAccessKey string
 {{ if eq .AuthMode "jwt" }}	JWTJWKSURL   string
 	JWTIssuer    string
 	JWTAudience  string
@@ -9217,6 +9570,12 @@ func ConfigFromEnv() (Config, error) {
 		RedisAddr:    strings.TrimSpace(os.Getenv("REDIS_ADDR")),
 		CacheStore:   strings.ToLower(strings.TrimSpace(cacheStore)),
 		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
+		ObjectStore:       strings.ToLower(envDefault("OBJECT_STORE", "memory")),
+		S3Endpoint:        strings.TrimSpace(os.Getenv("S3_ENDPOINT")),
+		S3Region:          envDefault("S3_REGION", "us-east-1"),
+		S3Bucket:          strings.TrimSpace(os.Getenv("S3_BUCKET")),
+		S3AccessKeyID:     strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
+		S3SecretAccessKey: strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY")),
 {{ if eq .AuthMode "jwt" }}		JWTJWKSURL:   strings.TrimSpace(os.Getenv("JWT_JWKS_URL")),
 		JWTIssuer:    strings.TrimSpace(os.Getenv("JWT_ISSUER")),
 		JWTAudience:  envDefault("JWT_AUDIENCE", "saas-api-full"),
@@ -9233,6 +9592,12 @@ func ConfigFromEnv() (Config, error) {
 	}
 	if cfg.CacheStore != "memory" && cfg.CacheStore != "redis" {
 		return Config{}, errors.New("CACHE_STORE must be memory or redis")
+	}
+	if cfg.ObjectStore != "memory" && cfg.ObjectStore != "s3" {
+		return Config{}, errors.New("OBJECT_STORE must be memory or s3")
+	}
+	if cfg.ObjectStore == "s3" && (cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKeyID == "" || cfg.S3SecretAccessKey == "") {
+		return Config{}, errors.New("S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY are required when OBJECT_STORE=s3")
 	}
 	if strings.EqualFold(os.Getenv("ENV"), "production") {
 		var missing []string
@@ -11640,6 +12005,12 @@ ADMIN_ADDR=:9090
 DATABASE_URL=
 REDIS_ADDR=localhost:6379
 CACHE_STORE=memory
+OBJECT_STORE=memory
+S3_ENDPOINT=http://localhost:9000
+S3_REGION=us-east-1
+S3_BUCKET=api-objects
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
 API_KEY=local-dev-key
 API_ACTOR_ID=
 API_KEY_PEPPER=
