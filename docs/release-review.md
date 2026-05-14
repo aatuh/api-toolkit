@@ -14,8 +14,8 @@ Use this as the short reviewer path before publishing a release.
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
-  tool versions, `vulnerability_evidence`, `contrib_drift`, and artifact tier
-  status.
+  tool versions, `vulnerability_evidence`, `contrib_drift`,
+  `full_profile_scaffold_evidence`, and artifact tier status.
 - Run `RELEASE_SUMMARY=release-check-summary.json make release-review-summary`
   to print the same decision fields from one command before walking the detailed
   evidence.
@@ -105,6 +105,11 @@ Verification checklist:
   `docs/contrib-api-drift-dispositions.tsv`; `contrib_drift.packages`,
   `missing_disposition_count`, and `expired_disposition_count` are the summary
   source of truth.
+- `full_profile_scaffold_evidence.scaffold_validation.status` must be `passed`
+  for publication evidence. `client_generation.status` is covered by that
+  scaffold contract. `integration_check.status` is opt-in and non-blocking
+  unless release reviewers explicitly ran generated Docker integration checks
+  and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
 
 ## Known v2 debt status
 

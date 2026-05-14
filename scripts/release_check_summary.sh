@@ -42,6 +42,7 @@ check_names=(
   "release-api-check"
   "contrib-api-drift-report"
   "contrib-release-notes-check"
+  "full-profile-scaffold-check"
   "v3-readiness-check"
   "docs-check"
   "test"
@@ -58,6 +59,7 @@ check_commands=(
   "make release-api-check"
   "make contrib-api-drift-report"
   "make contrib-release-notes-check"
+  "make full-profile-scaffold-check"
   "make v3-readiness-check"
   "make docs-check"
   "make test"
@@ -781,6 +783,76 @@ asset_status_json() {
   printf '}'
 }
 
+check_status_from_summary_records() {
+  local wanted="$1"
+  local record
+  local status=""
+
+  for record in "${check_jsons[@]:-}"; do
+    case "$record" in
+      *"\"name\":\"$wanted\""*)
+        status="$(printf '%s' "$record" | sed -nE 's/.*"status":"([^"]+)".*/\1/p')"
+        if [ -n "$status" ]; then
+          printf '%s' "$status"
+          return 0
+        fi
+        ;;
+    esac
+  done
+  printf 'not_run'
+}
+
+json_nullable_string() {
+  if [ -n "${1:-}" ]; then
+    json_string "$1"
+  else
+    printf 'null'
+  fi
+}
+
+full_profile_scaffold_evidence_json() {
+  local scaffold_check="full-profile-scaffold-check"
+  local scaffold_status
+  local client_status
+  local integration_status
+  local integration_log
+
+  scaffold_status="$(check_status_from_summary_records "$scaffold_check")"
+  client_status="covered_by_scaffold_contract"
+  case "$scaffold_status" in
+    passed) client_status="passed" ;;
+    failed) client_status="failed" ;;
+    skipped_*) client_status="$scaffold_status" ;;
+  esac
+  integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-not_run_opt_in}"
+  integration_log="${FULL_PROFILE_INTEGRATION_CHECK_LOG_PATH:-}"
+
+  printf '{'
+  printf '"profile":"saas-api-full",'
+  printf '"contract_test":"github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit TestNewServiceGeneratesBuildableSaaSAPIFull*",'
+  printf '"scaffold_validation":{'
+  printf '"check_name":'; json_string "$scaffold_check"; printf ','
+  printf '"command_line":'; json_string "API_BASE_REF=$api_base_ref GOTOOLCHAIN=$gotoolchain make full-profile-scaffold-check"; printf ','
+  printf '"status":'; json_string "$scaffold_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"release_blocking":true'
+  printf '},'
+  printf '"client_generation":{'
+  printf '"make_target":"client-check",'
+  printf '"command_line":'; json_string "generated saas-api-full service: make client-check"; printf ','
+  printf '"status":'; json_string "$client_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"checked_in_output":true'
+  printf '},'
+  printf '"integration_check":{'
+  printf '"command_line":'; json_string "generated saas-api-full service: make integration-check"; printf ','
+  printf '"status":'; json_string "$integration_status"; printf ','
+  printf '"log_path":'; json_nullable_string "$integration_log"; printf ','
+  printf '"release_blocking":false'
+  printf '}'
+  printf '}'
+}
+
 artifact_tiers_json() {
   local release_assets=(
     "$release_logs_archive_path"
@@ -956,6 +1028,7 @@ printf '\n  ],\n'
 printf '  "tool_versions": '; tool_versions_json; printf ',\n'
 printf '  "vulnerability_evidence": '; vulnerability_evidence_json "$log_dir/vuln.log"; printf ',\n'
 printf '  "contrib_drift": %s,\n' "$contrib_drift_json_value"
+printf '  "full_profile_scaffold_evidence": '; full_profile_scaffold_evidence_json; printf ',\n'
 printf '  "artifact_tiers": '; artifact_tiers_json; printf ',\n'
 printf '  "publication_artifact_expectations": '; publication_artifact_expectations_json; printf ',\n'
 printf '  "publication_artifact_checksums": '; publication_artifact_checksums_json; printf ',\n'
