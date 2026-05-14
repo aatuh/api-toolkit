@@ -165,9 +165,10 @@ The profile generates or is expected to generate:
   target; the generated script starts Postgres and Redis, applies migrations,
   runs `go test ./...`, starts the API on localhost, and performs HTTP smoke
   checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key
-  auth, object writes, admin health, admin metrics, admin pprof, and public
-  admin-route isolation. These checks are intentionally outside default
-  `make finalize` so local and CI release gates stay reliable without Docker.
+  auth, idempotent widget writes, ETag conflict handling, async operation
+  polling, object writes, admin health, admin metrics, admin pprof, and public
+  admin-route isolation. These checks are intentionally outside default `make
+  finalize` so local and CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
 - A checked-in typed Go client plus a generated `client-check` target.
@@ -189,9 +190,10 @@ tests are opt-in:
   Docker Compose and may include optional MinIO checks when object-store
   production wiring is enabled.
 - Integration checks verify migrations, tenant isolation, scoped API keys,
-  managed API-key authentication, idempotent writes, object writes, admin
-  health, metrics, pprof, and admin listener isolation; deeper checks for ETag
-  conflicts, async polling, outbox retries, audit writes, and webhook
-  delivery/replay can remain opt-in extensions as the generated script grows.
+  managed API-key authentication, idempotent writes, ETag conflict handling,
+  async polling, object writes, admin health, metrics, pprof, and admin
+  listener isolation; deeper checks for outbox retries, audit writes, and
+  webhook delivery/replay can remain opt-in extensions as the generated script
+  grows.
 - Default `make finalize` must not require Docker, cloud credentials, or network
   services outside module downloads and tool installation.

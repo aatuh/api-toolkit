@@ -887,6 +887,10 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Idempotency-Key:",
 		"/organizations/${org_id}/api-keys",
 		"managed-key-widget",
+		"expected idempotent widget replay",
+		"If-Match: stale-etag",
+		"/widgets/imports",
+		"operation did not succeed",
 		"public pprof endpoint should be isolated",
 		"docker compose down -v",
 	} {
