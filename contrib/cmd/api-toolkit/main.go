@@ -11002,6 +11002,7 @@ import (
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	corepprof "github.com/aatuh/api-toolkit/v2/endpoints/pprof"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	ratelimitmw "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
 	apitkops "github.com/aatuh/api-toolkit/v2/operations"
@@ -11272,10 +11273,19 @@ func NewAdminRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("GET /metrics", http.HandlerFunc(cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
 		cfg.MetricsHandler.ServeHTTP(w, r)
 	})))
-	mux.HandleFunc("GET /debug/pprof/", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"pprof": "mounted on the admin listener"})
-	}))
+	_ = corepprof.RegisterAdminRoutes(serveMuxGetRouter{mux: mux}, cfg.requireAdminHandler)
 	return mux
+}
+
+type serveMuxGetRouter struct {
+	mux *http.ServeMux
+}
+
+func (r serveMuxGetRouter) Get(pattern string, h http.HandlerFunc) {
+	if r.mux == nil {
+		return
+	}
+	r.mux.HandleFunc("GET "+pattern, h)
 }
 
 func (cfg RouterConfig) withDefaults() RouterConfig {
@@ -12636,6 +12646,13 @@ func (cfg RouterConfig) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (cfg RouterConfig) requireAdminHandler(next http.Handler) http.Handler {
+	if next == nil {
+		next = http.NotFoundHandler()
+	}
+	return http.HandlerFunc(cfg.requireAdmin(next.ServeHTTP))
+}
+
 func requireHeader(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
 	value := strings.TrimSpace(r.Header.Get(name))
 	if value == "" {
@@ -12777,6 +12794,40 @@ func TestAdminMetricsRecordsHTTPRequestsWithoutSecrets(t *testing.T) {
 	adminHandler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated metrics status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminPprofRequiresAdminAndServesProfiles(t *testing.T) {
+	publicHandler := newTestRouter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	publicHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("public pprof status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	adminHandler := NewAdminRouter(RouterConfig{AdminKey: "test-admin-key"})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated admin pprof status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	req.Header.Set("X-Admin-Key", "test-admin-key")
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Types of profiles available") {
+		t.Fatalf("admin pprof index status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/debug/pprof/cmdline", nil)
+	req.Header.Set("X-Admin-Key", "test-admin-key")
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin pprof cmdline status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -14072,6 +14123,7 @@ When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 3
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
+The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; the public router does not mount pprof.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.

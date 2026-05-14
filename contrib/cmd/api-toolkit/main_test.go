@@ -833,7 +833,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "NewRateLimitMiddleware", "NewMetricsMiddleware", "rateLimited", "metrics", "MetricsHandler", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "corepprof.RegisterAdminRoutes", "NewRateLimitMiddleware", "NewMetricsMiddleware", "rateLimited", "metrics", "MetricsHandler", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -920,6 +920,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Generated profile: `saas-api-full`.",
 		"Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.",
 		"The public router emits bounded Prometheus HTTP request metrics, and `/metrics` is served only from the admin router.",
+		"The admin router mounts real Go pprof handlers behind `X-Admin-Key`; the public router does not mount pprof.",
 		"`make integration-check`",
 	} {
 		if !strings.Contains(string(generatedREADME), want) {
