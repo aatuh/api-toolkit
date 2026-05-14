@@ -123,6 +123,10 @@ source of truth is `docs/release-runbook.md`.
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted
   through the contrib S3 adapter with bounded size and content-type policy.
+- Generated `saas-api-full` webhook routes now switch to a generated Postgres
+  webhook store when `DATABASE_URL` is configured. Endpoint signing secrets are
+  encrypted with `WEBHOOK_SECRET_KEY`, delivery history is tenant-scoped, and
+  replay updates the delivery row while requeueing the matching outbox job.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.

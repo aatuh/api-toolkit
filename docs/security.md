@@ -136,10 +136,13 @@ Goal:
   and endpoint-secret rotation in application-owned code.
 - Generated full-profile webhook endpoint creation returns the signing secret
   once and omits it from endpoint lists, delivery lists, replay responses,
-  audit metadata, and Problem Details. Treat webhook target URLs as operator or
-  tenant-admin input only; production delivery workers should use SSRF-aware
-  outbound transports and receiver allow-lists where your threat model requires
-  them.
+  audit metadata, and Problem Details. When `DATABASE_URL` is configured, the
+  generated Postgres store requires `WEBHOOK_SECRET_KEY` and encrypts endpoint
+  signing secrets before persistence so workers can sign future deliveries
+  without storing raw secrets in response-visible state. Treat webhook target
+  URLs as operator or tenant-admin input only; production delivery workers
+  should use SSRF-aware outbound transports and receiver allow-lists where your
+  threat model requires them.
 - Webhook delivery metrics and request-log hooks expose only bounded event
   type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
   delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those

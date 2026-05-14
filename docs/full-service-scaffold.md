@@ -89,7 +89,10 @@ The full profile standardizes these defaults:
   headers, retries with bounded backoff, stores sanitized delivery history, and
   supports operator replay. The reusable Postgres adapter owns
   endpoint/delivery/outbox rows while endpoint signing secrets stay behind an
-  application-owned resolver.
+  application-owned resolver. In generated `DATABASE_URL` mode, the scaffold
+  persists webhook endpoints and deliveries through a generated Postgres store,
+  encrypts endpoint signing secrets with `WEBHOOK_SECRET_KEY`, and requeues
+  replayed deliveries into the transactional outbox.
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
