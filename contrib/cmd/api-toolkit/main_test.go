@@ -830,7 +830,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}

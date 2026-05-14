@@ -2785,6 +2785,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/objects_test.go", Body: fullAppObjectsTestTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
+	{Name: "internal/adapters/postgres/tenancy.go", Body: fullPostgresTenancyStoreTemplate},
+	{Name: "internal/adapters/postgres/tenancy_test.go", Body: fullPostgresTenancyStoreTestTemplate},
 	{Name: "internal/adapters/postgres/widgets.go", Body: fullPostgresWidgetStoreTemplate},
 	{Name: "internal/adapters/postgres/widgets_test.go", Body: fullPostgresWidgetStoreTestTemplate},
 	{Name: "internal/adapters/postgres/api_keys.go", Body: fullPostgresAPIKeyStoreTemplate},
@@ -3127,9 +3129,12 @@ func run(ctx context.Context) error {
 		}
 		cancel()
 		defer pool.Close()
+		tenancy = app.NewTenancyServiceWithStore(postgres.NewTenancyStore(pool))
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(&pgxpooladapter.Adapter{Pool: pool}, auditpostgres.Options{}))
+		webhooks = app.NewWebhookService(tenancy)
+		objects = app.NewObjectService(tenancy)
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
 	if strings.EqualFold(cfg.CacheStore, "redis") {
@@ -5585,7 +5590,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -5605,11 +5609,24 @@ type TenancyService struct {
 	invitations map[string]invitationRecord
 	now         func() time.Time
 	newToken    func() (string, error)
+	newOrgID    func() (string, error)
+	newInviteID func() (string, error)
+	store       TenancyStore
 }
 
 type invitationRecord struct {
 	invitation domain.Invitation
 	tokenHash  string
+}
+
+type TenancyStore interface {
+	CreateOrganization(ctx context.Context, org domain.Organization, owner domain.Membership) error
+	ListOrganizations(ctx context.Context, actorID string) ([]domain.Organization, error)
+	ListMembers(ctx context.Context, organizationID string) ([]domain.Membership, error)
+	CreateInvitation(ctx context.Context, invitation domain.Invitation, tokenHash string) error
+	GetInvitation(ctx context.Context, invitationID string) (domain.Invitation, string, bool, error)
+	AcceptInvitation(ctx context.Context, invitationID, userID string, acceptedAt time.Time) (domain.Membership, bool, error)
+	HasRole(ctx context.Context, organizationID, actorID string, required domain.Role) (bool, error)
 }
 
 func NewTenancyService() *TenancyService {
@@ -5619,7 +5636,15 @@ func NewTenancyService() *TenancyService {
 		invitations: map[string]invitationRecord{},
 		now:         time.Now,
 		newToken:    randomToken,
+		newOrgID:    func() (string, error) { return randomPrefixedID("org") },
+		newInviteID: func() (string, error) { return randomPrefixedID("inv") },
 	}
+}
+
+func NewTenancyServiceWithStore(store TenancyStore) *TenancyService {
+	service := NewTenancyService()
+	service.store = store
+	return service
 }
 
 func (s *TenancyService) CreateOrganization(ctx context.Context, actorID, name string) (domain.Organization, domain.Membership, error) {
@@ -5631,12 +5656,16 @@ func (s *TenancyService) CreateOrganization(ctx context.Context, actorID, name s
 	if actorID == "" || name == "" {
 		return domain.Organization{}, domain.Membership{}, ErrValidation
 	}
+	orgID, err := s.newOrgID()
+	if err != nil {
+		return domain.Organization{}, domain.Membership{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextOrg++
 	now := s.now().UTC()
 	org := domain.Organization{
-		ID:        fmt.Sprintf("org_%06d", s.nextOrg),
+		ID:        orgID,
 		Name:      name,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -5646,6 +5675,12 @@ func (s *TenancyService) CreateOrganization(ctx context.Context, actorID, name s
 		UserID:         actorID,
 		Role:           domain.RoleOwner,
 		CreatedAt:      now,
+	}
+	if s.store != nil {
+		if err := s.store.CreateOrganization(ctx, org, member); err != nil {
+			return domain.Organization{}, domain.Membership{}, err
+		}
+		return org, member, nil
 	}
 	s.orgs[org.ID] = org
 	s.memberships[org.ID] = map[string]domain.Membership{actorID: member}
@@ -5659,6 +5694,9 @@ func (s *TenancyService) ListOrganizations(ctx context.Context, actorID string) 
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
 		return nil, ErrValidation
+	}
+	if s.store != nil {
+		return s.store.ListOrganizations(ctx, actorID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -5684,6 +5722,16 @@ func (s *TenancyService) ListMembers(ctx context.Context, actorID, organizationI
 	organizationID = strings.TrimSpace(organizationID)
 	if actorID == "" || organizationID == "" {
 		return nil, ErrValidation
+	}
+	if s.store != nil {
+		ok, err := s.store.HasRole(ctx, organizationID, actorID, domain.RoleViewer)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, ErrForbidden
+		}
+		return s.store.ListMembers(ctx, organizationID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -5711,6 +5759,50 @@ func (s *TenancyService) InviteMember(ctx context.Context, actorID, organization
 	if actorID == "" || organizationID == "" || email == "" || !strings.Contains(email, "@") || !role.Valid() {
 		return domain.Invitation{}, "", ErrValidation
 	}
+	if s.store != nil {
+		ok, err := s.store.HasRole(ctx, organizationID, actorID, domain.RoleAdmin)
+		if err != nil {
+			return domain.Invitation{}, "", err
+		}
+		if !ok {
+			return domain.Invitation{}, "", ErrForbidden
+		}
+		if role == domain.RoleOwner {
+			owner, err := s.store.HasRole(ctx, organizationID, actorID, domain.RoleOwner)
+			if err != nil {
+				return domain.Invitation{}, "", err
+			}
+			if !owner {
+				return domain.Invitation{}, "", ErrForbidden
+			}
+		}
+		token, err := s.newToken()
+		if err != nil {
+			return domain.Invitation{}, "", err
+		}
+		invitationID, err := s.newInviteID()
+		if err != nil {
+			return domain.Invitation{}, "", err
+		}
+		now := s.now().UTC()
+		prefix := token
+		if len(prefix) > 8 {
+			prefix = prefix[:8]
+		}
+		invitation := domain.Invitation{
+			ID:             invitationID,
+			OrganizationID: organizationID,
+			Email:          email,
+			Role:           role,
+			TokenPrefix:    prefix,
+			ExpiresAt:      now.Add(7 * 24 * time.Hour),
+			CreatedAt:      now,
+		}
+		if err := s.store.CreateInvitation(ctx, invitation, hashToken(token)); err != nil {
+			return domain.Invitation{}, "", err
+		}
+		return invitation, token, nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.hasRoleLocked(organizationID, actorID, domain.RoleAdmin) {
@@ -5723,6 +5815,10 @@ func (s *TenancyService) InviteMember(ctx context.Context, actorID, organization
 	if err != nil {
 		return domain.Invitation{}, "", err
 	}
+	invitationID, err := s.newInviteID()
+	if err != nil {
+		return domain.Invitation{}, "", err
+	}
 	s.nextInvite++
 	now := s.now().UTC()
 	prefix := token
@@ -5730,7 +5826,7 @@ func (s *TenancyService) InviteMember(ctx context.Context, actorID, organization
 		prefix = prefix[:8]
 	}
 	invitation := domain.Invitation{
-		ID:             fmt.Sprintf("inv_%06d", s.nextInvite),
+		ID:             invitationID,
 		OrganizationID: organizationID,
 		Email:          email,
 		Role:           role,
@@ -5754,6 +5850,27 @@ func (s *TenancyService) AcceptInvitation(ctx context.Context, invitationID, tok
 	userID = strings.TrimSpace(userID)
 	if invitationID == "" || token == "" || userID == "" {
 		return domain.Membership{}, ErrValidation
+	}
+	if s.store != nil {
+		invitation, tokenHash, ok, err := s.store.GetInvitation(ctx, invitationID)
+		if err != nil {
+			return domain.Membership{}, err
+		}
+		if !ok {
+			return domain.Membership{}, ErrNotFound
+		}
+		now := s.now().UTC()
+		if invitation.AcceptedAt != nil || !now.Before(invitation.ExpiresAt) || hashToken(token) != tokenHash {
+			return domain.Membership{}, ErrNotFound
+		}
+		member, ok, err := s.store.AcceptInvitation(ctx, invitationID, userID, now)
+		if err != nil {
+			return domain.Membership{}, err
+		}
+		if !ok {
+			return domain.Membership{}, ErrNotFound
+		}
+		return member, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -5792,6 +5909,9 @@ func (s *TenancyService) HasRole(ctx context.Context, organizationID, actorID st
 	if organizationID == "" || actorID == "" || !required.Valid() {
 		return false, ErrValidation
 	}
+	if s.store != nil {
+		return s.store.HasRole(ctx, organizationID, actorID, required)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.hasRoleLocked(organizationID, actorID, required), nil
@@ -5814,6 +5934,14 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
+func randomPrefixedID(prefix string) (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(prefix) + "_" + base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
@@ -5825,6 +5953,7 @@ const fullAppTenancyTestTemplate = `package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -5924,6 +6053,122 @@ func TestTenancyServiceEnforcesRoleChecks(t *testing.T) {
 	if ok {
 		t.Fatal("viewer should not satisfy admin role")
 	}
+}
+
+func TestTenancyServiceWithStorePersistsInvitationHash(t *testing.T) {
+	store := newRecordingTenancyStore()
+	service := NewTenancyServiceWithStore(store)
+	service.now = fixedTenancyTime
+	service.newOrgID = func() (string, error) { return "org_store_1", nil }
+	service.newInviteID = func() (string, error) { return "inv_store_1", nil }
+	service.newToken = func() (string, error) { return "stored-invitation-token", nil }
+
+	org, owner, err := service.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	if org.ID != "org_store_1" || owner.Role != domain.RoleOwner {
+		t.Fatalf("org=%#v owner=%#v", org, owner)
+	}
+	invitation, token, err := service.InviteMember(context.Background(), "owner_1", org.ID, "Member@Example.com", domain.RoleMember)
+	if err != nil {
+		t.Fatalf("InviteMember() error = %v", err)
+	}
+	if store.invitationHashes[invitation.ID] == "" || strings.Contains(store.invitationHashes[invitation.ID], token) {
+		t.Fatalf("stored token hash leaked token: %q", store.invitationHashes[invitation.ID])
+	}
+	member, err := service.AcceptInvitation(context.Background(), invitation.ID, token, "member_1")
+	if err != nil {
+		t.Fatalf("AcceptInvitation() error = %v", err)
+	}
+	if member.OrganizationID != org.ID || member.Role != domain.RoleMember {
+		t.Fatalf("accepted member = %#v", member)
+	}
+	members, err := service.ListMembers(context.Background(), "owner_1", org.ID)
+	if err != nil {
+		t.Fatalf("ListMembers() error = %v", err)
+	}
+	if len(members) != 2 {
+		t.Fatalf("members = %#v", members)
+	}
+	ok, err := service.HasRole(context.Background(), org.ID, "member_1", domain.RoleMember)
+	if err != nil || !ok {
+		t.Fatalf("HasRole() ok=%v err=%v", ok, err)
+	}
+}
+
+type recordingTenancyStore struct {
+	orgs             map[string]domain.Organization
+	memberships      map[string]map[string]domain.Membership
+	invitations      map[string]domain.Invitation
+	invitationHashes map[string]string
+}
+
+func newRecordingTenancyStore() *recordingTenancyStore {
+	return &recordingTenancyStore{
+		orgs:             map[string]domain.Organization{},
+		memberships:      map[string]map[string]domain.Membership{},
+		invitations:      map[string]domain.Invitation{},
+		invitationHashes: map[string]string{},
+	}
+}
+
+func (s *recordingTenancyStore) CreateOrganization(_ context.Context, org domain.Organization, owner domain.Membership) error {
+	s.orgs[org.ID] = org
+	if s.memberships[org.ID] == nil {
+		s.memberships[org.ID] = map[string]domain.Membership{}
+	}
+	s.memberships[org.ID][owner.UserID] = owner
+	return nil
+}
+
+func (s *recordingTenancyStore) ListOrganizations(_ context.Context, actorID string) ([]domain.Organization, error) {
+	var out []domain.Organization
+	for orgID, members := range s.memberships {
+		if _, ok := members[actorID]; ok {
+			out = append(out, s.orgs[orgID])
+		}
+	}
+	return out, nil
+}
+
+func (s *recordingTenancyStore) ListMembers(_ context.Context, organizationID string) ([]domain.Membership, error) {
+	var out []domain.Membership
+	for _, member := range s.memberships[organizationID] {
+		out = append(out, member)
+	}
+	return out, nil
+}
+
+func (s *recordingTenancyStore) CreateInvitation(_ context.Context, invitation domain.Invitation, tokenHash string) error {
+	s.invitations[invitation.ID] = invitation
+	s.invitationHashes[invitation.ID] = tokenHash
+	return nil
+}
+
+func (s *recordingTenancyStore) GetInvitation(_ context.Context, invitationID string) (domain.Invitation, string, bool, error) {
+	invitation, ok := s.invitations[invitationID]
+	return invitation, s.invitationHashes[invitationID], ok, nil
+}
+
+func (s *recordingTenancyStore) AcceptInvitation(_ context.Context, invitationID, userID string, acceptedAt time.Time) (domain.Membership, bool, error) {
+	invitation, ok := s.invitations[invitationID]
+	if !ok || invitation.AcceptedAt != nil {
+		return domain.Membership{}, false, nil
+	}
+	invitation.AcceptedAt = &acceptedAt
+	s.invitations[invitationID] = invitation
+	member := domain.Membership{OrganizationID: invitation.OrganizationID, UserID: userID, Role: invitation.Role, CreatedAt: acceptedAt}
+	if s.memberships[invitation.OrganizationID] == nil {
+		s.memberships[invitation.OrganizationID] = map[string]domain.Membership{}
+	}
+	s.memberships[invitation.OrganizationID][userID] = member
+	return member, true, nil
+}
+
+func (s *recordingTenancyStore) HasRole(_ context.Context, organizationID, actorID string, required domain.Role) (bool, error) {
+	member, ok := s.memberships[organizationID][actorID]
+	return ok && member.Role.Allows(required), nil
 }
 
 func fixedTenancyTime() time.Time {
@@ -6297,6 +6542,548 @@ func (r fakeRow) Scan(dest ...any) error {
 		return errors.New("bool destination is required")
 	}
 	*exists = r.exists
+	return nil
+}
+`
+
+const fullPostgresTenancyStoreTemplate = `package postgres
+
+import (
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var (
+	ErrTenancyStoreRequired = errors.New("postgres tenancy store db is required")
+	ErrTenancyInvalid       = errors.New("postgres tenancy record is invalid")
+)
+
+type TenancyDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+type TenancyStore struct {
+	db TenancyDB
+}
+
+func NewTenancyStore(db TenancyDB) *TenancyStore {
+	return &TenancyStore{db: db}
+}
+
+func (s *TenancyStore) CreateOrganization(ctx context.Context, org domain.Organization, owner domain.Membership) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrTenancyStoreRequired
+	}
+	org.ID = strings.TrimSpace(org.ID)
+	org.Name = strings.TrimSpace(org.Name)
+	owner.OrganizationID = strings.TrimSpace(owner.OrganizationID)
+	owner.UserID = strings.TrimSpace(owner.UserID)
+	if org.ID == "" || org.Name == "" || owner.OrganizationID != org.ID || owner.UserID == "" || owner.Role != domain.RoleOwner || org.CreatedAt.IsZero() || org.UpdatedAt.IsZero() || owner.CreatedAt.IsZero() {
+		return ErrTenancyInvalid
+	}
+	_, err := s.db.Exec(ctx,
+		"with inserted_org as (insert into organizations (id, name, created_at, updated_at) values ($1, $2, $3, $4) returning id) "+
+			"insert into memberships (organization_id, user_id, role, created_at) select id, $5, $6, $7 from inserted_org",
+		org.ID,
+		org.Name,
+		org.CreatedAt.UTC(),
+		org.UpdatedAt.UTC(),
+		owner.UserID,
+		string(owner.Role),
+		owner.CreatedAt.UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("create organization: %w", err)
+	}
+	return nil
+}
+
+func (s *TenancyStore) ListOrganizations(ctx context.Context, actorID string) ([]domain.Organization, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.db == nil {
+		return nil, ErrTenancyStoreRequired
+	}
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return nil, ErrTenancyInvalid
+	}
+	rows, err := s.db.Query(ctx,
+		"select o.id, o.name, o.created_at, o.updated_at from organizations o join memberships m on m.organization_id=o.id where m.user_id=$1 order by o.id",
+		actorID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list organizations: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Organization
+	for rows.Next() {
+		org, err := scanOrganization(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, org)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list organization rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *TenancyStore) ListMembers(ctx context.Context, organizationID string) ([]domain.Membership, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.db == nil {
+		return nil, ErrTenancyStoreRequired
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, ErrTenancyInvalid
+	}
+	rows, err := s.db.Query(ctx,
+		"select organization_id, user_id, role, created_at from memberships where organization_id=$1 order by user_id",
+		organizationID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list members: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Membership
+	for rows.Next() {
+		member, err := scanMembership(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, member)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list member rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *TenancyStore) CreateInvitation(ctx context.Context, invitation domain.Invitation, tokenHash string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrTenancyStoreRequired
+	}
+	invitation.ID = strings.TrimSpace(invitation.ID)
+	invitation.OrganizationID = strings.TrimSpace(invitation.OrganizationID)
+	invitation.Email = strings.ToLower(strings.TrimSpace(invitation.Email))
+	hashBytes, err := decodeTokenHash(tokenHash)
+	if err != nil {
+		return err
+	}
+	if invitation.ID == "" || invitation.OrganizationID == "" || invitation.Email == "" || !strings.Contains(invitation.Email, "@") || !invitation.Role.Valid() || invitation.ExpiresAt.IsZero() || invitation.CreatedAt.IsZero() {
+		return ErrTenancyInvalid
+	}
+	if _, err := s.db.Exec(ctx,
+		"insert into invitations (id, organization_id, email, role, token_hash, expires_at, created_at) values ($1, $2, $3, $4, $5, $6, $7)",
+		invitation.ID,
+		invitation.OrganizationID,
+		invitation.Email,
+		string(invitation.Role),
+		hashBytes,
+		invitation.ExpiresAt.UTC(),
+		invitation.CreatedAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("create invitation: %w", err)
+	}
+	return nil
+}
+
+func (s *TenancyStore) GetInvitation(ctx context.Context, invitationID string) (domain.Invitation, string, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Invitation{}, "", false, err
+	}
+	if s == nil || s.db == nil {
+		return domain.Invitation{}, "", false, ErrTenancyStoreRequired
+	}
+	invitationID = strings.TrimSpace(invitationID)
+	if invitationID == "" {
+		return domain.Invitation{}, "", false, ErrTenancyInvalid
+	}
+	row := s.db.QueryRow(ctx,
+		"select id, organization_id, email, role, token_hash, expires_at, accepted_at, created_at from invitations where id=$1",
+		invitationID,
+	)
+	invitation, tokenHash, err := scanInvitation(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Invitation{}, "", false, nil
+	}
+	if err != nil {
+		return domain.Invitation{}, "", false, fmt.Errorf("get invitation: %w", err)
+	}
+	return invitation, tokenHash, true, nil
+}
+
+func (s *TenancyStore) AcceptInvitation(ctx context.Context, invitationID, userID string, acceptedAt time.Time) (domain.Membership, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Membership{}, false, err
+	}
+	if s == nil || s.db == nil {
+		return domain.Membership{}, false, ErrTenancyStoreRequired
+	}
+	invitationID = strings.TrimSpace(invitationID)
+	userID = strings.TrimSpace(userID)
+	if invitationID == "" || userID == "" || acceptedAt.IsZero() {
+		return domain.Membership{}, false, ErrTenancyInvalid
+	}
+	row := s.db.QueryRow(ctx,
+		"with accepted as (update invitations set accepted_at=$2 where id=$1 and accepted_at is null returning organization_id, role) "+
+			"insert into memberships (organization_id, user_id, role, created_at) "+
+			"select organization_id, $3, role, $2 from accepted "+
+			"on conflict (organization_id, user_id) do update set role=excluded.role "+
+			"returning organization_id, user_id, role, created_at",
+		invitationID,
+		acceptedAt.UTC(),
+		userID,
+	)
+	member, err := scanMembership(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Membership{}, false, nil
+	}
+	if err != nil {
+		return domain.Membership{}, false, fmt.Errorf("accept invitation: %w", err)
+	}
+	return member, true, nil
+}
+
+func (s *TenancyStore) HasRole(ctx context.Context, organizationID, actorID string, required domain.Role) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if s == nil || s.db == nil {
+		return false, ErrTenancyStoreRequired
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	actorID = strings.TrimSpace(actorID)
+	if organizationID == "" || actorID == "" || !required.Valid() {
+		return false, ErrTenancyInvalid
+	}
+	var role string
+	if err := s.db.QueryRow(ctx, "select role from memberships where organization_id=$1 and user_id=$2", organizationID, actorID).Scan(&role); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check role: %w", err)
+	}
+	got := domain.Role(role)
+	if !got.Valid() {
+		return false, ErrTenancyInvalid
+	}
+	return got.Allows(required), nil
+}
+
+type tenancyScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanOrganization(row tenancyScanner) (domain.Organization, error) {
+	var org domain.Organization
+	if err := row.Scan(&org.ID, &org.Name, &org.CreatedAt, &org.UpdatedAt); err != nil {
+		return domain.Organization{}, err
+	}
+	org.CreatedAt = org.CreatedAt.UTC()
+	org.UpdatedAt = org.UpdatedAt.UTC()
+	return org, nil
+}
+
+func scanMembership(row tenancyScanner) (domain.Membership, error) {
+	var (
+		member domain.Membership
+		role   string
+	)
+	if err := row.Scan(&member.OrganizationID, &member.UserID, &role, &member.CreatedAt); err != nil {
+		return domain.Membership{}, err
+	}
+	member.Role = domain.Role(role)
+	if !member.Role.Valid() {
+		return domain.Membership{}, ErrTenancyInvalid
+	}
+	member.CreatedAt = member.CreatedAt.UTC()
+	return member, nil
+}
+
+func scanInvitation(row tenancyScanner) (domain.Invitation, string, error) {
+	var (
+		invitation domain.Invitation
+		role       string
+		tokenHash  []byte
+		acceptedAt pgtype.Timestamptz
+	)
+	if err := row.Scan(&invitation.ID, &invitation.OrganizationID, &invitation.Email, &role, &tokenHash, &invitation.ExpiresAt, &acceptedAt, &invitation.CreatedAt); err != nil {
+		return domain.Invitation{}, "", err
+	}
+	invitation.Role = domain.Role(role)
+	if !invitation.Role.Valid() || len(tokenHash) != sha256HashSize {
+		return domain.Invitation{}, "", ErrTenancyInvalid
+	}
+	invitation.AcceptedAt = tenancyNullableTimestamptz(acceptedAt)
+	invitation.ExpiresAt = invitation.ExpiresAt.UTC()
+	invitation.CreatedAt = invitation.CreatedAt.UTC()
+	return invitation, hex.EncodeToString(tokenHash), nil
+}
+
+func decodeTokenHash(hash string) ([]byte, error) {
+	decoded, err := hex.DecodeString(strings.TrimSpace(hash))
+	if err != nil || len(decoded) != sha256HashSize {
+		return nil, ErrTenancyInvalid
+	}
+	return decoded, nil
+}
+
+func tenancyNullableTimestamptz(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	t := value.Time.UTC()
+	return &t
+}
+
+const sha256HashSize = 32
+`
+
+const fullPostgresTenancyStoreTestTemplate = `package postgres
+
+import (
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"{{ .Module }}/internal/domain"
+)
+
+func TestTenancyStoreCreateOrganizationUsesSingleStatement(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeTenancyDB{execTag: pgconn.NewCommandTag("INSERT 0 1")}
+	store := NewTenancyStore(db)
+	err := store.CreateOrganization(context.Background(),
+		domain.Organization{ID: "org_1", Name: "Acme", CreatedAt: now, UpdatedAt: now},
+		domain.Membership{OrganizationID: "org_1", UserID: "owner_1", Role: domain.RoleOwner, CreatedAt: now},
+	)
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	if !strings.Contains(db.lastExecSQL, "insert into organizations") || !strings.Contains(db.lastExecSQL, "insert into memberships") {
+		t.Fatalf("CreateOrganization() SQL = %q", db.lastExecSQL)
+	}
+}
+
+func TestTenancyStoreInvitationStoresHashBytesAndAccepts(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	hash := hex.EncodeToString([]byte("12345678901234567890123456789012"))
+	db := &fakeTenancyDB{execTag: pgconn.NewCommandTag("INSERT 0 1")}
+	store := NewTenancyStore(db)
+	err := store.CreateInvitation(context.Background(), domain.Invitation{ID: "inv_1", OrganizationID: "org_1", Email: "member@example.com", Role: domain.RoleMember, ExpiresAt: now.Add(time.Hour), CreatedAt: now}, hash)
+	if err != nil {
+		t.Fatalf("CreateInvitation() error = %v", err)
+	}
+	hashArg, ok := db.lastExecArgs[4].([]byte)
+	if !ok || string(hashArg) != "12345678901234567890123456789012" {
+		t.Fatalf("token hash arg = %#v", db.lastExecArgs[4])
+	}
+	if strings.Contains(fmt.Sprint(db.lastExecArgs...), "raw-token") {
+		t.Fatalf("exec args leaked invitation token: %#v", db.lastExecArgs)
+	}
+
+	db.row = fakeTenancyRow{values: []any{"org_1", "member_1", "member", now}}
+	member, ok, err := store.AcceptInvitation(context.Background(), "inv_1", "member_1", now)
+	if err != nil || !ok || member.Role != domain.RoleMember {
+		t.Fatalf("AcceptInvitation() member=%#v ok=%v err=%v", member, ok, err)
+	}
+	if !strings.Contains(db.lastRowSQL, "accepted_at is null") {
+		t.Fatalf("AcceptInvitation() SQL = %q", db.lastRowSQL)
+	}
+}
+
+func TestTenancyStoreListsAndChecksRoles(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeTenancyDB{
+		rows: &fakeTenancyRows{rows: [][]any{[]any{"org_1", "Acme", now, now}}},
+		row:  fakeTenancyRow{values: []any{"admin"}},
+	}
+	store := NewTenancyStore(db)
+	orgs, err := store.ListOrganizations(context.Background(), "owner_1")
+	if err != nil {
+		t.Fatalf("ListOrganizations() error = %v", err)
+	}
+	if len(orgs) != 1 || orgs[0].ID != "org_1" {
+		t.Fatalf("ListOrganizations() = %#v", orgs)
+	}
+	ok, err := store.HasRole(context.Background(), "org_1", "admin_1", domain.RoleMember)
+	if err != nil || !ok {
+		t.Fatalf("HasRole() ok=%v err=%v", ok, err)
+	}
+	ok, err = store.HasRole(context.Background(), "org_1", "admin_1", domain.RoleOwner)
+	if err != nil || ok {
+		t.Fatalf("HasRole(owner) ok=%v err=%v", ok, err)
+	}
+}
+
+func TestTenancyStoreGetInvitationScansTokenHash(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	tokenHash := []byte("12345678901234567890123456789012")
+	db := &fakeTenancyDB{row: fakeTenancyRow{values: []any{"inv_1", "org_1", "member@example.com", "member", tokenHash, now.Add(time.Hour), pgtype.Timestamptz{}, now}}}
+	store := NewTenancyStore(db)
+	invitation, hash, ok, err := store.GetInvitation(context.Background(), "inv_1")
+	if err != nil || !ok || invitation.ID != "inv_1" || hash != hex.EncodeToString(tokenHash) {
+		t.Fatalf("GetInvitation() invitation=%#v hash=%q ok=%v err=%v", invitation, hash, ok, err)
+	}
+}
+
+func TestTenancyStoreRequiresDBAndValidHash(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	err := (*TenancyStore)(nil).CreateInvitation(context.Background(), domain.Invitation{ID: "inv_1", OrganizationID: "org_1", Email: "member@example.com", Role: domain.RoleMember, ExpiresAt: now.Add(time.Hour), CreatedAt: now}, strings.Repeat("0", 64))
+	if !errors.Is(err, ErrTenancyStoreRequired) {
+		t.Fatalf("nil CreateInvitation() error = %v, want %v", err, ErrTenancyStoreRequired)
+	}
+	store := NewTenancyStore(&fakeTenancyDB{})
+	err = store.CreateInvitation(context.Background(), domain.Invitation{ID: "inv_1", OrganizationID: "org_1", Email: "member@example.com", Role: domain.RoleMember, ExpiresAt: now.Add(time.Hour), CreatedAt: now}, "not-hex")
+	if !errors.Is(err, ErrTenancyInvalid) {
+		t.Fatalf("invalid hash CreateInvitation() error = %v, want %v", err, ErrTenancyInvalid)
+	}
+}
+
+type fakeTenancyDB struct {
+	rows          pgx.Rows
+	row           pgx.Row
+	execTag       pgconn.CommandTag
+	execErr       error
+	lastQuerySQL  string
+	lastQueryArgs []any
+	lastRowSQL    string
+	lastRowArgs   []any
+	lastExecSQL   string
+	lastExecArgs  []any
+}
+
+func (f *fakeTenancyDB) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	f.lastQuerySQL = sql
+	f.lastQueryArgs = append([]any(nil), args...)
+	if f.rows == nil {
+		return &fakeTenancyRows{}, nil
+	}
+	return f.rows, nil
+}
+
+func (f *fakeTenancyDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	f.lastRowSQL = sql
+	f.lastRowArgs = append([]any(nil), args...)
+	if f.row == nil {
+		return fakeTenancyRow{err: pgx.ErrNoRows}
+	}
+	return f.row
+}
+
+func (f *fakeTenancyDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	f.lastExecSQL = sql
+	f.lastExecArgs = append([]any(nil), args...)
+	return f.execTag, f.execErr
+}
+
+type fakeTenancyRows struct {
+	rows [][]any
+	idx  int
+	err  error
+}
+
+func (r *fakeTenancyRows) Close() {}
+func (r *fakeTenancyRows) Err() error { return r.err }
+func (r *fakeTenancyRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+func (r *fakeTenancyRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeTenancyRows) Values() ([]any, error) { return r.rows[r.idx-1], nil }
+func (r *fakeTenancyRows) RawValues() [][]byte { return nil }
+func (r *fakeTenancyRows) Conn() *pgx.Conn { return nil }
+
+func (r *fakeTenancyRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+
+func (r *fakeTenancyRows) Scan(dest ...any) error {
+	if r.idx == 0 || r.idx > len(r.rows) {
+		return errors.New("Scan called without current row")
+	}
+	return scanFakeTenancyValues(r.rows[r.idx-1], dest...)
+}
+
+type fakeTenancyRow struct {
+	values []any
+	err    error
+}
+
+func (r fakeTenancyRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return scanFakeTenancyValues(r.values, dest...)
+}
+
+func scanFakeTenancyValues(values []any, dest ...any) error {
+	if len(values) != len(dest) {
+		return fmt.Errorf("value count %d does not match destination count %d", len(values), len(dest))
+	}
+	for i := range values {
+		switch d := dest[i].(type) {
+		case *string:
+			value, ok := values[i].(string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want string", i, values[i])
+			}
+			*d = value
+		case *[]byte:
+			value, ok := values[i].([]byte)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want []byte", i, values[i])
+			}
+			*d = append([]byte(nil), value...)
+		case *pgtype.Timestamptz:
+			value, ok := values[i].(pgtype.Timestamptz)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want pgtype.Timestamptz", i, values[i])
+			}
+			*d = value
+		case *time.Time:
+			value, ok := values[i].(time.Time)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want time.Time", i, values[i])
+			}
+			*d = value
+		default:
+			return fmt.Errorf("unsupported destination %T", dest[i])
+		}
+	}
 	return nil
 }
 `
@@ -10185,6 +10972,8 @@ CREATE TABLE memberships (
 	PRIMARY KEY (organization_id, user_id)
 );
 
+CREATE INDEX memberships_user_id_idx ON memberships(user_id);
+
 CREATE TABLE invitations (
 	id TEXT PRIMARY KEY,
 	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -10195,6 +10984,8 @@ CREATE TABLE invitations (
 	accepted_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX invitations_organization_id_idx ON invitations(organization_id);
 
 CREATE TABLE api_keys (
 	id TEXT PRIMARY KEY,

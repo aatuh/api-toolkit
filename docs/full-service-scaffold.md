@@ -57,7 +57,9 @@ The full profile standardizes these defaults:
   to the generated Redis cache adapter when `CACHE_STORE=redis` or production
   defaults require it.
 - Organizations, memberships, invitations, roles, and scoped API keys provide
-  the generated tenant model.
+  the generated tenant model. Local development uses in-memory tenancy, and
+  generated production wiring switches to the Postgres tenancy store when
+  `DATABASE_URL` is configured.
 - Invitation tokens are returned once, stored only as hashes, and accepted into
   memberships through role-aware application services.
 - The generated HTTP API includes organization create/list, member list,
@@ -108,8 +110,10 @@ The profile generates or is expected to generate:
 - `internal/domain`, `internal/app`, and `internal/adapters/postgres`
   boundaries with thin HTTP handlers. Generated widget services use an
   application storage port and switch to the Postgres widget store when
-  `DATABASE_URL` is configured. Generated API-key services use the Postgres
-  API-key store in the same mode for hash storage, revocation, expiry, scopes,
+  `DATABASE_URL` is configured. Generated tenancy services use the Postgres
+  tenancy store in the same mode for organizations, memberships, invitation
+  hashes, role checks, and invitation acceptance. Generated API-key services
+  use the Postgres API-key store for hash storage, revocation, expiry, scopes,
   and last-used tracking. Generated audit recording delegates to the Postgres
   audit store after local redaction and event ID generation.
 - Postgres migrations for organizations, memberships, invitations, API keys,

@@ -109,6 +109,11 @@ source of truth is `docs/release-runbook.md`.
   only keyed hash bytes, display prefixes, scopes, expiry, revocation, and
   last-used timestamps; raw API-key secrets are still returned once and are not
   durable data.
+- Generated `saas-api-full` tenancy services now switch to a generated
+  Postgres tenancy store when `DATABASE_URL` is configured. The store persists
+  organizations, owner memberships, role checks, invitation token hashes,
+  invitation acceptance, and member listing while keeping raw invitation tokens
+  return-once only.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.
