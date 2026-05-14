@@ -3083,6 +3083,7 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
@@ -3210,6 +3211,14 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	metricsRecorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
+	if err != nil {
+		return err
+	}
+	metricsMiddleware, err := httpapi.NewMetricsMiddleware(metricsRecorder)
+	if err != nil {
+		return err
+	}
 	readiness = httpapi.CombineHealthChecks(readiness, cacheReadiness)
 	asyncJobs := app.NewAsyncService(widgets)
 	asyncStore := async.Store(asyncJobs)
@@ -3246,7 +3255,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Metrics: metricsMiddleware, MetricsHandler: metricsmw.PrometheusHandler(), RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -3270,7 +3279,7 @@ func run(ctx context.Context) error {
 	if cfg.AdminAddr != "" {
 		adminServer := &http.Server{
 			Addr:              cfg.AdminAddr,
-			Handler:           httpapi.NewAdminRouter(httpapi.RouterConfig{AdminKey: cfg.AdminKey, Readiness: readiness}),
+			Handler:           httpapi.NewAdminRouter(routerConfig),
 			ReadHeaderTimeout: 5 * time.Second,
 		}
 		servers = append(servers, adminServer)
@@ -10987,6 +10996,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
@@ -11178,6 +11188,8 @@ type RouterConfig struct {
 	Webhooks *app.WebhookService
 	Objects  *app.ObjectService
 	Cache    *app.CacheService
+	Metrics  *metricsmw.Middleware
+	MetricsHandler http.Handler
 	RateLimit *ratelimitmw.Middleware
 	Idempotency *idempotencymw.Middleware
 	Readiness HealthChecker
@@ -11244,7 +11256,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /widgets/imports", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidgetImport))))
 	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleUpdateWidget))))
 	mux.Handle("DELETE /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteWidget))))
-	return mux
+	return cfg.metrics(mux)
 }
 
 func NewAdminRouter(cfg RouterConfig) http.Handler {
@@ -11257,10 +11269,9 @@ func NewAdminRouter(cfg RouterConfig) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	}))
-	mux.HandleFunc("GET /metrics", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		_, _ = w.Write([]byte("# HELP api_requests_total Total API requests\n# TYPE api_requests_total counter\napi_requests_total 0\n"))
-	}))
+	mux.Handle("GET /metrics", http.HandlerFunc(cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+		cfg.MetricsHandler.ServeHTTP(w, r)
+	})))
 	mux.HandleFunc("GET /debug/pprof/", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"pprof": "mounted on the admin listener"})
 	}))
@@ -11292,6 +11303,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
 	}
+	if cfg.MetricsHandler == nil {
+		cfg.MetricsHandler = metricsmw.PrometheusHandler()
+	}
 	if cfg.RateLimit == nil {
 		middleware, err := NewRateLimitMiddleware(nil)
 		if err == nil {
@@ -11311,6 +11325,10 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 		cfg.AdminKey = "local-admin-key"
 	}
 	return cfg
+}
+
+func NewMetricsMiddleware(recorder metricsmw.MetricsRecorder) (*metricsmw.Middleware, error) {
+	return metricsmw.New(metricsmw.Options{Recorder: recorder})
 }
 
 func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware, error) {
@@ -11334,6 +11352,13 @@ func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Midd
 			return status >= http.StatusOK && status < http.StatusBadRequest
 		},
 	})
+}
+
+func (cfg RouterConfig) metrics(next http.Handler) http.Handler {
+	if cfg.Metrics == nil {
+		return next
+	}
+	return cfg.Metrics.Handler(next)
 }
 
 func (cfg RouterConfig) rateLimited(next http.Handler) http.Handler {
@@ -12679,6 +12704,7 @@ import (
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/ports"
 {{ end }}
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	"{{ .Module }}/internal/app"
 )
 
@@ -12713,6 +12739,44 @@ func TestReadinessReportsDependencyFailure(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "postgres unavailable") {
 		t.Fatalf("ready failure leaked dependency error: %s", rec.Body.String())
+	}
+}
+
+func TestAdminMetricsRecordsHTTPRequestsWithoutSecrets(t *testing.T) {
+	handler, adminHandler := newTestRouterWithMetrics(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader("{\"name\":\"metric-widget\"}"))
+	authorizeTestRequestAs(t, req, "org_metric_secret", "actor_metric_secret", "widgets:write")
+	req.Header.Set("Idempotency-Key", "idem_metric_secret")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create widget status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("X-Admin-Key", "test-admin-key")
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"http_requests_total", "http_request_duration_seconds", ` + "`" + `route="POST /widgets"` + "`" + `, ` + "`" + `status="201"` + "`" + `} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q:\n%s", want, body)
+		}
+	}
+	for _, secret := range []string{"org_metric_secret", "actor_metric_secret", "idem_metric_secret", "test-key", "test-admin-key"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("metrics body leaked secret %q:\n%s", secret, body)
+		}
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated metrics status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -13243,6 +13307,33 @@ func newTestRouterWithAudit(t *testing.T) (http.Handler, *app.AuditService) {
 	auditLog := app.NewAuditService()
 	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy), Audit: auditLog{{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
 	return handler, auditLog
+}
+
+func newTestRouterWithMetrics(t *testing.T) (http.Handler, http.Handler) {
+	t.Helper()
+	recorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
+	if err != nil {
+		t.Fatalf("new metrics recorder: %v", err)
+	}
+	middleware, err := NewMetricsMiddleware(recorder)
+	if err != nil {
+		t.Fatalf("new metrics middleware: %v", err)
+	}
+	tenancy := app.NewTenancyService()
+	cfg := RouterConfig{
+		Widgets:        app.NewWidgetService(),
+		Tenancy:        tenancy,
+		APIKeys:        app.NewAPIKeyService("test-pepper", tenancy),
+		Audit:          app.NewAuditService(),
+		Metrics:        middleware,
+		MetricsHandler: metricsmw.PrometheusHandler(),
+		AdminKey:       "test-admin-key",
+{{ if eq .AuthMode "jwt" }}		JWT: newTestJWT(t),
+{{ else if eq .AuthMode "clerk" }}		Clerk: newTestClerk(t),
+{{ else if eq .AuthMode "oidc" }}		OIDC: newTestOIDC(t),
+{{ else }}		APIKey: "test-key",
+{{ end }}	}
+	return NewRouter(cfg), NewAdminRouter(cfg)
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {
@@ -13980,6 +14071,7 @@ Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook d
 When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
+The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.

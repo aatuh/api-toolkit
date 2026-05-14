@@ -139,6 +139,11 @@ source of truth is `docs/release-runbook.md`.
   middleware. Local scaffolds default to in-process buckets; production
   defaults require `RATE_LIMIT_STORE=redis` and wire a generated Redis limiter
   with hashed actor/tenant/route keys.
+- Generated `saas-api-full` services now create a contrib Prometheus recorder,
+  wrap public `net/http` routes with HTTP metrics middleware, and serve the
+  standard Prometheus handler only behind admin authentication. Generated tests
+  assert request metrics use route-pattern labels and do not expose tenants,
+  actors, API keys, admin keys, or idempotency keys.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.
@@ -339,6 +344,9 @@ source of truth is `docs/release-runbook.md`.
   bounded `health_status_changes_total` Prometheus counters through
   `HealthStatusChangeHook`, using only `from` and `to` health-status labels for
   scheduler transitions.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` now treats
+  `net/http.ServeMux` request patterns as route labels when chi route context is
+  unavailable, preserving low-cardinality HTTP metrics for stdlib routers.
 - Routes registered through `routecontracts` now attach bounded
   `routepolicy` observability labels. Contrib metrics records them through
   `http_route_policy_requests_total`, and contrib request logging emits
