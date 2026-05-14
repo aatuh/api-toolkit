@@ -47,6 +47,10 @@ source of truth is `docs/release-runbook.md`.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
+- `api-toolkit clients go` now generates a stdlib-only Go client package from
+  OpenAPI operations, including operation methods, path/query/header request
+  options, JSON request bodies, API-key and bearer auth helpers, and Problem
+  Details error decoding.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.

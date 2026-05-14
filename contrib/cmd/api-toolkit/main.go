@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"go/format"
+	"go/token"
 	"io"
 	"net/http"
 	"os"
@@ -48,7 +49,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		stderr = io.Discard
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: api-toolkit <new|contracts|version>")
+		fmt.Fprintln(stderr, "usage: api-toolkit <new|contracts|clients|version>")
 		return 2
 	}
 	switch args[0] {
@@ -58,6 +59,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runNew(ctx, args[1:], stdout, stderr)
 	case "contracts":
 		return runContracts(ctx, args[1:], stdout, stderr)
+	case "clients":
+		return runClients(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -330,6 +333,36 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	}
 }
 
+func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 || args[0] != "go" {
+		fmt.Fprintln(stderr, "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name>")
+		return 2
+	}
+	fs := flag.NewFlagSet("clients go", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
+	outDir := fs.String("out", "", "output directory")
+	packageName := fs.String("package", "apiclient", "Go package name")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if err := ctx.Err(); err != nil {
+		fmt.Fprintf(stderr, "context canceled: %v\n", err)
+		return 1
+	}
+	cfg := goClientConfig{
+		OpenAPIPath: strings.TrimSpace(*openAPIPath),
+		OutDir:      strings.TrimSpace(*outDir),
+		Package:     strings.TrimSpace(*packageName),
+	}
+	if err := generateGoClient(cfg); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "generated %s\n", filepath.Join(cfg.OutDir, "client.go"))
+	return 0
+}
+
 type stringListFlag struct {
 	values []string
 }
@@ -380,6 +413,206 @@ func defaultContractLintAdminPaths() []string {
 		specs.Metrics,
 		specs.HealthDetailed,
 	}
+}
+
+type goClientConfig struct {
+	OpenAPIPath string
+	OutDir      string
+	Package     string
+}
+
+func generateGoClient(cfg goClientConfig) error {
+	if cfg.OpenAPIPath == "" {
+		return errors.New("--openapi is required")
+	}
+	if strings.TrimSpace(cfg.OutDir) == "" {
+		return errors.New("--out is required")
+	}
+	if !validGoPackageName(cfg.Package) {
+		return fmt.Errorf("invalid Go package name %q", cfg.Package)
+	}
+	loaded, err := loadOpenAPI(cfg.OpenAPIPath)
+	if err != nil {
+		return err
+	}
+	if err := loaded.validate(); err != nil {
+		return err
+	}
+	operations := operationsFromOpenAPIDocument(loaded.doc)
+	rendered := renderGoClient(cfg.Package, operations)
+	formatted, err := format.Source(rendered)
+	if err != nil {
+		return fmt.Errorf("format generated client: %w", err)
+	}
+	outDir, err := safeOutputDir(cfg.OutDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
+	}
+	root, err := os.OpenRoot(outDir)
+	if err != nil {
+		return fmt.Errorf("open output root: %w", err)
+	}
+	defer root.Close()
+	return writeGeneratedFileReplace(root, "client.go", formatted)
+}
+
+func validGoPackageName(name string) bool {
+	if !token.IsIdentifier(name) {
+		return false
+	}
+	return !token.Lookup(name).IsKeyword()
+}
+
+func writeGeneratedFileReplace(root *os.Root, name string, data []byte) error {
+	if root == nil {
+		return errors.New("output root is required")
+	}
+	clean := filepath.Clean(name)
+	if clean != name || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
+		return fmt.Errorf("unsafe generated path %q", name)
+	}
+	if parent := filepath.Dir(clean); parent != "." {
+		if err := root.MkdirAll(parent, 0o750); err != nil {
+			return fmt.Errorf("create parent for %s: %w", name, err)
+		}
+	}
+	file, err := root.OpenFile(clean, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("write %s: %w", name, err)
+	}
+	defer file.Close()
+	if _, err := file.Write(data); err != nil {
+		return fmt.Errorf("write %s: %w", name, err)
+	}
+	return nil
+}
+
+func renderGoClient(packageName string, operations []specs.Operation) []byte {
+	seenMethods := map[string]int{}
+	var methods strings.Builder
+	for _, operation := range operations {
+		operationID := strings.TrimSpace(operation.OperationID)
+		if operationID == "" {
+			continue
+		}
+		methodName := exportedGoIdentifier(operationID)
+		seenMethods[methodName]++
+		if seenMethods[methodName] > 1 {
+			methodName = fmt.Sprintf("%s%d", methodName, seenMethods[methodName])
+		}
+		renderGoClientOperation(&methods, methodName, operation)
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "package %s\n\n", packageName)
+	out.WriteString(goClientRuntimeTemplate)
+	out.WriteString(methods.String())
+	return []byte(out.String())
+}
+
+func renderGoClientOperation(out *strings.Builder, methodName string, operation specs.Operation) {
+	pathParams := operationPathParameters(operation)
+	args := []string{"ctx context.Context"}
+	for _, param := range pathParams {
+		args = append(args, goParamName(param.Name)+" string")
+	}
+	bodyArg := "nil"
+	if operation.RequestBody != nil {
+		args = append(args, "body any")
+		bodyArg = "body"
+	}
+	args = append(args, "opts ...RequestOption")
+	fmt.Fprintf(out, "// %s calls %s %s.\n", methodName, strings.ToUpper(operation.Method), operation.Path)
+	fmt.Fprintf(out, "func (c *Client) %s(%s) (*http.Response, error) {\n", methodName, strings.Join(args, ", "))
+	if len(pathParams) > 0 {
+		out.WriteString("\topts = append([]RequestOption{\n")
+		for _, param := range pathParams {
+			fmt.Fprintf(out, "\t\tPathParam(%q, %s),\n", param.Name, goParamName(param.Name))
+		}
+		out.WriteString("\t}, opts...)\n")
+	}
+	fmt.Fprintf(out, "\treturn c.do(ctx, %q, %q, %s, opts...)\n", strings.ToUpper(operation.Method), operation.Path, bodyArg)
+	out.WriteString("}\n\n")
+}
+
+func operationPathParameters(operation specs.Operation) []specs.Parameter {
+	var out []specs.Parameter
+	for _, parameter := range operation.Parameters {
+		if strings.EqualFold(parameter.In, "path") && strings.TrimSpace(parameter.Name) != "" {
+			out = append(out, parameter)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func exportedGoIdentifier(value string) string {
+	parts := identifierParts(value)
+	if len(parts) == 0 {
+		return "Operation"
+	}
+	for i := range parts {
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	out := strings.Join(parts, "")
+	if out == "" || !isASCIILetter(out[0]) {
+		return "Operation" + out
+	}
+	return out
+}
+
+func goParamName(value string) string {
+	parts := identifierParts(value)
+	if len(parts) == 0 {
+		return "param"
+	}
+	for i := range parts {
+		if i == 0 {
+			parts[i] = strings.ToLower(parts[i][:1]) + parts[i][1:]
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	out := strings.Join(parts, "")
+	if out == "" || !isASCIILetter(out[0]) {
+		out = "param" + out
+	}
+	if token.Lookup(out).IsKeyword() {
+		out += "Value"
+	}
+	return out
+}
+
+func identifierParts(value string) []string {
+	var parts []string
+	var current strings.Builder
+	for i := 0; i < len(value); i++ {
+		ch := value[i]
+		if isASCIILetter(ch) || isASCIIDigit(ch) {
+			current.WriteByte(ch)
+			continue
+		}
+		if current.Len() > 0 {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	return parts
+}
+
+func isASCIILetter(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+}
+
+func isASCIIDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }
 
 type scaffoldConfig struct {
@@ -1853,6 +2086,242 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "README.md", Body: fullReadmeTemplate},
 }
 
+const goClientRuntimeTemplate = `import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+type Client struct {
+	baseURL     string
+	httpClient  *http.Client
+	apiKey      string
+	bearerToken string
+	headers     http.Header
+}
+
+type Option func(*Client)
+
+func New(baseURL string, opts ...Option) (*Client, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, fmt.Errorf("invalid base URL %q", baseURL)
+	}
+	client := &Client{
+		baseURL:    baseURL,
+		httpClient: http.DefaultClient,
+		headers:    http.Header{},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(client)
+		}
+	}
+	if client.httpClient == nil {
+		return nil, errors.New("http client is required")
+	}
+	return client, nil
+}
+
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(client *Client) {
+		client.httpClient = httpClient
+	}
+}
+
+func WithAPIKey(apiKey string) Option {
+	return func(client *Client) {
+		client.apiKey = strings.TrimSpace(apiKey)
+	}
+}
+
+func WithBearerToken(token string) Option {
+	return func(client *Client) {
+		client.bearerToken = strings.TrimSpace(token)
+	}
+}
+
+func WithHeader(name, value string) Option {
+	return func(client *Client) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		if client.headers == nil {
+			client.headers = http.Header{}
+		}
+		client.headers.Set(name, value)
+	}
+}
+
+type RequestOption func(*requestOptions)
+
+type requestOptions struct {
+	pathParams map[string]string
+	query      url.Values
+	headers    http.Header
+}
+
+func PathParam(name, value string) RequestOption {
+	return func(opts *requestOptions) {
+		if opts.pathParams == nil {
+			opts.pathParams = map[string]string{}
+		}
+		opts.pathParams[name] = value
+	}
+}
+
+func QueryParam(name, value string) RequestOption {
+	return func(opts *requestOptions) {
+		if opts.query == nil {
+			opts.query = url.Values{}
+		}
+		opts.query.Set(name, value)
+	}
+}
+
+func Header(name, value string) RequestOption {
+	return func(opts *requestOptions) {
+		if opts.headers == nil {
+			opts.headers = http.Header{}
+		}
+		opts.headers.Set(name, value)
+	}
+}
+
+type Problem struct {
+	Type     string         ` + "`json:\"type,omitempty\"`" + `
+	Title    string         ` + "`json:\"title,omitempty\"`" + `
+	Status   int            ` + "`json:\"status,omitempty\"`" + `
+	Detail   string         ` + "`json:\"detail,omitempty\"`" + `
+	Instance string         ` + "`json:\"instance,omitempty\"`" + `
+	Ext      map[string]any ` + "`json:\"-\"`" + `
+}
+
+type Error struct {
+	Response *http.Response
+	Problem  *Problem
+	Body     []byte
+}
+
+func (err *Error) Error() string {
+	if err == nil {
+		return ""
+	}
+	if err.Problem != nil && err.Problem.Title != "" {
+		return err.Problem.Title
+	}
+	if err.Response != nil {
+		return err.Response.Status
+	}
+	return "request failed"
+}
+
+func (c *Client) do(ctx context.Context, method, path string, body any, opts ...RequestOption) (*http.Response, error) {
+	if c == nil {
+		return nil, errors.New("client is nil")
+	}
+	requestOpts := requestOptions{
+		pathParams: map[string]string{},
+		query:      url.Values{},
+		headers:    http.Header{},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&requestOpts)
+		}
+	}
+	expandedPath, err := expandPath(path, requestOpts.pathParams)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := strings.TrimRight(c.baseURL, "/") + expandedPath
+	if encodedQuery := requestOpts.query.Encode(); encodedQuery != "" {
+		endpoint += "?" + encodedQuery
+	}
+	var reader io.Reader
+	if body != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return nil, fmt.Errorf("encode request body: %w", err)
+		}
+		reader = &buf
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+	if c.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.bearerToken)
+	}
+	copyHeaders(req.Header, c.headers)
+	copyHeaders(req.Header, requestOpts.headers)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return resp, decodeError(resp)
+	}
+	return resp, nil
+}
+
+func expandPath(path string, params map[string]string) (string, error) {
+	expanded := path
+	for name, value := range params {
+		expanded = strings.ReplaceAll(expanded, "{"+name+"}", url.PathEscape(value))
+	}
+	if strings.Contains(expanded, "{") || strings.Contains(expanded, "}") {
+		return "", fmt.Errorf("missing path parameter for %s", path)
+	}
+	return expanded, nil
+}
+
+func decodeError(resp *http.Response) error {
+	apiErr := &Error{Response: resp}
+	if resp == nil || resp.Body == nil {
+		return apiErr
+	}
+	if !strings.Contains(resp.Header.Get("Content-Type"), "application/problem+json") {
+		return apiErr
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return apiErr
+	}
+	apiErr.Body = body
+	var problem Problem
+	if err := json.Unmarshal(body, &problem); err == nil {
+		apiErr.Problem = &problem
+	}
+	return apiErr
+}
+
+func copyHeaders(dst, src http.Header) {
+	for name, values := range src {
+		for _, value := range values {
+			dst.Add(name, value)
+		}
+	}
+}
+
+`
+
 const fullGoModTemplate = `module {{ .Module }}
 
 go 1.25.0
@@ -2919,6 +3388,7 @@ contracts-diff:
 
 client-check:
 	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient
+	$(GO) test ./internal/client/apiclient
 
 integration-check:
 	$(COMPOSE) up -d postgres redis
