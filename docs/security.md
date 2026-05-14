@@ -154,6 +154,11 @@ Goal:
   untrusted content: scan before use, keep S3 endpoints as trusted operator
   configuration rather than tenant input, and avoid logging object keys when
   they can encode user-provided names or personal data.
+- Generated full-profile object routes reject traversal-shaped keys, nested
+  keys, hidden-file-shaped keys, unsupported content types, and oversized
+  payloads. Create/list responses and validation Problem Details do not echo
+  object payloads; read responses intentionally return object content to
+  authorized callers only.
 - Cookbook recipes for these helpers live in `docs/cookbook.md`; keep this
   security document focused on ownership boundaries and production caveats.
 

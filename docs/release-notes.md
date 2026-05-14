@@ -84,6 +84,10 @@ source of truth is `docs/release-runbook.md`.
   in-memory local cache store, Redis cache adapter, `CACHE_STORE` configuration,
   cache readiness composition, and cached webhook event catalog responses with
   generated tests for TTL, cloning, Redis address validation, and cache hits.
+- Generated `saas-api-full` services now include tenant-scoped object storage
+  routes and application services with strict key, content-type, and size
+  validation, OpenAPI/client coverage, audit hooks, and tests proving object
+  payloads are not exposed in list/create responses or validation problems.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

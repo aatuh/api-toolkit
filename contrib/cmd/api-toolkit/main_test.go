@@ -743,6 +743,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/app/widgets.go",
 		"internal/app/webhooks.go",
 		"internal/app/webhooks_test.go",
+		"internal/app/objects.go",
+		"internal/app/objects_test.go",
 		"internal/adapters/postgres/postgres.go",
 		"internal/adapters/postgres/postgres_test.go",
 		"internal/adapters/redis/cache.go",
@@ -815,7 +817,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "recordAudit", "Readiness HealthChecker"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness HealthChecker"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -825,7 +827,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Cache: cacheService", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
@@ -835,7 +837,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile client: %v", err)
 	}
-	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) CreateWidgetImport", "func (c *Client) GetOperation", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "func (c *Client) CreateOrganizationAPIKey", "func (c *Client) RevokeOrganizationAPIKey", "func (c *Client) CreateOrganizationWebhookEndpoint", "func (c *Client) ReplayOrganizationWebhookDelivery", "PathParam(\"id\",", "PathParam(\"organization_id\",", "PathParam(\"api_key_id\",", "PathParam(\"delivery_id\","} {
+	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) CreateWidgetImport", "func (c *Client) GetOperation", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "func (c *Client) CreateOrganizationAPIKey", "func (c *Client) RevokeOrganizationAPIKey", "func (c *Client) CreateOrganizationWebhookEndpoint", "func (c *Client) ReplayOrganizationWebhookDelivery", "func (c *Client) PutOrganizationObject", "func (c *Client) GetOrganizationObject", "func (c *Client) DeleteOrganizationObject", "PathParam(\"id\",", "PathParam(\"organization_id\",", "PathParam(\"api_key_id\",", "PathParam(\"delivery_id\",", "PathParam(\"object_key\","} {
 		if !strings.Contains(string(generatedClient), want) {
 			t.Fatalf("generated full-profile client missing %q", want)
 		}
