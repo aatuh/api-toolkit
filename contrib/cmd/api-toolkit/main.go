@@ -2791,6 +2791,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/adapters/postgres/widgets_test.go", Body: fullPostgresWidgetStoreTestTemplate},
 	{Name: "internal/adapters/postgres/api_keys.go", Body: fullPostgresAPIKeyStoreTemplate},
 	{Name: "internal/adapters/postgres/api_keys_test.go", Body: fullPostgresAPIKeyStoreTestTemplate},
+	{Name: "internal/adapters/postgres/async.go", Body: fullPostgresAsyncStoreTemplate},
+	{Name: "internal/adapters/postgres/async_test.go", Body: fullPostgresAsyncStoreTestTemplate},
 	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
 	{Name: "internal/adapters/redis/cache_test.go", Body: fullRedisCacheAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -3114,6 +3116,7 @@ func run(ctx context.Context) error {
 	cacheService := app.NewCacheService(nil)
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
+	var postgresPool ports.DatabasePool
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		pool, err := postgres.Open(dbCtx, cfg.DatabaseURL)
@@ -3129,10 +3132,11 @@ func run(ctx context.Context) error {
 		}
 		cancel()
 		defer pool.Close()
+		postgresPool = &pgxpooladapter.Adapter{Pool: pool}
 		tenancy = app.NewTenancyServiceWithStore(postgres.NewTenancyStore(pool))
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
-		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(&pgxpooladapter.Adapter{Pool: pool}, auditpostgres.Options{}))
+		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(postgresPool, auditpostgres.Options{}))
 		webhooks = app.NewWebhookService(tenancy)
 		objects = app.NewObjectService(tenancy)
 		readiness = postgres.HealthChecker{Pool: pool}
@@ -3150,8 +3154,15 @@ func run(ctx context.Context) error {
 	}
 	readiness = httpapi.CombineHealthChecks(readiness, cacheReadiness)
 	asyncJobs := app.NewAsyncService(widgets)
+	asyncStore := async.Store(asyncJobs)
+	if postgresPool != nil {
+		operationStore := postgres.NewWidgetImportOperationStore(postgresPool)
+		outbox := postgres.NewWidgetImportOutbox(postgresPool, operationStore)
+		asyncJobs = app.NewAsyncServiceWithStores(widgets, operationStore, outbox)
+		asyncStore = outbox
+	}
 	asyncRunner, err := async.New(async.Config{
-		Store:        asyncJobs,
+		Store:        asyncStore,
 		Handler:      asyncJobs,
 		Logger:       ports.NopLogger{},
 		BatchSize:    5,
@@ -4445,11 +4456,31 @@ type AsyncService struct {
 	nextOperation    int
 	nextEvent        int
 	widgets          *WidgetService
+	operationStore   WidgetImportOperationStore
+	outbox           WidgetImportOutbox
 	operations       map[string]operations.Operation[WidgetImportResult]
 	operationTenants map[string]string
 	replays          map[string]string
 	events           map[string]outboxEvent
 	queue            []string
+}
+
+type WidgetImportOperationStore interface {
+	CreateWidgetImportOperation(ctx context.Context, tenantID string, operation operations.Operation[WidgetImportResult]) error
+	GetWidgetImportOperation(ctx context.Context, tenantID, id string) (operations.Operation[WidgetImportResult], bool, error)
+	UpdateWidgetImportOperation(ctx context.Context, tenantID string, operation operations.Operation[WidgetImportResult]) error
+}
+
+type WidgetImportOutbox interface {
+	EnqueueWidgetImport(ctx context.Context, event WidgetImportEvent) error
+}
+
+type WidgetImportEvent struct {
+	ID          string
+	TenantID    string
+	Kind        string
+	OperationID string
+	Payload     []byte
 }
 
 type outboxEvent struct {
@@ -4478,6 +4509,13 @@ func NewAsyncService(widgets *WidgetService) *AsyncService {
 		replays:          map[string]string{},
 		events:           map[string]outboxEvent{},
 	}
+}
+
+func NewAsyncServiceWithStores(widgets *WidgetService, operationStore WidgetImportOperationStore, outbox WidgetImportOutbox) *AsyncService {
+	service := NewAsyncService(widgets)
+	service.operationStore = operationStore
+	service.outbox = outbox
+	return service
 }
 
 func (s *AsyncService) StartWidgetImport(ctx context.Context, tenantID, idempotencyKey string, items []WidgetImportItem) (operations.Operation[WidgetImportResult], bool, error) {
@@ -4511,6 +4549,17 @@ func (s *AsyncService) StartWidgetImport(ctx context.Context, tenantID, idempote
 	s.operations[operationID] = operation
 	s.operationTenants[operationID] = tenantID
 	s.replays[replayKey] = operationID
+	if s.operationStore != nil {
+		if err := s.operationStore.CreateWidgetImportOperation(ctx, tenantID, operation); err != nil {
+			return operations.Operation[WidgetImportResult]{}, false, err
+		}
+	}
+	if s.outbox != nil {
+		if err := s.outbox.EnqueueWidgetImport(ctx, WidgetImportEvent{ID: eventID, TenantID: tenantID, Kind: WidgetImportJobKind, OperationID: operationID, Payload: payload}); err != nil {
+			return operations.Operation[WidgetImportResult]{}, false, err
+		}
+		return operation, false, nil
+	}
 	s.events[eventID] = outboxEvent{
 		ID:          eventID,
 		OperationID: operationID,
@@ -4531,6 +4580,9 @@ func (s *AsyncService) GetOperation(ctx context.Context, tenantID, id string) (o
 	id = strings.TrimSpace(id)
 	if tenantID == "" || id == "" {
 		return operations.Operation[WidgetImportResult]{}, false, ErrValidation
+	}
+	if s.operationStore != nil {
+		return s.operationStore.GetWidgetImportOperation(ctx, tenantID, id)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -4654,6 +4706,9 @@ func (s *AsyncService) Handle(ctx context.Context, job async.Job) error {
 		createdIDs = append(createdIDs, widget.ID)
 	}
 	result := WidgetImportResult{Created: len(createdIDs), WidgetIDs: createdIDs}
+	if s.operationStore != nil {
+		return s.completeStoredOperation(ctx, tenantID, operationID, result)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	operation, ok := s.operations[operationID]
@@ -4676,6 +4731,31 @@ func (s *AsyncService) Handle(ctx context.Context, job async.Job) error {
 	}
 	s.operations[operationID] = succeeded
 	return nil
+}
+
+func (s *AsyncService) completeStoredOperation(ctx context.Context, tenantID, operationID string, result WidgetImportResult) error {
+	operation, ok, err := s.operationStore.GetWidgetImportOperation(ctx, tenantID, operationID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrNotFound
+	}
+	if operations.IsTerminal(operation.State) {
+		return nil
+	}
+	if operation.State == operations.StatePending {
+		running, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{To: operations.StateRunning})
+		if err != nil {
+			return err
+		}
+		operation = running
+	}
+	succeeded, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{To: operations.StateSucceeded, Result: &result})
+	if err != nil {
+		return err
+	}
+	return s.operationStore.UpdateWidgetImportOperation(ctx, tenantID, succeeded)
 }
 
 func (s *AsyncService) Run(ctx context.Context, interval time.Duration) error {
@@ -4736,6 +4816,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
 	"github.com/aatuh/api-toolkit/v2/operations"
 )
 
@@ -4817,6 +4898,74 @@ func TestAsyncServiceFailureDoesNotExposePayloadOrRawError(t *testing.T) {
 	if strings.Contains(got.Problem.Detail, "secret-widget-name") {
 		t.Fatalf("operation problem leaked payload: %#v", got.Problem)
 	}
+}
+
+func TestAsyncServiceWithStoresPersistsOperationAndOutbox(t *testing.T) {
+	ctx := context.Background()
+	operationStore := newRecordingWidgetImportOperationStore()
+	outbox := &recordingWidgetImportOutbox{}
+	service := NewAsyncServiceWithStores(NewWidgetService(), operationStore, outbox)
+
+	operation, replayed, err := service.StartWidgetImport(ctx, "org_1", "idem_1", []WidgetImportItem{WidgetImportItem{Name: "alpha"}})
+	if err != nil {
+		t.Fatalf("StartWidgetImport() error = %v", err)
+	}
+	if replayed || operationStore.createdTenant != "org_1" || operationStore.operations[operation.ID].State != operations.StatePending {
+		t.Fatalf("operation=%#v replayed=%v store=%#v", operation, replayed, operationStore)
+	}
+	if outbox.event.ID == "" || outbox.event.OperationID != operation.ID || outbox.event.TenantID != "org_1" || string(outbox.event.Payload) == "" {
+		t.Fatalf("outbox event = %#v", outbox.event)
+	}
+	got, ok, err := service.GetOperation(ctx, "org_1", operation.ID)
+	if err != nil || !ok || got.ID != operation.ID {
+		t.Fatalf("GetOperation() operation=%#v ok=%v err=%v", got, ok, err)
+	}
+	if err := service.Handle(ctx, async.Job{ID: outbox.event.ID, Kind: WidgetImportJobKind, TenantID: "org_1", Payload: outbox.event.Payload}); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	updated := operationStore.operations[operation.ID]
+	if updated.State != operations.StateSucceeded || updated.Result == nil || updated.Result.Created != 1 {
+		t.Fatalf("updated operation = %#v", updated)
+	}
+}
+
+type recordingWidgetImportOperationStore struct {
+	createdTenant string
+	updatedTenant string
+	operations    map[string]operations.Operation[WidgetImportResult]
+}
+
+func newRecordingWidgetImportOperationStore() *recordingWidgetImportOperationStore {
+	return &recordingWidgetImportOperationStore{operations: map[string]operations.Operation[WidgetImportResult]{}}
+}
+
+func (s *recordingWidgetImportOperationStore) CreateWidgetImportOperation(_ context.Context, tenantID string, operation operations.Operation[WidgetImportResult]) error {
+	s.createdTenant = tenantID
+	s.operations[operation.ID] = operation
+	return nil
+}
+
+func (s *recordingWidgetImportOperationStore) GetWidgetImportOperation(_ context.Context, tenantID, id string) (operations.Operation[WidgetImportResult], bool, error) {
+	operation, ok := s.operations[id]
+	if !ok || tenantID != s.createdTenant {
+		return operations.Operation[WidgetImportResult]{}, false, nil
+	}
+	return operation, true, nil
+}
+
+func (s *recordingWidgetImportOperationStore) UpdateWidgetImportOperation(_ context.Context, tenantID string, operation operations.Operation[WidgetImportResult]) error {
+	s.updatedTenant = tenantID
+	s.operations[operation.ID] = operation
+	return nil
+}
+
+type recordingWidgetImportOutbox struct {
+	event WidgetImportEvent
+}
+
+func (s *recordingWidgetImportOutbox) EnqueueWidgetImport(_ context.Context, event WidgetImportEvent) error {
+	s.event = event
+	return nil
 }
 
 `
@@ -7831,6 +7980,224 @@ func scanFakeAPIKeyValues(values []any, dest ...any) error {
 		}
 	}
 	return nil
+}
+`
+
+const fullPostgresAsyncStoreTemplate = `package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"sync"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/operations"
+	"github.com/aatuh/api-toolkit/v2/ports"
+
+	"{{ .Module }}/internal/app"
+)
+
+type WidgetImportOperationStore struct {
+	store *operationpostgres.Store[app.WidgetImportResult]
+}
+
+func NewWidgetImportOperationStore(pool ports.DatabasePool) *WidgetImportOperationStore {
+	return &WidgetImportOperationStore{store: operationpostgres.New[app.WidgetImportResult](pool, operationpostgres.Options{})}
+}
+
+func (s *WidgetImportOperationStore) CreateWidgetImportOperation(ctx context.Context, tenantID string, operation operations.Operation[app.WidgetImportResult]) error {
+	if s == nil || s.store == nil {
+		return operationpostgres.ErrStoreNotConfigured
+	}
+	return s.store.CreateOperation(operationpostgres.WithTenantID(ctx, tenantID), operation)
+}
+
+func (s *WidgetImportOperationStore) GetWidgetImportOperation(ctx context.Context, tenantID, id string) (operations.Operation[app.WidgetImportResult], bool, error) {
+	if s == nil || s.store == nil {
+		return operations.Operation[app.WidgetImportResult]{}, false, operationpostgres.ErrStoreNotConfigured
+	}
+	return s.store.GetOperation(operationpostgres.WithTenantID(ctx, tenantID), id)
+}
+
+func (s *WidgetImportOperationStore) UpdateWidgetImportOperation(ctx context.Context, tenantID string, operation operations.Operation[app.WidgetImportResult]) error {
+	if s == nil || s.store == nil {
+		return operationpostgres.ErrStoreNotConfigured
+	}
+	return s.store.UpdateOperation(operationpostgres.WithTenantID(ctx, tenantID), operation)
+}
+
+type WidgetImportOutbox struct {
+	store      *outboxpostgres.Store
+	operations *WidgetImportOperationStore
+	mu         sync.Mutex
+	leased     map[string]leasedWidgetImport
+}
+
+type leasedWidgetImport struct {
+	TenantID    string
+	OperationID string
+}
+
+func NewWidgetImportOutbox(pool ports.DatabasePool, operations *WidgetImportOperationStore) *WidgetImportOutbox {
+	return &WidgetImportOutbox{
+		store:      outboxpostgres.New(pool, outboxpostgres.Options{}),
+		operations: operations,
+		leased:     map[string]leasedWidgetImport{},
+	}
+}
+
+func (s *WidgetImportOutbox) EnqueueWidgetImport(ctx context.Context, event app.WidgetImportEvent) error {
+	if s == nil || s.store == nil {
+		return outboxpostgres.ErrStoreNotConfigured
+	}
+	return s.store.Enqueue(ctx, outboxpostgres.Event{
+		ID:       strings.TrimSpace(event.ID),
+		TenantID: strings.TrimSpace(event.TenantID),
+		Type:     strings.TrimSpace(event.Kind),
+		Payload:  append([]byte(nil), event.Payload...),
+	})
+}
+
+func (s *WidgetImportOutbox) Lease(ctx context.Context, limit int) ([]async.Job, error) {
+	if s == nil || s.store == nil {
+		return nil, outboxpostgres.ErrStoreNotConfigured
+	}
+	jobs, err := s.store.Lease(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, job := range jobs {
+		operationID := widgetImportOperationID(job.Payload)
+		if operationID == "" {
+			continue
+		}
+		s.remember(job.ID, leasedWidgetImport{TenantID: job.TenantID, OperationID: operationID})
+		if s.operations == nil {
+			continue
+		}
+		operation, ok, err := s.operations.GetWidgetImportOperation(ctx, job.TenantID, operationID)
+		if err != nil || !ok || operation.State != operations.StatePending {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		running, err := operations.TransitionOperation(operation, operations.TransitionConfig[app.WidgetImportResult]{To: operations.StateRunning})
+		if err != nil {
+			return nil, err
+		}
+		if err := s.operations.UpdateWidgetImportOperation(ctx, job.TenantID, running); err != nil {
+			return nil, err
+		}
+	}
+	return jobs, nil
+}
+
+func (s *WidgetImportOutbox) Complete(ctx context.Context, id string) error {
+	if s == nil || s.store == nil {
+		return outboxpostgres.ErrStoreNotConfigured
+	}
+	err := s.store.Complete(ctx, id)
+	s.forget(id)
+	return err
+}
+
+func (s *WidgetImportOutbox) Fail(ctx context.Context, id string, message string) error {
+	if s == nil || s.store == nil {
+		return outboxpostgres.ErrStoreNotConfigured
+	}
+	if err := s.store.Fail(ctx, id, message); err != nil {
+		return err
+	}
+	leased := s.forget(id)
+	if s.operations == nil || leased.OperationID == "" || leased.TenantID == "" {
+		return nil
+	}
+	operation, ok, err := s.operations.GetWidgetImportOperation(ctx, leased.TenantID, leased.OperationID)
+	if err != nil || !ok || operations.IsTerminal(operation.State) {
+		return err
+	}
+	failed, err := operations.TransitionOperation(operation, operations.TransitionConfig[app.WidgetImportResult]{
+		To:      operations.StateFailed,
+		Problem: &httpx.Problem{Title: "Async work failed", Detail: "worker failed"},
+	})
+	if err != nil {
+		return err
+	}
+	return s.operations.UpdateWidgetImportOperation(ctx, leased.TenantID, failed)
+}
+
+func (s *WidgetImportOutbox) remember(id string, leased leasedWidgetImport) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.leased[strings.TrimSpace(id)] = leased
+}
+
+func (s *WidgetImportOutbox) forget(id string) leasedWidgetImport {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	leased := s.leased[strings.TrimSpace(id)]
+	delete(s.leased, strings.TrimSpace(id))
+	return leased
+}
+
+func widgetImportOperationID(payload []byte) string {
+	var body struct {
+		OperationID string ` + "`json:\"operation_id\"`" + `
+	}
+	if err := json.Unmarshal(payload, &body); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(body.OperationID)
+}
+`
+
+const fullPostgresAsyncStoreTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/v2/operations"
+
+	"{{ .Module }}/internal/app"
+)
+
+func TestWidgetImportOperationIDParsesPayloadSafely(t *testing.T) {
+	if got := widgetImportOperationID([]byte(` + "`" + `{"operation_id":" op_1 "}` + "`" + `)); got != "op_1" {
+		t.Fatalf("widgetImportOperationID() = %q", got)
+	}
+	if got := widgetImportOperationID([]byte(` + "`" + `{"operation_id":""}` + "`" + `)); got != "" {
+		t.Fatalf("empty widgetImportOperationID() = %q", got)
+	}
+	if got := widgetImportOperationID([]byte(` + "`" + `not-json` + "`" + `)); got != "" {
+		t.Fatalf("invalid widgetImportOperationID() = %q", got)
+	}
+}
+
+func TestWidgetImportOperationStoreRequiresPool(t *testing.T) {
+	store := NewWidgetImportOperationStore(nil)
+	if err := store.CreateWidgetImportOperation(context.Background(), "org_1", operationsOperationForTest()); !errors.Is(err, operationpostgres.ErrStoreNotConfigured) {
+		t.Fatalf("CreateWidgetImportOperation() error = %v, want %v", err, operationpostgres.ErrStoreNotConfigured)
+	}
+}
+
+func TestWidgetImportOutboxRequiresPool(t *testing.T) {
+	outbox := NewWidgetImportOutbox(nil, nil)
+	if _, err := outbox.Lease(context.Background(), 1); !errors.Is(err, outboxpostgres.ErrStoreNotConfigured) {
+		t.Fatalf("Lease() error = %v, want %v", err, outboxpostgres.ErrStoreNotConfigured)
+	}
+}
+
+func operationsOperationForTest() operations.Operation[app.WidgetImportResult] {
+	return operations.Operation[app.WidgetImportResult]{ID: "op_1", State: operations.StatePending}
 }
 `
 
