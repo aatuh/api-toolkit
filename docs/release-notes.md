@@ -144,6 +144,10 @@ source of truth is `docs/release-runbook.md`.
   standard Prometheus handler only behind admin authentication. Generated tests
   assert request metrics use route-pattern labels and do not expose tenants,
   actors, API keys, admin keys, or idempotency keys.
+- Generated `saas-api-full` admin routers now mount real Go pprof handlers via
+  `pprof.RegisterAdminRoutes` instead of returning a placeholder response.
+  Generated tests assert pprof is absent from the public handler and requires
+  `X-Admin-Key` on the admin handler.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.

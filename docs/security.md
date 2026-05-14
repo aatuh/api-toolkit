@@ -257,6 +257,9 @@ operator-only surfaces.
   admin authentication. HTTP metric labels come from router patterns, not raw
   paths, and generated tests check that tenant IDs, actors, API keys, admin
   keys, and idempotency keys are not exported.
+- Generated `saas-api-full` pprof routes use `pprof.RegisterAdminRoutes` with
+  the generated admin wrapper; the public handler does not mount pprof, and
+  generated tests verify missing admin auth fails closed.
 - Adapter legacy idempotency recovery events hash keys by default. Enable the
   explicit raw-key option only for short, access-controlled incident review.
 - Multi-tenant APIs that share idempotency storage should configure

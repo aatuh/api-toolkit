@@ -44,6 +44,8 @@ fail closed if Postgres becomes unavailable.
 Generated full-profile services now also wrap public traffic with the contrib
 Prometheus metrics middleware and serve the standard Prometheus handler only
 from the admin router, with route-pattern labels instead of raw paths.
+They also mount the standard Go pprof handlers through the core admin pprof
+helper, so profiling stays behind the generated admin authentication wrapper.
 
 ## Runtime Contract
 
@@ -124,6 +126,10 @@ The full profile standardizes these defaults:
   default. Metrics use bounded method/status labels and router patterns from
   `net/http.ServeMux`; generated tests assert tenant IDs, actors, API keys,
   admin keys, and idempotency keys are not exported.
+- Standard Go pprof handlers are mounted on the admin router with
+  `pprof.RegisterAdminRoutes`; generated tests assert `/debug/pprof/` is not
+  reachable on the public handler and requires `X-Admin-Key` on the admin
+  handler.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
 - Detailed health, metrics, and pprof remain operator-only; a separate admin
   listener is preferred when configured.
