@@ -100,6 +100,10 @@ Goal:
   of storing raw endpoint secrets in webhook endpoint rows. Keep receiver
   allow-lists, SSRF-aware transports, duplicate suppression, provider schemas,
   and endpoint-secret rotation in application-owned code.
+- Webhook delivery metrics and request-log hooks expose only bounded event
+  type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
+  delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those
+  observations.
 - Object storage helpers validate bucket/key references, enforce content-type
   and size policy, and reject secret-shaped metadata. Treat object payloads as
   untrusted content: scan before use, keep S3 endpoints as trusted operator

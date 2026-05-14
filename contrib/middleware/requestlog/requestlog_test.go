@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/routecontracts"
@@ -282,6 +284,38 @@ func TestHardTimeoutEventLogHookIncludesBoundedFields(t *testing.T) {
 	}
 	if fields[FieldHardTimeoutOutcome] == "customer-acme-timeout" {
 		t.Fatalf("hard-timeout log leaked raw outcome value: %#v", fields)
+	}
+}
+
+func TestWebhookDeliveryLogHookIncludesBoundedFields(t *testing.T) {
+	log := &captureLogger{}
+	hook := WebhookDeliveryLogHook(log)
+
+	hook.ObserveWebhookDelivery(context.Background(), webhookdelivery.DeliveryObservation{
+		EventType:   "Customer Acme Widget.Created",
+		Outcome:     "transport_error",
+		StatusClass: "5xx",
+	})
+
+	if log.level != "warn" || log.msg != "webhook delivery event" {
+		t.Fatalf("log entry = %s %q", log.level, log.msg)
+	}
+	fields := kvToMap(log.kv)
+	for key, want := range map[string]any{
+		FieldWebhookDeliveryEventType:   "customer_acme_widget.created",
+		FieldWebhookDeliveryOutcome:     "transport_error",
+		FieldWebhookDeliveryStatusClass: "5xx",
+	} {
+		if got := fields[key]; got != want {
+			t.Fatalf("field %s = %#v, want %#v; fields=%#v", key, got, want, fields)
+		}
+	}
+	for _, forbidden := range []string{"tenant", "https://", "secret", "payload"} {
+		for _, value := range fields {
+			if s, ok := value.(string); ok && strings.Contains(s, forbidden) {
+				t.Fatalf("webhook delivery log leaked %q in fields %#v", forbidden, fields)
+			}
+		}
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -363,6 +364,76 @@ func TestHardTimeoutEventHookRecordsEvents(t *testing.T) {
 	}
 }
 
+func TestPrometheusRecorderRecordsWebhookDeliveryWithBoundedLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	recorder, err := NewPrometheusRecorderChecked(reg, nil)
+	if err != nil {
+		t.Fatalf("new prometheus recorder: %v", err)
+	}
+
+	recorder.ObserveWebhookDelivery(context.Background(), webhookdelivery.DeliveryObservation{
+		EventType:   "Widget.Created",
+		Outcome:     "accepted",
+		StatusClass: "2xx",
+	})
+	recorder.ObserveWebhookDelivery(context.Background(), webhookdelivery.DeliveryObservation{
+		EventType:   "customer acme deleted",
+		Outcome:     "transport_error",
+		StatusClass: "5xx",
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	family := metricFamilyByName(t, families, "webhook_delivery_events_total")
+	if len(family.Metric) != 2 {
+		t.Fatalf("metric count = %d, want 2", len(family.Metric))
+	}
+	seen := map[string]bool{}
+	for _, metric := range family.Metric {
+		labels := map[string]string{}
+		for _, label := range metric.Label {
+			labels[label.GetName()] = label.GetValue()
+			switch label.GetName() {
+			case "event_type", "outcome", "status_class":
+			default:
+				t.Fatalf("unexpected webhook metric label %q", label.GetName())
+			}
+			if strings.Contains(label.GetValue(), " ") {
+				t.Fatalf("webhook metric label was not normalized: %q", label.GetValue())
+			}
+		}
+		if len(labels) != 3 {
+			t.Fatalf("labels = %#v, want three bounded labels", labels)
+		}
+		seen[labels["event_type"]+"|"+labels["outcome"]+"|"+labels["status_class"]] = true
+	}
+	for _, want := range []string{
+		"widget.created|accepted|2xx",
+		"customer_acme_deleted|transport_error|5xx",
+	} {
+		if !seen[want] {
+			t.Fatalf("missing webhook delivery labels %s in %#v", want, seen)
+		}
+	}
+}
+
+func TestWebhookDeliveryHookRecordsEvents(t *testing.T) {
+	recorder := &captureWebhookDeliveryRecorder{}
+	hook := WebhookDeliveryHook(recorder)
+
+	hook.ObserveWebhookDelivery(context.Background(), webhookdelivery.DeliveryObservation{
+		EventType:   "widget.created",
+		Outcome:     "accepted",
+		StatusClass: "2xx",
+	})
+
+	if recorder.event.Outcome != "accepted" || recorder.event.EventType != "widget.created" {
+		t.Fatalf("recorded event = %#v", recorder.event)
+	}
+}
+
 func TestHandlerRecordsRoutePolicyLabelsFromRouteContracts(t *testing.T) {
 	recorder := &capturePolicyRecorder{}
 	mw, err := New(Options{Recorder: recorder})
@@ -642,6 +713,14 @@ type captureHardTimeoutEventRecorder struct {
 }
 
 func (r *captureHardTimeoutEventRecorder) RecordHardTimeoutEvent(event timeoutmw.HardTimeoutEvent) {
+	r.event = event
+}
+
+type captureWebhookDeliveryRecorder struct {
+	event webhookdelivery.DeliveryObservation
+}
+
+func (r *captureWebhookDeliveryRecorder) RecordWebhookDelivery(event webhookdelivery.DeliveryObservation) {
 	r.event = event
 }
 

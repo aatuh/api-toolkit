@@ -157,6 +157,11 @@ source of truth is `docs/release-runbook.md`.
   `SecretResolver` instead of raw secret storage in the webhook endpoint table;
   generated `saas-api-full` migrations now include `event_id` and
   `last_status_code` on webhook delivery rows.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` and
+  `github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog` now expose
+  outbound webhook delivery observation hooks with bounded event type, outcome,
+  and status-class labels that omit tenants, endpoint IDs, delivery IDs, URLs,
+  payloads, secrets, and raw error strings.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc` and
   `github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc` add
   experimental provider-neutral OIDC/JWKS bearer-token middleware with optional
