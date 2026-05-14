@@ -126,6 +126,10 @@ source of truth is `docs/release-runbook.md`.
 - `github.com/aatuh/api-toolkit/v2/operations` adds additive write-side
   repository contracts plus lifecycle helpers for validating operation states,
   terminal states, and pending/running/succeeded/failed/canceled transitions.
+- `github.com/aatuh/api-toolkit/contrib/v2/async` adds an experimental durable
+  async worker runner with lease/complete/fail store contracts, bounded
+  concurrency, graceful shutdown, low-cardinality metric hooks, and logs that
+  avoid job payloads and raw handler errors.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.
