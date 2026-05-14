@@ -727,7 +727,10 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, name := range []string{
 		"go.mod",
 		"cmd/api/main.go",
+		"internal/domain/tenancy.go",
 		"internal/domain/widget.go",
+		"internal/app/tenancy.go",
+		"internal/app/tenancy_test.go",
 		"internal/app/widgets.go",
 		"internal/adapters/postgres/postgres.go",
 		"internal/httpapi/router.go",

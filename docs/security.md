@@ -81,6 +81,10 @@ Goal:
 
 - API key auth extracts credentials and enforces verifier decisions. Store,
   hash, rotate, and revoke keys in application-owned verifier code.
+- Generated full-profile invitation services return raw invitation tokens only
+  from the creation use case, store token hashes, reject wrong or replayed
+  tokens, and require role checks before invitation creation. Do not log raw
+  invitation tokens or include them in Problem Details responses.
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.

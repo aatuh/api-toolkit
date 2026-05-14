@@ -20,11 +20,14 @@ Current implementation status: the generator emits the initial full-profile
 foundation with API-key auth, tenant-scoped widget writes, idempotent create
 replay, optimistic-update ETags, Postgres migrations, Docker Compose with
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
-checks, contract lint/diff targets, and generated HTTP smoke tests. Reusable
-building blocks now exist for durable operations, transactional outbox work,
-audit events, object storage, outbound webhook delivery, OpenAPI 3.1, and
-generated Go client output; the roadmap continues with wiring those reusable
-pieces deeper into the generated application boundary.
+checks, contract lint/diff targets, and generated HTTP smoke tests. The
+generated application layer now includes organizations, memberships,
+invitations, role checks, hashed invitation-token storage, and single-use
+invitation acceptance. Reusable building blocks now exist for durable
+operations, transactional outbox work, audit events, object storage, outbound
+webhook delivery, OpenAPI 3.1, and generated Go client output; the roadmap
+continues with wiring those reusable pieces deeper into the generated
+application boundary.
 
 ## Runtime Contract
 
@@ -35,6 +38,8 @@ The full profile standardizes these defaults:
 - Redis stores shared idempotency, rate-limit, and cache state.
 - Organizations, memberships, invitations, roles, and scoped API keys provide
   the generated tenant model.
+- Invitation tokens are returned once, stored only as hashes, and accepted into
+  memberships through role-aware application services.
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - Durable async routes return `202 Accepted`, write operation state, enqueue
   transactional outbox work, and expose pollable operation resources.
