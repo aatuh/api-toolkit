@@ -3122,6 +3122,7 @@ func run(ctx context.Context) error {
 	webhooks := app.NewWebhookService(tenancy)
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
+	var rateLimiter ports.RateLimiter
 	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
@@ -3181,6 +3182,16 @@ func run(ctx context.Context) error {
 		cacheService = app.NewCacheService(redisCache.Store)
 		cacheReadiness = redisCache
 	}
+	if strings.EqualFold(cfg.RateLimitStore, "redis") {
+		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		redisRateLimit, err := rediscache.OpenRateLimiter(redisCtx, cfg.RedisAddr, cfg.RateLimitKeyPrefix, 20, 10)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer redisRateLimit.Close()
+		rateLimiter = redisRateLimit.Limiter
+	}
 	if strings.EqualFold(cfg.IdempotencyStore, "redis") {
 		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		redisIdempotency, err := rediscache.OpenIdempotencyStore(redisCtx, cfg.RedisAddr, cfg.IdempotencyKeyPrefix)
@@ -3190,6 +3201,10 @@ func run(ctx context.Context) error {
 		}
 		defer redisIdempotency.Close()
 		idempotencyStore = redisIdempotency.Store
+	}
+	rateLimitMiddleware, err := httpapi.NewRateLimitMiddleware(rateLimiter)
+	if err != nil {
+		return err
 	}
 	idempotencyMiddleware, err := httpapi.NewIdempotencyMiddleware(idempotencyStore)
 	if err != nil {
@@ -3231,7 +3246,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -9955,6 +9970,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/cache"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -9974,6 +9990,11 @@ type Idempotency struct {
 	client redis.UniversalClient
 }
 
+type RateLimiter struct {
+	Limiter ports.RateLimiter
+	client  redis.UniversalClient
+}
+
 func OpenCache(ctx context.Context, addr string) (*Cache, error) {
 	addrs := parseRedisAddrs(addr)
 	if len(addrs) == 0 {
@@ -9987,6 +10008,22 @@ func OpenCache(ctx context.Context, addr string) (*Cache, error) {
 	return &Cache{
 		Store:  cacheredis.New(client, cacheredis.Options{KeyPrefix: "api:", DefaultTTL: 5 * time.Minute}),
 		client: client,
+	}, nil
+}
+
+func OpenRateLimiter(ctx context.Context, addr, keyPrefix string, capacity, refillRate float64) (*RateLimiter, error) {
+	addrs := parseRedisAddrs(addr)
+	if len(addrs) == 0 {
+		return nil, ErrRedisAddrRequired
+	}
+	client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+	return &RateLimiter{
+		Limiter: ratelimitredis.New(client, ratelimitredis.Options{Capacity: capacity, RefillRate: refillRate, KeyPrefix: strings.TrimSpace(keyPrefix)}),
+		client:  client,
 	}, nil
 }
 
@@ -10018,6 +10055,13 @@ func (c *Cache) Close() error {
 		return nil
 	}
 	return c.client.Close()
+}
+
+func (r *RateLimiter) Close() error {
+	if r == nil || r.client == nil {
+		return nil
+	}
+	return r.client.Close()
 }
 
 func (i *Idempotency) Close() error {
@@ -10949,6 +10993,7 @@ import (
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
+	ratelimitmw "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
 	apitkops "github.com/aatuh/api-toolkit/v2/operations"
 	"github.com/aatuh/api-toolkit/v2/ports"
 
@@ -10964,6 +11009,8 @@ type Config struct {
 	DatabaseURL  string
 	RedisAddr    string
 	CacheStore   string
+	RateLimitStore     string
+	RateLimitKeyPrefix string
 	IdempotencyStore     string
 	IdempotencyKeyPrefix string
 	APIKeyPepper string
@@ -10994,6 +11041,10 @@ func ConfigFromEnv() (Config, error) {
 	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("CACHE_STORE")) == "" {
 		cacheStore = "redis"
 	}
+	rateLimitStore := envDefault("RATE_LIMIT_STORE", "memory")
+	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("RATE_LIMIT_STORE")) == "" {
+		rateLimitStore = "redis"
+	}
 	idempotencyStore := envDefault("IDEMPOTENCY_STORE", "memory")
 	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")) == "" {
 		idempotencyStore = "redis"
@@ -11006,6 +11057,8 @@ func ConfigFromEnv() (Config, error) {
 		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		RedisAddr:    strings.TrimSpace(os.Getenv("REDIS_ADDR")),
 		CacheStore:   strings.ToLower(strings.TrimSpace(cacheStore)),
+		RateLimitStore:     strings.ToLower(strings.TrimSpace(rateLimitStore)),
+		RateLimitKeyPrefix: envDefault("RATE_LIMIT_KEY_PREFIX", "ratelimit:"),
 		IdempotencyStore: strings.ToLower(strings.TrimSpace(idempotencyStore)),
 		IdempotencyKeyPrefix: envDefault("IDEMPOTENCY_KEY_PREFIX", "idempotency:"),
 		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
@@ -11033,6 +11086,9 @@ func ConfigFromEnv() (Config, error) {
 	if cfg.CacheStore != "memory" && cfg.CacheStore != "redis" {
 		return Config{}, errors.New("CACHE_STORE must be memory or redis")
 	}
+	if cfg.RateLimitStore != "memory" && cfg.RateLimitStore != "redis" {
+		return Config{}, errors.New("RATE_LIMIT_STORE must be memory or redis")
+	}
 	if cfg.IdempotencyStore != "memory" && cfg.IdempotencyStore != "redis" {
 		return Config{}, errors.New("IDEMPOTENCY_STORE must be memory or redis")
 	}
@@ -11058,6 +11114,9 @@ func ConfigFromEnv() (Config, error) {
 		}
 		if cfg.CacheStore != "redis" {
 			missing = append(missing, "CACHE_STORE=redis")
+		}
+		if cfg.RateLimitStore != "redis" {
+			missing = append(missing, "RATE_LIMIT_STORE=redis")
 		}
 		if cfg.IdempotencyStore != "redis" {
 			missing = append(missing, "IDEMPOTENCY_STORE=redis")
@@ -11119,6 +11178,7 @@ type RouterConfig struct {
 	Webhooks *app.WebhookService
 	Objects  *app.ObjectService
 	Cache    *app.CacheService
+	RateLimit *ratelimitmw.Middleware
 	Idempotency *idempotencymw.Middleware
 	Readiness HealthChecker
 	APIKey   string
@@ -11232,6 +11292,12 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
 	}
+	if cfg.RateLimit == nil {
+		middleware, err := NewRateLimitMiddleware(nil)
+		if err == nil {
+			cfg.RateLimit = middleware
+		}
+	}
 	if cfg.Idempotency == nil {
 		middleware, err := NewIdempotencyMiddleware(idempotency.NewMemoryStore())
 		if err == nil {
@@ -11247,6 +11313,17 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	return cfg
 }
 
+func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware, error) {
+	return ratelimitmw.New(ratelimitmw.Options{
+		Capacity:     20,
+		RefillRate:   10,
+		RetryAfter:   time.Second,
+		Limiter:      limiter,
+		Key:          fullRateLimitKey,
+		HeaderConfig: ratelimitmw.DefaultHeaderConfig(),
+	})
+}
+
 func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Middleware, error) {
 	return idempotencymw.New(idempotencymw.Options{
 		Store:          store,
@@ -11259,11 +11336,38 @@ func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Midd
 	})
 }
 
+func (cfg RouterConfig) rateLimited(next http.Handler) http.Handler {
+	if cfg.RateLimit == nil {
+		return next
+	}
+	return cfg.RateLimit.Handler(next)
+}
+
 func (cfg RouterConfig) idempotent(next http.Handler) http.Handler {
 	if cfg.Idempotency == nil {
 		return next
 	}
 	return cfg.Idempotency.Handler(next)
+}
+
+func fullRateLimitKey(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	actorID, tenantID := idempotencyScope(r)
+	h := sha256.New()
+	h.Write([]byte("saas-api-full:rate-limit-key:v1"))
+	h.Write([]byte{0})
+	h.Write([]byte(tenantID))
+	h.Write([]byte{0})
+	h.Write([]byte(actorID))
+	h.Write([]byte{0})
+	h.Write([]byte(strings.ToUpper(r.Method)))
+	h.Write([]byte{0})
+	if r.URL != nil {
+		h.Write([]byte(r.URL.Path))
+	}
+	return "atk:v1:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func fullIdempotencyStorageKey(r *http.Request, clientKey string) string {
@@ -12349,7 +12453,7 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 				return
 			}
 		}
-		next.ServeHTTP(w, r)
+		cfg.rateLimited(next).ServeHTTP(w, r)
 	}))
 {{ else if eq .AuthMode "clerk" }}	if cfg.Clerk == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -12368,7 +12472,7 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 				return
 			}
 		}
-		next.ServeHTTP(w, r)
+		cfg.rateLimited(next).ServeHTTP(w, r)
 	}))
 {{ else if eq .AuthMode "oidc" }}	if cfg.OIDC == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -12387,14 +12491,14 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 				return
 			}
 		}
-		next.ServeHTTP(w, r)
+		cfg.rateLimited(next).ServeHTTP(w, r)
 	}))
 {{ else }}	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
 			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 			return
 		}
-		next.ServeHTTP(w, r)
+		cfg.rateLimited(next).ServeHTTP(w, r)
 	})
 {{ end }}
 }
@@ -12624,6 +12728,30 @@ func TestCreateWidgetRequiresAuth(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "application/problem+json") {
 		t.Fatalf("auth failure content type = %q", got)
+	}
+}
+
+func TestProtectedRoutesAreRateLimited(t *testing.T) {
+	handler := newTestRouter(t)
+	limited := false
+	for i := 0; i < 30; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/organizations", nil)
+		authorizeTestRequestAs(t, req, "", "owner_1", "organizations:read")
+		handler.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			limited = true
+			if rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), "rate limit exceeded") {
+				t.Fatalf("rate limit response headers/body missing: headers=%v body=%s", rec.Header(), rec.Body.String())
+			}
+			break
+		}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("protected request status = %d body=%s", rec.Code, rec.Body.String())
+		}
+	}
+	if !limited {
+		t.Fatal("expected protected route to return 429 after repeated requests")
 	}
 }
 
@@ -13519,6 +13647,7 @@ default_db_password="${POSTGRES_PASSWORD:-api}"
 export DATABASE_URL="${DATABASE_URL:-postgres://${default_db_user}:${default_db_password}@localhost:5432/api?sslmode=disable}"
 export REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
 export CACHE_STORE="${CACHE_STORE:-redis}"
+export RATE_LIMIT_STORE="${RATE_LIMIT_STORE:-redis}"
 export IDEMPOTENCY_STORE="${IDEMPOTENCY_STORE:-redis}"
 export API_KEY="${API_KEY:-local-dev-key}"
 export ADMIN_KEY="${ADMIN_KEY:-local-admin-key}"
@@ -13587,6 +13716,8 @@ ADMIN_ADDR=:9090
 DATABASE_URL=
 REDIS_ADDR=localhost:6379
 CACHE_STORE=memory
+RATE_LIMIT_STORE=memory
+RATE_LIMIT_KEY_PREFIX=ratelimit:
 IDEMPOTENCY_STORE=memory
 IDEMPOTENCY_KEY_PREFIX=idempotency:
 OBJECT_STORE=memory
@@ -13600,7 +13731,6 @@ API_ACTOR_ID=
 API_KEY_PEPPER=
 WEBHOOK_SECRET_KEY=
 ADMIN_KEY=local-admin-key
-RATE_LIMIT_KEY_PREFIX=ratelimit:
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api-full
@@ -13693,6 +13823,7 @@ const fullComposeTemplate = `services:
     environment:
       DATABASE_URL: postgres://api:api@postgres:5432/api?sslmode=disable
       REDIS_ADDR: redis:6379
+      RATE_LIMIT_STORE: redis
       IDEMPOTENCY_STORE: redis
       ADMIN_ADDR: :9090
       WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
@@ -13783,6 +13914,8 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: redis-addr
+            - name: RATE_LIMIT_STORE
+              value: "redis"
             - name: IDEMPOTENCY_STORE
               value: "redis"
             - name: API_KEY_PEPPER
@@ -13845,7 +13978,7 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.
 When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
-Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
+Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.

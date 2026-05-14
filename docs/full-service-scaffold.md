@@ -56,6 +56,11 @@ The full profile standardizes these defaults:
   Generated services use an in-process cache for local development and switch
   to the generated Redis cache adapter when `CACHE_STORE=redis` or production
   defaults require it.
+- Generated protected routes use the core rate-limit middleware. Local
+  development defaults to per-process token buckets; `RATE_LIMIT_STORE=redis`
+  uses hashed actor/tenant/route keys through the generated Redis adapter so
+  limits are shared across instances without putting raw actor or tenant IDs
+  into Redis keys.
 - Generated unsafe routes use the core idempotency middleware. Local
   development defaults to in-memory replay storage; `IDEMPOTENCY_STORE=redis`
   stores tenant-aware, hashed replay keys in Redis so retries can be replayed

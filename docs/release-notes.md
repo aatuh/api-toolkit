@@ -135,6 +135,10 @@ source of truth is `docs/release-runbook.md`.
   middleware with tenant-aware hashed storage keys. Local scaffolds default to
   in-memory replay; `IDEMPOTENCY_STORE=redis` wires the generated Redis adapter
   for cross-instance replay state.
+- Generated `saas-api-full` protected routes now use the core rate-limit
+  middleware. Local scaffolds default to in-process buckets; production
+  defaults require `RATE_LIMIT_STORE=redis` and wire a generated Redis limiter
+  with hashed actor/tenant/route keys.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.
