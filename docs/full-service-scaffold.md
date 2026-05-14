@@ -106,7 +106,9 @@ The profile generates or is expected to generate:
 - `internal/domain`, `internal/app`, and `internal/adapters/postgres`
   boundaries with thin HTTP handlers. Generated widget services use an
   application storage port and switch to the Postgres widget store when
-  `DATABASE_URL` is configured.
+  `DATABASE_URL` is configured. Generated audit recording delegates to the
+  Postgres audit store in the same mode after local redaction and event ID
+  generation.
 - Postgres migrations for organizations, memberships, invitations, API keys,
   widgets, operations, outbox events, audit events, webhook endpoints, and
   webhook deliveries.
