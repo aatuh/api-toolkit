@@ -117,6 +117,12 @@ source of truth is `docs/release-runbook.md`.
   `github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis` add
   experimental cache contracts and a Redis-backed cache adapter with TTL,
   delete, health-check, and reusable adapter-contract coverage.
+- `github.com/aatuh/api-toolkit/contrib/v2/audit` and
+  `github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres` add
+  experimental audit-event contracts, reusable recorder-contract tests, and a
+  transaction-aware Postgres audit recorder that stores actor type, tenant,
+  action, resource, result, request ID, and redaction-checked metadata. The
+  generated `saas-api-full` audit migration now includes `actor_type`.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.

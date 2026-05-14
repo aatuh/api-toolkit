@@ -37,8 +37,8 @@ The full profile standardizes these defaults:
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - Durable async routes return `202 Accepted`, write operation state, enqueue
   transactional outbox work, and expose pollable operation resources.
-- Audit events record actor, tenant, action, resource, result, request ID, and
-  redaction-safe metadata.
+- Audit events record actor type, actor ID, tenant, action, resource, result,
+  request ID, and redaction-safe metadata.
 - Webhook delivery signs outbound events, retries with bounded backoff, stores
   delivery history, and supports operator replay.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
