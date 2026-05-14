@@ -85,6 +85,13 @@ Goal:
   from the creation use case, store token hashes, reject wrong or replayed
   tokens, and require role checks before invitation creation. Do not log raw
   invitation tokens or include them in Problem Details responses.
+- Generated full-profile organization and invitation HTTP routes require
+  authentication, `Idempotency-Key` on unsafe writes, role-aware application
+  checks, and matching `X-Tenant-ID`/organization path values for
+  organization-scoped routes. API-key full-profile scaffolds use `API_ACTOR_ID`
+  for production actor identity; the `X-Actor-ID` request header is only a
+  non-production fallback for exercising role flows before durable API-key
+  management is wired.
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.

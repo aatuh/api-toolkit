@@ -23,11 +23,12 @@ Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, and generated HTTP smoke tests. The
 generated application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
-invitation acceptance. Reusable building blocks now exist for durable
-operations, transactional outbox work, audit events, object storage, outbound
-webhook delivery, OpenAPI 3.1, and generated Go client output; the roadmap
-continues with wiring those reusable pieces deeper into the generated
-application boundary.
+invitation acceptance, and the generated HTTP router exposes those workflows
+with OpenAPI contracts and generated Go client methods. Reusable building
+blocks now exist for durable operations, transactional outbox work, audit
+events, object storage, outbound webhook delivery, OpenAPI 3.1, and generated
+Go client output; the roadmap continues with wiring those reusable pieces
+deeper into the generated application boundary.
 
 ## Runtime Contract
 
@@ -40,6 +41,10 @@ The full profile standardizes these defaults:
   the generated tenant model.
 - Invitation tokens are returned once, stored only as hashes, and accepted into
   memberships through role-aware application services.
+- The generated HTTP API includes organization create/list, member list,
+  invitation create, and invitation accept routes. Unsafe write routes require
+  `Idempotency-Key`; organization-scoped routes require `X-Tenant-ID` to match
+  the organization path parameter.
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - Durable async routes return `202 Accepted`, write operation state, enqueue
   transactional outbox work, and expose pollable operation resources.
