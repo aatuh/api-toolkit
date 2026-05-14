@@ -27,6 +27,11 @@ source of truth is `docs/release-runbook.md`.
 
 ### Correctness, security, and release governance
 
+- `docs/full-service-scaffold.md` now defines the planned `saas-api-full`
+  production profile contract, including Postgres + Redis defaults, tenant
+  resources, durable async/outbox behavior, audit events, webhook delivery,
+  OpenAPI 3.1, typed Go client output, opt-in Docker integration checks, and
+  base Kubernetes assets.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
