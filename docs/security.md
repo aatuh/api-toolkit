@@ -166,7 +166,9 @@ Goal:
   keys, hidden-file-shaped keys, unsupported content types, and oversized
   payloads. Create/list responses and validation Problem Details do not echo
   object payloads; read responses intentionally return object content to
-  authorized callers only.
+  authorized callers only. The generated Postgres object metadata store keeps
+  tenant ID, object key, content type, size, and timestamps only; it must not
+  store object payload bytes or user-supplied secret metadata.
 - Cookbook recipes for these helpers live in `docs/cookbook.md`; keep this
   security document focused on ownership boundaries and production caveats.
 
