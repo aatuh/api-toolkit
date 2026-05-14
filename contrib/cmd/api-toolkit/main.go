@@ -13948,6 +13948,8 @@ with open(sys.argv[2], "r", encoding="utf-8") as handle:
 for item in path:
     if isinstance(data, dict):
         data = data[item]
+    elif isinstance(data, list):
+        data = data[int(item)]
     else:
         raise KeyError(item)
 if data is None:
@@ -14045,6 +14047,31 @@ if [ -z "${managed_api_key}" ]; then
   exit 1
 fi
 
+webhook_endpoint_body="${tmp_dir}/webhook-endpoint.json"
+curl -fsS -X POST "${api_url}/organizations/${org_id}/webhook-endpoints" \
+  -o "${webhook_endpoint_body}" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-create-webhook-endpoint" \
+  --data '{"url":"https://example.com/webhooks/widgets","events":["widget.created"]}'
+webhook_secret="$(json_field secret "${webhook_endpoint_body}")"
+if [ -z "${webhook_secret}" ]; then
+  echo "create webhook endpoint response did not include signing secret" >&2
+  exit 1
+fi
+
+curl -fsS "${api_url}/organizations/${org_id}/webhook-endpoints" \
+  -o "${tmp_dir}/webhook-endpoints.json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" >/dev/null
+if grep -F -q -- "${webhook_secret}" "${tmp_dir}/webhook-endpoints.json"; then
+  echo "webhook endpoint list leaked signing secret" >&2
+  exit 1
+fi
+
 widget_headers="${tmp_dir}/widget-create.headers"
 widget_body="${tmp_dir}/widget-create.json"
 curl -fsS -X POST "${api_url}/widgets" \
@@ -14074,6 +14101,35 @@ replay_id="$(json_field id "${replay_body}")"
 replay_header="$(header_value Idempotency-Replayed "${replay_headers}")"
 if [ "${replay_status}" != "201" ] || [ "${replay_id}" != "${widget_id}" ] || [ "${replay_header}" != "true" ]; then
   echo "expected idempotent widget replay, got status ${replay_status}, id ${replay_id}, replay header ${replay_header}" >&2
+  exit 1
+fi
+
+curl -fsS "${api_url}/organizations/${org_id}/webhook-deliveries" \
+  -o "${tmp_dir}/webhook-deliveries.json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" >/dev/null
+delivery_id="$(json_field items.0.id "${tmp_dir}/webhook-deliveries.json")"
+if [ -z "${delivery_id}" ]; then
+  echo "widget create did not enqueue webhook delivery" >&2
+  exit 1
+fi
+if grep -F -q -- "${webhook_secret}" "${tmp_dir}/webhook-deliveries.json"; then
+  echo "webhook delivery list leaked signing secret" >&2
+  exit 1
+fi
+
+curl -fsS -X POST "${api_url}/organizations/${org_id}/webhook-deliveries/${delivery_id}/replay" \
+  -o "${tmp_dir}/webhook-replay.json" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-replay-webhook-delivery" \
+  --data '{}'
+replayed_delivery_id="$(json_field id "${tmp_dir}/webhook-replay.json")"
+if [ "${replayed_delivery_id}" != "${delivery_id}" ]; then
+  echo "replay webhook delivery returned ${replayed_delivery_id}, want ${delivery_id}" >&2
   exit 1
 fi
 
@@ -14447,7 +14503,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, webhook delivery/replay, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
