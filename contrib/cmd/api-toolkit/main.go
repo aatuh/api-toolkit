@@ -13956,6 +13956,23 @@ print(data)
 PY
 }
 
+header_value() {
+  local name="$1"
+  local file="$2"
+  awk -v want="$(printf '%s' "${name}" | tr '[:upper:]' '[:lower:]')" '
+    BEGIN { FS = ":" }
+    {
+      key = tolower($1)
+      if (key == want) {
+        sub(/^[^:]*:[ \t]*/, "", $0)
+        sub(/\r$/, "", $0)
+        print $0
+        exit
+      }
+    }
+  ' "${file}"
+}
+
 export ENV=integration
 export API_ADDR="${INTEGRATION_API_ADDR:-127.0.0.1:18080}"
 export ADMIN_ADDR="${INTEGRATION_ADMIN_ADDR:-127.0.0.1:19090}"
@@ -14020,7 +14037,7 @@ api_key_json="$(curl -fsS -X POST "${api_url}/organizations/${org_id}/api-keys" 
   -H "X-Actor-ID: ${API_ACTOR_ID}" \
   -H "X-Tenant-ID: ${org_id}" \
   -H "Idempotency-Key: integration-create-managed-api-key" \
-  --data '{"name":"Integration","scopes":["widgets:read","widgets:write"]}')"
+  --data '{"name":"Integration","scopes":["widgets:read","widgets:write","operations:read"]}')"
 printf '%s' "${api_key_json}" >"${tmp_dir}/api-key.json"
 managed_api_key="$(json_field secret "${tmp_dir}/api-key.json")"
 if [ -z "${managed_api_key}" ]; then
@@ -14028,12 +14045,89 @@ if [ -z "${managed_api_key}" ]; then
   exit 1
 fi
 
+widget_headers="${tmp_dir}/widget-create.headers"
+widget_body="${tmp_dir}/widget-create.json"
 curl -fsS -X POST "${api_url}/widgets" \
+  -D "${widget_headers}" \
+  -o "${widget_body}" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ${managed_api_key}" \
   -H "X-Tenant-ID: ${org_id}" \
   -H "Idempotency-Key: integration-managed-key-widget" \
-  --data '{"name":"managed-key-widget"}' >/dev/null
+  --data '{"name":"managed-key-widget"}'
+widget_id="$(json_field id "${widget_body}")"
+widget_etag="$(header_value ETag "${widget_headers}")"
+if [ -z "${widget_id}" ] || [ -z "${widget_etag}" ]; then
+  echo "create widget response did not include id and ETag" >&2
+  exit 1
+fi
+
+replay_headers="${tmp_dir}/widget-replay.headers"
+replay_body="${tmp_dir}/widget-replay.json"
+replay_status="$(curl -sS -D "${replay_headers}" -o "${replay_body}" -w '%{http_code}' -X POST "${api_url}/widgets" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${managed_api_key}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-managed-key-widget" \
+  --data '{"name":"managed-key-widget"}')"
+replay_id="$(json_field id "${replay_body}")"
+replay_header="$(header_value Idempotency-Replayed "${replay_headers}")"
+if [ "${replay_status}" != "201" ] || [ "${replay_id}" != "${widget_id}" ] || [ "${replay_header}" != "true" ]; then
+  echo "expected idempotent widget replay, got status ${replay_status}, id ${replay_id}, replay header ${replay_header}" >&2
+  exit 1
+fi
+
+precondition_status="$(curl -sS -o "${tmp_dir}/widget-stale.json" -w '%{http_code}' -X PATCH "${api_url}/widgets/${widget_id}" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${managed_api_key}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "If-Match: stale-etag" \
+  -H "Idempotency-Key: integration-widget-stale-etag" \
+  --data '{"name":"stale-update"}')"
+if [ "${precondition_status}" != "412" ]; then
+  echo "expected stale widget update to return 412, got ${precondition_status}" >&2
+  sed -n '1,80p' "${tmp_dir}/widget-stale.json" >&2 || true
+  exit 1
+fi
+
+curl -fsS -X PATCH "${api_url}/widgets/${widget_id}" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${managed_api_key}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "If-Match: ${widget_etag}" \
+  -H "Idempotency-Key: integration-widget-update" \
+  --data '{"name":"managed-key-widget-updated"}' >/dev/null
+
+import_body="${tmp_dir}/widget-import.json"
+curl -fsS -X POST "${api_url}/widgets/imports" \
+  -o "${import_body}" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${managed_api_key}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-widget-import" \
+  --data '{"items":[{"name":"imported-widget"}]}'
+operation_id="$(json_field id "${import_body}")"
+if [ -z "${operation_id}" ]; then
+  echo "widget import response did not include operation id" >&2
+  exit 1
+fi
+operation_state=""
+for _ in $(seq 1 30); do
+  curl -fsS "${api_url}/operations/${operation_id}" \
+    -o "${tmp_dir}/operation.json" \
+    -H "X-API-Key: ${managed_api_key}" \
+    -H "X-Tenant-ID: ${org_id}"
+  operation_state="$(json_field state "${tmp_dir}/operation.json")"
+  if [ "${operation_state}" = "succeeded" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "${operation_state}" != "succeeded" ]; then
+  echo "operation did not succeed, last state ${operation_state}" >&2
+  sed -n '1,80p' "${tmp_dir}/operation.json" >&2 || true
+  exit 1
+fi
 
 curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Content-Type: application/json" \
@@ -14353,7 +14447,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
