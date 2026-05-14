@@ -91,6 +91,7 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres	supported-adapter	di
 github.com/aatuh/api-toolkit/contrib/v2/adapters/ulid	wrapper-only	wrapper-smoke-tested	Thin ULID generator adapter; smoke coverage is sufficient because behavior is delegated to the ULID generator library.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/validation	experimental	direct-tests	Validation adapter.
+github.com/aatuh/api-toolkit/contrib/v2/async	experimental	direct-tests	Experimental durable async worker contracts and runner.
 github.com/aatuh/api-toolkit/contrib/v2/audit	experimental	direct-tests	Experimental audit event contracts.
 github.com/aatuh/api-toolkit/contrib/v2/audit/audittest	test-only	test-support	Reusable audit recorder contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/bootstrap	supported-adapter	direct-tests	Contrib bootstrap composition helpers.
