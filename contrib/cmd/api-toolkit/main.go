@@ -1059,6 +1059,81 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/APIKey"}},
 		},
 	})
+	registry.RegisterSchema("WebhookEventCatalog", map[string]any{
+		"type":     "object",
+		"required": []string{"event_types"},
+		"properties": map[string]any{
+			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpoint", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "url", "events", "created_at"},
+		"properties": map[string]any{
+			"id":         map[string]any{"type": "string"},
+			"tenant_id":  map[string]any{"type": "string"},
+			"url":        map[string]any{"type": "string", "format": "uri"},
+			"events":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"disabled":   map[string]any{"type": "boolean"},
+			"created_at": map[string]any{"type": "string", "format": "date-time"},
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"url", "events"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"url":    map[string]any{"type": "string", "format": "uri"},
+			"events": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"endpoint", "secret"},
+		"properties": map[string]any{
+			"endpoint": map[string]any{"$ref": "#/components/schemas/WebhookEndpoint"},
+			"secret":   map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WebhookEndpoint"}},
+		},
+	})
+	registry.RegisterSchema("WebhookDelivery", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "endpoint_id", "event_id", "event_type", "url", "state", "attempt", "next_at", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"id":               map[string]any{"type": "string"},
+			"tenant_id":        map[string]any{"type": "string"},
+			"endpoint_id":      map[string]any{"type": "string"},
+			"event_id":         map[string]any{"type": "string"},
+			"event_type":       map[string]any{"type": "string"},
+			"url":              map[string]any{"type": "string", "format": "uri"},
+			"state":            map[string]any{"type": "string", "enum": []string{"pending", "leased", "succeeded", "failed", "dead_letter"}},
+			"attempt":          map[string]any{"type": "integer", "minimum": 0},
+			"next_at":          map[string]any{"type": "string", "format": "date-time"},
+			"last_status_code": map[string]any{"type": "integer", "nullable": true},
+			"last_error":       map[string]any{"type": "string", "nullable": true},
+			"created_at":       map[string]any{"type": "string", "format": "date-time"},
+			"updated_at":       map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("WebhookDeliveryList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WebhookDelivery"}},
+		},
+	})
+	registry.RegisterSchema("WebhookReplayRequest", map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties":           map[string]any{},
+	})
 }
 
 func fullScaffoldOperations(authSchemeName string) []specs.Operation {
@@ -1142,6 +1217,48 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		Description: "API key created",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreated"},
+		},
+	}
+	webhookEventCatalogResponse := specs.Response{
+		Description: "Webhook event catalog",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEventCatalog"},
+		},
+	}
+	webhookEndpointCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointCreateRequest"},
+		},
+	}
+	webhookEndpointCreatedResponse := specs.Response{
+		Description: "Webhook endpoint created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointCreated"},
+		},
+	}
+	webhookEndpointListResponse := specs.Response{
+		Description: "Webhook endpoint list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointList"},
+		},
+	}
+	webhookDeliveryListResponse := specs.Response{
+		Description: "Webhook delivery list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookDeliveryList"},
+		},
+	}
+	webhookDeliveryResponse := specs.Response{
+		Description: "Webhook delivery",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookDelivery"},
+		},
+	}
+	webhookReplayBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookReplayRequest"},
 		},
 	}
 	return []specs.Operation{
@@ -1281,6 +1398,67 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			},
 			Security:  auth("api-keys:write"),
 			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Revoked"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listWebhookEvents",
+			Method:      http.MethodGet,
+			Path:        "/webhook-events",
+			Summary:     "List webhook event types",
+			Security:    auth("webhooks:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: webhookEventCatalogResponse},
+		}, routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationWebhookEndpoints",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/webhook-endpoints",
+			Summary:     "List organization webhook endpoints",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("webhooks:read"),
+			Responses: map[int]specs.Response{http.StatusOK: webhookEndpointListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationWebhookEndpoint",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/webhook-endpoints",
+			Summary:     "Create organization webhook endpoint",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("webhooks:write"),
+			RequestBody: webhookEndpointCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: webhookEndpointCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationWebhookDeliveries",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/webhook-deliveries",
+			Summary:     "List organization webhook deliveries",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("webhooks:read"),
+			Responses: map[int]specs.Response{http.StatusOK: webhookDeliveryListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "replayOrganizationWebhookDelivery",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay",
+			Summary:     "Replay organization webhook delivery",
+			Parameters: []specs.Parameter{
+				{Name: "delivery_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("webhooks:write"),
+			RequestBody: webhookReplayBody,
+			Responses:   map[int]specs.Response{http.StatusAccepted: webhookDeliveryResponse},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
@@ -2485,6 +2663,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/tenancy.go", Body: fullAppTenancyTemplate},
 	{Name: "internal/app/tenancy_test.go", Body: fullAppTenancyTestTemplate},
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
+	{Name: "internal/app/webhooks.go", Body: fullAppWebhooksTemplate},
+	{Name: "internal/app/webhooks_test.go", Body: fullAppWebhooksTestTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -2799,6 +2979,7 @@ func run(ctx context.Context) error {
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
 	asyncJobs := app.NewAsyncService(widgets)
 	auditLog := app.NewAuditService()
+	webhooks := app.NewWebhookService(tenancy)
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2844,7 +3025,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -4024,6 +4205,503 @@ func TestAsyncServiceFailureDoesNotExposePayloadOrRawError(t *testing.T) {
 
 `
 
+// #nosec G101 -- generated source uses webhook signing secret variable names, not hardcoded credentials.
+const fullAppWebhooksTemplate = `package app
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var webhookEventTypes = []string{
+	"widget.created",
+	"widget.updated",
+	"widget.deleted",
+	"widget.import.completed",
+}
+
+type WebhookService struct {
+	mu           sync.Mutex
+	nextEndpoint int
+	nextEvent    int
+	tenancy      *TenancyService
+	now          func() time.Time
+	newSecret    func() (string, error)
+	catalog      webhookdelivery.Catalog
+	endpoints    map[string]endpointRecord
+	deliveries   map[string]webhookdelivery.Delivery
+	jobs         map[string]webhookdelivery.JobPayload
+}
+
+type endpointRecord struct {
+	endpoint   webhookdelivery.Endpoint
+	secretHash string
+}
+
+type WebhookEndpointCreated struct {
+	Endpoint webhookdelivery.Endpoint
+	Secret   string
+}
+
+func NewWebhookService(tenancy *TenancyService) *WebhookService {
+	catalog, _ := webhookdelivery.NewCatalog(webhookEventTypes...)
+	return &WebhookService{
+		tenancy:    tenancy,
+		now:        time.Now,
+		newSecret:  randomToken,
+		catalog:    catalog,
+		endpoints:  map[string]endpointRecord{},
+		deliveries: map[string]webhookdelivery.Delivery{},
+		jobs:       map[string]webhookdelivery.JobPayload{},
+	}
+}
+
+func (s *WebhookService) EventTypes() []string {
+	out := append([]string(nil), webhookEventTypes...)
+	sort.Strings(out)
+	return out
+}
+
+func (s *WebhookService) CreateEndpoint(ctx context.Context, actorID, tenantID, targetURL string, events []string) (WebhookEndpointCreated, error) {
+	if err := ctx.Err(); err != nil {
+		return WebhookEndpointCreated{}, err
+	}
+	if s == nil || s.tenancy == nil {
+		return WebhookEndpointCreated{}, ErrValidation
+	}
+	actorID = strings.TrimSpace(actorID)
+	tenantID = strings.TrimSpace(tenantID)
+	targetURL = strings.TrimSpace(targetURL)
+	if actorID == "" || tenantID == "" || targetURL == "" {
+		return WebhookEndpointCreated{}, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleAdmin)
+	if err != nil {
+		return WebhookEndpointCreated{}, err
+	}
+	if !ok {
+		return WebhookEndpointCreated{}, ErrForbidden
+	}
+	cleanEvents, err := s.cleanEndpointEvents(events)
+	if err != nil {
+		return WebhookEndpointCreated{}, err
+	}
+	secret, err := s.newSecret()
+	if err != nil {
+		return WebhookEndpointCreated{}, err
+	}
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return WebhookEndpointCreated{}, ErrValidation
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextEndpoint++
+	now := s.now().UTC()
+	endpoint := webhookdelivery.Endpoint{
+		ID:            fmt.Sprintf("whend_%06d", s.nextEndpoint),
+		TenantID:      tenantID,
+		URL:           targetURL,
+		SigningSecret: []byte(secret),
+		Events:        cleanEvents,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := webhookdelivery.ValidateEndpoint(endpoint, webhookdelivery.EndpointPolicy{}); err != nil {
+		return WebhookEndpointCreated{}, ErrValidation
+	}
+	s.endpoints[endpoint.ID] = endpointRecord{endpoint: endpoint, secretHash: hashWebhookSecret(secret)}
+	return WebhookEndpointCreated{Endpoint: publicWebhookEndpoint(endpoint), Secret: secret}, nil
+}
+
+func (s *WebhookService) ListEndpointsForActor(ctx context.Context, actorID, tenantID string) ([]webhookdelivery.Endpoint, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.tenancy == nil {
+		return nil, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrForbidden
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]webhookdelivery.Endpoint, 0)
+	for _, record := range s.endpoints {
+		if strings.TrimSpace(record.endpoint.TenantID) == strings.TrimSpace(tenantID) {
+			out = append(out, publicWebhookEndpoint(record.endpoint))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (s *WebhookService) ListEndpoints(ctx context.Context, tenantID, eventType string) ([]webhookdelivery.Endpoint, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	eventType = strings.TrimSpace(eventType)
+	if tenantID == "" || !s.catalog.Allows(eventType) {
+		return nil, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]webhookdelivery.Endpoint, 0)
+	for _, record := range s.endpoints {
+		endpoint := record.endpoint
+		if strings.TrimSpace(endpoint.TenantID) == tenantID && endpoint.SubscribedTo(eventType) {
+			out = append(out, cloneWebhookEndpoint(endpoint))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (s *WebhookService) GetEndpoint(ctx context.Context, tenantID, endpointID string) (webhookdelivery.Endpoint, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return webhookdelivery.Endpoint{}, false, err
+	}
+	if s == nil {
+		return webhookdelivery.Endpoint{}, false, ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	endpointID = strings.TrimSpace(endpointID)
+	if tenantID == "" || endpointID == "" {
+		return webhookdelivery.Endpoint{}, false, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.endpoints[endpointID]
+	if !ok || strings.TrimSpace(record.endpoint.TenantID) != tenantID {
+		return webhookdelivery.Endpoint{}, false, nil
+	}
+	return cloneWebhookEndpoint(record.endpoint), true, nil
+}
+
+func (s *WebhookService) EnqueueDelivery(ctx context.Context, delivery webhookdelivery.Delivery, job webhookdelivery.JobPayload) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	if err := webhookdelivery.ValidateDelivery(delivery); err != nil {
+		return ErrValidation
+	}
+	if job.Event.TenantID != delivery.TenantID || job.DeliveryID != delivery.ID || job.EndpointID != delivery.EndpointID {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.deliveries[delivery.ID]; exists {
+		return nil
+	}
+	s.deliveries[delivery.ID] = delivery
+	s.jobs[delivery.ID] = job
+	return nil
+}
+
+func (s *WebhookService) DispatchEvent(ctx context.Context, tenantID, eventType string, payload any) ([]webhookdelivery.Delivery, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	eventType = strings.TrimSpace(eventType)
+	if tenantID == "" || !s.catalog.Allows(eventType) {
+		return nil, ErrValidation
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil || !json.Valid(encoded) {
+		return nil, ErrValidation
+	}
+	dispatcher, err := webhookdelivery.NewDispatcher(webhookdelivery.DispatcherConfig{
+		Catalog:   s.catalog,
+		Endpoints: s,
+		Store:     s,
+		Clock:     s.now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dispatcher.Dispatch(ctx, webhookdelivery.Event{
+		ID:       s.nextWebhookEventID(),
+		TenantID: tenantID,
+		Type:     eventType,
+		Payload:  encoded,
+	})
+}
+
+func (s *WebhookService) ListDeliveriesForActor(ctx context.Context, actorID, tenantID string) ([]webhookdelivery.Delivery, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.tenancy == nil {
+		return nil, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrForbidden
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]webhookdelivery.Delivery, 0)
+	for _, delivery := range s.deliveries {
+		if strings.TrimSpace(delivery.TenantID) == strings.TrimSpace(tenantID) {
+			out = append(out, delivery)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (s *WebhookService) ReplayDeliveryForActor(ctx context.Context, actorID, tenantID, deliveryID string) (webhookdelivery.Delivery, error) {
+	if err := ctx.Err(); err != nil {
+		return webhookdelivery.Delivery{}, err
+	}
+	if s == nil || s.tenancy == nil {
+		return webhookdelivery.Delivery{}, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleAdmin)
+	if err != nil {
+		return webhookdelivery.Delivery{}, err
+	}
+	if !ok {
+		return webhookdelivery.Delivery{}, ErrForbidden
+	}
+	if err := s.ReplayDelivery(ctx, tenantID, deliveryID, s.now().UTC()); err != nil {
+		return webhookdelivery.Delivery{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deliveries[strings.TrimSpace(deliveryID)], nil
+}
+
+func (s *WebhookService) ReplayDelivery(ctx context.Context, tenantID, deliveryID string, nextAt time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	deliveryID = strings.TrimSpace(deliveryID)
+	if tenantID == "" || deliveryID == "" {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delivery, ok := s.deliveries[deliveryID]
+	if !ok || strings.TrimSpace(delivery.TenantID) != tenantID {
+		return ErrNotFound
+	}
+	if nextAt.IsZero() {
+		nextAt = s.now().UTC()
+	}
+	delivery.State = webhookdelivery.StatePending
+	delivery.NextAt = nextAt.UTC()
+	delivery.UpdatedAt = s.now().UTC()
+	s.deliveries[deliveryID] = delivery
+	return nil
+}
+
+func (s *WebhookService) cleanEndpointEvents(events []string) ([]string, error) {
+	if len(events) == 0 {
+		return nil, ErrValidation
+	}
+	cleaned := make([]string, 0, len(events))
+	seen := map[string]struct{}{}
+	for _, eventType := range events {
+		eventType = strings.TrimSpace(eventType)
+		if eventType == webhookdelivery.AnyEventType {
+			if _, ok := seen[eventType]; !ok {
+				cleaned = append(cleaned, eventType)
+				seen[eventType] = struct{}{}
+			}
+			continue
+		}
+		if !s.catalog.Allows(eventType) {
+			return nil, ErrValidation
+		}
+		if _, ok := seen[eventType]; ok {
+			continue
+		}
+		cleaned = append(cleaned, eventType)
+		seen[eventType] = struct{}{}
+	}
+	if len(cleaned) == 0 {
+		return nil, ErrValidation
+	}
+	sort.Strings(cleaned)
+	return cleaned, nil
+}
+
+func (s *WebhookService) nextWebhookEventID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextEvent++
+	return fmt.Sprintf("evt_%06d", s.nextEvent)
+}
+
+func publicWebhookEndpoint(endpoint webhookdelivery.Endpoint) webhookdelivery.Endpoint {
+	endpoint = cloneWebhookEndpoint(endpoint)
+	endpoint.SigningSecret = nil
+	return endpoint
+}
+
+func cloneWebhookEndpoint(endpoint webhookdelivery.Endpoint) webhookdelivery.Endpoint {
+	endpoint.SigningSecret = append([]byte(nil), endpoint.SigningSecret...)
+	endpoint.Events = append([]string(nil), endpoint.Events...)
+	if endpoint.Headers != nil {
+		endpoint.Headers = endpoint.Headers.Clone()
+	}
+	return endpoint
+}
+
+func hashWebhookSecret(secret string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(secret)))
+	return hex.EncodeToString(sum[:])
+}
+
+var _ webhookdelivery.EndpointRegistry = (*WebhookService)(nil)
+var _ webhookdelivery.EndpointGetter = (*WebhookService)(nil)
+var _ webhookdelivery.DeliveryEnqueuer = (*WebhookService)(nil)
+var _ webhookdelivery.Replayer = (*WebhookService)(nil)
+
+`
+
+// #nosec G101 -- generated tests use fixed webhook signing secret fixtures.
+const fullAppWebhooksTestTemplate = `package app
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+)
+
+func TestWebhookServiceCreatesEndpointAndDispatchesTenantDelivery(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewWebhookService(tenancy)
+	service.newSecret = func() (string, error) { return "webhook-secret-value", nil }
+
+	created, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "https://example.com/webhooks/widgets", []string{"widget.created"})
+	if err != nil {
+		t.Fatalf("CreateEndpoint() error = %v", err)
+	}
+	if created.Secret != "webhook-secret-value" || created.Endpoint.ID == "" || len(created.Endpoint.SigningSecret) != 0 {
+		t.Fatalf("created endpoint leaked or missed secret data: %#v", created)
+	}
+
+	listed, err := service.ListEndpointsForActor(ctx, "owner_1", org.ID)
+	if err != nil {
+		t.Fatalf("ListEndpointsForActor() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != created.Endpoint.ID || len(listed[0].SigningSecret) != 0 {
+		t.Fatalf("listed endpoints = %#v", listed)
+	}
+
+	deliveries, err := service.DispatchEvent(ctx, org.ID, "widget.created", map[string]any{"id": "wgt_1"})
+	if err != nil {
+		t.Fatalf("DispatchEvent() error = %v", err)
+	}
+	if len(deliveries) != 1 || deliveries[0].EndpointID != created.Endpoint.ID || deliveries[0].State != webhookdelivery.StatePending {
+		t.Fatalf("deliveries = %#v", deliveries)
+	}
+	deliveryList, err := service.ListDeliveriesForActor(ctx, "owner_1", org.ID)
+	if err != nil {
+		t.Fatalf("ListDeliveriesForActor() error = %v", err)
+	}
+	encoded, err := json.Marshal(deliveryList)
+	if err != nil {
+		t.Fatalf("marshal deliveries: %v", err)
+	}
+	if strings.Contains(string(encoded), created.Secret) {
+		t.Fatalf("delivery list leaked signing secret: %s", encoded)
+	}
+	if _, ok, err := service.GetEndpoint(ctx, org.ID, created.Endpoint.ID); err != nil || !ok {
+		t.Fatalf("GetEndpoint() ok=%v err=%v", ok, err)
+	}
+	if _, ok, err := service.GetEndpoint(ctx, "org_other", created.Endpoint.ID); err != nil || ok {
+		t.Fatalf("cross-tenant GetEndpoint() ok=%v err=%v", ok, err)
+	}
+}
+
+func TestWebhookServiceRejectsUnsafeEndpointAndReplaysTenantScopedDelivery(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewWebhookService(tenancy)
+	service.newSecret = func() (string, error) { return "webhook-secret-value", nil }
+
+	if _, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "http://example.com/insecure", []string{"widget.created"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsafe endpoint error = %v, want %v", err, ErrValidation)
+	}
+	if _, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "https://example.com/webhooks", []string{"unsupported.event"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsupported event error = %v, want %v", err, ErrValidation)
+	}
+
+	created, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "https://example.com/webhooks", []string{"widget.created"})
+	if err != nil {
+		t.Fatalf("CreateEndpoint() error = %v", err)
+	}
+	deliveries, err := service.DispatchEvent(ctx, org.ID, "widget.created", map[string]any{"id": "wgt_1"})
+	if err != nil {
+		t.Fatalf("DispatchEvent() error = %v", err)
+	}
+	if len(deliveries) != 1 {
+		t.Fatalf("deliveries = %#v", deliveries)
+	}
+	if _, err := service.ReplayDeliveryForActor(ctx, "owner_1", "org_other", deliveries[0].ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("cross-tenant replay error = %v, want %v", err, ErrForbidden)
+	}
+	replayed, err := service.ReplayDeliveryForActor(ctx, "owner_1", org.ID, deliveries[0].ID)
+	if err != nil {
+		t.Fatalf("ReplayDeliveryForActor() error = %v", err)
+	}
+	if replayed.ID != deliveries[0].ID || replayed.EndpointID != created.Endpoint.ID || replayed.State != webhookdelivery.StatePending {
+		t.Fatalf("replayed delivery = %#v", replayed)
+	}
+}
+
+`
+
 // #nosec G101 -- generated source uses invitation token variables, not hardcoded secrets.
 const fullAppTenancyTemplate = `package app
 
@@ -4917,6 +5595,81 @@ func registerSchemas(registry *specs.Registry) {
 			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/APIKey"}},
 		},
 	})
+	registry.RegisterSchema("WebhookEventCatalog", map[string]any{
+		"type":     "object",
+		"required": []string{"event_types"},
+		"properties": map[string]any{
+			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpoint", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "url", "events", "created_at"},
+		"properties": map[string]any{
+			"id":         map[string]any{"type": "string"},
+			"tenant_id":  map[string]any{"type": "string"},
+			"url":        map[string]any{"type": "string", "format": "uri"},
+			"events":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"disabled":   map[string]any{"type": "boolean"},
+			"created_at": map[string]any{"type": "string", "format": "date-time"},
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"url", "events"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"url":    map[string]any{"type": "string", "format": "uri"},
+			"events": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"endpoint", "secret"},
+		"properties": map[string]any{
+			"endpoint": map[string]any{"$ref": "#/components/schemas/WebhookEndpoint"},
+			"secret":   map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("WebhookEndpointList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WebhookEndpoint"}},
+		},
+	})
+	registry.RegisterSchema("WebhookDelivery", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "endpoint_id", "event_id", "event_type", "url", "state", "attempt", "next_at", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"id":               map[string]any{"type": "string"},
+			"tenant_id":        map[string]any{"type": "string"},
+			"endpoint_id":      map[string]any{"type": "string"},
+			"event_id":         map[string]any{"type": "string"},
+			"event_type":       map[string]any{"type": "string"},
+			"url":              map[string]any{"type": "string", "format": "uri"},
+			"state":            map[string]any{"type": "string", "enum": []string{"pending", "leased", "succeeded", "failed", "dead_letter"}},
+			"attempt":          map[string]any{"type": "integer", "minimum": 0},
+			"next_at":          map[string]any{"type": "string", "format": "date-time"},
+			"last_status_code": map[string]any{"type": "integer", "nullable": true},
+			"last_error":       map[string]any{"type": "string", "nullable": true},
+			"created_at":       map[string]any{"type": "string", "format": "date-time"},
+			"updated_at":       map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("WebhookDeliveryList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WebhookDelivery"}},
+		},
+	})
+	registry.RegisterSchema("WebhookReplayRequest", map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties":           map[string]any{},
+	})
 }
 
 func operations() []specs.Operation {
@@ -5000,6 +5753,48 @@ func operations() []specs.Operation {
 		Description: "API key created",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreated"},
+		},
+	}
+	webhookEventCatalogResponse := specs.Response{
+		Description: "Webhook event catalog",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEventCatalog"},
+		},
+	}
+	webhookEndpointCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointCreateRequest"},
+		},
+	}
+	webhookEndpointCreatedResponse := specs.Response{
+		Description: "Webhook endpoint created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointCreated"},
+		},
+	}
+	webhookEndpointListResponse := specs.Response{
+		Description: "Webhook endpoint list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookEndpointList"},
+		},
+	}
+	webhookDeliveryListResponse := specs.Response{
+		Description: "Webhook delivery list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookDeliveryList"},
+		},
+	}
+	webhookDeliveryResponse := specs.Response{
+		Description: "Webhook delivery",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookDelivery"},
+		},
+	}
+	webhookReplayBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WebhookReplayRequest"},
 		},
 	}
 	return []specs.Operation{
@@ -5139,6 +5934,67 @@ func operations() []specs.Operation {
 			},
 			Security:  auth("api-keys:write"),
 			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Revoked"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listWebhookEvents",
+			Method:      http.MethodGet,
+			Path:        "/webhook-events",
+			Summary:     "List webhook event types",
+			Security:    auth("webhooks:read"),
+			Responses:   map[int]specs.Response{http.StatusOK: webhookEventCatalogResponse},
+		}, routepolicy.WithProblemResponses(http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationWebhookEndpoints",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/webhook-endpoints",
+			Summary:     "List organization webhook endpoints",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("webhooks:read"),
+			Responses: map[int]specs.Response{http.StatusOK: webhookEndpointListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationWebhookEndpoint",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/webhook-endpoints",
+			Summary:     "Create organization webhook endpoint",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("webhooks:write"),
+			RequestBody: webhookEndpointCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: webhookEndpointCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationWebhookDeliveries",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/webhook-deliveries",
+			Summary:     "List organization webhook deliveries",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("webhooks:read"),
+			Responses: map[int]specs.Response{http.StatusOK: webhookDeliveryListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "replayOrganizationWebhookDelivery",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay",
+			Summary:     "Replay organization webhook delivery",
+			Parameters: []specs.Parameter{
+				{Name: "delivery_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("webhooks:write"),
+			RequestBody: webhookReplayBody,
+			Responses:   map[int]specs.Response{http.StatusAccepted: webhookDeliveryResponse},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
@@ -5391,6 +6247,7 @@ type RouterConfig struct {
 	APIKeys  *app.APIKeyService
 	Async    *app.AsyncService
 	Audit    *app.AuditService
+	Webhooks *app.WebhookService
 	Readiness HealthChecker
 	APIKey   string
 	AdminKey string
@@ -5425,6 +6282,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("GET /organizations/{organization_id}/api-keys", cfg.protect("api-keys:read", http.HandlerFunc(cfg.handleListAPIKeys)))
 	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleCreateAPIKey)))
 	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleRevokeAPIKey)))
+	mux.Handle("GET /webhook-events", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEvents)))
+	mux.Handle("GET /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEndpoints)))
+	mux.Handle("POST /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleCreateWebhookEndpoint)))
+	mux.Handle("GET /organizations/{organization_id}/webhook-deliveries", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookDeliveries)))
+	mux.Handle("POST /organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleReplayWebhookDelivery)))
 	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
 	mux.Handle("GET /operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
@@ -5470,6 +6332,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	}
 	if cfg.Audit == nil {
 		cfg.Audit = app.NewAuditService()
+	}
+	if cfg.Webhooks == nil {
+		cfg.Webhooks = app.NewWebhookService(cfg.Tenancy)
 	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
@@ -5696,6 +6561,101 @@ func (cfg RouterConfig) handleRevokeAPIKey(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (cfg RouterConfig) handleListWebhookEvents(w http.ResponseWriter, r *http.Request) {
+	if _, ok := cfg.authenticateActor(w, r); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"event_types": cfg.Webhooks.EventTypes()})
+}
+
+func (cfg RouterConfig) handleListWebhookEndpoints(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	endpoints, err := cfg.Webhooks.ListEndpointsForActor(r.Context(), actorID, organizationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": endpoints})
+}
+
+func (cfg RouterConfig) handleCreateWebhookEndpoint(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeWebhookEndpointRequest(w, r)
+	if !ok {
+		return
+	}
+	created, err := cfg.Webhooks.CreateEndpoint(r.Context(), actorID, organizationID, req.URL, req.Events)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	cfg.recordAudit(r, organizationID, actorID, "webhook_endpoint.create", "webhook_endpoint", created.Endpoint.ID, map[string]string{"event_count": strconv.Itoa(len(created.Endpoint.Events))})
+	writeJSON(w, http.StatusCreated, map[string]any{"endpoint": created.Endpoint, "secret": created.Secret})
+}
+
+func (cfg RouterConfig) handleListWebhookDeliveries(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	deliveries, err := cfg.Webhooks.ListDeliveriesForActor(r.Context(), actorID, organizationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": deliveries})
+}
+
+func (cfg RouterConfig) handleReplayWebhookDelivery(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	if !decodeWebhookReplayRequest(w, r) {
+		return
+	}
+	deliveryID := strings.TrimSpace(r.PathValue("delivery_id"))
+	if deliveryID == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "delivery id is required"})
+		return
+	}
+	delivery, err := cfg.Webhooks.ReplayDeliveryForActor(r.Context(), actorID, organizationID, deliveryID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	cfg.recordAudit(r, organizationID, actorID, "webhook_delivery.replay", "webhook_delivery", delivery.ID, map[string]string{"event_type": delivery.EventType})
+	writeJSON(w, http.StatusAccepted, delivery)
+}
+
 func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := cfg.authenticateActor(w, r)
 	if !ok {
@@ -5788,6 +6748,12 @@ func (cfg RouterConfig) handleCreateWidget(w http.ResponseWriter, r *http.Reques
 	if replayed {
 		status = http.StatusOK
 	}
+	if !replayed {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "widget.created", map[string]any{"id": widget.ID, "tenant_id": tenantID, "version": widget.Version}); err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
 	cfg.recordAudit(r, tenantID, actorID, "widget.create", "widget", widget.ID, map[string]string{"replayed": strconv.FormatBool(replayed)})
 	writeJSON(w, status, widget.Public())
 }
@@ -5849,12 +6815,18 @@ func (cfg RouterConfig) handleUpdateWidget(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	widget, _, err := cfg.Widgets.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch, idempotencyKey)
+	widget, replayed, err := cfg.Widgets.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch, idempotencyKey)
 	if err != nil {
 		writeAppError(w, err)
 		return
 	}
 	w.Header().Set("ETag", widget.ETag())
+	if !replayed {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "widget.updated", map[string]any{"id": widget.ID, "tenant_id": tenantID, "version": widget.Version}); err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
 	cfg.recordAudit(r, tenantID, actorID, "widget.update", "widget", widget.ID, nil)
 	writeJSON(w, http.StatusOK, widget.Public())
 }
@@ -5872,9 +6844,16 @@ func (cfg RouterConfig) handleDeleteWidget(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, err := cfg.Widgets.Delete(r.Context(), tenantID, r.PathValue("id"), idempotencyKey); err != nil {
+	replayed, err := cfg.Widgets.Delete(r.Context(), tenantID, r.PathValue("id"), idempotencyKey)
+	if err != nil {
 		writeAppError(w, err)
 		return
+	}
+	if !replayed {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "widget.deleted", map[string]any{"id": strings.TrimSpace(r.PathValue("id")), "tenant_id": tenantID}); err != nil {
+			writeAppError(w, err)
+			return
+		}
 	}
 	cfg.recordAudit(r, tenantID, actorID, "widget.delete", "widget", r.PathValue("id"), nil)
 	w.WriteHeader(http.StatusNoContent)
@@ -5905,6 +6884,11 @@ type apiKeyCreateRequest struct {
 	Name      string
 	Scopes    []string
 	ExpiresAt *time.Time
+}
+
+type webhookEndpointRequest struct {
+	URL    string
+	Events []string
 }
 
 func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organizationRequest, bool) {
@@ -5999,6 +6983,53 @@ func decodeAPIKeyCreateRequest(w http.ResponseWriter, r *http.Request) (apiKeyCr
 		expiresAt = &parsed
 	}
 	return apiKeyCreateRequest{Name: name, Scopes: scopes, ExpiresAt: expiresAt}, true
+}
+
+func decodeWebhookEndpointRequest(w http.ResponseWriter, r *http.Request) (webhookEndpointRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		URL    string   ` + "`json:\"url\"`" + `
+		Events []string ` + "`json:\"events\"`" + `
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return webhookEndpointRequest{}, false
+	}
+	targetURL := strings.TrimSpace(raw.URL)
+	if targetURL == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "url is required"})
+		return webhookEndpointRequest{}, false
+	}
+	events := make([]string, 0, len(raw.Events))
+	for _, eventType := range raw.Events {
+		eventType = strings.TrimSpace(eventType)
+		if eventType != "" {
+			events = append(events, eventType)
+		}
+	}
+	if len(events) == 0 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one event is required"})
+		return webhookEndpointRequest{}, false
+	}
+	return webhookEndpointRequest{URL: targetURL, Events: events}, true
+}
+
+func decodeWebhookReplayRequest(w http.ResponseWriter, r *http.Request) bool {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw map[string]any
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return false
+	}
+	if len(raw) != 0 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "replay body must be empty"})
+		return false
+	}
+	return true
 }
 
 func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
@@ -6722,6 +7753,94 @@ func TestWriteRoutesRecordAuditWithoutSecrets(t *testing.T) {
 	}
 }
 
+func TestWebhookEndpointDeliveryAndReplayFlow(t *testing.T) {
+	handler := newTestRouter(t)
+	orgID := createOrganization(t, handler, "owner_1", "Acme")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/webhook-events", nil)
+	authorizeTestRequestAs(t, req, "", "owner_1", "webhooks:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "widget.created") {
+		t.Fatalf("webhook event catalog status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/webhook-endpoints", strings.NewReader(` + "`" + `{"url":"https://example.com/webhooks/widgets","events":["widget.created"]}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "webhooks:write")
+	req.Header.Set("Idempotency-Key", "create-webhook")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create webhook endpoint status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var endpointBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &endpointBody); err != nil {
+		t.Fatalf("decode endpoint body: %v", err)
+	}
+	secret, _ := endpointBody["secret"].(string)
+	endpoint, _ := endpointBody["endpoint"].(map[string]any)
+	endpointID, _ := endpoint["id"].(string)
+	if secret == "" || endpointID == "" {
+		t.Fatalf("endpoint response = %#v", endpointBody)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/webhook-endpoints", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "webhooks:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), endpointID) {
+		t.Fatalf("list webhook endpoints status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("list webhook endpoints leaked signing secret: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"emits-webhook"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "widgets:write")
+	req.Header.Set("Idempotency-Key", "webhook-widget")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create widget for webhook status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/webhook-deliveries", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "webhooks:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "widget.created") || !strings.Contains(rec.Body.String(), endpointID) {
+		t.Fatalf("list webhook deliveries status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("list webhook deliveries leaked signing secret: %s", rec.Body.String())
+	}
+	var deliveryBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &deliveryBody); err != nil {
+		t.Fatalf("decode delivery list: %v", err)
+	}
+	items, _ := deliveryBody["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("delivery items = %#v", deliveryBody)
+	}
+	first, _ := items[0].(map[string]any)
+	deliveryID, _ := first["id"].(string)
+	if deliveryID == "" {
+		t.Fatalf("delivery item missing id: %#v", first)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/webhook-deliveries/"+deliveryID+"/replay", strings.NewReader(` + "`" + `{}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "webhooks:write")
+	req.Header.Set("Idempotency-Key", "replay-webhook")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted || !strings.Contains(rec.Body.String(), deliveryID) {
+		t.Fatalf("replay webhook delivery status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("replay webhook delivery leaked signing secret: %s", rec.Body.String())
+	}
+}
+
 func TestOpenAPIGolden(t *testing.T) {
 	got, err := OpenAPIDocument()
 	if err != nil {
@@ -7340,8 +8459,8 @@ go run ./cmd/api
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
-Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, and idempotency keys are not audit metadata.
-The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, and an async widget import with pollable operation state. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
+Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
+The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, and outbound webhook endpoint/delivery/replay routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
 

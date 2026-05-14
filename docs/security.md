@@ -134,6 +134,12 @@ Goal:
   of storing raw endpoint secrets in webhook endpoint rows. Keep receiver
   allow-lists, SSRF-aware transports, duplicate suppression, provider schemas,
   and endpoint-secret rotation in application-owned code.
+- Generated full-profile webhook endpoint creation returns the signing secret
+  once and omits it from endpoint lists, delivery lists, replay responses,
+  audit metadata, and Problem Details. Treat webhook target URLs as operator or
+  tenant-admin input only; production delivery workers should use SSRF-aware
+  outbound transports and receiver allow-lists where your threat model requires
+  them.
 - Webhook delivery metrics and request-log hooks expose only bounded event
   type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
   delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those

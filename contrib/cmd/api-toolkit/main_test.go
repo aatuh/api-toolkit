@@ -739,6 +739,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/app/tenancy.go",
 		"internal/app/tenancy_test.go",
 		"internal/app/widgets.go",
+		"internal/app/webhooks.go",
+		"internal/app/webhooks_test.go",
 		"internal/adapters/postgres/postgres.go",
 		"internal/adapters/postgres/postgres_test.go",
 		"internal/httpapi/router.go",
@@ -808,7 +810,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "recordAudit", "Readiness HealthChecker"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "recordAudit", "Readiness HealthChecker"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -818,7 +820,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "app.NewAuditService", "Audit: auditLog", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "app.NewAuditService", "app.NewWebhookService", "Audit: auditLog", "Webhooks: webhooks", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
@@ -828,7 +830,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile client: %v", err)
 	}
-	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) CreateWidgetImport", "func (c *Client) GetOperation", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "func (c *Client) CreateOrganizationAPIKey", "func (c *Client) RevokeOrganizationAPIKey", "PathParam(\"id\",", "PathParam(\"organization_id\",", "PathParam(\"api_key_id\","} {
+	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) CreateWidgetImport", "func (c *Client) GetOperation", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "func (c *Client) CreateOrganizationAPIKey", "func (c *Client) RevokeOrganizationAPIKey", "func (c *Client) CreateOrganizationWebhookEndpoint", "func (c *Client) ReplayOrganizationWebhookDelivery", "PathParam(\"id\",", "PathParam(\"organization_id\",", "PathParam(\"api_key_id\",", "PathParam(\"delivery_id\","} {
 		if !strings.Contains(string(generatedClient), want) {
 			t.Fatalf("generated full-profile client missing %q", want)
 		}
