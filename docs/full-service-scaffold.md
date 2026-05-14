@@ -20,7 +20,8 @@ Current implementation status: the generator emits the initial full-profile
 foundation with API-key auth, tenant-scoped widget writes, idempotent create
 replay, optimistic-update ETags, Postgres migrations, Docker Compose with
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
-checks, contract lint/diff targets, and generated HTTP smoke tests. The
+checks, contract lint/diff targets, generated HTTP smoke tests, and a generated
+widget import operation that returns `202 Accepted` and can be polled. The
 generated application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
 invitation acceptance. It also includes generated API-key lifecycle services
@@ -51,8 +52,10 @@ The full profile standardizes these defaults:
   peppered SHA-256 hash, exposes a non-secret prefix for display, tracks
   `last_used_at` on verification, and supports revocation.
 - Unsafe writes remain tenant-scoped and idempotent by default.
-- Durable async routes return `202 Accepted`, write operation state, enqueue
-  transactional outbox work, and expose pollable operation resources.
+- The generated widget import route returns `202 Accepted`, writes tenant-scoped
+  operation state, enqueues a durable-async-shaped outbox job, exposes
+  `GET /operations/{id}`, and includes app tests for replay-safe processing and
+  sanitized failure problems.
 - Audit events record actor type, actor ID, tenant, action, resource, result,
   request ID, and redaction-safe metadata.
 - Webhook delivery signs outbound tenant-scoped events, rejects unsafe endpoint

@@ -62,6 +62,11 @@ source of truth is `docs/release-runbook.md`.
   now emits matching bearer-auth runtime wiring, generated auth tests, tenant
   claim checks, scope checks, and BearerAuth OpenAPI security instead of falling
   back to API-key-shaped full-profile router code.
+- Generated `saas-api-full` services now include an async widget import
+  workflow using `202 Accepted`, `Location`/`Retry-After`, tenant-scoped
+  operation polling at `GET /operations/{id}`, replay-safe idempotency, a
+  generated worker service over the contrib async store/handler contracts, and
+  OpenAPI/client coverage for `createWidgetImport` and `getOperation`.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
