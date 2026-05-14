@@ -2789,6 +2789,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/adapters/postgres/tenancy_test.go", Body: fullPostgresTenancyStoreTestTemplate},
 	{Name: "internal/adapters/postgres/widgets.go", Body: fullPostgresWidgetStoreTemplate},
 	{Name: "internal/adapters/postgres/widgets_test.go", Body: fullPostgresWidgetStoreTestTemplate},
+	{Name: "internal/adapters/postgres/objects.go", Body: fullPostgresObjectStoreTemplate},
+	{Name: "internal/adapters/postgres/objects_test.go", Body: fullPostgresObjectStoreTestTemplate},
 	{Name: "internal/adapters/postgres/api_keys.go", Body: fullPostgresAPIKeyStoreTemplate},
 	{Name: "internal/adapters/postgres/api_keys_test.go", Body: fullPostgresAPIKeyStoreTestTemplate},
 	{Name: "internal/adapters/postgres/async.go", Body: fullPostgresAsyncStoreTemplate},
@@ -3121,6 +3123,7 @@ func run(ctx context.Context) error {
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
 	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
+	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	var postgresPool ports.DatabasePool
@@ -3150,6 +3153,7 @@ func run(ctx context.Context) error {
 			return err
 		}
 		webhooks = app.NewWebhookServiceWithStore(tenancy, webhookStore)
+		objectMetadata = postgres.NewObjectStore(pool)
 		objects = app.NewObjectService(tenancy)
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
@@ -3164,7 +3168,7 @@ func run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		objects = app.NewObjectServiceWithBlobStore(tenancy, blobStore)
+		objects = app.NewObjectServiceWithStores(tenancy, objectMetadata, blobStore)
 	}
 	if strings.EqualFold(cfg.CacheStore, "redis") {
 		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -5753,7 +5757,15 @@ type ObjectService struct {
 	now     func() time.Time
 	objects map[string]Object
 	data    map[string][]byte
+	store   ObjectMetadataStore
 	blobs   ObjectBlobStore
+}
+
+type ObjectMetadataStore interface {
+	SaveObjectMetadata(ctx context.Context, object Object) error
+	GetObjectMetadata(ctx context.Context, tenantID, key string) (Object, bool, error)
+	ListObjectMetadata(ctx context.Context, tenantID string) ([]Object, error)
+	DeleteObjectMetadata(ctx context.Context, tenantID, key string) (bool, error)
 }
 
 type ObjectBlobStore interface {
@@ -5798,7 +5810,12 @@ func NewObjectService(tenancy *TenancyService) *ObjectService {
 }
 
 func NewObjectServiceWithBlobStore(tenancy *TenancyService, blobs ObjectBlobStore) *ObjectService {
+	return NewObjectServiceWithStores(tenancy, nil, blobs)
+}
+
+func NewObjectServiceWithStores(tenancy *TenancyService, store ObjectMetadataStore, blobs ObjectBlobStore) *ObjectService {
 	service := NewObjectService(tenancy)
+	service.store = store
 	service.blobs = blobs
 	return service
 }
@@ -5831,9 +5848,35 @@ func (s *ObjectService) Put(ctx context.Context, actorID, tenantID, key, content
 	tenantID = strings.TrimSpace(tenantID)
 	now := s.now().UTC()
 	id := objectID(tenantID, key)
+	obj := Object{TenantID: tenantID, Key: key, ContentType: contentType, Size: int64(len(data)), CreatedAt: now, UpdatedAt: now}
+	if s.store != nil {
+		existing, ok, err := s.store.GetObjectMetadata(ctx, tenantID, key)
+		if err != nil {
+			return Object{}, err
+		}
+		if ok {
+			obj.CreatedAt = existing.CreatedAt
+		}
+		if s.blobs != nil {
+			if err := s.blobs.PutObject(ctx, ObjectRef{TenantID: tenantID, Key: key}, append([]byte(nil), data...), contentType); err != nil {
+				return Object{}, err
+			}
+		}
+		if err := s.store.SaveObjectMetadata(ctx, obj); err != nil {
+			if s.blobs != nil {
+				_, _ = s.blobs.DeleteObject(ctx, ObjectRef{TenantID: tenantID, Key: key})
+			}
+			return Object{}, err
+		}
+		if s.blobs == nil {
+			s.mu.Lock()
+			s.data[id] = append([]byte(nil), data...)
+			s.mu.Unlock()
+		}
+		return obj, nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	obj := Object{TenantID: tenantID, Key: key, ContentType: contentType, Size: int64(len(data)), CreatedAt: now, UpdatedAt: now}
 	if existing, ok := s.objects[id]; ok {
 		obj.CreatedAt = existing.CreatedAt
 	}
@@ -5863,6 +5906,29 @@ func (s *ObjectService) Get(ctx context.Context, actorID, tenantID, key string) 
 	}
 	if !ok {
 		return Object{}, nil, false, ErrForbidden
+	}
+	if s.store != nil {
+		tenantID = strings.TrimSpace(tenantID)
+		key = strings.TrimSpace(key)
+		obj, ok, err := s.store.GetObjectMetadata(ctx, tenantID, key)
+		if err != nil || !ok {
+			return Object{}, nil, ok, err
+		}
+		if s.blobs != nil {
+			blob, ok, err := s.blobs.GetObject(ctx, ObjectRef{TenantID: tenantID, Key: key})
+			if err != nil || !ok {
+				return Object{}, nil, ok, err
+			}
+			return obj, append([]byte(nil), blob.Data...), true, nil
+		}
+		id := objectID(tenantID, key)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		data, ok := s.data[id]
+		if !ok {
+			return Object{}, nil, false, nil
+		}
+		return obj, append([]byte(nil), data...), true, nil
 	}
 	if s.blobs != nil {
 		blob, ok, err := s.blobs.GetObject(ctx, ObjectRef{TenantID: strings.TrimSpace(tenantID), Key: strings.TrimSpace(key)})
@@ -5898,6 +5964,9 @@ func (s *ObjectService) List(ctx context.Context, actorID, tenantID string) ([]O
 		return nil, ErrForbidden
 	}
 	tenantID = strings.TrimSpace(tenantID)
+	if s.store != nil {
+		return s.store.ListObjectMetadata(ctx, tenantID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]Object, 0)
@@ -5926,6 +5995,32 @@ func (s *ObjectService) Delete(ctx context.Context, actorID, tenantID, key strin
 	}
 	if !ok {
 		return ErrForbidden
+	}
+	if s.store != nil {
+		tenantID = strings.TrimSpace(tenantID)
+		key = strings.TrimSpace(key)
+		if _, ok, err := s.store.GetObjectMetadata(ctx, tenantID, key); err != nil {
+			return err
+		} else if !ok {
+			return ErrNotFound
+		}
+		if s.blobs != nil {
+			if _, err := s.blobs.DeleteObject(ctx, ObjectRef{TenantID: tenantID, Key: key}); err != nil {
+				return err
+			}
+		}
+		deleted, err := s.store.DeleteObjectMetadata(ctx, tenantID, key)
+		if err != nil {
+			return err
+		}
+		if !deleted {
+			return ErrNotFound
+		}
+		id := objectID(tenantID, key)
+		s.mu.Lock()
+		delete(s.data, id)
+		s.mu.Unlock()
+		return nil
 	}
 	if s.blobs != nil {
 		ok, err := s.blobs.DeleteObject(ctx, ObjectRef{TenantID: strings.TrimSpace(tenantID), Key: strings.TrimSpace(key)})
@@ -5977,6 +6072,7 @@ const fullAppObjectsTestTemplate = `package app
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 )
 
@@ -6064,6 +6160,81 @@ func TestObjectServiceWithBlobStoreKeepsTenantPolicy(t *testing.T) {
 	if !blobs.deleted {
 		t.Fatalf("blob was not deleted")
 	}
+}
+
+func TestObjectServiceWithMetadataStorePersistsListAndDelete(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	metadata := newRecordingObjectMetadataStore()
+	blobs := newRecordingObjectBlobStore()
+	service := NewObjectServiceWithStores(tenancy, metadata, blobs)
+	obj, err := service.Put(ctx, "owner_1", org.ID, "readme.txt", "text/plain", []byte("hello"))
+	if err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	if metadata.saved.Key != "readme.txt" || metadata.saved.Size != 5 {
+		t.Fatalf("saved metadata = %#v", metadata.saved)
+	}
+	listed, err := service.List(ctx, "owner_1", org.ID)
+	if err != nil || len(listed) != 1 || listed[0].Key != obj.Key {
+		t.Fatalf("List() = %#v err=%v", listed, err)
+	}
+	got, data, ok, err := service.Get(ctx, "owner_1", org.ID, "readme.txt")
+	if err != nil || !ok || got.CreatedAt != obj.CreatedAt || string(data) != "hello" {
+		t.Fatalf("Get() object=%#v data=%q ok=%v err=%v", got, data, ok, err)
+	}
+	if err := service.Delete(ctx, "owner_1", org.ID, "readme.txt"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if !metadata.deleted || !blobs.deleted {
+		t.Fatalf("delete did not update metadata/blob: metadata=%v blob=%v", metadata.deleted, blobs.deleted)
+	}
+}
+
+type recordingObjectMetadataStore struct {
+	objects map[string]Object
+	saved   Object
+	deleted bool
+}
+
+func newRecordingObjectMetadataStore() *recordingObjectMetadataStore {
+	return &recordingObjectMetadataStore{objects: map[string]Object{}}
+}
+
+func (s *recordingObjectMetadataStore) SaveObjectMetadata(_ context.Context, object Object) error {
+	s.saved = object
+	s.objects[objectID(object.TenantID, object.Key)] = object
+	return nil
+}
+
+func (s *recordingObjectMetadataStore) GetObjectMetadata(_ context.Context, tenantID, key string) (Object, bool, error) {
+	object, ok := s.objects[objectID(tenantID, key)]
+	return object, ok, nil
+}
+
+func (s *recordingObjectMetadataStore) ListObjectMetadata(_ context.Context, tenantID string) ([]Object, error) {
+	out := make([]Object, 0, len(s.objects))
+	for _, object := range s.objects {
+		if object.TenantID == tenantID {
+			out = append(out, object)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, nil
+}
+
+func (s *recordingObjectMetadataStore) DeleteObjectMetadata(_ context.Context, tenantID, key string) (bool, error) {
+	id := objectID(tenantID, key)
+	if _, ok := s.objects[id]; !ok {
+		return false, nil
+	}
+	delete(s.objects, id)
+	s.deleted = true
+	return true, nil
 }
 
 type recordingObjectBlobStore struct {
@@ -6938,6 +7109,7 @@ var RequiredTables = []string{
 	"operations",
 	"outbox_events",
 	"audit_events",
+	"objects",
 	"webhook_endpoints",
 	"webhook_deliveries",
 }
@@ -7916,6 +8088,356 @@ func scanFakeWidgetValues(values []any, dest ...any) error {
 			value, ok := values[i].(bool)
 			if !ok {
 				return fmt.Errorf("value %d is %T, want bool", i, values[i])
+			}
+			*d = value
+		case *time.Time:
+			value, ok := values[i].(time.Time)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want time.Time", i, values[i])
+			}
+			*d = value
+		default:
+			return fmt.Errorf("unsupported destination %T", dest[i])
+		}
+	}
+	return nil
+}
+`
+
+const fullPostgresObjectStoreTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{ .Module }}/internal/app"
+)
+
+var (
+	ErrObjectStoreRequired = errors.New("postgres object store db is required")
+	ErrObjectInvalid       = errors.New("postgres object metadata is invalid")
+)
+
+type ObjectDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+type ObjectStore struct {
+	db ObjectDB
+}
+
+func NewObjectStore(db ObjectDB) *ObjectStore {
+	return &ObjectStore{db: db}
+}
+
+func (s *ObjectStore) SaveObjectMetadata(ctx context.Context, object app.Object) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrObjectStoreRequired
+	}
+	object.TenantID = strings.TrimSpace(object.TenantID)
+	object.Key = strings.TrimSpace(object.Key)
+	object.ContentType = strings.TrimSpace(object.ContentType)
+	if object.TenantID == "" || object.Key == "" || object.ContentType == "" || object.Size < 0 || object.CreatedAt.IsZero() || object.UpdatedAt.IsZero() {
+		return ErrObjectInvalid
+	}
+	var savedKey string
+	if err := s.db.QueryRow(ctx,
+		"insert into objects (organization_id, key, content_type, size, created_at, updated_at) "+
+			"values ($1, $2, $3, $4, $5, $6) "+
+			"on conflict (organization_id, key) do update set content_type=excluded.content_type, size=excluded.size, updated_at=excluded.updated_at "+
+			"returning key",
+		object.TenantID,
+		object.Key,
+		object.ContentType,
+		object.Size,
+		object.CreatedAt.UTC(),
+		object.UpdatedAt.UTC(),
+	).Scan(&savedKey); err != nil {
+		return fmt.Errorf("save object metadata: %w", err)
+	}
+	return nil
+}
+
+func (s *ObjectStore) GetObjectMetadata(ctx context.Context, tenantID, key string) (app.Object, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return app.Object{}, false, err
+	}
+	if s == nil || s.db == nil {
+		return app.Object{}, false, ErrObjectStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	key = strings.TrimSpace(key)
+	if tenantID == "" || key == "" {
+		return app.Object{}, false, ErrObjectInvalid
+	}
+	row := s.db.QueryRow(ctx,
+		"select organization_id, key, content_type, size, created_at, updated_at from objects where organization_id=$1 and key=$2",
+		tenantID,
+		key,
+	)
+	object, err := scanObjectMetadata(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.Object{}, false, nil
+	}
+	if err != nil {
+		return app.Object{}, false, fmt.Errorf("get object metadata: %w", err)
+	}
+	return object, true, nil
+}
+
+func (s *ObjectStore) ListObjectMetadata(ctx context.Context, tenantID string) ([]app.Object, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.db == nil {
+		return nil, ErrObjectStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return nil, ErrObjectInvalid
+	}
+	rows, err := s.db.Query(ctx,
+		"select organization_id, key, content_type, size, created_at, updated_at from objects where organization_id=$1 order by key",
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list object metadata: %w", err)
+	}
+	defer rows.Close()
+	var out []app.Object
+	for rows.Next() {
+		object, err := scanObjectMetadata(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, object)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list object metadata rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *ObjectStore) DeleteObjectMetadata(ctx context.Context, tenantID, key string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if s == nil || s.db == nil {
+		return false, ErrObjectStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	key = strings.TrimSpace(key)
+	if tenantID == "" || key == "" {
+		return false, ErrObjectInvalid
+	}
+	tag, err := s.db.Exec(ctx, "delete from objects where organization_id=$1 and key=$2", tenantID, key)
+	if err != nil {
+		return false, fmt.Errorf("delete object metadata: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+type objectScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanObjectMetadata(row objectScanner) (app.Object, error) {
+	var object app.Object
+	if err := row.Scan(&object.TenantID, &object.Key, &object.ContentType, &object.Size, &object.CreatedAt, &object.UpdatedAt); err != nil {
+		return app.Object{}, err
+	}
+	object.CreatedAt = object.CreatedAt.UTC()
+	object.UpdatedAt = object.UpdatedAt.UTC()
+	return object, nil
+}
+`
+
+const fullPostgresObjectStoreTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{ .Module }}/internal/app"
+)
+
+func TestObjectStoreSaveUsesUpsertWithoutPayload(t *testing.T) {
+	now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	db := &fakeObjectDB{row: fakeObjectRow{values: []any{"readme.txt"}}}
+	store := NewObjectStore(db)
+	err := store.SaveObjectMetadata(context.Background(), app.Object{TenantID: "org_1", Key: "readme.txt", ContentType: "text/plain", Size: 5, CreatedAt: now, UpdatedAt: now})
+	if err != nil {
+		t.Fatalf("SaveObjectMetadata() error = %v", err)
+	}
+	if !strings.Contains(db.lastRowSQL, "insert into objects") || !strings.Contains(db.lastRowSQL, "on conflict") {
+		t.Fatalf("SaveObjectMetadata() SQL = %q", db.lastRowSQL)
+	}
+	if strings.Contains(fmt.Sprint(db.lastRowArgs...), "hello") {
+		t.Fatalf("metadata args leaked object payload: %#v", db.lastRowArgs)
+	}
+}
+
+func TestObjectStoreListGetAndDelete(t *testing.T) {
+	now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	values := []any{"org_1", "readme.txt", "text/plain", int64(5), now, now}
+	db := &fakeObjectDB{
+		rows:    &fakeObjectRows{rows: [][]any{values}},
+		row:     fakeObjectRow{values: values},
+		execTag: pgconn.NewCommandTag("DELETE 1"),
+	}
+	store := NewObjectStore(db)
+	objects, err := store.ListObjectMetadata(context.Background(), "org_1")
+	if err != nil {
+		t.Fatalf("ListObjectMetadata() error = %v", err)
+	}
+	if len(objects) != 1 || objects[0].Key != "readme.txt" || objects[0].Size != 5 {
+		t.Fatalf("ListObjectMetadata() = %#v", objects)
+	}
+	got, ok, err := store.GetObjectMetadata(context.Background(), "org_1", "readme.txt")
+	if err != nil || !ok || got.ContentType != "text/plain" {
+		t.Fatalf("GetObjectMetadata() object=%#v ok=%v err=%v", got, ok, err)
+	}
+	deleted, err := store.DeleteObjectMetadata(context.Background(), "org_1", "readme.txt")
+	if err != nil || !deleted {
+		t.Fatalf("DeleteObjectMetadata() deleted=%v err=%v", deleted, err)
+	}
+	if strings.Contains(fmt.Sprint(db.lastExecArgs...), "hello") {
+		t.Fatalf("delete args leaked object payload: %#v", db.lastExecArgs)
+	}
+}
+
+func TestObjectStoreGetNotFound(t *testing.T) {
+	store := NewObjectStore(&fakeObjectDB{row: fakeObjectRow{err: pgx.ErrNoRows}})
+	got, ok, err := store.GetObjectMetadata(context.Background(), "org_1", "missing.txt")
+	if err != nil || ok || got.Key != "" {
+		t.Fatalf("GetObjectMetadata() object=%#v ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestObjectStoreRequiresDBAndValidObject(t *testing.T) {
+	if err := (*ObjectStore)(nil).SaveObjectMetadata(context.Background(), app.Object{}); !errors.Is(err, ErrObjectStoreRequired) {
+		t.Fatalf("nil SaveObjectMetadata() error = %v, want %v", err, ErrObjectStoreRequired)
+	}
+	if err := NewObjectStore(&fakeObjectDB{}).SaveObjectMetadata(context.Background(), app.Object{}); !errors.Is(err, ErrObjectInvalid) {
+		t.Fatalf("invalid SaveObjectMetadata() error = %v, want %v", err, ErrObjectInvalid)
+	}
+}
+
+type fakeObjectDB struct {
+	rows          pgx.Rows
+	row           pgx.Row
+	queryErr      error
+	execTag       pgconn.CommandTag
+	execErr       error
+	lastQuerySQL  string
+	lastQueryArgs []any
+	lastRowSQL    string
+	lastRowArgs   []any
+	lastExecSQL   string
+	lastExecArgs  []any
+}
+
+func (f *fakeObjectDB) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	f.lastQuerySQL = sql
+	f.lastQueryArgs = append([]any(nil), args...)
+	if f.queryErr != nil {
+		return nil, f.queryErr
+	}
+	if f.rows == nil {
+		return &fakeObjectRows{}, nil
+	}
+	return f.rows, nil
+}
+
+func (f *fakeObjectDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	f.lastRowSQL = sql
+	f.lastRowArgs = append([]any(nil), args...)
+	if f.row == nil {
+		return fakeObjectRow{err: pgx.ErrNoRows}
+	}
+	return f.row
+}
+
+func (f *fakeObjectDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	f.lastExecSQL = sql
+	f.lastExecArgs = append([]any(nil), args...)
+	return f.execTag, f.execErr
+}
+
+type fakeObjectRows struct {
+	rows [][]any
+	idx  int
+	err  error
+}
+
+func (r *fakeObjectRows) Close() {}
+func (r *fakeObjectRows) Err() error { return r.err }
+func (r *fakeObjectRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+func (r *fakeObjectRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeObjectRows) Values() ([]any, error) { return r.rows[r.idx-1], nil }
+func (r *fakeObjectRows) RawValues() [][]byte { return nil }
+func (r *fakeObjectRows) Conn() *pgx.Conn { return nil }
+
+func (r *fakeObjectRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+
+func (r *fakeObjectRows) Scan(dest ...any) error {
+	if r.idx == 0 || r.idx > len(r.rows) {
+		return errors.New("Scan called without current row")
+	}
+	return scanFakeObjectValues(r.rows[r.idx-1], dest...)
+}
+
+type fakeObjectRow struct {
+	values []any
+	err    error
+}
+
+func (r fakeObjectRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return scanFakeObjectValues(r.values, dest...)
+}
+
+func scanFakeObjectValues(values []any, dest ...any) error {
+	if len(values) != len(dest) {
+		return fmt.Errorf("value count %d does not match destination count %d", len(values), len(dest))
+	}
+	for i := range values {
+		switch d := dest[i].(type) {
+		case *string:
+			value, ok := values[i].(string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want string", i, values[i])
+			}
+			*d = value
+		case *int64:
+			value, ok := values[i].(int64)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want int64", i, values[i])
 			}
 			*d = value
 		case *time.Time:
@@ -12832,6 +13354,16 @@ CREATE TABLE audit_events (
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE objects (
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	key TEXT NOT NULL,
+	content_type TEXT NOT NULL,
+	size BIGINT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (organization_id, key)
+);
+
 CREATE TABLE webhook_endpoints (
 	id TEXT PRIMARY KEY,
 	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -13311,7 +13843,7 @@ go test ./...
 go run ./cmd/api
 ` + "```" + `
 
-Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
+Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.
 When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.

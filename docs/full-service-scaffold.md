@@ -33,12 +33,11 @@ result, request ID, and redaction-safe metadata. The generated HTTP layer now
 also includes outbound webhook event catalog, endpoint create/list, delivery
 list, and replay routes; widget writes enqueue tenant-scoped webhook delivery
 records for subscribed endpoints without exposing signing secrets. It includes
-tenant-scoped object routes with strict key, content-type, and size policy for
-the local scaffold path. Reusable building blocks now exist for durable
-operations, transactional outbox work, S3-compatible object storage, OpenAPI
-3.1, and generated Go client output; the roadmap
-continues with wiring those reusable pieces deeper into the generated
-application boundary.
+tenant-scoped object routes with strict key, content-type, and size policy.
+Reusable building blocks now exist for durable operations, transactional
+outbox work, S3-compatible object storage, OpenAPI 3.1, and generated Go
+client output; the generated S3 object path now persists object metadata
+through a Postgres adapter when `DATABASE_URL` is configured.
 When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
 checks required platform tables at startup, and makes readiness/admin health
 fail closed if Postgres becomes unavailable.
@@ -48,7 +47,8 @@ fail closed if Postgres becomes unavailable.
 The full profile standardizes these defaults:
 
 - Postgres stores durable application data, operation state, transactional
-  outbox rows, audit events, webhook endpoints, and webhook delivery attempts.
+  outbox rows, audit events, webhook endpoints, webhook delivery attempts, and
+  object metadata.
 - Generated services only connect to Postgres when `DATABASE_URL` is set; in
   production it is mandatory, startup pings the database, and required table
   checks catch unapplied migrations before serving traffic.
@@ -105,7 +105,9 @@ The full profile standardizes these defaults:
   tenant-scoped objects with single-segment keys, bounded payloads, and
   allow-listed content types. The local scaffold uses in-process storage;
   `OBJECT_STORE=s3` wires object bytes to the contrib S3-compatible adapter
-  through a generated app-level blob-store port.
+  through a generated app-level blob-store port. When `DATABASE_URL` is also
+  configured, object metadata and list/read/delete lookup state are stored in
+  Postgres while payload bytes remain in the object store.
 - JWT, Clerk, and OIDC auth validate bearer tokens against configured issuer,
   audience, algorithms, and JWKS material. OIDC can also discover `jwks_uri`
   from provider metadata; all bearer modes map tenant and scope claims into
@@ -128,10 +130,11 @@ The profile generates or is expected to generate:
   and last-used tracking. Generated async imports use Postgres operations and
   outbox rows for pollable state and worker leasing. Generated audit recording
   delegates to the Postgres audit store after local redaction and event ID
-  generation.
+  generation. Generated S3 object routes use a Postgres object metadata store
+  for tenant-scoped list/get/delete state when `DATABASE_URL` is configured.
 - Postgres migrations for organizations, memberships, invitations, API keys,
-  widgets, operations, outbox events, audit events, webhook endpoints, and
-  webhook deliveries.
+  widgets, operations, outbox events, audit events, object metadata, webhook
+  endpoints, and webhook deliveries.
 - Docker Compose with Postgres and Redis by default, plus optional MinIO under
   an explicit profile for object storage checks.
 - opt-in Docker integration tests through a generated `integration-check`
