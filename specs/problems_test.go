@@ -37,3 +37,35 @@ func TestProblemResponseUsesProblemMediaType(t *testing.T) {
 		t.Fatalf("schema ref = %q", media.SchemaRef)
 	}
 }
+
+func TestRegisterHTTPProblemResponses(t *testing.T) {
+	registry := NewRegistry(Info{Title: "API", Version: "v1"})
+	RegisterHTTPProblemResponses(registry, 401, 409)
+	registry.Register(Operation{
+		Method: "GET",
+		Path:   "/widgets",
+		Responses: map[int]Response{
+			401: HTTPProblemResponseRef(401),
+			409: HTTPProblemResponseRef(409),
+		},
+	})
+
+	doc := decodeOpenAPI(t, registry)
+	components := asMap(t, doc["components"])
+	responses := asMap(t, components["responses"])
+	if _, ok := responses["UnauthorizedProblemResponse"]; !ok {
+		t.Fatalf("responses missing UnauthorizedProblemResponse: %#v", responses)
+	}
+	if _, ok := responses["ConflictProblemResponse"]; !ok {
+		t.Fatalf("responses missing ConflictProblemResponse: %#v", responses)
+	}
+	operation := operationAt(t, doc, "/widgets", "get")
+	operationResponses := asMap(t, operation["responses"])
+	unauthorized := asMap(t, operationResponses["401"])
+	if unauthorized["$ref"] != "#/components/responses/UnauthorizedProblemResponse" {
+		t.Fatalf("401 response ref = %#v", unauthorized)
+	}
+	if got := HTTPProblemResponseName(499); got != "Status499ProblemResponse" {
+		t.Fatalf("custom status response name = %q", got)
+	}
+}

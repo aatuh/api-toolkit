@@ -47,6 +47,10 @@ source of truth is `docs/release-runbook.md`.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
+- `specs` now includes additive schema helpers for reusable refs, nullable
+  schemas, examples, enum values, struct-tag examples/enums/nullable fields,
+  request/response media examples, and reusable HTTP Problem Details response
+  components.
 - `api-toolkit clients go` now generates a stdlib-only Go client package from
   OpenAPI operations, including operation methods, path/query/header request
   options, JSON request bodies, API-key and bearer auth helpers, and Problem

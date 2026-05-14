@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/aatuh/api-toolkit/v2/httpx"
@@ -55,6 +56,52 @@ func ValidationProblemResponse(description string) Response {
 	}
 }
 
+// HTTPProblemResponseName returns the conventional response component name for an HTTP status.
+func HTTPProblemResponseName(status int) string {
+	text := http.StatusText(status)
+	if strings.TrimSpace(text) == "" {
+		if status > 0 {
+			text = "status " + strconv.Itoa(status)
+		} else {
+			text = "problem"
+		}
+	}
+	return componentName(text) + "ProblemResponse"
+}
+
+// HTTPProblemResponseRef returns a response reference for an HTTP Problem response component.
+func HTTPProblemResponseRef(status int) Response {
+	return Response{Ref: "#/components/responses/" + HTTPProblemResponseName(status)}
+}
+
+// RegisterHTTPProblemResponses registers reusable Problem Details response components by HTTP status.
+func RegisterHTTPProblemResponses(registry *Registry, statuses ...int) {
+	if registry == nil {
+		return
+	}
+	registry.RegisterSchema("Problem", ProblemSchema())
+	if len(statuses) == 0 {
+		statuses = []int{
+			http.StatusBadRequest,
+			http.StatusUnauthorized,
+			http.StatusForbidden,
+			http.StatusNotFound,
+			http.StatusConflict,
+			http.StatusPreconditionFailed,
+			http.StatusUnprocessableEntity,
+			http.StatusTooManyRequests,
+			http.StatusInternalServerError,
+		}
+	}
+	for _, status := range statuses {
+		description := http.StatusText(status)
+		if strings.TrimSpace(description) == "" {
+			description = "Problem Details"
+		}
+		registry.RegisterResponse(HTTPProblemResponseName(status), ProblemResponse(description))
+	}
+}
+
 // RegisterProblemCatalog registers reusable Problem Details schemas and responses.
 func RegisterProblemCatalog(registry *Registry, catalog *httpx.ProblemCatalog) {
 	if registry == nil {
@@ -97,6 +144,10 @@ func problemResponseName(definition httpx.ProblemDefinition) string {
 	if base == "" {
 		base = "problem"
 	}
+	return componentName(base) + "ProblemResponse"
+}
+
+func componentName(base string) string {
 	parts := componentNamePattern.Split(base, -1)
 	var name strings.Builder
 	for _, part := range parts {
@@ -109,7 +160,7 @@ func problemResponseName(definition httpx.ProblemDefinition) string {
 		}
 	}
 	if name.Len() == 0 {
-		return "ProblemResponse"
+		return "Problem"
 	}
-	return name.String() + "ProblemResponse"
+	return name.String()
 }

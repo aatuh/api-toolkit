@@ -27,6 +27,13 @@ type recursiveSchema struct {
 	Next *recursiveSchema `json:"next"`
 }
 
+type schemaTaggedFields struct {
+	State    string `json:"state" enum:"draft,active,archived" example:"active" required:"true"`
+	Attempts int    `json:"attempts" enum:"1,2,3" example:"2"`
+	Retried  bool   `json:"retried" example:"true"`
+	Deleted  string `json:"deleted" nullable:"true"`
+}
+
 func TestSchemaFromStruct(t *testing.T) {
 	schema, err := SchemaFrom[schemaWidget](SchemaOptions{})
 	if err != nil {
@@ -67,12 +74,72 @@ func TestSchemaFromStruct(t *testing.T) {
 	}
 }
 
+func TestSchemaFromStructTagsAddsEnumsExamplesAndNullable(t *testing.T) {
+	schema, err := SchemaFrom[schemaTaggedFields](SchemaOptions{})
+	if err != nil {
+		t.Fatalf("SchemaFrom() error = %v", err)
+	}
+	props := asMap(t, schema["properties"])
+	state := asMap(t, props["state"])
+	if enum := schemaStringSlice(t, state["enum"]); !reflect.DeepEqual(enum, []string{"draft", "active", "archived"}) {
+		t.Fatalf("state enum = %#v", enum)
+	}
+	if state["example"] != "active" {
+		t.Fatalf("state example = %#v", state["example"])
+	}
+	attempts := asMap(t, props["attempts"])
+	if enum := attempts["enum"]; !reflect.DeepEqual(enum, []any{int64(1), int64(2), int64(3)}) {
+		t.Fatalf("attempts enum = %#v", enum)
+	}
+	if attempts["example"] != int64(2) {
+		t.Fatalf("attempts example = %#v", attempts["example"])
+	}
+	retried := asMap(t, props["retried"])
+	if retried["example"] != true {
+		t.Fatalf("retried example = %#v", retried["example"])
+	}
+	deleted := asMap(t, props["deleted"])
+	if deleted["nullable"] != true {
+		t.Fatalf("deleted = %#v, want nullable", deleted)
+	}
+}
+
+func TestSchemaHelperFunctionsDoNotMutateInput(t *testing.T) {
+	base := map[string]any{"type": "string"}
+
+	nullable := NullableSchema(base)
+	if nullable["nullable"] != true || base["nullable"] != nil {
+		t.Fatalf("NullableSchema nullable = %#v base = %#v", nullable, base)
+	}
+	withExample := SchemaWithExample(base, "active")
+	if withExample["example"] != "active" || base["example"] != nil {
+		t.Fatalf("SchemaWithExample schema = %#v base = %#v", withExample, base)
+	}
+	withEnum := SchemaWithEnum(base, "draft", "active")
+	if enum := schemaStringSlice(t, withEnum["enum"]); !reflect.DeepEqual(enum, []string{"draft", "active"}) {
+		t.Fatalf("SchemaWithEnum enum = %#v", enum)
+	}
+	if base["enum"] != nil {
+		t.Fatalf("SchemaWithEnum mutated base = %#v", base)
+	}
+	ref := SchemaRef("#/components/schemas/Widget")
+	if ref["$ref"] != "#/components/schemas/Widget" {
+		t.Fatalf("SchemaRef = %#v", ref)
+	}
+}
+
 func TestSchemaFromTypeRejectsUnsupportedTypes(t *testing.T) {
 	if _, err := SchemaFromType(reflect.TypeOf(map[int]string{}), SchemaOptions{}); err == nil {
 		t.Fatal("expected non-string map key error")
 	}
 	if _, err := SchemaFrom[recursiveSchema](SchemaOptions{}); err == nil {
 		t.Fatal("expected recursive type error")
+	}
+	type invalidExample struct {
+		Count int `json:"count" example:"not-an-int"`
+	}
+	if _, err := SchemaFrom[invalidExample](SchemaOptions{}); err == nil {
+		t.Fatal("expected invalid example tag error")
 	}
 }
 

@@ -46,6 +46,14 @@ type MediaType struct {
 	Examples  map[string]any
 }
 
+// Example describes a reusable OpenAPI example object.
+type Example struct {
+	Summary       string `json:"summary,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Value         any    `json:"value,omitempty"`
+	ExternalValue string `json:"externalValue,omitempty"`
+}
+
 // Parameter describes an OpenAPI operation parameter.
 type Parameter struct {
 	Name        string

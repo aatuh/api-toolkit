@@ -239,6 +239,55 @@ func TestRegistryOpenAPIIncludesComponentsAndRefs(t *testing.T) {
 	}
 }
 
+func TestRegistryOpenAPIIncludesRequestAndResponseExamples(t *testing.T) {
+	registry := NewRegistry(Info{Title: "Examples", Version: "1"})
+	registry.Register(Operation{
+		OperationID: "createWidget",
+		Method:      http.MethodPost,
+		Path:        "/widgets",
+		RequestBody: &RequestBody{
+			Required: true,
+			Content: map[string]MediaType{
+				"application/json": {
+					Schema: SchemaWithExample(map[string]any{"type": "object"}, map[string]any{"name": "primary"}),
+					Examples: map[string]any{
+						"default": Example{Summary: "Create widget", Value: map[string]any{"name": "primary"}},
+					},
+				},
+			},
+		},
+		Responses: map[int]Response{
+			http.StatusCreated: {
+				Description: "Created",
+				Content: map[string]MediaType{
+					"application/json": {
+						SchemaRef: "#/components/schemas/Widget",
+						Example:   map[string]any{"id": "widget_123"},
+					},
+				},
+			},
+		},
+	})
+
+	doc := decodeOpenAPI(t, registry)
+	operation := operationAt(t, doc, "/widgets", "post")
+	requestJSON := asMap(t, asMap(t, asMap(t, operation["requestBody"])["content"])["application/json"])
+	requestSchema := asMap(t, requestJSON["schema"])
+	if example := asMap(t, requestSchema["example"]); example["name"] != "primary" {
+		t.Fatalf("request schema example = %#v", requestSchema["example"])
+	}
+	requestExamples := asMap(t, requestJSON["examples"])
+	defaultExample := asMap(t, requestExamples["default"])
+	if defaultExample["summary"] != "Create widget" {
+		t.Fatalf("request example = %#v", defaultExample)
+	}
+	responseJSON := asMap(t, asMap(t, asMap(t, asMap(t, operation["responses"])["201"])["content"])["application/json"])
+	responseExample := asMap(t, responseJSON["example"])
+	if responseExample["id"] != "widget_123" {
+		t.Fatalf("response example = %#v", responseExample)
+	}
+}
+
 func TestRegistryOpenAPIIncludesGlobalSecurity(t *testing.T) {
 	registry := NewRegistry(Info{Title: "Security", Version: "1"})
 	registry.SetSecurity([]SecurityRequirement{
