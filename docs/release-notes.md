@@ -114,6 +114,11 @@ source of truth is `docs/release-runbook.md`.
   organizations, owner memberships, role checks, invitation token hashes,
   invitation acceptance, and member listing while keeping raw invitation tokens
   return-once only.
+- Generated `saas-api-full` async widget imports now switch to generated
+  Postgres operation/outbox wiring when `DATABASE_URL` is configured. The app
+  service writes tenant-scoped pollable operation rows, enqueues outbox work,
+  and the generated outbox store leases work through contrib async while
+  keeping failure problems sanitized.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.

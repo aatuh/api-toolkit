@@ -75,7 +75,9 @@ The full profile standardizes these defaults:
 - The generated widget import route returns `202 Accepted`, writes tenant-scoped
   operation state, enqueues a durable-async-shaped outbox job, exposes
   `GET /operations/{id}`, and includes app tests for replay-safe processing and
-  sanitized failure problems.
+  sanitized failure problems. In `DATABASE_URL` mode, generated async wiring
+  uses the contrib Postgres operation repository and transactional outbox
+  adapter through generated app-level ports.
 - Generated audit events record actor type, actor ID, tenant, action, resource,
   result, request ID, and redaction-safe metadata for organization, invitation,
   API-key, widget, and async import writes.
@@ -114,8 +116,10 @@ The profile generates or is expected to generate:
   tenancy store in the same mode for organizations, memberships, invitation
   hashes, role checks, and invitation acceptance. Generated API-key services
   use the Postgres API-key store for hash storage, revocation, expiry, scopes,
-  and last-used tracking. Generated audit recording delegates to the Postgres
-  audit store after local redaction and event ID generation.
+  and last-used tracking. Generated async imports use Postgres operations and
+  outbox rows for pollable state and worker leasing. Generated audit recording
+  delegates to the Postgres audit store after local redaction and event ID
+  generation.
 - Postgres migrations for organizations, memberships, invitations, API keys,
   widgets, operations, outbox events, audit events, webhook endpoints, and
   webhook deliveries.
