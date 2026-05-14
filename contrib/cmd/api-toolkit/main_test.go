@@ -730,6 +730,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/domain/api_key.go",
 		"internal/domain/tenancy.go",
 		"internal/domain/widget.go",
+		"internal/app/audit.go",
+		"internal/app/audit_test.go",
 		"internal/app/api_keys.go",
 		"internal/app/api_keys_test.go",
 		"internal/app/async.go",
@@ -806,7 +808,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "Readiness HealthChecker"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "recordAudit", "Readiness HealthChecker"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -816,7 +818,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "app.NewAuditService", "Audit: auditLog", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
