@@ -877,11 +877,17 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"psql -v ON_ERROR_STOP=1 -U api -d api",
 		"go test ./...",
 		"go run ./cmd/api",
+		"command -v python3",
 		"/docs/openapi.json",
 		"/health/detailed",
+		"/metrics",
+		"/debug/pprof/",
 		"X-API-Key: ${API_KEY}",
 		"X-Actor-ID: ${API_ACTOR_ID}",
 		"Idempotency-Key:",
+		"/organizations/${org_id}/api-keys",
+		"managed-key-widget",
+		"public pprof endpoint should be isolated",
 		"docker compose down -v",
 	} {
 		if !strings.Contains(string(generatedIntegration), want) {

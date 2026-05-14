@@ -98,7 +98,9 @@ source of truth is `docs/release-runbook.md`.
   script that starts Postgres and Redis, applies the generated migration, runs
   generated unit tests, starts the API on localhost, and performs HTTP smoke
   checks for readiness, OpenAPI, authentication failure, tenant membership,
-  object writes, and admin detailed health before tearing Docker volumes down.
+  managed API-key authentication, object writes, admin detailed health, admin
+  metrics, admin pprof, and public admin-route isolation before tearing Docker
+  volumes down.
 - Generated `saas-api-full` widget services now use an application storage
   port, and the generated runtime switches to a Postgres widget store when
   `DATABASE_URL` is configured. The store persists widget create/update/delete
