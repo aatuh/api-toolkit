@@ -92,9 +92,12 @@ Goal:
   explicit development bypass policy.
 - Upload helpers reject malformed, oversized, missing, or disallowed multipart
   files. Scan and persist untrusted content outside core helpers.
-- Webhook helpers verify signatures and optional replay windows. Keep replay
-  stores, duplicate suppression, delivery retries, and provider schemas in
-  application code.
+- Webhook helpers verify inbound signatures and optional replay windows. The
+  experimental outbound webhook delivery package signs tenant-scoped events,
+  rejects unsafe endpoint headers, keeps endpoint signing secrets out of async
+  job payloads, and records only sanitized attempt results. Keep receiver
+  allow-lists, SSRF-aware transports, duplicate suppression, provider schemas,
+  and endpoint-secret rotation in application-owned code.
 - Object storage helpers validate bucket/key references, enforce content-type
   and size policy, and reject secret-shaped metadata. Treat object payloads as
   untrusted content: scan before use, keep S3 endpoints as trusted operator
