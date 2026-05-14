@@ -124,12 +124,14 @@ github.com/aatuh/api-toolkit/contrib/v2/examples/webhook	example-only	example-on
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/clerk	supported-adapter	direct-tests	Convenience wrapper around Clerk auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/devheaders	supported-adapter	direct-tests	Convenience wrapper around dev-header auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/jwt	supported-adapter	direct-tests	Convenience wrapper around JWT auth integration.
+github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc	experimental	direct-tests	Convenience wrapper around OIDC auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/pgxpool	supported-adapter	direct-tests	Convenience wrapper around pgxpool adapter.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/resend	supported-adapter	direct-tests	Convenience wrapper around Resend adapter.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/stripe	supported-adapter	direct-tests	Convenience wrapper around Stripe adapter.
 github.com/aatuh/api-toolkit/contrib/v2/integrations/txpostgres	supported-adapter	direct-tests	Convenience wrapper around txpostgres adapter.
 github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk	supported-adapter	direct-tests	Clerk auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
+github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc	experimental	direct-tests	Provider-neutral OIDC/JWKS auth middleware.
 github.com/aatuh/api-toolkit/contrib/v2/middleware/cors	supported-adapter	direct-tests	CORS middleware adapter.
 github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics	supported-adapter	direct-tests	Metrics middleware adapter.
 github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi	supported-adapter	direct-tests	OpenAPI validation middleware.
