@@ -2672,7 +2672,11 @@ import (
 	"syscall"
 	"time"
 
-{{ if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+	"github.com/aatuh/api-toolkit/v2/ports"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+	"github.com/aatuh/api-toolkit/v2/ports"
+{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 	"github.com/aatuh/api-toolkit/v2/ports"
 {{ end }}
 	"{{ .Module }}/internal/app"
@@ -2702,13 +2706,23 @@ func run(ctx context.Context) error {
 	widgets := app.NewWidgetService()
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
-{{ if eq .AuthMode "oidc" }}	oidcMiddleware, err := newOIDCMiddleware(ctx, cfg)
+{{ if eq .AuthMode "jwt" }}	jwtMiddleware, err := newJWTMiddleware(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer jwtMiddleware.Close()
+{{ else if eq .AuthMode "clerk" }}	clerkMiddleware, err := newClerkMiddleware(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer clerkMiddleware.Close()
+{{ else if eq .AuthMode "oidc" }}	oidcMiddleware, err := newOIDCMiddleware(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, AdminKey: cfg.AdminKey{{ if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -2750,7 +2764,33 @@ func run(ctx context.Context) error {
 	}
 }
 
-{{ if eq .AuthMode "oidc" }}func newOIDCMiddleware(ctx context.Context, cfg httpapi.Config) (*oidcauth.Middleware, error) {
+{{ if eq .AuthMode "jwt" }}func newJWTMiddleware(ctx context.Context, cfg httpapi.Config) (*jwtauth.Middleware, error) {
+	return jwtauth.NewMiddleware(ctx, jwtauth.Config{
+		Enabled:             true,
+		Issuer:              cfg.JWTIssuer,
+		Audience:            cfg.JWTAudience,
+		JWKSURL:             cfg.JWTJWKSURL,
+		AllowedAlgorithms:   []string{"RS256"},
+		AllowedClockSkew:    30 * time.Second,
+		JWKSRefreshTimeout:  5 * time.Second,
+		JWKSRefreshInterval: 10 * time.Minute,
+	}, ports.NopLogger{})
+}
+
+{{ else if eq .AuthMode "clerk" }}func newClerkMiddleware(ctx context.Context, cfg httpapi.Config) (*clerkauth.Middleware, error) {
+	return clerkauth.NewMiddleware(ctx, clerkauth.Config{
+		Enabled:             true,
+		Issuer:              cfg.ClerkIssuer,
+		Audience:            cfg.ClerkAudience,
+		JWKSURL:             cfg.ClerkJWKSURL,
+		AllowedAlgorithms:   []string{"RS256"},
+		AllowedClockSkew:    30 * time.Second,
+		JWKSRefreshTimeout:  5 * time.Second,
+		JWKSRefreshInterval: 10 * time.Minute,
+	}, ports.NopLogger{})
+}
+
+{{ else if eq .AuthMode "oidc" }}func newOIDCMiddleware(ctx context.Context, cfg httpapi.Config) (*oidcauth.Middleware, error) {
 	return oidcauth.NewMiddleware(ctx, oidcauth.Config{
 		Enabled:             true,
 		Issuer:              cfg.OIDCIssuer,
@@ -3808,7 +3848,7 @@ func OpenAPIDocument() ([]byte, error) {
 		Description: "Generated api-toolkit full SaaS/API profile.",
 		Version:     "dev",
 	})
-{{ if eq .AuthMode "oidc" }}	registry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	registry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 	registry.SetSecurity([]specs.SecurityRequirement{ {Name: "BearerAuth"} })
 {{ else }}	registry.RegisterSecurityScheme("ApiKeyAuth", specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 	registry.SetSecurity([]specs.SecurityRequirement{ {Name: "ApiKeyAuth"} })
@@ -4279,7 +4319,9 @@ import (
 	"strings"
 	"time"
 
-{{ if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/httpx"
 
@@ -4295,7 +4337,13 @@ type Config struct {
 	DatabaseURL  string
 	RedisAddr    string
 	APIKeyPepper string
-{{ if eq .AuthMode "oidc" }}	OIDCIssuer       string
+{{ if eq .AuthMode "jwt" }}	JWTJWKSURL   string
+	JWTIssuer    string
+	JWTAudience  string
+{{ else if eq .AuthMode "clerk" }}	ClerkJWKSURL  string
+	ClerkIssuer   string
+	ClerkAudience string
+{{ else if eq .AuthMode "oidc" }}	OIDCIssuer       string
 	OIDCAudience     string
 	OIDCJWKSURL      string
 	OIDCDiscoveryURL string
@@ -4313,7 +4361,13 @@ func ConfigFromEnv() (Config, error) {
 		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		RedisAddr:    envDefault("REDIS_ADDR", "localhost:6379"),
 		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
-{{ if eq .AuthMode "oidc" }}		OIDCIssuer:       strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
+{{ if eq .AuthMode "jwt" }}		JWTJWKSURL:   strings.TrimSpace(os.Getenv("JWT_JWKS_URL")),
+		JWTIssuer:    strings.TrimSpace(os.Getenv("JWT_ISSUER")),
+		JWTAudience:  envDefault("JWT_AUDIENCE", "saas-api-full"),
+{{ else if eq .AuthMode "clerk" }}		ClerkJWKSURL:  strings.TrimSpace(os.Getenv("CLERK_JWKS_URL")),
+		ClerkIssuer:   strings.TrimSpace(os.Getenv("CLERK_ISSUER")),
+		ClerkAudience: envDefault("CLERK_AUDIENCE", "saas-api-full"),
+{{ else if eq .AuthMode "oidc" }}		OIDCIssuer:       strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
 		OIDCAudience:     strings.TrimSpace(os.Getenv("OIDC_AUDIENCE")),
 		OIDCJWKSURL:      strings.TrimSpace(os.Getenv("OIDC_JWKS_URL")),
 		OIDCDiscoveryURL: strings.TrimSpace(os.Getenv("OIDC_DISCOVERY_URL")),
@@ -4332,7 +4386,25 @@ func ConfigFromEnv() (Config, error) {
 		if cfg.APIKeyPepper == "" {
 			missing = append(missing, "API_KEY_PEPPER")
 		}
-{{ if eq .AuthMode "oidc" }}		if cfg.OIDCIssuer == "" {
+{{ if eq .AuthMode "jwt" }}		if cfg.JWTJWKSURL == "" {
+			missing = append(missing, "JWT_JWKS_URL")
+		}
+		if cfg.JWTIssuer == "" {
+			missing = append(missing, "JWT_ISSUER")
+		}
+		if cfg.JWTAudience == "" {
+			missing = append(missing, "JWT_AUDIENCE")
+		}
+{{ else if eq .AuthMode "clerk" }}		if cfg.ClerkJWKSURL == "" {
+			missing = append(missing, "CLERK_JWKS_URL")
+		}
+		if cfg.ClerkIssuer == "" {
+			missing = append(missing, "CLERK_ISSUER")
+		}
+		if cfg.ClerkAudience == "" {
+			missing = append(missing, "CLERK_AUDIENCE")
+		}
+{{ else if eq .AuthMode "oidc" }}		if cfg.OIDCIssuer == "" {
 			missing = append(missing, "OIDC_ISSUER")
 		}
 		if cfg.OIDCAudience == "" {
@@ -4368,7 +4440,9 @@ type RouterConfig struct {
 	APIKeys  *app.APIKeyService
 	APIKey   string
 	AdminKey string
-{{ if eq .AuthMode "oidc" }}	OIDC     *oidcauth.Middleware
+{{ if eq .AuthMode "jwt" }}	JWT      *jwtauth.Middleware
+{{ else if eq .AuthMode "clerk" }}	Clerk    *clerkauth.Middleware
+{{ else if eq .AuthMode "oidc" }}	OIDC     *oidcauth.Middleware
 {{ end }}
 }
 
@@ -4838,7 +4912,29 @@ func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest,
 }
 
 func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request) (string, bool) {
-{{ if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
+{{ if eq .AuthMode "jwt" }}	subj, ok := jwtauth.SubjectFromContext(r.Context())
+	if !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		return "", false
+	}
+	actorID := strings.TrimSpace(subj.UserID)
+	if actorID == "" {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		return "", false
+	}
+	return actorID, true
+{{ else if eq .AuthMode "clerk" }}	subj, ok := clerkauth.SubjectFromContext(r.Context())
+	if !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		return "", false
+	}
+	actorID := strings.TrimSpace(subj.UserID)
+	if actorID == "" {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		return "", false
+	}
+	return actorID, true
+{{ else if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
 	if !ok {
 		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
@@ -4883,7 +4979,35 @@ func (cfg RouterConfig) authenticateOrganizationTenant(w http.ResponseWriter, r 
 }
 
 func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
-{{ if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
+{{ if eq .AuthMode "jwt" }}	subj, ok := jwtauth.SubjectFromContext(r.Context())
+	if !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		return "", false
+	}
+	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
+	if !ok {
+		return "", false
+	}
+	if jwtSubjectTenantID(subj) != tenantID {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
+		return "", false
+	}
+	return tenantID, true
+{{ else if eq .AuthMode "clerk" }}	subj, ok := clerkauth.SubjectFromContext(r.Context())
+	if !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		return "", false
+	}
+	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
+	if !ok {
+		return "", false
+	}
+	if strings.TrimSpace(subj.TenantID) == "" || strings.TrimSpace(subj.TenantID) != tenantID {
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
+		return "", false
+	}
+	return tenantID, true
+{{ else if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
 	if !ok {
 		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
@@ -4911,7 +5035,45 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 }
 
 func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Handler {
-{{ if eq .AuthMode "oidc" }}	if cfg.OIDC == nil {
+{{ if eq .AuthMode "jwt" }}	if cfg.JWT == nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "JWT middleware not configured"})
+		})
+	}
+	return cfg.JWT.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requiredScope != "" {
+			subj, ok := jwtauth.SubjectFromContext(r.Context())
+			if !ok {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+				return
+			}
+			if !jwtSubjectHasScope(subj, requiredScope) {
+				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	}))
+{{ else if eq .AuthMode "clerk" }}	if cfg.Clerk == nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "Clerk middleware not configured"})
+		})
+	}
+	return cfg.Clerk.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requiredScope != "" {
+			subj, ok := clerkauth.SubjectFromContext(r.Context())
+			if !ok {
+				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+				return
+			}
+			if !scopeStringContains(subj.Scope, requiredScope) {
+				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	}))
+{{ else if eq .AuthMode "oidc" }}	if cfg.OIDC == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "OIDC middleware not configured"})
 		})
@@ -4934,16 +5096,100 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 {{ end }}
 }
 
-{{ if eq .AuthMode "oidc" }}func oidcSubjectHasScope(subj oidcauth.Subject, required string) bool {
+{{ if eq .AuthMode "jwt" }}func jwtSubjectTenantID(subj jwtauth.Subject) string {
+	for _, key := range []string{"tenant_id", "tid", "org_id"} {
+		if value := stringClaim(subj.Claims, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func jwtSubjectHasScope(subj jwtauth.Subject, required string) bool {
 	if required == "" {
 		return true
 	}
-	for _, scope := range strings.FieldsFunc(subj.Scope, func(r rune) bool { return r == ' ' || r == ',' }) {
-		if strings.EqualFold(strings.TrimSpace(scope), required) {
+	for _, claim := range []string{"scope", "scp", "permissions"} {
+		for _, scope := range scopeValues(subj.Claims[claim]) {
+			if strings.EqualFold(scope, required) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stringClaim(claims map[string]any, key string) string {
+	if claims == nil {
+		return ""
+	}
+	value, ok := claims[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func scopeValues(value any) []string {
+	switch v := value.(type) {
+	case string:
+		return splitAuthScopes(v)
+	case []string:
+		return cleanScopes(v)
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if scope, ok := item.(string); ok {
+				out = append(out, scope)
+			}
+		}
+		return cleanScopes(out)
+	default:
+		return nil
+	}
+}
+
+{{ else if eq .AuthMode "clerk" }}func scopeStringContains(value, required string) bool {
+	if required == "" {
+		return true
+	}
+	for _, scope := range splitAuthScopes(value) {
+		if strings.EqualFold(scope, required) {
 			return true
 		}
 	}
 	return false
+}
+
+{{ else if eq .AuthMode "oidc" }}func oidcSubjectHasScope(subj oidcauth.Subject, required string) bool {
+	return scopeStringContains(subj.Scope, required)
+}
+
+func scopeStringContains(value, required string) bool {
+	if required == "" {
+		return true
+	}
+	for _, scope := range splitAuthScopes(value) {
+		if strings.EqualFold(scope, required) {
+			return true
+		}
+	}
+	return false
+}
+
+{{ end }}
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}func splitAuthScopes(value string) []string {
+	return cleanScopes(strings.FieldsFunc(value, func(r rune) bool { return r == ' ' || r == ',' }))
+}
+
+func cleanScopes(values []string) []string {
+	out := values[:0]
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 {{ end }}
@@ -5002,13 +5248,13 @@ const fullHTTPAPIRouterTestTemplate = `package httpapi
 
 import (
 	"bytes"
-{{ if eq .AuthMode "oidc" }}	"context"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 {{ end }}
 	"encoding/json"
-{{ if eq .AuthMode "oidc" }}	"math/big"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"math/big"
 {{ end }}
 	"net/http"
 	"net/http/httptest"
@@ -5016,10 +5262,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-{{ if eq .AuthMode "oidc" }}	"time"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+{{ else if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ end }}
 	"github.com/aatuh/api-toolkit/v2/ports"
 {{ end }}
 	"{{ .Module }}/internal/app"
@@ -5311,7 +5560,7 @@ func createOrganization(t *testing.T, handler http.Handler, actorID, name string
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 	tenancy := app.NewTenancyService()
-	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy){{ if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy){{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {
@@ -5330,37 +5579,69 @@ func authorizeTestRequestAs(t *testing.T, req *http.Request, tenantID, actorID s
 	if actorID != "" {
 		req.Header.Set("X-Actor-ID", actorID)
 	}
-{{ if eq .AuthMode "oidc" }}	req.Header.Set("Authorization", "Bearer "+testOIDCJWTForActor(t, actorID, tenantID, scopes...))
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	req.Header.Set("Authorization", "Bearer "+testBearerJWTForActor(t, actorID, tenantID, scopes...))
 {{ else }}	req.Header.Set("X-API-Key", "test-key")
 {{ end }}}
 
-{{ if eq .AuthMode "oidc" }}const (
-	testOIDCKeyID    = "test-kid"
-	testOIDCIssuer   = "https://oidc.example.test"
-	testOIDCAudience = "saas-api-full"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}const (
+	testBearerKeyID = "test-kid"
+{{ if eq .AuthMode "jwt" }}	testBearerIssuer   = "https://jwt.example.test"
+	testBearerAudience = "saas-api-full"
+{{ else if eq .AuthMode "clerk" }}	testBearerIssuer   = "https://clerk.example.test"
+	testBearerAudience = "saas-api-full"
+{{ else if eq .AuthMode "oidc" }}	testBearerIssuer   = "https://oidc.example.test"
+	testBearerAudience = "saas-api-full"
+{{ end }}
 )
 
-var testOIDCPrivateKey *rsa.PrivateKey
+var testBearerPrivateKey *rsa.PrivateKey
 
+{{ if eq .AuthMode "jwt" }}func newTestJWT(t *testing.T) *jwtauth.Middleware {
+	t.Helper()
+	server := newTestJWKSServer(t)
+	mw, err := jwtauth.NewMiddleware(context.Background(), jwtauth.Config{
+		Enabled:           true,
+		JWKSURL:           server.URL,
+		Issuer:            testBearerIssuer,
+		Audience:          testBearerAudience,
+		AllowedAlgorithms: []string{"RS256"},
+	}, ports.NopLogger{})
+	if err != nil {
+		t.Fatalf("new JWT middleware: %v", err)
+	}
+	t.Cleanup(mw.Close)
+	return mw
+}
+
+{{ else if eq .AuthMode "clerk" }}func newTestClerk(t *testing.T) *clerkauth.Middleware {
+	t.Helper()
+	server := newTestJWKSServer(t)
+	mw, err := clerkauth.NewMiddleware(context.Background(), clerkauth.Config{
+		Enabled:           true,
+		JWKSURL:           server.URL,
+		Issuer:            testBearerIssuer,
+		Audience:          testBearerAudience,
+		AllowedAlgorithms: []string{"RS256"},
+	}, ports.NopLogger{})
+	if err != nil {
+		t.Fatalf("new Clerk middleware: %v", err)
+	}
+	t.Cleanup(mw.Close)
+	return mw
+}
+
+{{ else if eq .AuthMode "oidc" }}
 func newTestOIDC(t *testing.T) *oidcauth.Middleware {
 	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate OIDC test key: %v", err)
-	}
-	testOIDCPrivateKey = key
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{jwkFromRSAPublicKey(&key.PublicKey)}})
-	}))
-	t.Cleanup(server.Close)
+	server := newTestJWKSServer(t)
 	mw, err := oidcauth.NewMiddleware(context.Background(), oidcauth.Config{
-		Enabled:     true,
-		JWKSURL:     server.URL,
-		Issuer:      testOIDCIssuer,
-		Audience:    testOIDCAudience,
-		TenantClaim: "tenant_id",
-		ScopeClaim:  "scope",
+		Enabled:           true,
+		JWKSURL:           server.URL,
+		Issuer:            testBearerIssuer,
+		Audience:          testBearerAudience,
+		TenantClaim:       "tenant_id",
+		ScopeClaim:        "scope",
+		AllowedAlgorithms: []string{"RS256"},
 	}, ports.NopLogger{})
 	if err != nil {
 		t.Fatalf("new OIDC middleware: %v", err)
@@ -5369,31 +5650,41 @@ func newTestOIDC(t *testing.T) *oidcauth.Middleware {
 	return mw
 }
 
-func testOIDCJWT(t *testing.T, tenantID string, scopes ...string) string {
+{{ end }}func newTestJWKSServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	return testOIDCJWTForActor(t, "user_123", tenantID, scopes...)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate bearer test key: %v", err)
+	}
+	testBearerPrivateKey = key
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{jwkFromRSAPublicKey(&key.PublicKey)}})
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
-func testOIDCJWTForActor(t *testing.T, actorID, tenantID string, scopes ...string) string {
+func testBearerJWTForActor(t *testing.T, actorID, tenantID string, scopes ...string) string {
 	t.Helper()
-	if testOIDCPrivateKey == nil {
-		t.Fatal("OIDC test key is not configured")
+	if testBearerPrivateKey == nil {
+		t.Fatal("bearer test key is not configured")
 	}
 	now := time.Now().UTC()
 	claims := jwt.MapClaims{
 		"sub":       actorID,
 		"tenant_id": tenantID,
 		"scope":     strings.Join(scopes, " "),
-		"iss":       testOIDCIssuer,
-		"aud":       testOIDCAudience,
+		"iss":       testBearerIssuer,
+		"aud":       testBearerAudience,
 		"iat":       now.Unix(),
 		"exp":       now.Add(time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = testOIDCKeyID
-	signed, err := token.SignedString(testOIDCPrivateKey)
+	token.Header["kid"] = testBearerKeyID
+	signed, err := token.SignedString(testBearerPrivateKey)
 	if err != nil {
-		t.Fatalf("sign OIDC test JWT: %v", err)
+		t.Fatalf("sign bearer test JWT: %v", err)
 	}
 	return signed
 }
@@ -5402,7 +5693,7 @@ func jwkFromRSAPublicKey(key *rsa.PublicKey) map[string]string {
 	return map[string]string{
 		"kty": "RSA",
 		"use": "sig",
-		"kid": testOIDCKeyID,
+		"kid": testBearerKeyID,
 		"alg": "RS256",
 		"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
 		"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
@@ -5588,12 +5879,20 @@ API_KEY_PEPPER=
 ADMIN_KEY=local-admin-key
 IDEMPOTENCY_KEY_PREFIX=idempotency:
 RATE_LIMIT_KEY_PREFIX=ratelimit:
+{{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
+JWT_ISSUER=
+JWT_AUDIENCE=saas-api-full
+{{ else if eq .AuthMode "clerk" }}CLERK_JWKS_URL=
+CLERK_ISSUER=
+CLERK_AUDIENCE=saas-api-full
+{{ else if eq .AuthMode "oidc" }}
 OIDC_ISSUER=
 OIDC_AUDIENCE=saas-api-full
 OIDC_JWKS_URL=
 OIDC_DISCOVERY_URL=
 OIDC_TENANT_CLAIM=tenant_id
 OIDC_SCOPE_CLAIM=scope
+{{ end }}
 `
 
 const fullGitignoreTemplate = `.env
@@ -5815,7 +6114,7 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
-The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, and tenant-scoped idempotent widget writes. API-key and OIDC modes are wired with fail-closed startup validation.
+The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, and tenant-scoped idempotent widget writes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
 

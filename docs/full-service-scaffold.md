@@ -62,9 +62,10 @@ The full profile standardizes these defaults:
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
-- OIDC auth validates bearer tokens against configured issuer, audience,
-  algorithms, and JWKS material, can discover `jwks_uri` from OIDC metadata, and
-  maps configured tenant and scope claims into generated tenant checks.
+- JWT, Clerk, and OIDC auth validate bearer tokens against configured issuer,
+  audience, algorithms, and JWKS material. OIDC can also discover `jwks_uri`
+  from provider metadata; all bearer modes map tenant and scope claims into
+  generated tenant checks.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
 - Detailed health, metrics, and pprof remain operator-only; a separate admin
   listener is preferred when configured.

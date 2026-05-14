@@ -960,6 +960,65 @@ func TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC(t *testing.T) {
 	}
 }
 
+func TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT(t *testing.T) {
+	assertFullScaffoldBearerAuthMode(t, "jwt", []string{"newJWTMiddleware", "jwtauth.NewMiddleware", "JWTJWKSURL", "JWTIssuer", "JWTAudience"}, []string{"jwtauth.SubjectFromContext", "required JWT scope missing", "tenant claim mismatch"}, "BearerAuth")
+}
+
+func TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk(t *testing.T) {
+	assertFullScaffoldBearerAuthMode(t, "clerk", []string{"newClerkMiddleware", "clerkauth.NewMiddleware", "ClerkJWKSURL", "ClerkIssuer", "ClerkAudience"}, []string{"clerkauth.SubjectFromContext", "required Clerk scope missing", "tenant claim mismatch"}, "BearerAuth")
+}
+
+func assertFullScaffoldBearerAuthMode(t *testing.T, authMode string, mainWant, routerWant []string, securityScheme string) {
+	t.Helper()
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--auth", authMode,
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new full service auth=%s failed: %s", authMode, out.String())
+	}
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "api", "main.go"))
+	if err != nil {
+		t.Fatalf("read generated full %s main.go: %v", authMode, err)
+	}
+	for _, want := range mainWant {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated full %s main.go missing %q", authMode, want)
+		}
+	}
+	generatedRouter, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "router.go"))
+	if err != nil {
+		t.Fatalf("read generated full %s router.go: %v", authMode, err)
+	}
+	for _, want := range routerWant {
+		if !strings.Contains(string(generatedRouter), want) {
+			t.Fatalf("generated full %s router.go missing %q", authMode, want)
+		}
+	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, securityScheme)
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full %s service tidy failed:\n%s\nerror: %v", authMode, output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full %s service tests failed:\n%s\nerror: %v", authMode, output, err)
+	}
+}
+
 func TestContractsLintFailsForMissingPolicy(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
