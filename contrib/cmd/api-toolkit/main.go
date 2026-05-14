@@ -3350,6 +3350,7 @@ CREATE TABLE outbox_events (
 CREATE TABLE audit_events (
 	id TEXT PRIMARY KEY,
 	organization_id TEXT,
+	actor_type TEXT NOT NULL,
 	actor_id TEXT,
 	action TEXT NOT NULL,
 	resource_type TEXT NOT NULL,

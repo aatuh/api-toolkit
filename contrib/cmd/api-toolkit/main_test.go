@@ -781,6 +781,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"CREATE TABLE operations",
 		"CREATE TABLE outbox_events",
 		"CREATE TABLE audit_events",
+		"actor_type TEXT NOT NULL",
 		"CREATE TABLE webhook_endpoints",
 		"CREATE TABLE webhook_deliveries",
 	} {
