@@ -3067,6 +3067,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/contrib/v2/async"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
@@ -3124,6 +3126,7 @@ func run(ctx context.Context) error {
 		cancel()
 		defer pool.Close()
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
+		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(&pgxpooladapter.Adapter{Pool: pool}, auditpostgres.Options{}))
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
 	if strings.EqualFold(cfg.CacheStore, "redis") {
@@ -3433,14 +3436,21 @@ import (
 )
 
 type AuditService struct {
-	mu     sync.Mutex
-	next   int
-	now    func() time.Time
-	events []audit.Event
+	mu       sync.Mutex
+	next     int
+	now      func() time.Time
+	recorder audit.Recorder
+	events   []audit.Event
 }
 
 func NewAuditService() *AuditService {
 	return &AuditService{now: time.Now}
+}
+
+func NewAuditServiceWithRecorder(recorder audit.Recorder) *AuditService {
+	service := NewAuditService()
+	service.recorder = recorder
+	return service
 }
 
 func (s *AuditService) Record(ctx context.Context, event audit.Event) error {
@@ -3470,6 +3480,9 @@ func (s *AuditService) Record(ctx context.Context, event audit.Event) error {
 	event.Metadata = safeAuditMetadata(event.Metadata)
 	if err := audit.ValidateEvent(event); err != nil {
 		return err
+	}
+	if s.recorder != nil {
+		return s.recorder.Record(ctx, event)
 	}
 	s.events = append(s.events, event)
 	return nil
@@ -3610,6 +3623,46 @@ func TestAuditServiceRecordsAndRedactsMetadata(t *testing.T) {
 			t.Fatalf("unsafe audit metadata survived: %#v", events[0].Metadata)
 		}
 	}
+}
+
+func TestAuditServiceWithRecorderRedactsBeforeDelegating(t *testing.T) {
+	recorder := &recordingAuditRecorder{}
+	service := NewAuditServiceWithRecorder(recorder)
+	err := service.Record(context.Background(), audit.Event{
+		TenantID: "org_1",
+		Actor: audit.Actor{Type: "user", ID: "usr_1"},
+		Action: "api_key.create",
+		Resource: audit.Resource{Type: "api_key", ID: "key_1"},
+		Result: audit.ResultSuccess,
+		Metadata: map[string]string{
+			"scope_count": "2",
+			"token": "raw-secret-token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	if len(recorder.events) != 1 {
+		t.Fatalf("delegated events = %#v", recorder.events)
+	}
+	if recorder.events[0].ID == "" || recorder.events[0].OccurredAt.IsZero() {
+		t.Fatalf("delegated event missing generated fields: %#v", recorder.events[0])
+	}
+	if _, ok := recorder.events[0].Metadata["token"]; ok {
+		t.Fatalf("delegated metadata leaked token: %#v", recorder.events[0].Metadata)
+	}
+	if recorder.events[0].Metadata["scope_count"] != "2" {
+		t.Fatalf("delegated metadata = %#v", recorder.events[0].Metadata)
+	}
+}
+
+type recordingAuditRecorder struct {
+	events []audit.Event
+}
+
+func (r *recordingAuditRecorder) Record(_ context.Context, event audit.Event) error {
+	r.events = append(r.events, event)
+	return nil
 }
 
 `

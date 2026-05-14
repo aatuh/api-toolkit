@@ -104,6 +104,10 @@ source of truth is `docs/release-runbook.md`.
   `DATABASE_URL` is configured. The store persists widget create/update/delete
   state in the generated `widgets` table while preserving the local in-memory
   default for tests and lightweight development.
+- Generated `saas-api-full` audit recording now delegates to the contrib
+  Postgres audit store when `DATABASE_URL` is configured, after the generated
+  service has produced event IDs, timestamps, and redaction-safe metadata.
+  Local development keeps the existing in-memory audit recorder.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
