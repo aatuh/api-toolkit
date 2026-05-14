@@ -2484,6 +2484,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/tenancy_test.go", Body: fullAppTenancyTestTemplate},
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
+	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
 	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
 	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
@@ -2766,6 +2767,7 @@ import (
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/ports"
+	"{{ .Module }}/internal/adapters/postgres"
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/httpapi"
 )
@@ -2794,6 +2796,24 @@ func run(ctx context.Context) error {
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
 	asyncJobs := app.NewAsyncService(widgets)
+	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
+	if cfg.DatabaseURL != "" {
+		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		pool, err := postgres.Open(dbCtx, cfg.DatabaseURL)
+		cancel()
+		if err != nil {
+			return err
+		}
+		dbCtx, cancel = context.WithTimeout(ctx, 10*time.Second)
+		if err := postgres.CheckRequiredTables(dbCtx, pool, nil); err != nil {
+			cancel()
+			pool.Close()
+			return err
+		}
+		cancel()
+		defer pool.Close()
+		readiness = postgres.HealthChecker{Pool: pool}
+	}
 	asyncRunner, err := async.New(async.Config{
 		Store:        asyncJobs,
 		Handler:      asyncJobs,
@@ -2821,7 +2841,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -2845,7 +2865,7 @@ func run(ctx context.Context) error {
 	if cfg.AdminAddr != "" {
 		adminServer := &http.Server{
 			Addr:              cfg.AdminAddr,
-			Handler:           httpapi.NewAdminRouter(httpapi.RouterConfig{AdminKey: cfg.AdminKey}),
+			Handler:           httpapi.NewAdminRouter(httpapi.RouterConfig{AdminKey: cfg.AdminKey, Readiness: readiness}),
 			ReadHeaderTimeout: 5 * time.Second,
 		}
 		servers = append(servers, adminServer)
@@ -4322,12 +4342,54 @@ const fullPostgresAdapterTemplate = `package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrPoolRequired = errors.New("postgres pool is required")
+var (
+	ErrDatabaseURLRequired = errors.New("DATABASE_URL is required")
+	ErrPoolRequired        = errors.New("postgres pool is required")
+	ErrMigrationsRequired  = errors.New("postgres migrations are not applied")
+)
+
+var RequiredTables = []string{
+	"organizations",
+	"memberships",
+	"invitations",
+	"api_keys",
+	"widgets",
+	"operations",
+	"outbox_events",
+	"audit_events",
+	"webhook_endpoints",
+	"webhook_deliveries",
+}
 
 type Pinger interface {
 	Ping(context.Context) error
+}
+
+type TableQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+	databaseURL = strings.TrimSpace(databaseURL)
+	if databaseURL == "" {
+		return nil, ErrDatabaseURLRequired
+	}
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("open postgres pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
+	return pool, nil
 }
 
 type HealthChecker struct {
@@ -4339,6 +4401,95 @@ func (h HealthChecker) Check(ctx context.Context) error {
 		return ErrPoolRequired
 	}
 	return h.Pool.Ping(ctx)
+}
+
+func CheckRequiredTables(ctx context.Context, db TableQuerier, tables []string) error {
+	if db == nil {
+		return ErrPoolRequired
+	}
+	if len(tables) == 0 {
+		tables = RequiredTables
+	}
+	for _, table := range tables {
+		table = strings.TrimSpace(table)
+		if table == "" {
+			continue
+		}
+		qualified := "public." + table
+		var exists bool
+		if err := db.QueryRow(ctx, "select to_regclass($1) is not null", qualified).Scan(&exists); err != nil {
+			return fmt.Errorf("check postgres table %s: %w", table, err)
+		}
+		if !exists {
+			return fmt.Errorf("%w: missing table %s", ErrMigrationsRequired, table)
+		}
+	}
+	return nil
+}
+`
+
+const fullPostgresAdapterTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+)
+
+func TestCheckRequiredTablesPassesWhenTablesExist(t *testing.T) {
+	db := fakeTableQuerier{tables: map[string]bool{
+		"public.organizations": true,
+		"public.widgets":       true,
+	}}
+	if err := CheckRequiredTables(context.Background(), db, []string{"organizations", "widgets"}); err != nil {
+		t.Fatalf("CheckRequiredTables() error = %v", err)
+	}
+}
+
+func TestCheckRequiredTablesFailsClosedForMissingTables(t *testing.T) {
+	db := fakeTableQuerier{tables: map[string]bool{"public.organizations": true}}
+	err := CheckRequiredTables(context.Background(), db, []string{"organizations", "widgets"})
+	if !errors.Is(err, ErrMigrationsRequired) {
+		t.Fatalf("CheckRequiredTables() error = %v, want %v", err, ErrMigrationsRequired)
+	}
+}
+
+func TestHealthCheckerRequiresPool(t *testing.T) {
+	if err := (HealthChecker{}).Check(context.Background()); !errors.Is(err, ErrPoolRequired) {
+		t.Fatalf("HealthChecker.Check() error = %v, want %v", err, ErrPoolRequired)
+	}
+}
+
+type fakeTableQuerier struct {
+	tables map[string]bool
+	err    error
+}
+
+func (f fakeTableQuerier) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
+	table, _ := args[0].(string)
+	return fakeRow{exists: f.tables[table], err: f.err}
+}
+
+type fakeRow struct {
+	exists bool
+	err    error
+}
+
+func (r fakeRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	if len(dest) != 1 {
+		return errors.New("one destination is required")
+	}
+	exists, ok := dest[0].(*bool)
+	if !ok {
+		return errors.New("bool destination is required")
+	}
+	*exists = r.exists
+	return nil
 }
 `
 
@@ -4908,6 +5059,7 @@ func normalizeJSON(data []byte) ([]byte, error) {
 const fullHTTPAPIRouterTemplate = `package httpapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -5037,6 +5189,7 @@ type RouterConfig struct {
 	Tenancy  *app.TenancyService
 	APIKeys  *app.APIKeyService
 	Async    *app.AsyncService
+	Readiness HealthChecker
 	APIKey   string
 	AdminKey string
 {{ if eq .AuthMode "jwt" }}	JWT      *jwtauth.Middleware
@@ -5045,10 +5198,23 @@ type RouterConfig struct {
 {{ end }}
 }
 
+type HealthChecker interface {
+	Check(context.Context) error
+}
+
+type HealthCheckFunc func(context.Context) error
+
+func (f HealthCheckFunc) Check(ctx context.Context) error {
+	if f == nil {
+		return nil
+	}
+	return f(ctx)
+}
+
 func NewRouter(cfg RouterConfig) http.Handler {
 	cfg = cfg.withDefaults()
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /readyz", handleReady)
+	mux.HandleFunc("GET /readyz", cfg.handleReady)
 	mux.HandleFunc("GET /docs/openapi.json", handleOpenAPI)
 	mux.Handle("GET /organizations", cfg.protect("organizations:read", http.HandlerFunc(cfg.handleListOrganizations)))
 	mux.Handle("POST /organizations", cfg.protect("organizations:write", http.HandlerFunc(cfg.handleCreateOrganization)))
@@ -5071,6 +5237,10 @@ func NewAdminRouter(cfg RouterConfig) http.Handler {
 	cfg = cfg.withDefaults()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/detailed", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+		if err := cfg.checkReady(r); err != nil {
+			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	}))
 	mux.HandleFunc("GET /metrics", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
@@ -5105,8 +5275,21 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	return cfg
 }
 
-func handleReady(w http.ResponseWriter, r *http.Request) {
+func (cfg RouterConfig) handleReady(w http.ResponseWriter, r *http.Request) {
+	if err := cfg.checkReady(r); err != nil {
+		httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+func (cfg RouterConfig) checkReady(r *http.Request) error {
+	if cfg.Readiness == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	return cfg.Readiness.Check(ctx)
 }
 
 func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
@@ -5931,12 +6114,13 @@ const fullHTTPAPIRouterTestTemplate = `package httpapi
 
 import (
 	"bytes"
-{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"context"
-	"crypto/rand"
+	"context"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 {{ end }}
 	"encoding/json"
+	"errors"
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"math/big"
 {{ end }}
 	"net/http"
@@ -5973,6 +6157,21 @@ func TestReadinessAndOpenAPI(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "\"operationId\": \"createWidget\"") {
 		t.Fatalf("openapi missing createWidget operation: %s", rec.Body.String())
+	}
+}
+
+func TestReadinessReportsDependencyFailure(t *testing.T) {
+	handler := NewRouter(RouterConfig{
+		Readiness: HealthCheckFunc(func(context.Context) error { return errors.New("postgres unavailable") }),
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("ready failure status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "postgres unavailable") {
+		t.Fatalf("ready failure leaked dependency error: %s", rec.Body.String())
 	}
 }
 
@@ -6829,6 +7028,7 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
+When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, and an async widget import with pollable operation state. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.

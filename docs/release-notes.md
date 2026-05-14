@@ -67,6 +67,10 @@ source of truth is `docs/release-runbook.md`.
   operation polling at `GET /operations/{id}`, replay-safe idempotency, a
   generated worker service over the contrib async store/handler contracts, and
   OpenAPI/client coverage for `createWidgetImport` and `getOperation`.
+- Generated `saas-api-full` services now wire optional Postgres runtime
+  startup checks: when `DATABASE_URL` is set, generated code opens a pgx pool,
+  pings it, verifies required platform tables, closes the pool on shutdown, and
+  reflects database failures through public readiness and admin detailed health.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
