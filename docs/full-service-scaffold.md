@@ -193,7 +193,7 @@ tests are opt-in:
 - Integration checks verify migrations, tenant isolation, scoped API keys,
   managed API-key authentication, idempotent writes, ETag conflict handling,
   async polling, webhook delivery/replay, object writes, admin health, metrics,
-  pprof, and admin listener isolation; deeper checks for outbox retries and
-  audit writes can remain opt-in extensions as the generated script grows.
+  pprof, audit writes, and admin listener isolation; deeper checks for outbox
+  retry behavior can remain opt-in extensions as the generated script grows.
 - Default `make finalize` must not require Docker, cloud credentials, or network
   services outside module downloads and tool installation.

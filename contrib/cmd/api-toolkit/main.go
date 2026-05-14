@@ -14193,6 +14193,20 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Idempotency-Key: integration-put-object" \
   --data '{"key":"integration.txt","content_type":"text/plain","content_base64":"aGVsbG8="}' >/dev/null
 
+audit_count="$(compose exec -T postgres psql -v ON_ERROR_STOP=1 -tA -U api -d api \
+  -v organization_id="${org_id}" \
+  -c "select count(*) from audit_events where organization_id = :'organization_id';" | tr -d '[:space:]')"
+case "${audit_count}" in
+  ""|*[!0-9]*)
+    echo "audit event count query returned ${audit_count}" >&2
+    exit 1
+    ;;
+esac
+if [ "${audit_count}" -lt 1 ]; then
+  echo "audit events were not recorded" >&2
+  exit 1
+fi
+
 curl -fsS "${admin_url}/health/detailed" \
   -H "X-Admin-Key: ${ADMIN_KEY}" >/dev/null
 
@@ -14503,7 +14517,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, webhook delivery/replay, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, webhook delivery/replay, object writes, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `

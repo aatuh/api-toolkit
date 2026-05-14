@@ -895,6 +895,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"operation did not succeed",
 		"webhook delivery list leaked signing secret",
 		"replay webhook delivery",
+		"audit_events",
+		"audit events were not recorded",
 		"public pprof endpoint should be isolated",
 		"docker compose down -v",
 	} {
