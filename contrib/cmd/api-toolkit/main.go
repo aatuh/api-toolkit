@@ -2476,6 +2476,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/domain/api_key.go", Body: fullDomainAPIKeyTemplate},
 	{Name: "internal/domain/tenancy.go", Body: fullDomainTenancyTemplate},
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
+	{Name: "internal/app/audit.go", Body: fullAppAuditTemplate},
+	{Name: "internal/app/audit_test.go", Body: fullAppAuditTestTemplate},
 	{Name: "internal/app/api_keys.go", Body: fullAppAPIKeysTemplate},
 	{Name: "internal/app/api_keys_test.go", Body: fullAppAPIKeysTestTemplate},
 	{Name: "internal/app/async.go", Body: fullAppAsyncTemplate},
@@ -2796,6 +2798,7 @@ func run(ctx context.Context) error {
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
 	asyncJobs := app.NewAsyncService(widgets)
+	auditLog := app.NewAuditService()
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2841,7 +2844,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -3091,6 +3094,202 @@ func (w Widget) Public() map[string]any {
 		"version":   w.Version,
 	}
 }
+`
+
+const fullAppAuditTemplate = `package app
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+)
+
+type AuditService struct {
+	mu     sync.Mutex
+	next   int
+	now    func() time.Time
+	events []audit.Event
+}
+
+func NewAuditService() *AuditService {
+	return &AuditService{now: time.Now}
+}
+
+func (s *AuditService) Record(ctx context.Context, event audit.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.next++
+	event.ID = fmt.Sprintf("aud_%06d", s.next)
+	event.TenantID = strings.TrimSpace(event.TenantID)
+	event.Actor.Type = cleanAuditLabel(event.Actor.Type)
+	event.Actor.ID = strings.TrimSpace(event.Actor.ID)
+	event.Action = cleanAuditLabel(event.Action)
+	event.Resource.Type = cleanAuditLabel(event.Resource.Type)
+	event.Resource.ID = strings.TrimSpace(event.Resource.ID)
+	if event.Result == "" {
+		event.Result = audit.ResultSuccess
+	}
+	if event.OccurredAt.IsZero() {
+		event.OccurredAt = s.now().UTC()
+	}
+	event.RequestID = strings.TrimSpace(event.RequestID)
+	event.Metadata = safeAuditMetadata(event.Metadata)
+	if err := audit.ValidateEvent(event); err != nil {
+		return err
+	}
+	s.events = append(s.events, event)
+	return nil
+}
+
+func (s *AuditService) Events(ctx context.Context) ([]audit.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]audit.Event(nil), s.events...)
+	for i := range out {
+		out[i].Metadata = audit.CloneMetadata(out[i].Metadata)
+	}
+	return out, nil
+}
+
+func safeAuditMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		cleanKey := cleanAuditMetadataPart(key)
+		if cleanKey == "" || unsafeAuditMetadataPart(cleanKey) {
+			continue
+		}
+		value := cleanAuditMetadataPart(metadata[key])
+		if value == "" || unsafeAuditMetadataPart(value) {
+			continue
+		}
+		out[cleanKey] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cleanAuditLabel(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var out strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			out.WriteRune(r)
+		case r >= '0' && r <= '9':
+			out.WriteRune(r)
+		case r == '.' || r == '_' || r == '-':
+			out.WriteRune(r)
+		}
+		if out.Len() >= 80 {
+			break
+		}
+	}
+	return out.String()
+}
+
+func cleanAuditMetadataPart(value string) string {
+	value = strings.TrimSpace(value)
+	var out strings.Builder
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			continue
+		}
+		out.WriteRune(r)
+		if out.Len() >= 128 {
+			break
+		}
+	}
+	return strings.TrimSpace(out.String())
+}
+
+func unsafeAuditMetadataPart(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, token := range []string{"authorization", "bearer ", "cookie", "password", "private_key", "secret", "set-cookie", "token", "api_key", "apikey", "pepper", "idempotency"} {
+		if strings.Contains(value, token) {
+			return true
+		}
+	}
+	return false
+}
+
+`
+
+const fullAppAuditTestTemplate = `package app
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+)
+
+func TestAuditServiceRecordsAndRedactsMetadata(t *testing.T) {
+	service := NewAuditService()
+	err := service.Record(context.Background(), audit.Event{
+		TenantID: "org_1",
+		Actor: audit.Actor{Type: "user", ID: "usr_1"},
+		Action: "widget.create",
+		Resource: audit.Resource{Type: "widget", ID: "wgt_1"},
+		Result: audit.ResultSuccess,
+		RequestID: "req_1",
+		Metadata: map[string]string{
+			"count": "2",
+			"api_key": "atk_secret",
+			"note": "contains secret token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	events, err := service.Events(context.Background())
+	if err != nil {
+		t.Fatalf("Events() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events = %#v", events)
+	}
+	if events[0].ID == "" || events[0].OccurredAt.IsZero() {
+		t.Fatalf("event missing generated fields: %#v", events[0])
+	}
+	if events[0].Metadata["count"] != "2" {
+		t.Fatalf("safe metadata missing: %#v", events[0].Metadata)
+	}
+	for key, value := range events[0].Metadata {
+		if strings.Contains(strings.ToLower(key), "key") || strings.Contains(strings.ToLower(value), "secret") {
+			t.Fatalf("unsafe audit metadata survived: %#v", events[0].Metadata)
+		}
+	}
+}
+
 `
 
 // #nosec G101 -- generated source uses API key and secret variable names, not hardcoded production credentials.
@@ -5065,9 +5264,11 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
@@ -5189,6 +5390,7 @@ type RouterConfig struct {
 	Tenancy  *app.TenancyService
 	APIKeys  *app.APIKeyService
 	Async    *app.AsyncService
+	Audit    *app.AuditService
 	Readiness HealthChecker
 	APIKey   string
 	AdminKey string
@@ -5266,6 +5468,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Async == nil {
 		cfg.Async = app.NewAsyncService(cfg.Widgets)
 	}
+	if cfg.Audit == nil {
+		cfg.Audit = app.NewAuditService()
+	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
 	}
@@ -5303,6 +5508,36 @@ func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(doc)
 }
 
+func (cfg RouterConfig) recordAudit(r *http.Request, tenantID, actorID, action, resourceType, resourceID string, metadata map[string]string) {
+	if cfg.Audit == nil {
+		return
+	}
+	_ = cfg.Audit.Record(r.Context(), audit.Event{
+		TenantID: strings.TrimSpace(tenantID),
+		Actor: audit.Actor{
+			Type: "user",
+			ID:   strings.TrimSpace(actorID),
+		},
+		Action: strings.TrimSpace(action),
+		Resource: audit.Resource{
+			Type: strings.TrimSpace(resourceType),
+			ID:   strings.TrimSpace(resourceID),
+		},
+		Result:    audit.ResultSuccess,
+		RequestID: requestID(r),
+		Metadata:  metadata,
+	})
+}
+
+func requestID(r *http.Request) string {
+	for _, name := range []string{"X-Request-ID", "X-Correlation-ID"} {
+		if value := strings.TrimSpace(r.Header.Get(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func (cfg RouterConfig) handleListOrganizations(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := cfg.authenticateActor(w, r)
 	if !ok {
@@ -5337,6 +5572,7 @@ func (cfg RouterConfig) handleCreateOrganization(w http.ResponseWriter, r *http.
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, org.ID, actorID, "organization.create", "organization", org.ID, nil)
 	writeJSON(w, http.StatusCreated, org.Public())
 }
 
@@ -5382,6 +5618,7 @@ func (cfg RouterConfig) handleCreateInvitation(w http.ResponseWriter, r *http.Re
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, organizationID, actorID, "invitation.create", "invitation", invitation.ID, map[string]string{"role": string(invitation.Role)})
 	writeJSON(w, http.StatusCreated, map[string]any{"invitation": invitation.Public(), "token": token})
 }
 
@@ -5427,6 +5664,10 @@ func (cfg RouterConfig) handleCreateAPIKey(w http.ResponseWriter, r *http.Reques
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, organizationID, actorID, "api_key.create", "api_key", key.ID, map[string]string{
+		"scope_count": strconv.Itoa(len(key.Scopes)),
+		"expires":     strconv.FormatBool(key.ExpiresAt != nil),
+	})
 	writeJSON(w, http.StatusCreated, map[string]any{"api_key": key.Public(), "secret": secret})
 }
 
@@ -5451,6 +5692,7 @@ func (cfg RouterConfig) handleRevokeAPIKey(w http.ResponseWriter, r *http.Reques
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, organizationID, actorID, "api_key.revoke", "api_key", keyID, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -5476,6 +5718,7 @@ func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Re
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, member.OrganizationID, actorID, "invitation.accept", "membership", member.UserID, nil)
 	writeJSON(w, http.StatusOK, member.Public())
 }
 
@@ -5519,6 +5762,10 @@ func (cfg RouterConfig) handleListWidgets(w http.ResponseWriter, r *http.Request
 }
 
 func (cfg RouterConfig) handleCreateWidget(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
 	tenantID, ok := cfg.authenticateTenant(w, r)
 	if !ok {
 		return
@@ -5541,10 +5788,15 @@ func (cfg RouterConfig) handleCreateWidget(w http.ResponseWriter, r *http.Reques
 	if replayed {
 		status = http.StatusOK
 	}
+	cfg.recordAudit(r, tenantID, actorID, "widget.create", "widget", widget.ID, map[string]string{"replayed": strconv.FormatBool(replayed)})
 	writeJSON(w, status, widget.Public())
 }
 
 func (cfg RouterConfig) handleCreateWidgetImport(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
 	tenantID, ok := cfg.authenticateTenant(w, r)
 	if !ok {
 		return
@@ -5565,6 +5817,10 @@ func (cfg RouterConfig) handleCreateWidgetImport(w http.ResponseWriter, r *http.
 	if replayed {
 		w.Header().Set("Idempotent-Replay", "true")
 	}
+	cfg.recordAudit(r, tenantID, actorID, "widget_import.create", "operation", operation.ID, map[string]string{
+		"item_count": strconv.Itoa(len(req.Items)),
+		"replayed":   strconv.FormatBool(replayed),
+	})
 	apitkops.WriteAccepted(w, apitkops.AcceptedConfig{
 		ID:         operation.ID,
 		Location:   "/operations/" + operation.ID,
@@ -5573,6 +5829,10 @@ func (cfg RouterConfig) handleCreateWidgetImport(w http.ResponseWriter, r *http.
 }
 
 func (cfg RouterConfig) handleUpdateWidget(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
 	tenantID, ok := cfg.authenticateTenant(w, r)
 	if !ok {
 		return
@@ -5595,10 +5855,15 @@ func (cfg RouterConfig) handleUpdateWidget(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("ETag", widget.ETag())
+	cfg.recordAudit(r, tenantID, actorID, "widget.update", "widget", widget.ID, nil)
 	writeJSON(w, http.StatusOK, widget.Public())
 }
 
 func (cfg RouterConfig) handleDeleteWidget(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
 	tenantID, ok := cfg.authenticateTenant(w, r)
 	if !ok {
 		return
@@ -5611,6 +5876,7 @@ func (cfg RouterConfig) handleDeleteWidget(w http.ResponseWriter, r *http.Reques
 		writeAppError(w, err)
 		return
 	}
+	cfg.recordAudit(r, tenantID, actorID, "widget.delete", "widget", r.PathValue("id"), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -6419,6 +6685,43 @@ func TestOrganizationInvitationFlow(t *testing.T) {
 	}
 }
 
+func TestWriteRoutesRecordAuditWithoutSecrets(t *testing.T) {
+	handler, auditLog := newTestRouterWithAudit(t)
+	orgID := createOrganization(t, handler, "owner_1", "Acme")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/api-keys", strings.NewReader(` + "`" + `{"name":"CI","scopes":["widgets:read","widgets:write"]}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:write")
+	req.Header.Set("Idempotency-Key", "audit-api-key")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create api key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode api key body: %v", err)
+	}
+	secret, _ := body["secret"].(string)
+	if secret == "" {
+		t.Fatalf("api key response missing secret: %#v", body)
+	}
+
+	events, err := auditLog.Events(context.Background())
+	if err != nil {
+		t.Fatalf("Events() error = %v", err)
+	}
+	encoded, err := json.Marshal(events)
+	if err != nil {
+		t.Fatalf("marshal audit events: %v", err)
+	}
+	if !strings.Contains(string(encoded), "organization.create") || !strings.Contains(string(encoded), "api_key.create") {
+		t.Fatalf("audit events missing expected actions: %s", encoded)
+	}
+	if strings.Contains(string(encoded), secret) {
+		t.Fatalf("audit events leaked api key secret: %s", encoded)
+	}
+}
+
 func TestOpenAPIGolden(t *testing.T) {
 	got, err := OpenAPIDocument()
 	if err != nil {
@@ -6473,8 +6776,16 @@ func createOrganization(t *testing.T, handler http.Handler, actorID, name string
 
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
+	handler, _ := newTestRouterWithAudit(t)
+	return handler
+}
+
+func newTestRouterWithAudit(t *testing.T) (http.Handler, *app.AuditService) {
+	t.Helper()
 	tenancy := app.NewTenancyService()
-	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy){{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	auditLog := app.NewAuditService()
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy), Audit: auditLog{{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	return handler, auditLog
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {
@@ -7029,6 +7340,7 @@ go run ./cmd/api
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
+Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, and an async widget import with pollable operation state. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.

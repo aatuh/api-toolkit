@@ -107,6 +107,10 @@ Goal:
   is unreachable or required tables are missing. Readiness and admin detailed
   health expose only generic unavailable responses; keep DSNs, SQL errors, and
   migration details in operator logs, not HTTP Problem Details.
+- Generated full-profile audit hooks record write actions without raw API-key
+  secrets, invitation tokens, idempotency keys, authorization headers, request
+  payloads, or provider errors. Treat audit metadata as allow-listed operational
+  context only; anything credential-shaped should be dropped before recording.
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.
