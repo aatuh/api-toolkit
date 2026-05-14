@@ -144,6 +144,11 @@ Goal:
   type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
   delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those
   observations.
+- Generated full-profile cache wiring keeps local development in memory and
+  uses Redis only when `CACHE_STORE=redis` or production defaults select it.
+  Keep cache keys application-owned and low sensitivity; do not store API-key
+  secrets, invitation tokens, webhook signing secrets, provider secrets, or raw
+  request payloads in shared cache values.
 - Object storage helpers validate bucket/key references, enforce content-type
   and size policy, and reject secret-shaped metadata. Treat object payloads as
   untrusted content: scan before use, keep S3 endpoints as trusted operator

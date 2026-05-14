@@ -50,7 +50,10 @@ The full profile standardizes these defaults:
 - Generated services only connect to Postgres when `DATABASE_URL` is set; in
   production it is mandatory, startup pings the database, and required table
   checks catch unapplied migrations before serving traffic.
-- Redis stores shared idempotency, rate-limit, and cache state.
+- Redis stores shared idempotency, rate-limit, and cache state in production.
+  Generated services use an in-process cache for local development and switch
+  to the generated Redis cache adapter when `CACHE_STORE=redis` or production
+  defaults require it.
 - Organizations, memberships, invitations, roles, and scoped API keys provide
   the generated tenant model.
 - Invitation tokens are returned once, stored only as hashes, and accepted into

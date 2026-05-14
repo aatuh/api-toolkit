@@ -2656,6 +2656,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
 	{Name: "internal/app/audit.go", Body: fullAppAuditTemplate},
 	{Name: "internal/app/audit_test.go", Body: fullAppAuditTestTemplate},
+	{Name: "internal/app/cache.go", Body: fullAppCacheTemplate},
+	{Name: "internal/app/cache_test.go", Body: fullAppCacheTestTemplate},
 	{Name: "internal/app/api_keys.go", Body: fullAppAPIKeysTemplate},
 	{Name: "internal/app/api_keys_test.go", Body: fullAppAPIKeysTestTemplate},
 	{Name: "internal/app/async.go", Body: fullAppAsyncTemplate},
@@ -2667,6 +2669,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/webhooks_test.go", Body: fullAppWebhooksTestTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
+	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
+	{Name: "internal/adapters/redis/cache_test.go", Body: fullRedisCacheAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
 	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
 	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
@@ -2940,6 +2944,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -2950,6 +2955,7 @@ import (
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/ports"
 	"{{ .Module }}/internal/adapters/postgres"
+	rediscache "{{ .Module }}/internal/adapters/redis"
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/httpapi"
 )
@@ -2980,6 +2986,8 @@ func run(ctx context.Context) error {
 	asyncJobs := app.NewAsyncService(widgets)
 	auditLog := app.NewAuditService()
 	webhooks := app.NewWebhookService(tenancy)
+	cacheService := app.NewCacheService(nil)
+	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2998,6 +3006,18 @@ func run(ctx context.Context) error {
 		defer pool.Close()
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
+	if strings.EqualFold(cfg.CacheStore, "redis") {
+		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		redisCache, err := rediscache.OpenCache(redisCtx, cfg.RedisAddr)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer redisCache.Close()
+		cacheService = app.NewCacheService(redisCache.Store)
+		cacheReadiness = redisCache
+	}
+	readiness = httpapi.CombineHealthChecks(readiness, cacheReadiness)
 	asyncRunner, err := async.New(async.Config{
 		Store:        asyncJobs,
 		Handler:      asyncJobs,
@@ -3025,7 +3045,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Cache: cacheService, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -3468,6 +3488,248 @@ func TestAuditServiceRecordsAndRedactsMetadata(t *testing.T) {
 		if strings.Contains(strings.ToLower(key), "key") || strings.Contains(strings.ToLower(value), "secret") {
 			t.Fatalf("unsafe audit metadata survived: %#v", events[0].Metadata)
 		}
+	}
+}
+
+`
+
+const fullAppCacheTemplate = `package app
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+	"time"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/cache"
+)
+
+const webhookEventTypesCacheKey = "catalog:webhook-events"
+
+type CacheService struct {
+	store cache.Store
+}
+
+func NewCacheService(store cache.Store) *CacheService {
+	if store == nil {
+		store = NewMemoryCacheStore()
+	}
+	return &CacheService{store: store}
+}
+
+func (s *CacheService) WebhookEventTypes(ctx context.Context, loader func() []string) ([]string, bool, error) {
+	var cached []string
+	ok, err := s.GetJSON(ctx, webhookEventTypesCacheKey, &cached)
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		return append([]string(nil), cached...), true, nil
+	}
+	if loader == nil {
+		return nil, false, ErrValidation
+	}
+	loaded := append([]string(nil), loader()...)
+	if err := s.SetJSON(ctx, webhookEventTypesCacheKey, loaded, time.Minute); err != nil {
+		return nil, false, err
+	}
+	return loaded, false, nil
+}
+
+func (s *CacheService) GetJSON(ctx context.Context, key string, dst any) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if s == nil || s.store == nil || dst == nil {
+		return false, ErrValidation
+	}
+	value, ok, err := s.store.Get(ctx, key)
+	if err != nil || !ok {
+		return ok, err
+	}
+	if err := json.Unmarshal(value, dst); err != nil {
+		_ = s.store.Delete(ctx, key)
+		return false, nil
+	}
+	return true, nil
+}
+
+func (s *CacheService) SetJSON(ctx context.Context, key string, value any, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.store == nil {
+		return ErrValidation
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return s.store.Set(ctx, key, encoded, ttl)
+}
+
+func (s *CacheService) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.store == nil {
+		return ErrValidation
+	}
+	return s.store.Delete(ctx, key)
+}
+
+func (s *CacheService) Check(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.store == nil {
+		return ErrValidation
+	}
+	const key = "health:cache"
+	if err := s.store.Set(ctx, key, []byte("ok"), time.Second); err != nil {
+		return err
+	}
+	value, ok, err := s.store.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	if !ok || string(value) != "ok" {
+		return ErrValidation
+	}
+	return s.store.Delete(ctx, key)
+}
+
+type MemoryCacheStore struct {
+	mu     sync.Mutex
+	now    func() time.Time
+	values map[string]memoryCacheEntry
+}
+
+type memoryCacheEntry struct {
+	value     []byte
+	expiresAt time.Time
+}
+
+func NewMemoryCacheStore() *MemoryCacheStore {
+	return &MemoryCacheStore{now: time.Now, values: map[string]memoryCacheEntry{}}
+}
+
+func (s *MemoryCacheStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	if err := cache.ValidateKey(key); err != nil {
+		return nil, false, err
+	}
+	if s == nil {
+		return nil, false, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.values[key]
+	if !ok {
+		return nil, false, nil
+	}
+	if !entry.expiresAt.IsZero() && !s.now().Before(entry.expiresAt) {
+		delete(s.values, key)
+		return nil, false, nil
+	}
+	return cache.CloneBytes(entry.value), true, nil
+}
+
+func (s *MemoryCacheStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := cache.ValidateKey(key); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	var expiresAt time.Time
+	if ttl > 0 {
+		expiresAt = s.now().Add(ttl)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.values[key] = memoryCacheEntry{value: cache.CloneBytes(value), expiresAt: expiresAt}
+	return nil
+}
+
+func (s *MemoryCacheStore) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := cache.ValidateKey(key); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.values, key)
+	return nil
+}
+
+var _ cache.Store = (*MemoryCacheStore)(nil)
+
+`
+
+const fullAppCacheTestTemplate = `package app
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestMemoryCacheStoreHonorsTTLAndClonesValues(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryCacheStore()
+	store.now = func() time.Time { return now }
+	value := []byte("alpha")
+	if err := store.Set(ctx, "widgets:1", value, time.Second); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	value[0] = 'x'
+	got, ok, err := store.Get(ctx, "widgets:1")
+	if err != nil || !ok || string(got) != "alpha" {
+		t.Fatalf("Get() = %q ok=%v err=%v", got, ok, err)
+	}
+	got[0] = 'z'
+	again, ok, err := store.Get(ctx, "widgets:1")
+	if err != nil || !ok || string(again) != "alpha" {
+		t.Fatalf("Get() after mutation = %q ok=%v err=%v", again, ok, err)
+	}
+	now = now.Add(time.Second)
+	if _, ok, err := store.Get(ctx, "widgets:1"); err != nil || ok {
+		t.Fatalf("expired Get() ok=%v err=%v", ok, err)
+	}
+}
+
+func TestCacheServiceCachesWebhookEventCatalog(t *testing.T) {
+	ctx := context.Background()
+	service := NewCacheService(NewMemoryCacheStore())
+	calls := 0
+	events, hit, err := service.WebhookEventTypes(ctx, func() []string {
+		calls++
+		return []string{"widget.created"}
+	})
+	if err != nil || hit || calls != 1 || len(events) != 1 {
+		t.Fatalf("first WebhookEventTypes() events=%v hit=%v calls=%d err=%v", events, hit, calls, err)
+	}
+	events, hit, err = service.WebhookEventTypes(ctx, func() []string {
+		calls++
+		return []string{"widget.deleted"}
+	})
+	if err != nil || !hit || calls != 1 || events[0] != "widget.created" {
+		t.Fatalf("cached WebhookEventTypes() events=%v hit=%v calls=%d err=%v", events, hit, calls, err)
+	}
+	if err := service.Check(ctx); err != nil {
+		t.Fatalf("Check() error = %v", err)
 	}
 }
 
@@ -5370,6 +5632,103 @@ func (r fakeRow) Scan(dest ...any) error {
 }
 `
 
+const fullRedisCacheAdapterTemplate = `package redis
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis"
+	"github.com/aatuh/api-toolkit/contrib/v2/cache"
+)
+
+var (
+	ErrRedisAddrRequired  = errors.New("REDIS_ADDR is required")
+	ErrRedisClientMissing = errors.New("redis cache client is required")
+)
+
+type Cache struct {
+	Store  cache.Store
+	client redis.UniversalClient
+}
+
+func OpenCache(ctx context.Context, addr string) (*Cache, error) {
+	addrs := parseRedisAddrs(addr)
+	if len(addrs) == 0 {
+		return nil, ErrRedisAddrRequired
+	}
+	client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+	return &Cache{
+		Store:  cacheredis.New(client, cacheredis.Options{KeyPrefix: "api:", DefaultTTL: 5 * time.Minute}),
+		client: client,
+	}, nil
+}
+
+func (c *Cache) Check(ctx context.Context) error {
+	if c == nil || c.client == nil {
+		return ErrRedisClientMissing
+	}
+	return c.client.Ping(ctx).Err()
+}
+
+func (c *Cache) Close() error {
+	if c == nil || c.client == nil {
+		return nil
+	}
+	return c.client.Close()
+}
+
+func parseRedisAddrs(addr string) []string {
+	parts := strings.FieldsFunc(addr, func(r rune) bool { return r == ',' || r == ';' })
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+`
+
+const fullRedisCacheAdapterTestTemplate = `package redis
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func TestParseRedisAddrsRejectsEmptyAndSplits(t *testing.T) {
+	if got := parseRedisAddrs(" "); len(got) != 0 {
+		t.Fatalf("empty parseRedisAddrs() = %#v", got)
+	}
+	got := parseRedisAddrs("localhost:6379, redis-2:6379 ;redis-3:6379")
+	if len(got) != 3 || got[0] != "localhost:6379" || got[2] != "redis-3:6379" {
+		t.Fatalf("parseRedisAddrs() = %#v", got)
+	}
+}
+
+func TestCacheCheckRequiresClient(t *testing.T) {
+	if err := (*Cache)(nil).Check(context.Background()); !errors.Is(err, ErrRedisClientMissing) {
+		t.Fatalf("nil Check() error = %v, want %v", err, ErrRedisClientMissing)
+	}
+	if err := (&Cache{}).Check(context.Background()); !errors.Is(err, ErrRedisClientMissing) {
+		t.Fatalf("missing client Check() error = %v, want %v", err, ErrRedisClientMissing)
+	}
+}
+
+`
+
 const fullHTTPAPIOpenAPITemplate = `package httpapi
 
 import (
@@ -6143,6 +6502,7 @@ type Config struct {
 	AdminKey     string
 	DatabaseURL  string
 	RedisAddr    string
+	CacheStore   string
 	APIKeyPepper string
 {{ if eq .AuthMode "jwt" }}	JWTJWKSURL   string
 	JWTIssuer    string
@@ -6160,13 +6520,18 @@ type Config struct {
 }
 
 func ConfigFromEnv() (Config, error) {
+	cacheStore := envDefault("CACHE_STORE", "memory")
+	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("CACHE_STORE")) == "" {
+		cacheStore = "redis"
+	}
 	cfg := Config{
 		Addr:         envDefault("API_ADDR", ":8080"),
 		AdminAddr:    strings.TrimSpace(os.Getenv("ADMIN_ADDR")),
 		APIKey:       envDefault("API_KEY", "local-dev-key"),
 		AdminKey:     envDefault("ADMIN_KEY", "local-admin-key"),
 		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		RedisAddr:    envDefault("REDIS_ADDR", "localhost:6379"),
+		RedisAddr:    strings.TrimSpace(os.Getenv("REDIS_ADDR")),
+		CacheStore:   strings.ToLower(strings.TrimSpace(cacheStore)),
 		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
 {{ if eq .AuthMode "jwt" }}		JWTJWKSURL:   strings.TrimSpace(os.Getenv("JWT_JWKS_URL")),
 		JWTIssuer:    strings.TrimSpace(os.Getenv("JWT_ISSUER")),
@@ -6182,6 +6547,9 @@ func ConfigFromEnv() (Config, error) {
 		OIDCScopeClaim:   envDefault("OIDC_SCOPE_CLAIM", "scope"),
 {{ end }}
 	}
+	if cfg.CacheStore != "memory" && cfg.CacheStore != "redis" {
+		return Config{}, errors.New("CACHE_STORE must be memory or redis")
+	}
 	if strings.EqualFold(os.Getenv("ENV"), "production") {
 		var missing []string
 		if cfg.DatabaseURL == "" {
@@ -6192,6 +6560,9 @@ func ConfigFromEnv() (Config, error) {
 		}
 		if cfg.APIKeyPepper == "" {
 			missing = append(missing, "API_KEY_PEPPER")
+		}
+		if cfg.CacheStore != "redis" {
+			missing = append(missing, "CACHE_STORE=redis")
 		}
 {{ if eq .AuthMode "jwt" }}		if cfg.JWTJWKSURL == "" {
 			missing = append(missing, "JWT_JWKS_URL")
@@ -6248,6 +6619,7 @@ type RouterConfig struct {
 	Async    *app.AsyncService
 	Audit    *app.AuditService
 	Webhooks *app.WebhookService
+	Cache    *app.CacheService
 	Readiness HealthChecker
 	APIKey   string
 	AdminKey string
@@ -6268,6 +6640,20 @@ func (f HealthCheckFunc) Check(ctx context.Context) error {
 		return nil
 	}
 	return f(ctx)
+}
+
+func CombineHealthChecks(checkers ...HealthChecker) HealthChecker {
+	return HealthCheckFunc(func(ctx context.Context) error {
+		for _, checker := range checkers {
+			if checker == nil {
+				continue
+			}
+			if err := checker.Check(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {
@@ -6335,6 +6721,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	}
 	if cfg.Webhooks == nil {
 		cfg.Webhooks = app.NewWebhookService(cfg.Tenancy)
+	}
+	if cfg.Cache == nil {
+		cfg.Cache = app.NewCacheService(nil)
 	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
@@ -6565,7 +6954,17 @@ func (cfg RouterConfig) handleListWebhookEvents(w http.ResponseWriter, r *http.R
 	if _, ok := cfg.authenticateActor(w, r); !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"event_types": cfg.Webhooks.EventTypes()})
+	eventTypes, hit, err := cfg.Cache.WebhookEventTypes(r.Context(), cfg.Webhooks.EventTypes)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if hit {
+		w.Header().Set("X-Cache", "HIT")
+	} else {
+		w.Header().Set("X-Cache", "MISS")
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"event_types": eventTypes})
 }
 
 func (cfg RouterConfig) handleListWebhookEndpoints(w http.ResponseWriter, r *http.Request) {
@@ -7764,6 +8163,16 @@ func TestWebhookEndpointDeliveryAndReplayFlow(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "widget.created") {
 		t.Fatalf("webhook event catalog status = %d body=%s", rec.Code, rec.Body.String())
 	}
+	if rec.Header().Get("X-Cache") != "MISS" {
+		t.Fatalf("first webhook event catalog cache header = %q", rec.Header().Get("X-Cache"))
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/webhook-events", nil)
+	authorizeTestRequestAs(t, req, "", "owner_1", "webhooks:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Header().Get("X-Cache") != "HIT" {
+		t.Fatalf("cached webhook event catalog status = %d cache=%q body=%s", rec.Code, rec.Header().Get("X-Cache"), rec.Body.String())
+	}
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/webhook-endpoints", strings.NewReader(` + "`" + `{"url":"https://example.com/webhooks/widgets","events":["widget.created"]}` + "`" + `))
@@ -8217,6 +8626,7 @@ API_ADDR=:8080
 ADMIN_ADDR=:9090
 DATABASE_URL=
 REDIS_ADDR=localhost:6379
+CACHE_STORE=memory
 API_KEY=local-dev-key
 API_ACTOR_ID=
 API_KEY_PEPPER=
@@ -8457,7 +8867,7 @@ go run ./cmd/api
 ` + "```" + `
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
-Redis is reserved for shared idempotency, rate limiting, and cache state.
+Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, and outbound webhook endpoint/delivery/replay routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.

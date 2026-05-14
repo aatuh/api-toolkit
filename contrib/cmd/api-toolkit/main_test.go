@@ -732,6 +732,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/domain/widget.go",
 		"internal/app/audit.go",
 		"internal/app/audit_test.go",
+		"internal/app/cache.go",
+		"internal/app/cache_test.go",
 		"internal/app/api_keys.go",
 		"internal/app/api_keys_test.go",
 		"internal/app/async.go",
@@ -743,6 +745,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/app/webhooks_test.go",
 		"internal/adapters/postgres/postgres.go",
 		"internal/adapters/postgres/postgres_test.go",
+		"internal/adapters/redis/cache.go",
+		"internal/adapters/redis/cache_test.go",
 		"internal/httpapi/router.go",
 		"internal/httpapi/router_test.go",
 		"internal/httpapi/openapi.go",
@@ -773,6 +777,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"DATABASE_URL=",
 		"REDIS_ADDR=localhost:6379",
+		"CACHE_STORE=memory",
 		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
 		"ADMIN_ADDR=:9090",
@@ -820,7 +825,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "app.NewAuditService", "app.NewWebhookService", "Audit: auditLog", "Webhooks: webhooks", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Cache: cacheService", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
