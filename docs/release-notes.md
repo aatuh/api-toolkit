@@ -100,9 +100,11 @@ source of truth is `docs/release-runbook.md`.
   checks for readiness, OpenAPI, authentication failure, tenant membership,
   managed API-key authentication, idempotent widget writes, ETag conflict
   handling, async operation polling, outbox completion/retry behavior, webhook
-  delivery/replay, object writes, audit writes, admin detailed health, admin
-  metrics, admin pprof, and public admin-route isolation before tearing Docker
-  volumes down.
+  delivery/replay, object write/readback, audit writes, admin detailed health,
+  admin metrics, admin pprof, and public admin-route isolation before tearing
+  Docker volumes down. Set `INTEGRATION_OBJECT_STORE=s3` to have the script
+  start the optional MinIO profile, initialize the generated `api-objects`
+  bucket, and run the same object checks through the S3-compatible adapter.
 - Generated `saas-api-full` widget services now use an application storage
   port, and the generated runtime switches to a Postgres widget store when
   `DATABASE_URL` is configured. The store persists widget create/update/delete

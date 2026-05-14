@@ -13917,6 +13917,17 @@ wait_for_redis() {
   return 1
 }
 
+wait_for_minio() {
+  for _ in $(seq 1 60); do
+    if curl -fsS "${S3_ENDPOINT}/minio/health/ready" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "minio did not become ready" >&2
+  return 1
+}
+
 wait_for_http() {
   local url="$1"
   for _ in $(seq 1 90); do
@@ -13994,11 +14005,23 @@ export ADMIN_KEY="${ADMIN_KEY:-local-admin-key}"
 export API_ACTOR_ID="${API_ACTOR_ID:-integration-actor}"
 export API_KEY_PEPPER="${API_KEY_PEPPER:-integration-pepper-change-me}"
 export WEBHOOK_SECRET_KEY="${WEBHOOK_SECRET_KEY:-local-webhook-secret-key-1234567}"
+export OBJECT_STORE="${INTEGRATION_OBJECT_STORE:-${OBJECT_STORE:-memory}}"
+export S3_ENDPOINT="${S3_ENDPOINT:-http://localhost:9000}"
+export S3_REGION="${S3_REGION:-us-east-1}"
+export S3_BUCKET="${S3_BUCKET:-api-objects}"
+export S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-minio}"
+export S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-minio123}"
 
 api_url="http://${API_ADDR}"
 admin_url="http://${ADMIN_ADDR}"
 
-compose up -d postgres redis
+if [ "${OBJECT_STORE}" = "s3" ]; then
+  compose --profile objectstore up -d postgres redis minio
+  wait_for_minio
+  compose --profile objectstore run --rm minio-init
+else
+  compose up -d postgres redis
+fi
 wait_for_postgres
 wait_for_redis
 
@@ -14237,6 +14260,17 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Idempotency-Key: integration-put-object" \
   --data '{"key":"integration.txt","content_type":"text/plain","content_base64":"aGVsbG8="}' >/dev/null
 
+curl -fsS "${api_url}/organizations/${org_id}/objects/integration.txt" \
+  -o "${tmp_dir}/object-get.json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" >/dev/null
+object_content="$(json_field content_base64 "${tmp_dir}/object-get.json")"
+if [ "${object_content}" != "aGVsbG8=" ]; then
+  echo "object get did not return stored content" >&2
+  exit 1
+fi
+
 audit_count="$(psql_scalar \
   -v organization_id="${org_id}" \
   -c "select count(*) from audit_events where organization_id = :'organization_id';")"
@@ -14435,6 +14469,14 @@ const fullComposeTemplate = `services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+  minio-init:
+    image: minio/mc:latest
+    profiles: [objectstore]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "mc alias set local http://minio:9000 minio minio123 &&
+      mc mb -p --ignore-existing local/api-objects"
 
 volumes:
   postgres-data:
@@ -14561,7 +14603,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object writes, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
