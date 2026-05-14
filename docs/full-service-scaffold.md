@@ -32,9 +32,11 @@ write routes now record audit events with actor, tenant, action, resource,
 result, request ID, and redaction-safe metadata. The generated HTTP layer now
 also includes outbound webhook event catalog, endpoint create/list, delivery
 list, and replay routes; widget writes enqueue tenant-scoped webhook delivery
-records for subscribed endpoints without exposing signing secrets. Reusable
-building blocks now exist for durable operations, transactional outbox work,
-object storage, OpenAPI 3.1, and generated Go client output; the roadmap
+records for subscribed endpoints without exposing signing secrets. It includes
+tenant-scoped object routes with strict key, content-type, and size policy for
+the local scaffold path. Reusable building blocks now exist for durable
+operations, transactional outbox work, S3-compatible object storage, OpenAPI
+3.1, and generated Go client output; the roadmap
 continues with wiring those reusable pieces deeper into the generated
 application boundary.
 When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
@@ -85,6 +87,10 @@ The full profile standardizes these defaults:
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
+- Generated object routes provide create/list/read/delete behavior for
+  tenant-scoped objects with single-segment keys, bounded payloads, and
+  allow-listed content types. The local scaffold uses in-process storage; plug
+  in the contrib S3-compatible adapter for production object persistence.
 - JWT, Clerk, and OIDC auth validate bearer tokens against configured issuer,
   audience, algorithms, and JWKS material. OIDC can also discover `jwks_uri`
   from provider metadata; all bearer modes map tenant and scope claims into

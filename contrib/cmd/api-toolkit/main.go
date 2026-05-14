@@ -1066,6 +1066,43 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
 		},
 	})
+	registry.RegisterSchema("Object", map[string]any{
+		"type":     "object",
+		"required": []string{"tenant_id", "key", "content_type", "size", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"tenant_id":    map[string]any{"type": "string"},
+			"key":          map[string]any{"type": "string"},
+			"content_type": map[string]any{"type": "string"},
+			"size":         map[string]any{"type": "integer", "minimum": 0},
+			"created_at":   map[string]any{"type": "string", "format": "date-time"},
+			"updated_at":   map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("ObjectPutRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"key", "content_type", "content_base64"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"key":            map[string]any{"type": "string", "minLength": 1, "maxLength": 256},
+			"content_type":   map[string]any{"type": "string", "enum": []string{"application/json", "application/pdf", "image/jpeg", "image/png", "text/plain"}},
+			"content_base64": map[string]any{"type": "string", "format": "byte"},
+		},
+	})
+	registry.RegisterSchema("ObjectRead", map[string]any{
+		"type":     "object",
+		"required": []string{"object", "content_base64"},
+		"properties": map[string]any{
+			"object":         map[string]any{"$ref": "#/components/schemas/Object"},
+			"content_base64": map[string]any{"type": "string", "format": "byte"},
+		},
+	})
+	registry.RegisterSchema("ObjectList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Object"}},
+		},
+	})
 	registry.RegisterSchema("WebhookEndpoint", map[string]any{
 		"type":     "object",
 		"required": []string{"id", "tenant_id", "url", "events", "created_at"},
@@ -1259,6 +1296,30 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		Required: true,
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/WebhookReplayRequest"},
+		},
+	}
+	objectPutBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectPutRequest"},
+		},
+	}
+	objectResponse := specs.Response{
+		Description: "Object",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Object"},
+		},
+	}
+	objectReadResponse := specs.Response{
+		Description: "Object content",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectRead"},
+		},
+	}
+	objectListResponse := specs.Response{
+		Description: "Object list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
 	return []specs.Operation{
@@ -1459,6 +1520,59 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Security:    auth("webhooks:write"),
 			RequestBody: webhookReplayBody,
 			Responses:   map[int]specs.Response{http.StatusAccepted: webhookDeliveryResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationObjects",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/objects",
+			Summary:     "List organization objects",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:read"),
+			Responses: map[int]specs.Response{http.StatusOK: objectListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "putOrganizationObject",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/objects",
+			Summary:     "Put organization object",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("objects:write"),
+			RequestBody: objectPutBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: objectResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOrganizationObject",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/objects/{object_key}",
+			Summary:     "Get organization object",
+			Parameters: []specs.Parameter{
+				{Name: "object_key", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:read"),
+			Responses: map[int]specs.Response{http.StatusOK: objectReadResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "deleteOrganizationObject",
+			Method:      http.MethodDelete,
+			Path:        "/organizations/{organization_id}/objects/{object_key}",
+			Summary:     "Delete organization object",
+			Parameters: []specs.Parameter{
+				{Name: "object_key", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
@@ -2667,6 +2781,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
 	{Name: "internal/app/webhooks.go", Body: fullAppWebhooksTemplate},
 	{Name: "internal/app/webhooks_test.go", Body: fullAppWebhooksTestTemplate},
+	{Name: "internal/app/objects.go", Body: fullAppObjectsTemplate},
+	{Name: "internal/app/objects_test.go", Body: fullAppObjectsTestTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
 	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
@@ -2986,6 +3102,7 @@ func run(ctx context.Context) error {
 	asyncJobs := app.NewAsyncService(widgets)
 	auditLog := app.NewAuditService()
 	webhooks := app.NewWebhookService(tenancy)
+	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
@@ -3045,7 +3162,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Cache: cacheService, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -4964,6 +5081,268 @@ func TestWebhookServiceRejectsUnsafeEndpointAndReplaysTenantScopedDelivery(t *te
 
 `
 
+const fullAppObjectsTemplate = `package app
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+
+	"{{ .Module }}/internal/domain"
+)
+
+const maxObjectBytes = 1024 * 1024
+
+var allowedObjectContentTypes = map[string]struct{}{
+	"application/json": {},
+	"application/pdf":  {},
+	"image/jpeg":       {},
+	"image/png":        {},
+	"text/plain":       {},
+}
+
+type ObjectService struct {
+	mu      sync.Mutex
+	tenancy *TenancyService
+	now     func() time.Time
+	objects map[string]Object
+	data    map[string][]byte
+}
+
+type Object struct {
+	TenantID    string
+	Key         string
+	ContentType string
+	Size        int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (o Object) Public() map[string]any {
+	return map[string]any{
+		"tenant_id":    o.TenantID,
+		"key":          o.Key,
+		"content_type": o.ContentType,
+		"size":         o.Size,
+		"created_at":   o.CreatedAt,
+		"updated_at":   o.UpdatedAt,
+	}
+}
+
+func NewObjectService(tenancy *TenancyService) *ObjectService {
+	return &ObjectService{tenancy: tenancy, now: time.Now, objects: map[string]Object{}, data: map[string][]byte{}}
+}
+
+func (s *ObjectService) Put(ctx context.Context, actorID, tenantID, key, contentType string, data []byte) (Object, error) {
+	if err := ctx.Err(); err != nil {
+		return Object{}, err
+	}
+	if s == nil || s.tenancy == nil {
+		return Object{}, ErrValidation
+	}
+	if err := validateObjectKey(key); err != nil {
+		return Object{}, err
+	}
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if _, ok := allowedObjectContentTypes[contentType]; !ok {
+		return Object{}, ErrValidation
+	}
+	if len(data) == 0 || len(data) > maxObjectBytes {
+		return Object{}, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleMember)
+	if err != nil {
+		return Object{}, err
+	}
+	if !ok {
+		return Object{}, ErrForbidden
+	}
+	key = strings.TrimSpace(key)
+	tenantID = strings.TrimSpace(tenantID)
+	now := s.now().UTC()
+	id := objectID(tenantID, key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	obj := Object{TenantID: tenantID, Key: key, ContentType: contentType, Size: int64(len(data)), CreatedAt: now, UpdatedAt: now}
+	if existing, ok := s.objects[id]; ok {
+		obj.CreatedAt = existing.CreatedAt
+	}
+	s.objects[id] = obj
+	s.data[id] = append([]byte(nil), data...)
+	return obj, nil
+}
+
+func (s *ObjectService) Get(ctx context.Context, actorID, tenantID, key string) (Object, []byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Object{}, nil, false, err
+	}
+	if s == nil || s.tenancy == nil {
+		return Object{}, nil, false, ErrValidation
+	}
+	if err := validateObjectKey(key); err != nil {
+		return Object{}, nil, false, err
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleViewer)
+	if err != nil {
+		return Object{}, nil, false, err
+	}
+	if !ok {
+		return Object{}, nil, false, ErrForbidden
+	}
+	id := objectID(tenantID, key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	obj, ok := s.objects[id]
+	if !ok {
+		return Object{}, nil, false, nil
+	}
+	return obj, append([]byte(nil), s.data[id]...), true, nil
+}
+
+func (s *ObjectService) List(ctx context.Context, actorID, tenantID string) ([]Object, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.tenancy == nil {
+		return nil, ErrValidation
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrForbidden
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Object, 0)
+	for _, obj := range s.objects {
+		if obj.TenantID == tenantID {
+			out = append(out, obj)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, nil
+}
+
+func (s *ObjectService) Delete(ctx context.Context, actorID, tenantID, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.tenancy == nil {
+		return ErrValidation
+	}
+	if err := validateObjectKey(key); err != nil {
+		return err
+	}
+	ok, err := s.tenancy.HasRole(ctx, tenantID, actorID, domain.RoleMember)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrForbidden
+	}
+	id := objectID(tenantID, key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.objects[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.objects, id)
+	delete(s.data, id)
+	return nil
+}
+
+func validateObjectKey(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" || len(key) > 256 || strings.HasPrefix(key, ".") || strings.Contains(key, "..") || strings.ContainsAny(key, "/\\") {
+		return ErrValidation
+	}
+	for _, r := range key {
+		if unicode.IsControl(r) {
+			return ErrValidation
+		}
+	}
+	return nil
+}
+
+func objectID(tenantID, key string) string {
+	return fmt.Sprintf("%s\x00%s", strings.TrimSpace(tenantID), strings.TrimSpace(key))
+}
+
+`
+
+const fullAppObjectsTestTemplate = `package app
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func TestObjectServiceEnforcesTenantRolesAndPolicy(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewObjectService(tenancy)
+	obj, err := service.Put(ctx, "owner_1", org.ID, "readme.txt", "text/plain", []byte("hello"))
+	if err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	if obj.Key != "readme.txt" || obj.Size != 5 {
+		t.Fatalf("object = %#v", obj)
+	}
+	got, data, ok, err := service.Get(ctx, "owner_1", org.ID, "readme.txt")
+	if err != nil || !ok || got.Key != obj.Key || string(data) != "hello" {
+		t.Fatalf("Get() object=%#v data=%q ok=%v err=%v", got, data, ok, err)
+	}
+	data[0] = 'x'
+	_, again, ok, err := service.Get(ctx, "owner_1", org.ID, "readme.txt")
+	if err != nil || !ok || string(again) != "hello" {
+		t.Fatalf("Get() after data mutation data=%q ok=%v err=%v", again, ok, err)
+	}
+	if _, err := service.List(ctx, "owner_1", org.ID); err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if err := service.Delete(ctx, "owner_1", org.ID, "readme.txt"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if _, _, ok, err := service.Get(ctx, "owner_1", org.ID, "readme.txt"); err != nil || ok {
+		t.Fatalf("Get() after delete ok=%v err=%v", ok, err)
+	}
+}
+
+func TestObjectServiceRejectsUnsafeInputs(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewObjectService(tenancy)
+	for _, key := range []string{"", "../secret", "nested/file", ".hidden"} {
+		if _, err := service.Put(ctx, "owner_1", org.ID, key, "text/plain", []byte("hello")); !errors.Is(err, ErrValidation) {
+			t.Fatalf("Put(%q) error = %v, want %v", key, err, ErrValidation)
+		}
+	}
+	if _, err := service.Put(ctx, "owner_1", org.ID, "readme.txt", "application/x-secret", []byte("hello")); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsafe content-type error = %v, want %v", err, ErrValidation)
+	}
+	if _, err := service.Put(ctx, "stranger_1", org.ID, "readme.txt", "text/plain", []byte("hello")); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("stranger Put() error = %v, want %v", err, ErrForbidden)
+	}
+}
+
+`
+
 // #nosec G101 -- generated source uses invitation token variables, not hardcoded secrets.
 const fullAppTenancyTemplate = `package app
 
@@ -5961,6 +6340,43 @@ func registerSchemas(registry *specs.Registry) {
 			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
 		},
 	})
+	registry.RegisterSchema("Object", map[string]any{
+		"type":     "object",
+		"required": []string{"tenant_id", "key", "content_type", "size", "created_at", "updated_at"},
+		"properties": map[string]any{
+			"tenant_id":    map[string]any{"type": "string"},
+			"key":          map[string]any{"type": "string"},
+			"content_type": map[string]any{"type": "string"},
+			"size":         map[string]any{"type": "integer", "minimum": 0},
+			"created_at":   map[string]any{"type": "string", "format": "date-time"},
+			"updated_at":   map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("ObjectPutRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"key", "content_type", "content_base64"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"key":            map[string]any{"type": "string", "minLength": 1, "maxLength": 256},
+			"content_type":   map[string]any{"type": "string", "enum": []string{"application/json", "application/pdf", "image/jpeg", "image/png", "text/plain"}},
+			"content_base64": map[string]any{"type": "string", "format": "byte"},
+		},
+	})
+	registry.RegisterSchema("ObjectRead", map[string]any{
+		"type":     "object",
+		"required": []string{"object", "content_base64"},
+		"properties": map[string]any{
+			"object":         map[string]any{"$ref": "#/components/schemas/Object"},
+			"content_base64": map[string]any{"type": "string", "format": "byte"},
+		},
+	})
+	registry.RegisterSchema("ObjectList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Object"}},
+		},
+	})
 	registry.RegisterSchema("WebhookEndpoint", map[string]any{
 		"type":     "object",
 		"required": []string{"id", "tenant_id", "url", "events", "created_at"},
@@ -6154,6 +6570,30 @@ func operations() []specs.Operation {
 		Required: true,
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/WebhookReplayRequest"},
+		},
+	}
+	objectPutBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectPutRequest"},
+		},
+	}
+	objectResponse := specs.Response{
+		Description: "Object",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/Object"},
+		},
+	}
+	objectReadResponse := specs.Response{
+		Description: "Object content",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectRead"},
+		},
+	}
+	objectListResponse := specs.Response{
+		Description: "Object list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
 	return []specs.Operation{
@@ -6356,6 +6796,59 @@ func operations() []specs.Operation {
 			Responses:   map[int]specs.Response{http.StatusAccepted: webhookDeliveryResponse},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationObjects",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/objects",
+			Summary:     "List organization objects",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:read"),
+			Responses: map[int]specs.Response{http.StatusOK: objectListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "putOrganizationObject",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/objects",
+			Summary:     "Put organization object",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("objects:write"),
+			RequestBody: objectPutBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: objectResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOrganizationObject",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/objects/{object_key}",
+			Summary:     "Get organization object",
+			Parameters: []specs.Parameter{
+				{Name: "object_key", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:read"),
+			Responses: map[int]specs.Response{http.StatusOK: objectReadResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "deleteOrganizationObject",
+			Method:      http.MethodDelete,
+			Path:        "/organizations/{organization_id}/objects/{object_key}",
+			Summary:     "Delete organization object",
+			Parameters: []specs.Parameter{
+				{Name: "object_key", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("objects:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
 			Method:      http.MethodPost,
 			Path:        "/invitations/{id}/accept",
@@ -6475,6 +6968,7 @@ const fullHTTPAPIRouterTemplate = `package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -6619,6 +7113,7 @@ type RouterConfig struct {
 	Async    *app.AsyncService
 	Audit    *app.AuditService
 	Webhooks *app.WebhookService
+	Objects  *app.ObjectService
 	Cache    *app.CacheService
 	Readiness HealthChecker
 	APIKey   string
@@ -6673,6 +7168,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleCreateWebhookEndpoint)))
 	mux.Handle("GET /organizations/{organization_id}/webhook-deliveries", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookDeliveries)))
 	mux.Handle("POST /organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleReplayWebhookDelivery)))
+	mux.Handle("GET /organizations/{organization_id}/objects", cfg.protect("objects:read", http.HandlerFunc(cfg.handleListObjects)))
+	mux.Handle("POST /organizations/{organization_id}/objects", cfg.protect("objects:write", http.HandlerFunc(cfg.handlePutObject)))
+	mux.Handle("GET /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:read", http.HandlerFunc(cfg.handleGetObject)))
+	mux.Handle("DELETE /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", http.HandlerFunc(cfg.handleDeleteObject)))
 	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
 	mux.Handle("GET /operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
@@ -6721,6 +7220,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	}
 	if cfg.Webhooks == nil {
 		cfg.Webhooks = app.NewWebhookService(cfg.Tenancy)
+	}
+	if cfg.Objects == nil {
+		cfg.Objects = app.NewObjectService(cfg.Tenancy)
 	}
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
@@ -7055,6 +7557,98 @@ func (cfg RouterConfig) handleReplayWebhookDelivery(w http.ResponseWriter, r *ht
 	writeJSON(w, http.StatusAccepted, delivery)
 }
 
+func (cfg RouterConfig) handleListObjects(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	objects, err := cfg.Objects.List(r.Context(), actorID, organizationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(objects))
+	for _, object := range objects {
+		items = append(items, object.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (cfg RouterConfig) handlePutObject(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeObjectPutRequest(w, r)
+	if !ok {
+		return
+	}
+	object, err := cfg.Objects.Put(r.Context(), actorID, organizationID, req.Key, req.ContentType, req.Data)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	cfg.recordAudit(r, organizationID, actorID, "object.put", "object", object.Key, map[string]string{
+		"content_type": object.ContentType,
+		"size":         strconv.FormatInt(object.Size, 10),
+	})
+	writeJSON(w, http.StatusCreated, object.Public())
+}
+
+func (cfg RouterConfig) handleGetObject(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	key := strings.TrimSpace(r.PathValue("object_key"))
+	object, data, found, err := cfg.Objects.Get(r.Context(), actorID, organizationID, key)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if !found {
+		writeAppError(w, app.ErrNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"object": object.Public(), "content_base64": base64.StdEncoding.EncodeToString(data)})
+}
+
+func (cfg RouterConfig) handleDeleteObject(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	key := strings.TrimSpace(r.PathValue("object_key"))
+	if err := cfg.Objects.Delete(r.Context(), actorID, organizationID, key); err != nil {
+		writeAppError(w, err)
+		return
+	}
+	cfg.recordAudit(r, organizationID, actorID, "object.delete", "object", key, nil)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := cfg.authenticateActor(w, r)
 	if !ok {
@@ -7290,6 +7884,12 @@ type webhookEndpointRequest struct {
 	Events []string
 }
 
+type objectPutRequest struct {
+	Key         string
+	ContentType string
+	Data        []byte
+}
+
 func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organizationRequest, bool) {
 	defer r.Body.Close()
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -7429,6 +8029,27 @@ func decodeWebhookReplayRequest(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+func decodeObjectPutRequest(w http.ResponseWriter, r *http.Request) (objectPutRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Key           string ` + "`json:\"key\"`" + `
+		ContentType   string ` + "`json:\"content_type\"`" + `
+		ContentBase64 string ` + "`json:\"content_base64\"`" + `
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return objectPutRequest{}, false
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw.ContentBase64))
+	if err != nil || len(data) == 0 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "content_base64 is required"})
+		return objectPutRequest{}, false
+	}
+	return objectPutRequest{Key: strings.TrimSpace(raw.Key), ContentType: strings.TrimSpace(raw.ContentType), Data: data}, true
 }
 
 func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
@@ -8250,6 +8871,63 @@ func TestWebhookEndpointDeliveryAndReplayFlow(t *testing.T) {
 	}
 }
 
+func TestObjectStorageFlowRejectsUnsafeInputsAndDoesNotLeakPayload(t *testing.T) {
+	handler := newTestRouter(t)
+	orgID := createOrganization(t, handler, "owner_1", "Acme")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/objects", strings.NewReader(` + "`" + `{"key":"readme.txt","content_type":"text/plain","content_base64":"aGVsbG8="}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "objects:write")
+	req.Header.Set("Idempotency-Key", "put-object")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), "readme.txt") {
+		t.Fatalf("put object status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "aGVsbG8=") {
+		t.Fatalf("put object response leaked payload: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/objects", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "objects:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "readme.txt") {
+		t.Fatalf("list objects status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "aGVsbG8=") {
+		t.Fatalf("list objects leaked payload: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/objects/readme.txt", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "objects:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "\"content_base64\":\"aGVsbG8=\"") {
+		t.Fatalf("get object status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/objects", strings.NewReader(` + "`" + `{"key":"../secret","content_type":"text/plain","content_base64":"ZG8tbm90LWxlYWs="}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "objects:write")
+	req.Header.Set("Idempotency-Key", "put-unsafe-object")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unsafe object status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "ZG8tbm90LWxlYWs=") || strings.Contains(rec.Body.String(), "do-not-leak") {
+		t.Fatalf("unsafe object problem leaked payload: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/organizations/"+orgID+"/objects/readme.txt", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "objects:write")
+	req.Header.Set("Idempotency-Key", "delete-object")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete object status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestOpenAPIGolden(t *testing.T) {
 	got, err := OpenAPIDocument()
 	if err != nil {
@@ -8870,7 +9548,7 @@ Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webho
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
-The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, and outbound webhook endpoint/delivery/replay routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
+The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
 
