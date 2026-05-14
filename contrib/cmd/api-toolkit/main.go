@@ -13870,6 +13870,10 @@ if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required for integration-check" >&2
   exit 2
 fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required for integration-check" >&2
+  exit 2
+fi
 
 read -r -a compose_cmd <<< "${COMPOSE:-docker compose}"
 
@@ -13931,8 +13935,25 @@ wait_for_http() {
   return 1
 }
 
-json_id() {
-  sed -nE 's/.*"id":"([^"]+)".*/\1/p'
+json_field() {
+  local path="$1"
+  local file="$2"
+  python3 - "${path}" "${file}" <<'PY'
+import json
+import sys
+
+path = sys.argv[1].split(".")
+with open(sys.argv[2], "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+for item in path:
+    if isinstance(data, dict):
+        data = data[item]
+    else:
+        raise KeyError(item)
+if data is None:
+    raise SystemExit(1)
+print(data)
+PY
 }
 
 export ENV=integration
@@ -13981,7 +14002,8 @@ org_json="$(curl -fsS -X POST "${api_url}/organizations" \
   -H "X-Actor-ID: ${API_ACTOR_ID}" \
   -H "Idempotency-Key: integration-create-organization" \
   --data '{"name":"Integration"}')"
-org_id="$(printf '%s' "${org_json}" | json_id)"
+printf '%s' "${org_json}" >"${tmp_dir}/organization.json"
+org_id="$(json_field id "${tmp_dir}/organization.json")"
 if [ -z "${org_id}" ]; then
   echo "create organization response did not include id" >&2
   exit 1
@@ -13991,6 +14013,27 @@ curl -fsS "${api_url}/organizations/${org_id}/members" \
   -H "X-API-Key: ${API_KEY}" \
   -H "X-Actor-ID: ${API_ACTOR_ID}" \
   -H "X-Tenant-ID: ${org_id}" >/dev/null
+
+api_key_json="$(curl -fsS -X POST "${api_url}/organizations/${org_id}/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-create-managed-api-key" \
+  --data '{"name":"Integration","scopes":["widgets:read","widgets:write"]}')"
+printf '%s' "${api_key_json}" >"${tmp_dir}/api-key.json"
+managed_api_key="$(json_field secret "${tmp_dir}/api-key.json")"
+if [ -z "${managed_api_key}" ]; then
+  echo "create API key response did not include secret" >&2
+  exit 1
+fi
+
+curl -fsS -X POST "${api_url}/widgets" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${managed_api_key}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-managed-key-widget" \
+  --data '{"name":"managed-key-widget"}' >/dev/null
 
 curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Content-Type: application/json" \
@@ -14002,6 +14045,24 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
 
 curl -fsS "${admin_url}/health/detailed" \
   -H "X-Admin-Key: ${ADMIN_KEY}" >/dev/null
+
+curl -fsS "${admin_url}/metrics" \
+  -H "X-Admin-Key: ${ADMIN_KEY}" | grep -q "http_requests_total"
+
+curl -fsS "${admin_url}/debug/pprof/" \
+  -H "X-Admin-Key: ${ADMIN_KEY}" | grep -q "Types of profiles available"
+
+metrics_status="$(curl -sS -o "${tmp_dir}/metrics-unauthorized.txt" -w '%{http_code}' "${admin_url}/metrics")"
+if [ "${metrics_status}" != "401" ]; then
+  echo "expected unauthenticated admin metrics request to return 401, got ${metrics_status}" >&2
+  exit 1
+fi
+
+public_pprof_status="$(curl -sS -o "${tmp_dir}/public-pprof.html" -w '%{http_code}' "${api_url}/debug/pprof/")"
+if [ "${public_pprof_status}" != "404" ]; then
+  echo "public pprof endpoint should be isolated; got ${public_pprof_status}" >&2
+  exit 1
+fi
 
 echo "integration-check passed"
 `
@@ -14292,7 +14353,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, object writes, and admin health. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, object writes, admin health, admin metrics, admin pprof, and public admin-route isolation. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
