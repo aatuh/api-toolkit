@@ -749,6 +749,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/adapters/postgres/postgres_test.go",
 		"internal/adapters/postgres/widgets.go",
 		"internal/adapters/postgres/widgets_test.go",
+		"internal/adapters/postgres/webhooks.go",
+		"internal/adapters/postgres/webhooks_test.go",
 		"internal/adapters/redis/cache.go",
 		"internal/adapters/redis/cache_test.go",
 		"internal/httpapi/router.go",
@@ -785,6 +787,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"CACHE_STORE=memory",
 		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
+		"WEBHOOK_SECRET_KEY=",
 		"ADMIN_ADDR=:9090",
 	} {
 		if !strings.Contains(string(generatedEnv), want) {
@@ -807,6 +810,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"CREATE TABLE audit_events",
 		"actor_type TEXT NOT NULL",
 		"CREATE TABLE webhook_endpoints",
+		"secret_ciphertext BYTEA NOT NULL",
+		"secret_nonce BYTEA NOT NULL",
 		"CREATE TABLE webhook_deliveries",
 		"event_id TEXT NOT NULL",
 		"last_status_code INTEGER",
@@ -830,7 +835,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "objectstorage.OpenS3BlobStore", "app.NewObjectServiceWithBlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "objectstorage.OpenS3BlobStore", "app.NewObjectServiceWithBlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
