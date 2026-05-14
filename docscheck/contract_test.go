@@ -2549,6 +2549,40 @@ func TestFullScaffoldPlatformContractIsDocumented(t *testing.T) {
 	}
 }
 
+func TestFullProfileRuntimeAssetsRequireReleaseNotes(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	notesScript := readText(t, filepath.Join(repoRoot, "scripts", "contrib_release_notes_check.sh"))
+	contractScript := readText(t, filepath.Join(repoRoot, "scripts", "contrib_review_contract_test.sh"))
+	releaseManifests := readText(t, filepath.Join(repoRoot, "docs", "release-manifests.md"))
+
+	for _, required := range []string{
+		"full-profile runtime assets",
+		"contrib/cmd/api-toolkit",
+		"*.tmpl",
+		"*.yaml",
+	} {
+		if !strings.Contains(notesScript, required) {
+			t.Fatalf("contrib release notes script missing full-profile runtime asset governance text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"full-profile-runtime-asset-release-notes",
+		"contrib/cmd/api-toolkit/templates/saas-api-full/k8s/deployment.yaml",
+	} {
+		if !strings.Contains(contractScript, required) {
+			t.Fatalf("contrib review contract test missing full-profile runtime asset case %q", required)
+		}
+	}
+	for _, required := range []string{
+		"full-profile runtime assets",
+		"release-note reviewed",
+	} {
+		if !strings.Contains(releaseManifests, required) {
+			t.Fatalf("release manifest docs missing full-profile runtime asset rule %q", required)
+		}
+	}
+}
+
 func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	capture := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "capture.go"))

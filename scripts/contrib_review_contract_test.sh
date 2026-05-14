@@ -59,7 +59,7 @@ FAKE
 
 init_repo() {
   local dir="$1"
-  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders/assets" "$dir/contrib/adapters/idempotency" "$dir/contrib/cmd/api-toolkit"
+  mkdir -p "$dir/scripts" "$dir/docs" "$dir/contrib/middleware/auth/devheaders/assets" "$dir/contrib/adapters/idempotency" "$dir/contrib/cmd/api-toolkit/templates/saas-api-full/k8s"
   cp "$repo_root/scripts/contrib_api_drift_report.sh" "$dir/scripts/contrib_api_drift_report.sh"
   cp "$repo_root/scripts/contrib_release_notes_check.sh" "$dir/scripts/contrib_release_notes_check.sh"
   chmod +x "$dir/scripts/"*.sh
@@ -98,6 +98,12 @@ package main
 
 func main() {}
 GO
+  cat >"$dir/contrib/cmd/api-toolkit/templates/saas-api-full/k8s/deployment.yaml" <<'YAML'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+YAML
   git -C "$dir" init -q -b main
   git -C "$dir" config user.email "contrib-review-contract@example.invalid"
   git -C "$dir" config user.name "contrib review contract"
@@ -215,6 +221,32 @@ tooling_cli_ack_output="$(require_success tooling-cli-release-notes-acknowledged
 case "$tooling_cli_ack_output" in
   *"Contrib supported-tier changes have release notes coverage."*) ;;
   *) printf 'tooling CLI release-note acknowledgement output changed unexpectedly:\n%s\n' "$tooling_cli_ack_output" >&2; exit 1 ;;
+esac
+
+full_profile_asset_dir="$tmp/full-profile-runtime-asset"
+init_repo "$full_profile_asset_dir"
+cat >"$full_profile_asset_dir/contrib/cmd/api-toolkit/templates/saas-api-full/k8s/deployment.yaml" <<'YAML'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+YAML
+full_profile_asset_output="$(require_failure full-profile-runtime-asset-release-notes run_script_in_dir "$full_profile_asset_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$full_profile_asset_output" in
+  *"contrib/cmd/api-toolkit/templates/saas-api-full/k8s/deployment.yaml"*) ;;
+  *) printf 'full-profile runtime asset release-note failure did not name the changed file:\n%s\n' "$full_profile_asset_output" >&2; exit 1 ;;
+esac
+
+cat >>"$full_profile_asset_dir/docs/release-notes.md" <<'NOTES'
+
+- `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` saas-api-full runtime assets changed.
+NOTES
+full_profile_asset_ack_output="$(require_success full-profile-runtime-asset-release-notes-acknowledged run_script_in_dir "$full_profile_asset_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
+case "$full_profile_asset_ack_output" in
+  *"Contrib supported-tier changes have release notes coverage."*) ;;
+  *) printf 'full-profile runtime asset release-note acknowledgement output changed unexpectedly:\n%s\n' "$full_profile_asset_ack_output" >&2; exit 1 ;;
 esac
 
 incompatible_dir="$tmp/incompatible"

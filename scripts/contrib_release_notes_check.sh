@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Review gate: supported contrib adapter/integration/middleware/tooling behavior
-# changes need release notes or explicit no-user-impact rationale.
+# changes need release notes or explicit no-user-impact rationale. Production
+# generator behavior and full-profile runtime assets under contrib/cmd/api-toolkit
+# are included, including *.tmpl and *.yaml templates.
 set -euo pipefail
 
 base_ref="${CONTRIB_RELEASE_BASE_REF:-${API_BASE_REF:-HEAD~1}}"
