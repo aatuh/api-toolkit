@@ -217,7 +217,7 @@ func (s *Store) Fail(ctx context.Context, id string, _ string) error {
 		update %s
 		set state=case when retry_count + 1 >= $4 then 'dead_letter' else 'failed' end,
 			retry_count=retry_count + 1,
-			next_at=$3 + (least($5::double precision * power(2, retry_count), $6::double precision) * interval '1 second'),
+			next_at=$3::timestamptz + (least($5::double precision * power(2, retry_count), $6::double precision) * interval '1 second'),
 			lease_owner=null,
 			lease_expires_at=null
 		where id=$1 and lease_owner=$2

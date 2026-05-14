@@ -73,7 +73,7 @@ func (s *Store) Record(ctx context.Context, event audit.Event) error {
 		return err
 	}
 	db := txpostgres.FromCtx(ctx, s.Pool)
-	query := fmt.Sprintf(` // #nosec G201 -- table is validated and quoted by quoteTable before interpolation.
+	query := fmt.Sprintf(`
 		insert into %s (
 			id,
 			organization_id,
@@ -88,7 +88,7 @@ func (s *Store) Record(ctx context.Context, event audit.Event) error {
 			created_at
 		)
 		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-	`, table)
+	`, table) // #nosec G201 -- table is validated and quoted by quoteTable before interpolation.
 	_, err = db.Exec(
 		ctx,
 		query,

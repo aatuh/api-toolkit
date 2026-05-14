@@ -37,6 +37,8 @@ const (
 	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v2"
 )
 
+const defaultScaffoldModuleVersion = "v2.1.0"
+
 func main() {
 	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -158,6 +160,57 @@ func versionValue(value string) string {
 	return value
 }
 
+func scaffoldDependencyVersion(info versionMetadata) string {
+	for _, candidate := range []string{info.ContribVersion, info.MainVersion, info.CoreVersion} {
+		if isSemVerModuleVersion(candidate) {
+			return candidate
+		}
+	}
+	return defaultScaffoldModuleVersion
+}
+
+func isSemVerModuleVersion(value string) bool {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "v") {
+		return false
+	}
+	rest := strings.TrimPrefix(value, "v")
+	parts := strings.SplitN(rest, ".", 3)
+	if len(parts) != 3 {
+		return false
+	}
+	if !isNonEmptyDigits(parts[0]) || !isNonEmptyDigits(parts[1]) {
+		return false
+	}
+	patch := parts[2]
+	if patch == "" {
+		return false
+	}
+	digitCount := 0
+	for digitCount < len(patch) && patch[digitCount] >= '0' && patch[digitCount] <= '9' {
+		digitCount++
+	}
+	if digitCount == 0 {
+		return false
+	}
+	if digitCount == len(patch) {
+		return true
+	}
+	return patch[digitCount] == '-' || patch[digitCount] == '+'
+}
+
+func isNonEmptyDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < '0' || value[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
 		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers]")
@@ -195,6 +248,7 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		AuthMode:       authName,
 		CoreReplace:    strings.TrimSpace(*coreReplace),
 		ContribReplace: strings.TrimSpace(*contribReplace),
+		ToolkitVersion: scaffoldDependencyVersion(collectVersionMetadata()),
 	}
 	if err := generateService(cfg); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -632,6 +686,7 @@ type scaffoldConfig struct {
 	AuthMode       string
 	CoreReplace    string
 	ContribReplace string
+	ToolkitVersion string
 }
 
 func generateService(cfg scaffoldConfig) error {
@@ -650,6 +705,9 @@ func generateService(cfg scaffoldConfig) error {
 			return err
 		}
 		cfg.AuthMode = authMode
+	}
+	if !isSemVerModuleVersion(cfg.ToolkitVersion) {
+		cfg.ToolkitVersion = defaultScaffoldModuleVersion
 	}
 	outDir, err := safeOutputDir(cfg.Dir)
 	if err != nil {
@@ -675,6 +733,8 @@ func generateService(cfg scaffoldConfig) error {
 		"Profile":        cfg.Profile,
 		"AuthMode":       cfg.AuthMode,
 		"AuthSchemeName": scaffoldAuthSecuritySchemeName(cfg.AuthMode),
+		"CoreVersion":    cfg.ToolkitVersion,
+		"ContribVersion": cfg.ToolkitVersion,
 		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
 		"ContribReplace": replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
 	}
@@ -3060,8 +3120,8 @@ const fullGoModTemplate = `module {{ .Module }}
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/v2 v2.1.0
-	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
+	github.com/aatuh/api-toolkit/v2 {{ .CoreVersion }}
+	github.com/aatuh/api-toolkit/contrib/v2 {{ .ContribVersion }}
 )
 
 {{ .CoreReplace }}{{ .ContribReplace }}`
@@ -13508,6 +13568,7 @@ func newTestRouter(t *testing.T) http.Handler {
 
 func newTestRouterWithAudit(t *testing.T) (http.Handler, *app.AuditService) {
 	t.Helper()
+	configureTestAuthEnv(t)
 	tenancy := app.NewTenancyService()
 	auditLog := app.NewAuditService()
 	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy), Audit: auditLog{{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
@@ -13516,6 +13577,7 @@ func newTestRouterWithAudit(t *testing.T) (http.Handler, *app.AuditService) {
 
 func newTestRouterWithMetrics(t *testing.T) (http.Handler, http.Handler) {
 	t.Helper()
+	configureTestAuthEnv(t)
 	recorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
 	if err != nil {
 		t.Fatalf("new metrics recorder: %v", err)
@@ -13539,6 +13601,12 @@ func newTestRouterWithMetrics(t *testing.T) (http.Handler, http.Handler) {
 {{ else }}		APIKey: "test-key",
 {{ end }}	}
 	return NewRouter(cfg), NewAdminRouter(cfg)
+}
+
+func configureTestAuthEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("ENV", "test")
+	t.Setenv("API_ACTOR_ID", "")
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {
@@ -13823,18 +13891,21 @@ OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
 
-.PHONY: test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check integration-check clean finalize
+.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check integration-check clean finalize
 
-test:
+deps:
+	$(GO) mod tidy
+
+test: deps
 	$(GO) test ./...
 
 fmt:
 	$(GO) fmt ./...
 
-build:
+build: deps
 	$(GO) build -trimpath -o bin/api ./cmd/api
 
-openapi-check:
+openapi-check: deps
 	$(GO) test ./internal/httpapi -run TestOpenAPIGolden
 
 openapi-update:
@@ -13846,7 +13917,7 @@ contracts-lint:
 contracts-diff:
 	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
 
-client-check:
+client-check: deps
 	@tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp"' EXIT; \
 	cp internal/client/apiclient/client.go "$$tmp/client.go"; \
@@ -13889,8 +13960,8 @@ cleanup() {
     kill "${api_pid}" 2>/dev/null || true
     wait "${api_pid}" 2>/dev/null || true
   fi
-  # Default cleanup command: docker compose down -v.
-  compose down -v
+  # Default cleanup command: docker compose --profile objectstore down -v.
+  compose --profile objectstore down -v
   rm -rf "${tmp_dir}"
 }
 trap cleanup EXIT
@@ -13986,8 +14057,16 @@ header_value() {
   ' "${file}"
 }
 
+psql_exec() {
+  local sql="$1"
+  shift
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api "$@" <<<"${sql}"
+}
+
 psql_scalar() {
-  compose exec -T postgres psql -v ON_ERROR_STOP=1 -tA -U api -d api "$@" | tr -d '[:space:]'
+  local sql="$1"
+  shift
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -tA -U api -d api "$@" <<<"${sql}" | tr -d '[:space:]'
 }
 
 export ENV=integration
@@ -14031,6 +14110,7 @@ wait_for_redis
 
 compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api < migrations/0001_platform.sql
 
+go mod tidy
 go test ./...
 
 go run ./cmd/api >"${tmp_dir}/api.log" 2>&1 &
@@ -14060,10 +14140,9 @@ if [ -z "${org_id}" ]; then
 fi
 
 poison_outbox_id="integration-poison-outbox"
-compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api \
+psql_exec "insert into outbox_events (id, organization_id, event_type, payload, state, next_at, created_at) values (:'outbox_id', :'organization_id', 'integration.poison', '{}'::jsonb, 'pending', now(), now()) on conflict (id) do update set state='pending', lease_owner=null, lease_expires_at=null, retry_count=0, next_at=now();" \
   -v organization_id="${org_id}" \
-  -v outbox_id="${poison_outbox_id}" \
-  -c "insert into outbox_events (id, organization_id, event_type, payload, state, next_at, created_at) values (:'outbox_id', :'organization_id', 'integration.poison', '{}'::jsonb, 'pending', now(), now()) on conflict (id) do update set state='pending', lease_owner=null, lease_expires_at=null, retry_count=0, next_at=now()" >/dev/null
+  -v outbox_id="${poison_outbox_id}" >/dev/null
 
 curl -fsS "${api_url}/organizations/${org_id}/members" \
   -H "X-API-Key: ${API_KEY}" \
@@ -14224,10 +14303,9 @@ fi
 
 operation_outbox_state=""
 for _ in $(seq 1 30); do
-  operation_outbox_state="$(psql_scalar \
+  operation_outbox_state="$(psql_scalar "select state from outbox_events where organization_id = :'organization_id' and event_type = 'widgets.import' and payload->>'operation_id' = :'operation_id' order by created_at desc limit 1;" \
     -v organization_id="${org_id}" \
-    -v operation_id="${operation_id}" \
-    -c "select state from outbox_events where organization_id = :'organization_id' and event_type = 'widgets.import' and payload->>'operation_id' = :'operation_id' order by created_at desc limit 1;")"
+    -v operation_id="${operation_id}")"
   if [ "${operation_outbox_state}" = "succeeded" ]; then
     break
   fi
@@ -14240,10 +14318,9 @@ fi
 
 poison_retry_count=""
 for _ in $(seq 1 30); do
-  poison_retry_count="$(psql_scalar \
+  poison_retry_count="$(psql_scalar "select retry_count from outbox_events where organization_id = :'organization_id' and id = :'outbox_id' and retry_count >= 1 order by retry_count desc limit 1;" \
     -v organization_id="${org_id}" \
-    -v outbox_id="${poison_outbox_id}" \
-    -c "select retry_count from outbox_events where organization_id = :'organization_id' and id = :'outbox_id' and retry_count >= 1 order by retry_count desc limit 1;")"
+    -v outbox_id="${poison_outbox_id}")"
   if [ -n "${poison_retry_count}" ]; then
     break
   fi
@@ -14275,9 +14352,8 @@ if [ "${object_content}" != "aGVsbG8=" ]; then
   exit 1
 fi
 
-audit_count="$(psql_scalar \
-  -v organization_id="${org_id}" \
-  -c "select count(*) from audit_events where organization_id = :'organization_id';")"
+audit_count="$(psql_scalar "select count(*) from audit_events where organization_id = :'organization_id';" \
+  -v organization_id="${org_id}")"
 case "${audit_count}" in
   ""|*[!0-9]*)
     echo "audit event count query returned ${audit_count}" >&2
@@ -14403,6 +14479,7 @@ WORKDIR /src
 COPY go.mod ./
 RUN go mod download
 COPY . .
+RUN go mod tidy
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api
 
@@ -14480,7 +14557,7 @@ const fullComposeTemplate = `services:
       - minio
     entrypoint: >
       /bin/sh -c "mc alias set local http://minio:9000 minio minio123 &&
-      mc mb -p --ignore-existing local/api-objects"
+      mc mb --ignore-existing local/api-objects"
 
 volumes:
   postgres-data:
@@ -14583,7 +14660,7 @@ Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 Run locally:
 
 ` + "```sh" + `
-go test ./...
+make test
 go run ./cmd/api
 ` + "```" + `
 
@@ -14607,7 +14684,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
@@ -14617,8 +14694,8 @@ const goModTemplate = `module {{ .Module }}
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/v2 v2.1.0
-	github.com/aatuh/api-toolkit/contrib/v2 v2.1.0
+	github.com/aatuh/api-toolkit/v2 {{ .CoreVersion }}
+	github.com/aatuh/api-toolkit/contrib/v2 {{ .ContribVersion }}
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	github.com/golang-jwt/jwt/v5 v5.3.0
 {{ end }}	github.com/redis/go-redis/v9 v9.19.0
 )

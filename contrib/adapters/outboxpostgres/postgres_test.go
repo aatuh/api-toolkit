@@ -145,6 +145,9 @@ func TestCompleteAndFailRequireCurrentLeaseOwner(t *testing.T) {
 	if strings.Contains(failed.sql, "ignored secret") {
 		t.Fatalf("Fail() SQL leaked message: %s", failed.sql)
 	}
+	if !strings.Contains(failed.sql, "$3::timestamptz") {
+		t.Fatalf("Fail() SQL should cast retry base timestamp: %s", failed.sql)
+	}
 	if got := failed.args; len(got) != 6 || got[0] != "evt_2" || got[1] != "worker-a" || got[2] != now || got[3] != 3 || got[4] != float64(5) || got[5] != float64(60) {
 		t.Fatalf("Fail() args = %#v", got)
 	}
