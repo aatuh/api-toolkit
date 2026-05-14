@@ -32,6 +32,10 @@ source of truth is `docs/release-runbook.md`.
   resources, durable async/outbox behavior, audit events, webhook delivery,
   OpenAPI 3.1, typed Go client output, opt-in Docker integration checks, and
   base Kubernetes assets.
+- `scripts/contrib_release_notes_check.sh` and its contract tests now require
+  release-note coverage for future `saas-api-full` full-profile runtime assets
+  under `contrib/cmd/api-toolkit`, including generated Kubernetes YAML and
+  other scaffold templates.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
