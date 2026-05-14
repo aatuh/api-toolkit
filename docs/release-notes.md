@@ -127,6 +127,10 @@ source of truth is `docs/release-runbook.md`.
   webhook store when `DATABASE_URL` is configured. Endpoint signing secrets are
   encrypted with `WEBHOOK_SECRET_KEY`, delivery history is tenant-scoped, and
   replay updates the delivery row while requeueing the matching outbox job.
+- Generated `saas-api-full` unsafe write routes now use the core idempotency
+  middleware with tenant-aware hashed storage keys. Local scaffolds default to
+  in-memory replay; `IDEMPOTENCY_STORE=redis` wires the generated Redis adapter
+  for cross-instance replay state.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.

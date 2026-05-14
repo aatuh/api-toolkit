@@ -56,6 +56,11 @@ The full profile standardizes these defaults:
   Generated services use an in-process cache for local development and switch
   to the generated Redis cache adapter when `CACHE_STORE=redis` or production
   defaults require it.
+- Generated unsafe routes use the core idempotency middleware. Local
+  development defaults to in-memory replay storage; `IDEMPOTENCY_STORE=redis`
+  stores tenant-aware, hashed replay keys in Redis so retries can be replayed
+  across instances without exposing raw `Idempotency-Key` values to logs or
+  metrics.
 - Organizations, memberships, invitations, roles, and scoped API keys provide
   the generated tenant model. Local development uses in-memory tenancy, and
   generated production wiring switches to the Postgres tenancy store when
