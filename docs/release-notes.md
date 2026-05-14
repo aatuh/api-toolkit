@@ -58,6 +58,10 @@ source of truth is `docs/release-runbook.md`.
   for organization-scoped create/list/revoke, scoped permissions, one-time raw
   secret return, non-secret key prefixes, peppered SHA-256 hash storage,
   last-used tracking on verification, and generated OpenAPI/client coverage.
+- `api-toolkit new service --profile saas-api-full --auth jwt|clerk|oidc`
+  now emits matching bearer-auth runtime wiring, generated auth tests, tenant
+  claim checks, scope checks, and BearerAuth OpenAPI security instead of falling
+  back to API-key-shaped full-profile router code.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

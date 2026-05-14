@@ -100,6 +100,10 @@ Goal:
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.
+- Generated full-profile JWT, Clerk, and OIDC modes validate issuer, audience,
+  allowed algorithms, and JWKS material before handlers run. Tenant-scoped
+  routes fail closed when the bearer token tenant claim does not match
+  `X-Tenant-ID`; protected writes also require the route-specific scope.
 - OAuth2 helpers standardize claims and scopes only after a validator verifies
   issuer, audience, expiry, JWKS material, and tenant mapping. The experimental
   contrib OIDC middleware provides provider-neutral JWKS validation and claim
