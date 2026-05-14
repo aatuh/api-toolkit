@@ -26,8 +26,10 @@ generated application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
 invitation acceptance. It also includes generated API-key lifecycle services
 and routes for create/list/revoke, scoped permissions, last-used tracking, and
-peppered SHA-256 secret hashes. The generated HTTP router exposes these
-workflows with OpenAPI contracts and generated Go client methods. Generated
+peppered SHA-256 secret hashes. In API-key auth mode, generated API keys can
+authenticate tenant-scoped protected routes after the static bootstrap key is
+used for initial setup. The generated HTTP router exposes these workflows with
+OpenAPI contracts and generated Go client methods. Generated
 write routes now record audit events with actor, tenant, action, resource,
 result, request ID, and redaction-safe metadata. The generated HTTP layer now
 also includes outbound webhook event catalog, endpoint create/list, delivery
@@ -83,8 +85,12 @@ The full profile standardizes these defaults:
   routes require `X-Tenant-ID` to match the organization path parameter.
 - Generated API-key creation returns the raw secret once, stores only a
   peppered SHA-256 hash, exposes a non-secret prefix for display, tracks
-  `last_used_at` on verification, and supports revocation. Local development
-  uses an in-memory API-key store; generated production wiring switches to the
+  `last_used_at` on verification, and supports revocation. API-key auth mode
+  treats `API_KEY` as the bootstrap key for setup; when that static key does
+  not match, the router verifies the presented key through the generated
+  API-key service, enforces the route's required scope, binds requests to the
+  key's organization, and rejects revoked keys. Local development uses an
+  in-memory API-key store; generated production wiring switches to the
   Postgres API-key store when `DATABASE_URL` is configured.
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - The generated widget import route returns `202 Accepted`, writes tenant-scoped

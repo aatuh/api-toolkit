@@ -11229,6 +11229,49 @@ func CombineHealthChecks(checkers ...HealthChecker) HealthChecker {
 	})
 }
 
+type apiKeyPrincipal struct {
+	Key domain.APIKey
+}
+
+type apiKeyPrincipalContextKey struct{}
+
+func withAPIKeyPrincipal(ctx context.Context, key domain.APIKey) context.Context {
+	return context.WithValue(ctx, apiKeyPrincipalContextKey{}, apiKeyPrincipal{Key: key})
+}
+
+func apiKeyPrincipalFromContext(ctx context.Context) (apiKeyPrincipal, bool) {
+	if ctx == nil {
+		return apiKeyPrincipal{}, false
+	}
+	principal, ok := ctx.Value(apiKeyPrincipalContextKey{}).(apiKeyPrincipal)
+	if !ok || strings.TrimSpace(principal.Key.ID) == "" {
+		return apiKeyPrincipal{}, false
+	}
+	return principal, true
+}
+
+func (p apiKeyPrincipal) ActorID() string {
+	return strings.TrimSpace(p.Key.ID)
+}
+
+func (p apiKeyPrincipal) TenantID() string {
+	return strings.TrimSpace(p.Key.OrganizationID)
+}
+
+func (p apiKeyPrincipal) HasScope(required string) bool {
+	required = strings.TrimSpace(required)
+	if required == "" {
+		return true
+	}
+	for _, scope := range p.Key.Scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "*" || strings.EqualFold(scope, required) {
+			return true
+		}
+	}
+	return false
+}
+
 func NewRouter(cfg RouterConfig) http.Handler {
 	cfg = cfg.withDefaults()
 	mux := http.NewServeMux()
@@ -11460,6 +11503,14 @@ func idempotencyScope(r *http.Request) (string, string) {
 	}
 	if tenantID == "" {
 		tenantID = strings.TrimSpace(r.PathValue("id"))
+	}
+	if principal, ok := apiKeyPrincipalFromContext(r.Context()); ok {
+		if actorID = principal.ActorID(); actorID == "" {
+			actorID = strings.TrimSpace(os.Getenv("API_ACTOR_ID"))
+		}
+		if principalTenant := principal.TenantID(); principalTenant != "" && tenantID == "" {
+			tenantID = principalTenant
+		}
 	}
 {{ if eq .AuthMode "jwt" }}	if subj, ok := jwtauth.SubjectFromContext(r.Context()); ok {
 		if strings.TrimSpace(subj.UserID) != "" {
@@ -12347,6 +12398,19 @@ func decodeWidgetImportRequest(w http.ResponseWriter, r *http.Request) (widgetIm
 	return widgetImportRequest{Items: raw.Items}, true
 }
 
+func (cfg RouterConfig) authenticateManagedAPIKey(w http.ResponseWriter, r *http.Request) (apiKeyPrincipal, bool) {
+	if cfg.APIKeys == nil {
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "API key service is not configured"})
+		return apiKeyPrincipal{}, false
+	}
+	key, ok, err := cfg.APIKeys.Verify(r.Context(), r.Header.Get("X-API-Key"))
+	if err != nil || !ok {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		return apiKeyPrincipal{}, false
+	}
+	return apiKeyPrincipal{Key: key}, true
+}
+
 func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request) (string, bool) {
 {{ if eq .AuthMode "jwt" }}	subj, ok := jwtauth.SubjectFromContext(r.Context())
 	if !ok {
@@ -12382,6 +12446,13 @@ func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request
 	}
 	return actorID, true
 {{ else }}
+	if principal, ok := apiKeyPrincipalFromContext(r.Context()); ok {
+		if actorID := principal.ActorID(); actorID != "" {
+			return actorID, true
+		}
+		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "API key actor required"})
+		return "", false
+	}
 	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
 		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 		return "", false
@@ -12458,12 +12529,19 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 	}
 	return tenantID, true
 {{ else }}
-	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
-		return "", false
-	}
 	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
 	if !ok {
+		return "", false
+	}
+	if principal, ok := apiKeyPrincipalFromContext(r.Context()); ok {
+		if principal.TenantID() != tenantID {
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant credential mismatch"})
+			return "", false
+		}
+		return tenantID, true
+	}
+	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
+		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 		return "", false
 	}
 	return tenantID, true
@@ -12529,11 +12607,19 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 		cfg.rateLimited(next).ServeHTTP(w, r)
 	}))
 {{ else }}	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		if sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
+			cfg.rateLimited(next).ServeHTTP(w, r)
 			return
 		}
-		cfg.rateLimited(next).ServeHTTP(w, r)
+		principal, ok := cfg.authenticateManagedAPIKey(w, r)
+		if !ok {
+			return
+		}
+		if !principal.HasScope(requiredScope) {
+			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required API key scope missing"})
+			return
+		}
+		cfg.rateLimited(next).ServeHTTP(w, r.WithContext(withAPIKeyPrincipal(r.Context(), principal.Key)))
 	})
 {{ end }}
 }
@@ -13063,6 +13149,60 @@ func TestOrganizationInvitationFlow(t *testing.T) {
 		t.Fatalf("api key body = %#v", apiKeyBody)
 	}
 
+{{ if eq .AuthMode "api-key" }}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"managed-key-widget"}` + "`" + `))
+	req.Header.Set("X-API-Key", secret)
+	req.Header.Set("X-Tenant-ID", orgID)
+	req.Header.Set("Idempotency-Key", "managed-key-widget")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("managed api key widget create status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"wrong-tenant"}` + "`" + `))
+	req.Header.Set("X-API-Key", secret)
+	req.Header.Set("X-Tenant-ID", orgID+"-other")
+	req.Header.Set("Idempotency-Key", "managed-key-wrong-tenant")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("managed api key tenant mismatch status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("tenant mismatch problem leaked api key secret: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/api-keys", strings.NewReader(` + "`" + `{"name":"Read Only","scopes":["widgets:read"]}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:write")
+	req.Header.Set("Idempotency-Key", "create-read-only-api-key")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create read-only api key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var readOnlyBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &readOnlyBody); err != nil {
+		t.Fatalf("decode read-only api key body: %v", err)
+	}
+	readOnlySecret, _ := readOnlyBody["secret"].(string)
+	if readOnlySecret == "" {
+		t.Fatalf("read-only api key response missing secret: %#v", readOnlyBody)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"missing-scope"}` + "`" + `))
+	req.Header.Set("X-API-Key", readOnlySecret)
+	req.Header.Set("X-Tenant-ID", orgID)
+	req.Header.Set("Idempotency-Key", "managed-key-missing-scope")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("managed api key missing scope status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), readOnlySecret) {
+		t.Fatalf("scope failure problem leaked api key secret: %s", rec.Body.String())
+	}
+
+{{ end }}
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/api-keys", nil)
 	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:read")
@@ -13083,6 +13223,20 @@ func TestOrganizationInvitationFlow(t *testing.T) {
 		t.Fatalf("revoke api key status = %d body=%s", rec.Code, rec.Body.String())
 	}
 
+{{ if eq .AuthMode "api-key" }}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/widgets", nil)
+	req.Header.Set("X-API-Key", secret)
+	req.Header.Set("X-Tenant-ID", orgID)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked managed api key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("revoked api key problem leaked secret: %s", rec.Body.String())
+	}
+
+{{ end }}
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/api-keys", strings.NewReader(` + "`" + `{"name":"Member","scopes":["widgets:read"]}` + "`" + `))
 	authorizeTestRequestAs(t, req, orgID, "member_1", "api-keys:write")
@@ -14127,7 +14281,7 @@ The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; t
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
-API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
+API-key mode keeps ` + "`API_KEY`" + ` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup. Bootstrap requests use ` + "`API_ACTOR_ID`" + ` for production actor identity; in non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` before a generated API key exists.
 
 Useful checks:
 

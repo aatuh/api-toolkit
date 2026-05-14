@@ -88,8 +88,12 @@ Goal:
 - Generated full-profile API-key management returns raw key secrets only from
   the create response, stores only peppered SHA-256 hashes, displays non-secret
   prefixes, tracks `last_used_at` during verification, and requires admin role
-  checks for create/list/revoke. Set `API_KEY_PEPPER` explicitly in production
-  and keep raw key secrets out of logs, metrics, Problem Details, and examples.
+  checks for create/list/revoke. API-key auth mode keeps `API_KEY` as a
+  bootstrap setup credential and verifies generated keys through the generated
+  API-key service when the bootstrap key does not match. Generated keys are
+  scope-checked, bound to their organization, and rejected after revocation.
+  Set `API_KEY_PEPPER` explicitly in production and keep raw key secrets out of
+  logs, metrics, Problem Details, and examples.
 - Generated full-profile invitation services return raw invitation tokens only
   from the creation use case, store token hashes, reject wrong or replayed
   tokens, and require role checks before invitation creation. Do not log raw
@@ -97,10 +101,10 @@ Goal:
 - Generated full-profile organization and invitation HTTP routes require
   authentication, `Idempotency-Key` on unsafe writes, role-aware application
   checks, and matching `X-Tenant-ID`/organization path values for
-  organization-scoped routes. API-key full-profile scaffolds use `API_ACTOR_ID`
-  for production actor identity; the `X-Actor-ID` request header is only a
-  non-production fallback for exercising role flows before durable API-key
-  management is wired.
+  organization-scoped routes. API-key full-profile scaffolds use
+  `API_ACTOR_ID` for bootstrap-key actor identity; the `X-Actor-ID` request
+  header is only a non-production fallback for exercising role flows before a
+  generated scoped API key exists.
 - Generated full-profile async widget imports keep operation polling
   tenant-scoped, reuse `Idempotency-Key` for replay-safe acceptance, and store
   sanitized operation failure problems. Do not put raw request payloads,
