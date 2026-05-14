@@ -21,9 +21,9 @@ foundation with API-key auth, tenant-scoped widget writes, idempotent create
 replay, optimistic-update ETags, Postgres migrations, Docker Compose with
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, and generated HTTP smoke tests. The roadmap
-continues with durable Postgres repositories, async/outbox workers, audit,
-webhook delivery, object storage, OIDC/JWKS auth, OpenAPI 3.1, and generated Go
-client output checked into the scaffold.
+continues with wiring the reusable durable Postgres repositories, async/outbox
+workers, audit, webhook delivery, object storage, OIDC/JWKS auth, OpenAPI 3.1,
+and generated Go client output into the generated application boundary.
 
 ## Runtime Contract
 
@@ -41,6 +41,9 @@ The full profile standardizes these defaults:
   request ID, and redaction-safe metadata.
 - Webhook delivery signs outbound events, retries with bounded backoff, stores
   delivery history, and supports operator replay.
+- Object storage uses explicit bucket/key references, rejects traversal-shaped
+  keys and secret-shaped metadata, applies content-type and size policy before
+  network writes, and can use S3-compatible SigV4 requests or presigned URLs.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
 - Detailed health, metrics, and pprof remain operator-only; a separate admin
   listener is preferred when configured.

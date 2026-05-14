@@ -138,6 +138,12 @@ source of truth is `docs/release-runbook.md`.
   experimental Postgres transactional outbox adapter with enqueue, due-event
   leasing using `FOR UPDATE SKIP LOCKED`, lease-owner completion, retry
   backoff, dead-letter transition, and `contrib/async.Store` compatibility.
+- `github.com/aatuh/api-toolkit/contrib/v2/objectstore` and
+  `github.com/aatuh/api-toolkit/contrib/v2/adapters/objectstores3` add
+  experimental object storage contracts, reusable contract-test helpers, and a
+  raw HTTP S3-compatible adapter with SigV4 request signing, presigned URL
+  hooks, content-type and object-size policy checks, metadata secret-shape
+  rejection, not-found mapping, and a bucket health checker.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.

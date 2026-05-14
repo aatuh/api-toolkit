@@ -91,6 +91,11 @@ Goal:
 - Webhook helpers verify signatures and optional replay windows. Keep replay
   stores, duplicate suppression, delivery retries, and provider schemas in
   application code.
+- Object storage helpers validate bucket/key references, enforce content-type
+  and size policy, and reject secret-shaped metadata. Treat object payloads as
+  untrusted content: scan before use, keep S3 endpoints as trusted operator
+  configuration rather than tenant input, and avoid logging object keys when
+  they can encode user-provided names or personal data.
 - Cookbook recipes for these helpers live in `docs/cookbook.md`; keep this
   security document focused on ownership boundaries and production caveats.
 
