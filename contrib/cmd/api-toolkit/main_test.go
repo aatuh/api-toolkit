@@ -784,6 +784,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"actor_type TEXT NOT NULL",
 		"CREATE TABLE webhook_endpoints",
 		"CREATE TABLE webhook_deliveries",
+		"event_id TEXT NOT NULL",
+		"last_status_code INTEGER",
 	} {
 		if !strings.Contains(string(generatedMigration), want) {
 			t.Fatalf("generated migration missing %q", want)

@@ -150,6 +150,13 @@ source of truth is `docs/release-runbook.md`.
   retry backoff helpers, replay commands, sanitized attempt results, and
   `contrib/async` worker integration that keeps endpoint signing secrets out
   of durable job payloads.
+- `github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres`
+  adds an experimental Postgres adapter for outbound webhook endpoint lookup,
+  delivery enqueue, outbox job creation, attempt recording, and operator
+  replay. Endpoint signing secrets are loaded through an application-owned
+  `SecretResolver` instead of raw secret storage in the webhook endpoint table;
+  generated `saas-api-full` migrations now include `event_id` and
+  `last_status_code` on webhook delivery rows.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc` and
   `github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc` add
   experimental provider-neutral OIDC/JWKS bearer-token middleware with optional

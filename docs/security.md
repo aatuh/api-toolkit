@@ -95,7 +95,9 @@ Goal:
 - Webhook helpers verify inbound signatures and optional replay windows. The
   experimental outbound webhook delivery package signs tenant-scoped events,
   rejects unsafe endpoint headers, keeps endpoint signing secrets out of async
-  job payloads, and records only sanitized attempt results. Keep receiver
+  job payloads, and records only sanitized attempt results. The Postgres
+  adapter loads signing material through an application-owned resolver instead
+  of storing raw endpoint secrets in webhook endpoint rows. Keep receiver
   allow-lists, SSRF-aware transports, duplicate suppression, provider schemas,
   and endpoint-secret rotation in application-owned code.
 - Object storage helpers validate bucket/key references, enforce content-type
