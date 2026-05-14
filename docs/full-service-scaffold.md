@@ -161,7 +161,8 @@ The profile generates or is expected to generate:
   endpoints, and webhook deliveries.
 - Docker Compose with Postgres and Redis by default, plus optional MinIO under
   an explicit profile for object storage checks. The compose file includes a
-  bucket-initializer service for the generated `api-objects` bucket.
+  PostgreSQL 18-compatible data volume and a bucket-initializer service for the
+  generated `api-objects` bucket.
 - opt-in Docker integration tests through a generated `integration-check`
   target; the generated script starts Postgres and Redis, applies migrations,
   runs `go test ./...`, starts the API on localhost, and performs HTTP smoke
@@ -170,8 +171,10 @@ The profile generates or is expected to generate:
   polling, outbox completion/retry behavior, webhook delivery/replay, object
   write/readback, audit writes, admin health, admin metrics, admin pprof, and
   public admin-route isolation. Set `INTEGRATION_OBJECT_STORE=s3` to run the
-  object checks against MinIO. These checks are intentionally outside default
-  `make finalize` so local and CI release gates stay reliable without Docker.
+  object checks against MinIO. The script materializes `.env` from
+  `.env.example` when needed so Docker Compose can parse the generated services
+  in a fresh checkout. These checks are intentionally outside default `make
+  finalize` so local and CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
 - A checked-in typed Go client plus a generated `client-check` target.

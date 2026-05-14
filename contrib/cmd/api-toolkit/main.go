@@ -14015,6 +14015,10 @@ export S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-minio123}"
 api_url="http://${API_ADDR}"
 admin_url="http://${ADMIN_ADDR}"
 
+if [ ! -f .env ]; then
+  cp .env.example .env
+fi
+
 if [ "${OBJECT_STORE}" = "s3" ]; then
   compose --profile objectstore up -d postgres redis minio
   wait_for_minio
@@ -14440,7 +14444,7 @@ const fullComposeTemplate = `services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U api -d api"]
       interval: 5s
