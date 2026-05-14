@@ -2785,6 +2785,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/app/objects_test.go", Body: fullAppObjectsTestTemplate},
 	{Name: "internal/adapters/postgres/postgres.go", Body: fullPostgresAdapterTemplate},
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
+	{Name: "internal/adapters/postgres/widgets.go", Body: fullPostgresWidgetStoreTemplate},
+	{Name: "internal/adapters/postgres/widgets_test.go", Body: fullPostgresWidgetStoreTestTemplate},
 	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
 	{Name: "internal/adapters/redis/cache_test.go", Body: fullRedisCacheAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -3100,7 +3102,6 @@ func run(ctx context.Context) error {
 	widgets := app.NewWidgetService()
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
-	asyncJobs := app.NewAsyncService(widgets)
 	auditLog := app.NewAuditService()
 	webhooks := app.NewWebhookService(tenancy)
 	objects := app.NewObjectService(tenancy)
@@ -3122,6 +3123,7 @@ func run(ctx context.Context) error {
 		}
 		cancel()
 		defer pool.Close()
+		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
 	if strings.EqualFold(cfg.CacheStore, "redis") {
@@ -3136,6 +3138,7 @@ func run(ctx context.Context) error {
 		cacheReadiness = redisCache
 	}
 	readiness = httpapi.CombineHealthChecks(readiness, cacheReadiness)
+	asyncJobs := app.NewAsyncService(widgets)
 	asyncRunner, err := async.New(async.Config{
 		Store:        asyncJobs,
 		Handler:      asyncJobs,
@@ -5729,6 +5732,13 @@ type WidgetService struct {
 	updateReplays map[string]domain.Widget
 	deleteReplays map[string]struct{}
 	now           func() time.Time
+	store         WidgetStore
+}
+
+type WidgetStore interface {
+	List(ctx context.Context, tenantID string) ([]domain.Widget, error)
+	Get(ctx context.Context, tenantID, id string) (domain.Widget, bool, error)
+	Save(ctx context.Context, widget domain.Widget) error
 }
 
 func NewWidgetService() *WidgetService {
@@ -5741,6 +5751,12 @@ func NewWidgetService() *WidgetService {
 	}
 }
 
+func NewWidgetServiceWithStore(store WidgetStore) *WidgetService {
+	service := NewWidgetService()
+	service.store = store
+	return service
+}
+
 func (s *WidgetService) List(ctx context.Context, tenantID string) ([]domain.Widget, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -5748,6 +5764,9 @@ func (s *WidgetService) List(ctx context.Context, tenantID string) ([]domain.Wid
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return nil, ErrValidation
+	}
+	if s.store != nil {
+		return s.store.List(ctx, tenantID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -5789,7 +5808,13 @@ func (s *WidgetService) Create(ctx context.Context, tenantID, name, idempotencyK
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	s.widgets[widget.ID] = widget
+	if s.store != nil {
+		if err := s.store.Save(ctx, widget); err != nil {
+			return domain.Widget{}, false, err
+		}
+	} else {
+		s.widgets[widget.ID] = widget
+	}
 	s.createReplays[replayKey] = widget
 	return widget, false, nil
 }
@@ -5812,7 +5837,19 @@ func (s *WidgetService) Update(ctx context.Context, tenantID, id, name, ifMatch,
 	if widget, ok := s.updateReplays[replayKey]; ok {
 		return widget, true, nil
 	}
-	widget, ok := s.widgets[id]
+	var (
+		widget domain.Widget
+		ok     bool
+		err    error
+	)
+	if s.store != nil {
+		widget, ok, err = s.store.Get(ctx, tenantID, id)
+		if err != nil {
+			return domain.Widget{}, false, err
+		}
+	} else {
+		widget, ok = s.widgets[id]
+	}
 	if !ok || widget.Deleted || widget.TenantID != tenantID {
 		return domain.Widget{}, false, ErrNotFound
 	}
@@ -5822,7 +5859,13 @@ func (s *WidgetService) Update(ctx context.Context, tenantID, id, name, ifMatch,
 	widget.Name = name
 	widget.Version++
 	widget.UpdatedAt = s.now().UTC()
-	s.widgets[id] = widget
+	if s.store != nil {
+		if err := s.store.Save(ctx, widget); err != nil {
+			return domain.Widget{}, false, err
+		}
+	} else {
+		s.widgets[id] = widget
+	}
 	s.updateReplays[replayKey] = widget
 	return widget, false, nil
 }
@@ -5843,14 +5886,32 @@ func (s *WidgetService) Delete(ctx context.Context, tenantID, id, idempotencyKey
 	if _, ok := s.deleteReplays[replayKey]; ok {
 		return true, nil
 	}
-	widget, ok := s.widgets[id]
+	var (
+		widget domain.Widget
+		ok     bool
+		err    error
+	)
+	if s.store != nil {
+		widget, ok, err = s.store.Get(ctx, tenantID, id)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		widget, ok = s.widgets[id]
+	}
 	if !ok || widget.Deleted || widget.TenantID != tenantID {
 		return false, ErrNotFound
 	}
 	widget.Deleted = true
 	widget.Version++
 	widget.UpdatedAt = s.now().UTC()
-	s.widgets[id] = widget
+	if s.store != nil {
+		if err := s.store.Save(ctx, widget); err != nil {
+			return false, err
+		}
+	} else {
+		s.widgets[id] = widget
+	}
 	s.deleteReplays[replayKey] = struct{}{}
 	return false, nil
 }
@@ -6008,6 +6069,329 @@ func (r fakeRow) Scan(dest ...any) error {
 		return errors.New("bool destination is required")
 	}
 	*exists = r.exists
+	return nil
+}
+`
+
+const fullPostgresWidgetStoreTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var (
+	ErrWidgetStoreRequired = errors.New("postgres widget store db is required")
+	ErrWidgetInvalid       = errors.New("postgres widget is invalid")
+)
+
+type WidgetDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+type WidgetStore struct {
+	db WidgetDB
+}
+
+func NewWidgetStore(db WidgetDB) *WidgetStore {
+	return &WidgetStore{db: db}
+}
+
+func (s *WidgetStore) List(ctx context.Context, tenantID string) ([]domain.Widget, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.db == nil {
+		return nil, ErrWidgetStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return nil, ErrWidgetInvalid
+	}
+	rows, err := s.db.Query(ctx,
+		"select id, organization_id, name, version, deleted_at is not null, created_at, updated_at "+
+			"from widgets where organization_id=$1 and deleted_at is null order by id",
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list widgets: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Widget
+	for rows.Next() {
+		widget, err := scanWidget(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, widget)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list widgets rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *WidgetStore) Get(ctx context.Context, tenantID, id string) (domain.Widget, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Widget{}, false, err
+	}
+	if s == nil || s.db == nil {
+		return domain.Widget{}, false, ErrWidgetStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Widget{}, false, ErrWidgetInvalid
+	}
+	row := s.db.QueryRow(ctx,
+		"select id, organization_id, name, version, deleted_at is not null, created_at, updated_at "+
+			"from widgets where organization_id=$1 and id=$2",
+		tenantID,
+		id,
+	)
+	widget, err := scanWidget(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Widget{}, false, nil
+	}
+	if err != nil {
+		return domain.Widget{}, false, fmt.Errorf("get widget: %w", err)
+	}
+	return widget, true, nil
+}
+
+func (s *WidgetStore) Save(ctx context.Context, widget domain.Widget) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrWidgetStoreRequired
+	}
+	widget.ID = strings.TrimSpace(widget.ID)
+	widget.TenantID = strings.TrimSpace(widget.TenantID)
+	widget.Name = strings.TrimSpace(widget.Name)
+	if widget.ID == "" || widget.TenantID == "" || widget.Name == "" || widget.Version <= 0 || widget.CreatedAt.IsZero() || widget.UpdatedAt.IsZero() {
+		return ErrWidgetInvalid
+	}
+	var deletedAt any
+	if widget.Deleted {
+		deletedAt = widget.UpdatedAt.UTC()
+	}
+	var savedID string
+	if err := s.db.QueryRow(ctx,
+		"insert into widgets (id, organization_id, name, version, deleted_at, created_at, updated_at) "+
+			"values ($1, $2, $3, $4, $5, $6, $7) "+
+			"on conflict (id) do update set name=excluded.name, version=excluded.version, deleted_at=excluded.deleted_at, updated_at=excluded.updated_at "+
+			"returning id",
+		widget.ID,
+		widget.TenantID,
+		widget.Name,
+		widget.Version,
+		deletedAt,
+		widget.CreatedAt.UTC(),
+		widget.UpdatedAt.UTC(),
+	).Scan(&savedID); err != nil {
+		return fmt.Errorf("save widget: %w", err)
+	}
+	return nil
+}
+
+type widgetScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanWidget(row widgetScanner) (domain.Widget, error) {
+	var widget domain.Widget
+	if err := row.Scan(&widget.ID, &widget.TenantID, &widget.Name, &widget.Version, &widget.Deleted, &widget.CreatedAt, &widget.UpdatedAt); err != nil {
+		return domain.Widget{}, err
+	}
+	widget.CreatedAt = widget.CreatedAt.UTC()
+	widget.UpdatedAt = widget.UpdatedAt.UTC()
+	return widget, nil
+}
+`
+
+const fullPostgresWidgetStoreTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{ .Module }}/internal/domain"
+)
+
+func TestWidgetStoreSaveUsesUpsert(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeWidgetDB{row: fakeWidgetRow{values: []any{"wgt_1"}}}
+	store := NewWidgetStore(db)
+	err := store.Save(context.Background(), domain.Widget{ID: "wgt_1", TenantID: "org_1", Name: "First", Version: 1, CreatedAt: now, UpdatedAt: now})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if !strings.Contains(db.lastRowSQL, "insert into widgets") || !strings.Contains(db.lastRowSQL, "on conflict") {
+		t.Fatalf("Save() SQL = %q", db.lastRowSQL)
+	}
+	if got := db.lastRowArgs[4]; got != nil {
+		t.Fatalf("Save() active deleted_at arg = %#v, want nil", got)
+	}
+}
+
+func TestWidgetStoreListAndGetScanWidgets(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeWidgetDB{
+		rows: &fakeWidgetRows{rows: [][]any{[]any{"wgt_1", "org_1", "First", int64(2), false, now, now}}},
+		row:  fakeWidgetRow{values: []any{"wgt_1", "org_1", "First", int64(2), false, now, now}},
+	}
+	store := NewWidgetStore(db)
+	widgets, err := store.List(context.Background(), "org_1")
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(widgets) != 1 || widgets[0].ID != "wgt_1" || widgets[0].Version != 2 {
+		t.Fatalf("List() = %#v", widgets)
+	}
+	got, ok, err := store.Get(context.Background(), "org_1", "wgt_1")
+	if err != nil || !ok || got.ID != "wgt_1" {
+		t.Fatalf("Get() widget=%#v ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestWidgetStoreGetNotFound(t *testing.T) {
+	store := NewWidgetStore(&fakeWidgetDB{row: fakeWidgetRow{err: pgx.ErrNoRows}})
+	got, ok, err := store.Get(context.Background(), "org_1", "missing")
+	if err != nil || ok || got.ID != "" {
+		t.Fatalf("Get() widget=%#v ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestWidgetStoreRequiresDBAndValidWidget(t *testing.T) {
+	if err := (*WidgetStore)(nil).Save(context.Background(), domain.Widget{}); !errors.Is(err, ErrWidgetStoreRequired) {
+		t.Fatalf("nil Save() error = %v, want %v", err, ErrWidgetStoreRequired)
+	}
+	if err := NewWidgetStore(&fakeWidgetDB{}).Save(context.Background(), domain.Widget{}); !errors.Is(err, ErrWidgetInvalid) {
+		t.Fatalf("invalid Save() error = %v, want %v", err, ErrWidgetInvalid)
+	}
+}
+
+type fakeWidgetDB struct {
+	rows         pgx.Rows
+	row          pgx.Row
+	queryErr     error
+	lastQuerySQL string
+	lastQueryArgs []any
+	lastRowSQL   string
+	lastRowArgs  []any
+}
+
+func (f *fakeWidgetDB) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	f.lastQuerySQL = sql
+	f.lastQueryArgs = append([]any(nil), args...)
+	if f.queryErr != nil {
+		return nil, f.queryErr
+	}
+	if f.rows == nil {
+		return &fakeWidgetRows{}, nil
+	}
+	return f.rows, nil
+}
+
+func (f *fakeWidgetDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	f.lastRowSQL = sql
+	f.lastRowArgs = append([]any(nil), args...)
+	if f.row == nil {
+		return fakeWidgetRow{err: pgx.ErrNoRows}
+	}
+	return f.row
+}
+
+type fakeWidgetRows struct {
+	rows [][]any
+	idx  int
+	err  error
+}
+
+func (r *fakeWidgetRows) Close() {}
+func (r *fakeWidgetRows) Err() error { return r.err }
+func (r *fakeWidgetRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+func (r *fakeWidgetRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeWidgetRows) Values() ([]any, error) { return r.rows[r.idx-1], nil }
+func (r *fakeWidgetRows) RawValues() [][]byte { return nil }
+func (r *fakeWidgetRows) Conn() *pgx.Conn { return nil }
+
+func (r *fakeWidgetRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+
+func (r *fakeWidgetRows) Scan(dest ...any) error {
+	if r.idx == 0 || r.idx > len(r.rows) {
+		return errors.New("Scan called without current row")
+	}
+	return scanFakeWidgetValues(r.rows[r.idx-1], dest...)
+}
+
+type fakeWidgetRow struct {
+	values []any
+	err    error
+}
+
+func (r fakeWidgetRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return scanFakeWidgetValues(r.values, dest...)
+}
+
+func scanFakeWidgetValues(values []any, dest ...any) error {
+	if len(values) != len(dest) {
+		return fmt.Errorf("value count %d does not match destination count %d", len(values), len(dest))
+	}
+	for i := range values {
+		switch d := dest[i].(type) {
+		case *string:
+			value, ok := values[i].(string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want string", i, values[i])
+			}
+			*d = value
+		case *int64:
+			value, ok := values[i].(int64)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want int64", i, values[i])
+			}
+			*d = value
+		case *bool:
+			value, ok := values[i].(bool)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want bool", i, values[i])
+			}
+			*d = value
+		case *time.Time:
+			value, ok := values[i].(time.Time)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want time.Time", i, values[i])
+			}
+			*d = value
+		default:
+			return fmt.Errorf("unsupported destination %T", dest[i])
+		}
+	}
 	return nil
 }
 `
