@@ -100,8 +100,8 @@ source of truth is `docs/release-runbook.md`.
   checks for readiness, OpenAPI, authentication failure, tenant membership,
   managed API-key authentication, idempotent widget writes, ETag conflict
   handling, async operation polling, webhook delivery/replay, object writes,
-  admin detailed health, admin metrics, admin pprof, and public admin-route
-  isolation before tearing Docker volumes down.
+  audit writes, admin detailed health, admin metrics, admin pprof, and public
+  admin-route isolation before tearing Docker volumes down.
 - Generated `saas-api-full` widget services now use an application storage
   port, and the generated runtime switches to a Postgres widget store when
   `DATABASE_URL` is configured. The store persists widget create/update/delete
