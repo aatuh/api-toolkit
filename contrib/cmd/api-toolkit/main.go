@@ -3078,6 +3078,7 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/contrib/v2/async"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
@@ -3119,6 +3120,7 @@ func run(ctx context.Context) error {
 	webhooks := app.NewWebhookService(tenancy)
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
+	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	var postgresPool ports.DatabasePool
@@ -3175,6 +3177,20 @@ func run(ctx context.Context) error {
 		cacheService = app.NewCacheService(redisCache.Store)
 		cacheReadiness = redisCache
 	}
+	if strings.EqualFold(cfg.IdempotencyStore, "redis") {
+		redisCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		redisIdempotency, err := rediscache.OpenIdempotencyStore(redisCtx, cfg.RedisAddr, cfg.IdempotencyKeyPrefix)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer redisIdempotency.Close()
+		idempotencyStore = redisIdempotency.Store
+	}
+	idempotencyMiddleware, err := httpapi.NewIdempotencyMiddleware(idempotencyStore)
+	if err != nil {
+		return err
+	}
 	readiness = httpapi.CombineHealthChecks(readiness, cacheReadiness)
 	asyncJobs := app.NewAsyncService(widgets)
 	asyncStore := async.Store(asyncJobs)
@@ -3211,7 +3227,7 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -9415,8 +9431,10 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis"
 	"github.com/aatuh/api-toolkit/contrib/v2/cache"
+	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
 var (
@@ -9426,6 +9444,11 @@ var (
 
 type Cache struct {
 	Store  cache.Store
+	client redis.UniversalClient
+}
+
+type Idempotency struct {
+	Store  ports.IdempotencyStore
 	client redis.UniversalClient
 }
 
@@ -9445,6 +9468,22 @@ func OpenCache(ctx context.Context, addr string) (*Cache, error) {
 	}, nil
 }
 
+func OpenIdempotencyStore(ctx context.Context, addr, keyPrefix string) (*Idempotency, error) {
+	addrs := parseRedisAddrs(addr)
+	if len(addrs) == 0 {
+		return nil, ErrRedisAddrRequired
+	}
+	client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: addrs})
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+	return &Idempotency{
+		Store:  idempotencyredis.New(client, idempotencyredis.Options{KeyPrefix: strings.TrimSpace(keyPrefix)}),
+		client: client,
+	}, nil
+}
+
 func (c *Cache) Check(ctx context.Context) error {
 	if c == nil || c.client == nil {
 		return ErrRedisClientMissing
@@ -9457,6 +9496,13 @@ func (c *Cache) Close() error {
 		return nil
 	}
 	return c.client.Close()
+}
+
+func (i *Idempotency) Close() error {
+	if i == nil || i.client == nil {
+		return nil
+	}
+	return i.client.Close()
 }
 
 func parseRedisAddrs(addr string) []string {
@@ -10361,8 +10407,10 @@ const fullHTTPAPIRouterTemplate = `package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10371,13 +10419,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/audit"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	apitkops "github.com/aatuh/api-toolkit/v2/operations"
+	"github.com/aatuh/api-toolkit/v2/ports"
 
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
@@ -10391,6 +10442,8 @@ type Config struct {
 	DatabaseURL  string
 	RedisAddr    string
 	CacheStore   string
+	IdempotencyStore     string
+	IdempotencyKeyPrefix string
 	APIKeyPepper string
 	WebhookSecretKey string
 	ObjectStore       string
@@ -10419,6 +10472,10 @@ func ConfigFromEnv() (Config, error) {
 	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("CACHE_STORE")) == "" {
 		cacheStore = "redis"
 	}
+	idempotencyStore := envDefault("IDEMPOTENCY_STORE", "memory")
+	if strings.EqualFold(os.Getenv("ENV"), "production") && strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")) == "" {
+		idempotencyStore = "redis"
+	}
 	cfg := Config{
 		Addr:         envDefault("API_ADDR", ":8080"),
 		AdminAddr:    strings.TrimSpace(os.Getenv("ADMIN_ADDR")),
@@ -10427,6 +10484,8 @@ func ConfigFromEnv() (Config, error) {
 		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		RedisAddr:    strings.TrimSpace(os.Getenv("REDIS_ADDR")),
 		CacheStore:   strings.ToLower(strings.TrimSpace(cacheStore)),
+		IdempotencyStore: strings.ToLower(strings.TrimSpace(idempotencyStore)),
+		IdempotencyKeyPrefix: envDefault("IDEMPOTENCY_KEY_PREFIX", "idempotency:"),
 		APIKeyPepper: strings.TrimSpace(os.Getenv("API_KEY_PEPPER")),
 		WebhookSecretKey: strings.TrimSpace(os.Getenv("WEBHOOK_SECRET_KEY")),
 		ObjectStore:       strings.ToLower(envDefault("OBJECT_STORE", "memory")),
@@ -10452,6 +10511,9 @@ func ConfigFromEnv() (Config, error) {
 	if cfg.CacheStore != "memory" && cfg.CacheStore != "redis" {
 		return Config{}, errors.New("CACHE_STORE must be memory or redis")
 	}
+	if cfg.IdempotencyStore != "memory" && cfg.IdempotencyStore != "redis" {
+		return Config{}, errors.New("IDEMPOTENCY_STORE must be memory or redis")
+	}
 	if cfg.ObjectStore != "memory" && cfg.ObjectStore != "s3" {
 		return Config{}, errors.New("OBJECT_STORE must be memory or s3")
 	}
@@ -10474,6 +10536,9 @@ func ConfigFromEnv() (Config, error) {
 		}
 		if cfg.CacheStore != "redis" {
 			missing = append(missing, "CACHE_STORE=redis")
+		}
+		if cfg.IdempotencyStore != "redis" {
+			missing = append(missing, "IDEMPOTENCY_STORE=redis")
 		}
 {{ if eq .AuthMode "jwt" }}		if cfg.JWTJWKSURL == "" {
 			missing = append(missing, "JWT_JWKS_URL")
@@ -10532,6 +10597,7 @@ type RouterConfig struct {
 	Webhooks *app.WebhookService
 	Objects  *app.ObjectService
 	Cache    *app.CacheService
+	Idempotency *idempotencymw.Middleware
 	Readiness HealthChecker
 	APIKey   string
 	AdminKey string
@@ -10574,28 +10640,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.HandleFunc("GET /readyz", cfg.handleReady)
 	mux.HandleFunc("GET /docs/openapi.json", handleOpenAPI)
 	mux.Handle("GET /organizations", cfg.protect("organizations:read", http.HandlerFunc(cfg.handleListOrganizations)))
-	mux.Handle("POST /organizations", cfg.protect("organizations:write", http.HandlerFunc(cfg.handleCreateOrganization)))
+	mux.Handle("POST /organizations", cfg.protect("organizations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateOrganization))))
 	mux.Handle("GET /organizations/{organization_id}/members", cfg.protect("members:read", http.HandlerFunc(cfg.handleListMembers)))
-	mux.Handle("POST /organizations/{organization_id}/invitations", cfg.protect("invitations:write", http.HandlerFunc(cfg.handleCreateInvitation)))
+	mux.Handle("POST /organizations/{organization_id}/invitations", cfg.protect("invitations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateInvitation))))
 	mux.Handle("GET /organizations/{organization_id}/api-keys", cfg.protect("api-keys:read", http.HandlerFunc(cfg.handleListAPIKeys)))
-	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleCreateAPIKey)))
-	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleRevokeAPIKey)))
+	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateAPIKey))))
+	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleRevokeAPIKey))))
 	mux.Handle("GET /webhook-events", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEvents)))
 	mux.Handle("GET /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEndpoints)))
-	mux.Handle("POST /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleCreateWebhookEndpoint)))
+	mux.Handle("POST /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWebhookEndpoint))))
 	mux.Handle("GET /organizations/{organization_id}/webhook-deliveries", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookDeliveries)))
-	mux.Handle("POST /organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", http.HandlerFunc(cfg.handleReplayWebhookDelivery)))
+	mux.Handle("POST /organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleReplayWebhookDelivery))))
 	mux.Handle("GET /organizations/{organization_id}/objects", cfg.protect("objects:read", http.HandlerFunc(cfg.handleListObjects)))
-	mux.Handle("POST /organizations/{organization_id}/objects", cfg.protect("objects:write", http.HandlerFunc(cfg.handlePutObject)))
+	mux.Handle("POST /organizations/{organization_id}/objects", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handlePutObject))))
 	mux.Handle("GET /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:read", http.HandlerFunc(cfg.handleGetObject)))
-	mux.Handle("DELETE /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", http.HandlerFunc(cfg.handleDeleteObject)))
-	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
+	mux.Handle("DELETE /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteObject))))
+	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", cfg.idempotent(http.HandlerFunc(cfg.handleAcceptInvitation))))
 	mux.Handle("GET /operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
-	mux.Handle("POST /widgets", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidget)))
-	mux.Handle("POST /widgets/imports", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidgetImport)))
-	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleUpdateWidget)))
-	mux.Handle("DELETE /widgets/{id}", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleDeleteWidget)))
+	mux.Handle("POST /widgets", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidget))))
+	mux.Handle("POST /widgets/imports", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidgetImport))))
+	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleUpdateWidget))))
+	mux.Handle("DELETE /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteWidget))))
 	return mux
 }
 
@@ -10644,6 +10710,12 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
 	}
+	if cfg.Idempotency == nil {
+		middleware, err := NewIdempotencyMiddleware(idempotency.NewMemoryStore())
+		if err == nil {
+			cfg.Idempotency = middleware
+		}
+	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
 	}
@@ -10651,6 +10723,109 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 		cfg.AdminKey = "local-admin-key"
 	}
 	return cfg
+}
+
+func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Middleware, error) {
+	return idempotencymw.New(idempotencymw.Options{
+		Store:          store,
+		StorageKeyFunc: fullIdempotencyStorageKey,
+		HashFunc:       fullIdempotencyRequestHash,
+		RequireKey:     true,
+		ShouldStore: func(status int) bool {
+			return status >= http.StatusOK && status < http.StatusBadRequest
+		},
+	})
+}
+
+func (cfg RouterConfig) idempotent(next http.Handler) http.Handler {
+	if cfg.Idempotency == nil {
+		return next
+	}
+	return cfg.Idempotency.Handler(next)
+}
+
+func fullIdempotencyStorageKey(r *http.Request, clientKey string) string {
+	clientKey = strings.TrimSpace(clientKey)
+	if r == nil || clientKey == "" {
+		return ""
+	}
+	actorID, tenantID := idempotencyScope(r)
+	h := sha256.New()
+	h.Write([]byte("saas-api-full:idempotency-storage-key:v1"))
+	h.Write([]byte{0})
+	h.Write([]byte(tenantID))
+	h.Write([]byte{0})
+	h.Write([]byte(actorID))
+	h.Write([]byte{0})
+	h.Write([]byte(clientKey))
+	return "atk:v1:" + hex.EncodeToString(h.Sum(nil))
+}
+
+func fullIdempotencyRequestHash(r *http.Request, body []byte) (string, error) {
+	if r == nil {
+		return "", errors.New("request is nil")
+	}
+	actorID, tenantID := idempotencyScope(r)
+	h := sha256.New()
+	h.Write([]byte(actorID))
+	h.Write([]byte{0})
+	h.Write([]byte(tenantID))
+	h.Write([]byte{0})
+	h.Write([]byte(strings.ToUpper(r.Method)))
+	h.Write([]byte{0})
+	if r.URL != nil {
+		h.Write([]byte(r.URL.Path))
+		h.Write([]byte{0})
+		h.Write([]byte(r.URL.Query().Encode()))
+	}
+	h.Write([]byte{0})
+	h.Write([]byte(r.Header.Get("Content-Type")))
+	h.Write([]byte{0})
+	h.Write(body)
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func idempotencyScope(r *http.Request) (string, string) {
+	if r == nil {
+		return "", ""
+	}
+	actorID := strings.TrimSpace(os.Getenv("API_ACTOR_ID"))
+	if actorID == "" && !strings.EqualFold(os.Getenv("ENV"), "production") {
+		actorID = strings.TrimSpace(r.Header.Get("X-Actor-ID"))
+	}
+	tenantID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	if organizationID := strings.TrimSpace(r.PathValue("organization_id")); organizationID != "" {
+		tenantID = organizationID
+	}
+	if tenantID == "" {
+		tenantID = strings.TrimSpace(r.PathValue("id"))
+	}
+{{ if eq .AuthMode "jwt" }}	if subj, ok := jwtauth.SubjectFromContext(r.Context()); ok {
+		if strings.TrimSpace(subj.UserID) != "" {
+			actorID = strings.TrimSpace(subj.UserID)
+		}
+		if claimTenant := jwtSubjectTenantID(subj); claimTenant != "" && tenantID == "" {
+			tenantID = claimTenant
+		}
+	}
+{{ else if eq .AuthMode "clerk" }}	if subj, ok := clerkauth.SubjectFromContext(r.Context()); ok {
+		if strings.TrimSpace(subj.UserID) != "" {
+			actorID = strings.TrimSpace(subj.UserID)
+		}
+		if strings.TrimSpace(subj.TenantID) != "" && tenantID == "" {
+			tenantID = strings.TrimSpace(subj.TenantID)
+		}
+	}
+{{ else if eq .AuthMode "oidc" }}	if subj, ok := oidcauth.SubjectFromContext(r.Context()); ok {
+		if strings.TrimSpace(subj.UserID) != "" {
+			actorID = strings.TrimSpace(subj.UserID)
+		}
+		if strings.TrimSpace(subj.TenantID) != "" && tenantID == "" {
+			tenantID = strings.TrimSpace(subj.TenantID)
+		}
+	}
+{{ end }}
+	return actorID, tenantID
 }
 
 func (cfg RouterConfig) handleReady(w http.ResponseWriter, r *http.Request) {
@@ -11692,7 +11867,13 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 		}
 		next.ServeHTTP(w, r)
 	}))
-{{ else }}	return next
+{{ else }}	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
+			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 {{ end }}
 }
 
@@ -11944,8 +12125,11 @@ func TestCreateWidgetReplaysIdempotencyKey(t *testing.T) {
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first status = %d body=%s", first.Code, first.Body.String())
 	}
-	if second.Code != http.StatusOK {
+	if second.Code != http.StatusCreated {
 		t.Fatalf("second replay status = %d body=%s", second.Code, second.Body.String())
+	}
+	if second.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("second replay header = %q", second.Header().Get("Idempotency-Replayed"))
 	}
 	var firstBody, secondBody map[string]any
 	if err := json.Unmarshal(first.Body.Bytes(), &firstBody); err != nil {
@@ -12803,6 +12987,7 @@ default_db_password="${POSTGRES_PASSWORD:-api}"
 export DATABASE_URL="${DATABASE_URL:-postgres://${default_db_user}:${default_db_password}@localhost:5432/api?sslmode=disable}"
 export REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
 export CACHE_STORE="${CACHE_STORE:-redis}"
+export IDEMPOTENCY_STORE="${IDEMPOTENCY_STORE:-redis}"
 export API_KEY="${API_KEY:-local-dev-key}"
 export ADMIN_KEY="${ADMIN_KEY:-local-admin-key}"
 export API_ACTOR_ID="${API_ACTOR_ID:-integration-actor}"
@@ -12870,6 +13055,8 @@ ADMIN_ADDR=:9090
 DATABASE_URL=
 REDIS_ADDR=localhost:6379
 CACHE_STORE=memory
+IDEMPOTENCY_STORE=memory
+IDEMPOTENCY_KEY_PREFIX=idempotency:
 OBJECT_STORE=memory
 S3_ENDPOINT=http://localhost:9000
 S3_REGION=us-east-1
@@ -12881,7 +13068,6 @@ API_ACTOR_ID=
 API_KEY_PEPPER=
 WEBHOOK_SECRET_KEY=
 ADMIN_KEY=local-admin-key
-IDEMPOTENCY_KEY_PREFIX=idempotency:
 RATE_LIMIT_KEY_PREFIX=ratelimit:
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
@@ -12975,6 +13161,7 @@ const fullComposeTemplate = `services:
     environment:
       DATABASE_URL: postgres://api:api@postgres:5432/api?sslmode=disable
       REDIS_ADDR: redis:6379
+      IDEMPOTENCY_STORE: redis
       ADMIN_ADDR: :9090
       WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
     depends_on:
@@ -13064,6 +13251,8 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: redis-addr
+            - name: IDEMPOTENCY_STORE
+              value: "redis"
             - name: API_KEY_PEPPER
               valueFrom:
                 secretKeyRef:
@@ -13124,7 +13313,7 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
-Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` unless you opt into Redis.
+Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + ` and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.

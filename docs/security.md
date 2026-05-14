@@ -152,6 +152,11 @@ Goal:
   Keep cache keys application-owned and low sensitivity; do not store API-key
   secrets, invitation tokens, webhook signing secrets, provider secrets, or raw
   request payloads in shared cache values.
+- Generated full-profile idempotency wiring uses the core middleware with
+  tenant-aware hashed storage keys. `IDEMPOTENCY_STORE=redis` keeps replay state
+  outside the process for multi-instance services; logs and metrics must remain
+  limited to bounded outcome labels and must not include raw `Idempotency-Key`
+  values or replay response bodies.
 - Object storage helpers validate bucket/key references, enforce content-type
   and size policy, and reject secret-shaped metadata. Treat object payloads as
   untrusted content: scan before use, keep S3 endpoints as trusted operator

@@ -785,6 +785,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"DATABASE_URL=",
 		"REDIS_ADDR=localhost:6379",
 		"CACHE_STORE=memory",
+		"IDEMPOTENCY_STORE=memory",
+		"IDEMPOTENCY_KEY_PREFIX=idempotency:",
 		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
 		"WEBHOOK_SECRET_KEY=",
@@ -825,7 +827,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness HealthChecker"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -835,7 +837,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "objectstorage.OpenS3BlobStore", "app.NewObjectServiceWithBlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "objectstorage.OpenS3BlobStore", "app.NewObjectServiceWithBlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "rediscache.OpenIdempotencyStore", "httpapi.NewIdempotencyMiddleware", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
