@@ -874,6 +874,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	}
 	for _, want := range []string{
 		"compose up -d postgres redis",
+		"cp .env.example .env",
 		"psql -v ON_ERROR_STOP=1 -U api -d api",
 		"go test ./...",
 		"go run ./cmd/api",
@@ -925,6 +926,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"postgres:",
 		"image: postgres:18-alpine",
+		"/var/lib/postgresql",
 		"redis:",
 		"image: redis:7-alpine",
 		"minio:",

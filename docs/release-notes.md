@@ -105,6 +105,9 @@ source of truth is `docs/release-runbook.md`.
   Docker volumes down. Set `INTEGRATION_OBJECT_STORE=s3` to have the script
   start the optional MinIO profile, initialize the generated `api-objects`
   bucket, and run the same object checks through the S3-compatible adapter.
+  Fresh generated checkouts now materialize `.env` from `.env.example` before
+  invoking Docker Compose, and the generated Postgres volume mount uses the
+  PostgreSQL 18-compatible `/var/lib/postgresql` parent directory.
 - Generated `saas-api-full` widget services now use an application storage
   port, and the generated runtime switches to a Postgres widget store when
   `DATABASE_URL` is configured. The store persists widget create/update/delete
