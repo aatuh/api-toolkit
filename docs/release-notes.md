@@ -123,6 +123,9 @@ source of truth is `docs/release-runbook.md`.
   transaction-aware Postgres audit recorder that stores actor type, tenant,
   action, resource, result, request ID, and redaction-checked metadata. The
   generated `saas-api-full` audit migration now includes `actor_type`.
+- `github.com/aatuh/api-toolkit/v2/operations` adds additive write-side
+  repository contracts plus lifecycle helpers for validating operation states,
+  terminal states, and pending/running/succeeded/failed/canceled transitions.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.
