@@ -23,12 +23,14 @@ Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, and generated HTTP smoke tests. The
 generated application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
-invitation acceptance, and the generated HTTP router exposes those workflows
-with OpenAPI contracts and generated Go client methods. Reusable building
-blocks now exist for durable operations, transactional outbox work, audit
-events, object storage, outbound webhook delivery, OpenAPI 3.1, and generated
-Go client output; the roadmap continues with wiring those reusable pieces
-deeper into the generated application boundary.
+invitation acceptance. It also includes generated API-key lifecycle services
+and routes for create/list/revoke, scoped permissions, last-used tracking, and
+peppered SHA-256 secret hashes. The generated HTTP router exposes these
+workflows with OpenAPI contracts and generated Go client methods. Reusable
+building blocks now exist for durable operations, transactional outbox work,
+audit events, object storage, outbound webhook delivery, OpenAPI 3.1, and
+generated Go client output; the roadmap continues with wiring those reusable
+pieces deeper into the generated application boundary.
 
 ## Runtime Contract
 
@@ -42,9 +44,12 @@ The full profile standardizes these defaults:
 - Invitation tokens are returned once, stored only as hashes, and accepted into
   memberships through role-aware application services.
 - The generated HTTP API includes organization create/list, member list,
-  invitation create, and invitation accept routes. Unsafe write routes require
-  `Idempotency-Key`; organization-scoped routes require `X-Tenant-ID` to match
-  the organization path parameter.
+  invitation create, invitation accept, API-key create/list, and API-key revoke
+  routes. Unsafe write routes require `Idempotency-Key`; organization-scoped
+  routes require `X-Tenant-ID` to match the organization path parameter.
+- Generated API-key creation returns the raw secret once, stores only a
+  peppered SHA-256 hash, exposes a non-secret prefix for display, tracks
+  `last_used_at` on verification, and supports revocation.
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - Durable async routes return `202 Accepted`, write operation state, enqueue
   transactional outbox work, and expose pollable operation resources.

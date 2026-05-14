@@ -81,6 +81,11 @@ Goal:
 
 - API key auth extracts credentials and enforces verifier decisions. Store,
   hash, rotate, and revoke keys in application-owned verifier code.
+- Generated full-profile API-key management returns raw key secrets only from
+  the create response, stores only peppered SHA-256 hashes, displays non-secret
+  prefixes, tracks `last_used_at` during verification, and requires admin role
+  checks for create/list/revoke. Set `API_KEY_PEPPER` explicitly in production
+  and keep raw key secrets out of logs, metrics, Problem Details, and examples.
 - Generated full-profile invitation services return raw invitation tokens only
   from the creation use case, store token hashes, reject wrong or replayed
   tokens, and require role checks before invitation creation. Do not log raw

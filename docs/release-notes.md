@@ -54,6 +54,10 @@ source of truth is `docs/release-runbook.md`.
   member list, invitation create, and invitation accept routes with OpenAPI
   contracts, generated Go client methods, idempotency metadata, tenant policy
   metadata, and generated HTTP tests for role failures and token replay.
+- Generated `saas-api-full` services now include API-key lifecycle management
+  for organization-scoped create/list/revoke, scoped permissions, one-time raw
+  secret return, non-secret key prefixes, peppered SHA-256 hash storage,
+  last-used tracking on verification, and generated OpenAPI/client coverage.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.
