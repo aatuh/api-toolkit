@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v2/ports"
@@ -52,6 +53,11 @@ type RoutePolicyMetricsRecorder interface {
 	RecordRoutePolicy(labels Labels)
 }
 
+// WebhookDeliveryMetricsRecorder captures bounded outbound webhook delivery outcomes.
+type WebhookDeliveryMetricsRecorder interface {
+	RecordWebhookDelivery(event webhookdelivery.DeliveryObservation)
+}
+
 // PrometheusHandler returns a standard /metrics http.Handler if the
 // Prometheus client is linked; otherwise returns http.NotFoundHandler.
 // This indirection avoids hard dependency on the Prometheus client.
@@ -80,6 +86,12 @@ func (NoopMetrics) RecordHardTimeoutEvent(timeoutmw.HardTimeoutEvent) {}
 
 // RecordRoutePolicy is a no-op implementation.
 func (NoopMetrics) RecordRoutePolicy(Labels) {}
+
+// RecordWebhookDelivery is a no-op implementation.
+func (NoopMetrics) RecordWebhookDelivery(webhookdelivery.DeliveryObservation) {}
+
+// ObserveWebhookDelivery is a no-op implementation.
+func (NoopMetrics) ObserveWebhookDelivery(context.Context, webhookdelivery.DeliveryObservation) {}
 
 // Middleware instruments HTTP traffic using a provided recorder.
 type Middleware struct {
@@ -129,6 +141,7 @@ type PrometheusRecorder struct {
 	idempotencyOutcomes *prometheus.CounterVec
 	hardTimeoutEvents   *prometheus.CounterVec
 	routePolicyRequests *prometheus.CounterVec
+	webhookDeliveries   *prometheus.CounterVec
 }
 
 // ErrIncompatibleCollectorRegistration reports that a Prometheus metric name is
@@ -181,6 +194,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		Name: "http_route_policy_requests_total",
 		Help: "Total number of HTTP requests by bounded route policy metadata",
 	}, []string{"method", "route", "status_class", "auth", "tenant", "idempotency", "admin", "deprecated", "rate_limit"})
+	webhookDeliveries := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "webhook_delivery_events_total",
+		Help: "Total number of outbound webhook delivery outcomes by bounded labels",
+	}, []string{"event_type", "outcome", "status_class"})
 	registeredRequests, err := registerOrReuseCounterVec(reg, requests)
 	if err != nil {
 		return nil, fmt.Errorf("register http_requests_total: %w", err)
@@ -205,6 +222,10 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 	if err != nil {
 		return nil, fmt.Errorf("register http_route_policy_requests_total: %w", err)
 	}
+	registeredWebhookDeliveries, err := registerOrReuseCounterVec(reg, webhookDeliveries)
+	if err != nil {
+		return nil, fmt.Errorf("register webhook_delivery_events_total: %w", err)
+	}
 	return &PrometheusRecorder{
 		requests:            registeredRequests,
 		durations:           registeredDurations,
@@ -212,6 +233,7 @@ func NewPrometheusRecorderChecked(registerer prometheus.Registerer, buckets []fl
 		idempotencyOutcomes: registeredIdempotencyOutcomes,
 		hardTimeoutEvents:   registeredHardTimeoutEvents,
 		routePolicyRequests: registeredRoutePolicyRequests,
+		webhookDeliveries:   registeredWebhookDeliveries,
 	}, nil
 }
 
@@ -326,6 +348,25 @@ func (p *PrometheusRecorder) RecordRoutePolicy(labels Labels) {
 	).Inc()
 }
 
+// RecordWebhookDelivery records one bounded outbound webhook delivery outcome.
+func (p *PrometheusRecorder) RecordWebhookDelivery(event webhookdelivery.DeliveryObservation) {
+	if p == nil || p.webhookDeliveries == nil {
+		return
+	}
+	labels := WebhookDeliveryLabels(event)
+	p.webhookDeliveries.WithLabelValues(
+		labels["event_type"],
+		labels["outcome"],
+		labels["status_class"],
+	).Inc()
+}
+
+// ObserveWebhookDelivery implements webhookdelivery.MetricsRecorder.
+func (p *PrometheusRecorder) ObserveWebhookDelivery(ctx context.Context, event webhookdelivery.DeliveryObservation) {
+	_ = ctx
+	p.RecordWebhookDelivery(event)
+}
+
 // HealthStatusChangeHook converts a health scheduler status-change callback
 // into a metrics recorder call.
 func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context, ports.HealthStatus, ports.HealthStatus, ports.DetailedHealthResponse) {
@@ -356,6 +397,25 @@ func HardTimeoutEventHook(recorder HardTimeoutEventMetricsRecorder) func(timeout
 			return
 		}
 		recorder.RecordHardTimeoutEvent(event)
+	}
+}
+
+// WebhookDeliveryHook converts webhook delivery observations into a metrics
+// recorder call.
+func WebhookDeliveryHook(recorder WebhookDeliveryMetricsRecorder) webhookdelivery.MetricsRecorder {
+	if recorder == nil {
+		return nil
+	}
+	return webhookDeliveryHook{recorder: recorder}
+}
+
+type webhookDeliveryHook struct {
+	recorder WebhookDeliveryMetricsRecorder
+}
+
+func (h webhookDeliveryHook) ObserveWebhookDelivery(_ context.Context, event webhookdelivery.DeliveryObservation) {
+	if h.recorder != nil {
+		h.recorder.RecordWebhookDelivery(event)
 	}
 }
 
@@ -391,6 +451,17 @@ func HardTimeoutEventLabels(event timeoutmw.HardTimeoutEvent) Labels {
 		"timed_out":        boolLabel(event.TimedOut),
 		"panicked":         boolLabel(event.Panicked),
 		"capture_overflow": boolLabel(event.CaptureOverflow),
+	}
+}
+
+// WebhookDeliveryLabels returns the bounded label set used for outbound
+// webhook delivery metrics and logs. It intentionally excludes tenant IDs,
+// endpoint IDs, delivery IDs, URLs, payloads, secrets, and raw error strings.
+func WebhookDeliveryLabels(event webhookdelivery.DeliveryObservation) Labels {
+	return Labels{
+		"event_type":   webhookdelivery.SafeLabel(event.EventType),
+		"outcome":      webhookdelivery.SafeLabel(event.Outcome),
+		"status_class": sanitizeWebhookStatusClass(event.StatusClass),
 	}
 }
 
@@ -617,6 +688,18 @@ func sanitizeStatusClass(value string) string {
 		return strings.TrimSpace(value)
 	default:
 		return "none"
+	}
+}
+
+func sanitizeWebhookStatusClass(value string) string {
+	if statusClass := sanitizeStatusClass(value); statusClass != "none" {
+		return statusClass
+	}
+	switch webhookdelivery.SafeLabel(value) {
+	case "transport":
+		return "transport"
+	default:
+		return "unknown"
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
 	"github.com/aatuh/api-toolkit/v2/httpx/identity"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
@@ -55,6 +56,10 @@ const (
 	FieldHardTimeoutTimedOut        = "hard_timeout_timed_out"
 	FieldHardTimeoutPanicked        = "hard_timeout_panicked"
 	FieldHardTimeoutCaptureOverflow = "hard_timeout_capture_overflow"
+
+	FieldWebhookDeliveryEventType   = "webhook_delivery_event_type"
+	FieldWebhookDeliveryOutcome     = "webhook_delivery_outcome"
+	FieldWebhookDeliveryStatusClass = "webhook_delivery_status_class"
 )
 
 const redactedValue = "[redacted]"
@@ -371,6 +376,43 @@ func HardTimeoutEventFields(event timeoutmw.HardTimeoutEvent) []any {
 	}
 }
 
+// WebhookDeliveryLogHook returns a webhook delivery observation hook that
+// writes bounded delivery fields to the configured logger.
+func WebhookDeliveryLogHook(log ports.Logger) webhookdelivery.MetricsRecorder {
+	if log == nil {
+		return nil
+	}
+	return webhookDeliveryLogHook{log: log}
+}
+
+type webhookDeliveryLogHook struct {
+	log ports.Logger
+}
+
+func (h webhookDeliveryLogHook) ObserveWebhookDelivery(_ context.Context, event webhookdelivery.DeliveryObservation) {
+	if h.log == nil {
+		return
+	}
+	fields := WebhookDeliveryFields(event)
+	switch webhookdelivery.SafeLabel(event.Outcome) {
+	case "accepted":
+		h.log.Info("webhook delivery event", fields...)
+	default:
+		h.log.Warn("webhook delivery event", fields...)
+	}
+}
+
+// WebhookDeliveryFields returns bounded log fields for an outbound webhook
+// delivery observation. It intentionally omits tenant IDs, endpoint IDs,
+// delivery IDs, URLs, payloads, secrets, and raw error strings.
+func WebhookDeliveryFields(event webhookdelivery.DeliveryObservation) []any {
+	return []any{
+		FieldWebhookDeliveryEventType, webhookdelivery.SafeLabel(event.EventType),
+		FieldWebhookDeliveryOutcome, webhookdelivery.SafeLabel(event.Outcome),
+		FieldWebhookDeliveryStatusClass, webhookDeliveryStatusClass(event.StatusClass),
+	}
+}
+
 func requestID(r *http.Request) string {
 	if v := r.Header.Get("X-Request-ID"); v != "" {
 		return v
@@ -459,6 +501,19 @@ func hardTimeoutStatusClass(status int) string {
 		return "5xx"
 	default:
 		return "none"
+	}
+}
+
+func webhookDeliveryStatusClass(statusClass string) string {
+	switch strings.TrimSpace(statusClass) {
+	case "1xx", "2xx", "3xx", "4xx", "5xx":
+		return strings.TrimSpace(statusClass)
+	}
+	switch webhookdelivery.SafeLabel(statusClass) {
+	case "transport":
+		return "transport"
+	default:
+		return "unknown"
 	}
 }
 
