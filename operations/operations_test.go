@@ -97,3 +97,82 @@ func TestPollHandlerWritesProblemDetailsForMissingNotFoundAndStoreErrors(t *test
 		})
 	}
 }
+
+func TestTransitionOperationAppliesLifecycleRules(t *testing.T) {
+	t.Parallel()
+
+	result := operationResult{Message: "done"}
+	running, err := TransitionOperation(Operation[operationResult]{
+		ID:    "op_1",
+		State: StatePending,
+	}, TransitionConfig[operationResult]{To: StateRunning})
+	if err != nil {
+		t.Fatalf("pending -> running error = %v", err)
+	}
+	if running.State != StateRunning {
+		t.Fatalf("state = %q, want %q", running.State, StateRunning)
+	}
+
+	succeeded, err := TransitionOperation(running, TransitionConfig[operationResult]{
+		To:     StateSucceeded,
+		Result: &result,
+	})
+	if err != nil {
+		t.Fatalf("running -> succeeded error = %v", err)
+	}
+	if succeeded.State != StateSucceeded || succeeded.Result == nil || succeeded.Result.Message != "done" {
+		t.Fatalf("succeeded operation = %#v", succeeded)
+	}
+	if succeeded.Problem != nil {
+		t.Fatalf("succeeded problem = %#v, want nil", succeeded.Problem)
+	}
+}
+
+func TestTransitionOperationRejectsInvalidTransitions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		from State
+		to   State
+		want error
+	}{
+		{name: "unknown from", from: "queued", to: StateRunning, want: ErrInvalidState},
+		{name: "unknown to", from: StatePending, to: "done", want: ErrInvalidState},
+		{name: "terminal transition", from: StateSucceeded, to: StateRunning, want: ErrInvalidTransition},
+		{name: "failure needs problem", from: StateRunning, to: StateFailed, want: ErrInvalidTransition},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := TransitionOperation(Operation[operationResult]{
+				ID:    "op_1",
+				State: tt.from,
+			}, TransitionConfig[operationResult]{To: tt.to})
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("TransitionOperation() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestOperationStateHelpers(t *testing.T) {
+	t.Parallel()
+
+	if !CanTransition(StatePending, StateRunning) {
+		t.Fatal("pending should transition to running")
+	}
+	if !CanTransition(StateRunning, StateFailed) {
+		t.Fatal("running should transition to failed")
+	}
+	if CanTransition(StateSucceeded, StateRunning) {
+		t.Fatal("succeeded should not transition to running")
+	}
+	if !IsTerminal(StateSucceeded) || !IsTerminal(StateFailed) || !IsTerminal(StateCanceled) {
+		t.Fatal("terminal states not recognized")
+	}
+	if IsTerminal(StateRunning) {
+		t.Fatal("running should not be terminal")
+	}
+}
