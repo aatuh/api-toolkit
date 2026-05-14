@@ -144,6 +144,12 @@ source of truth is `docs/release-runbook.md`.
   raw HTTP S3-compatible adapter with SigV4 request signing, presigned URL
   hooks, content-type and object-size policy checks, metadata secret-shape
   rejection, not-found mapping, and a bucket health checker.
+- `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc` and
+  `github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc` add
+  experimental provider-neutral OIDC/JWKS bearer-token middleware with optional
+  discovery, issuer/audience and algorithm validation, tenant and scope claim
+  mapping, JWKS health checks, env loading, and generated `saas-api-full`
+  `--auth oidc` wiring.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.

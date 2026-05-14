@@ -84,8 +84,12 @@ Goal:
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.
-- OAuth2 helpers standardize claims and scopes only after an app-owned validator
-  verifies issuer, audience, expiry, JWKS material, and tenant mapping.
+- OAuth2 helpers standardize claims and scopes only after a validator verifies
+  issuer, audience, expiry, JWKS material, and tenant mapping. The experimental
+  contrib OIDC middleware provides provider-neutral JWKS validation and claim
+  mapping for API bearer tokens; keep issuer, audience, discovery URL, and JWKS
+  URL as trusted operator configuration and do not enable skip headers outside
+  explicit development bypass policy.
 - Upload helpers reject malformed, oversized, missing, or disallowed multipart
   files. Scan and persist untrusted content outside core helpers.
 - Webhook helpers verify signatures and optional replay windows. Keep replay

@@ -890,6 +890,67 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	}
 }
 
+func TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--auth", "oidc",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new OIDC full service failed: %s", out.String())
+	}
+
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "api", "main.go"))
+	if err != nil {
+		t.Fatalf("read generated full OIDC main.go: %v", err)
+	}
+	for _, want := range []string{"newOIDCMiddleware", "oidcauth.NewMiddleware", "OIDCJWKSURL", "OIDCDiscoveryURL"} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated full OIDC main.go missing %q", want)
+		}
+	}
+	generatedRouter, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "router.go"))
+	if err != nil {
+		t.Fatalf("read generated full OIDC router.go: %v", err)
+	}
+	for _, want := range []string{"oidcauth.SubjectFromContext", "required OIDC scope missing", "tenant claim mismatch"} {
+		if !strings.Contains(string(generatedRouter), want) {
+			t.Fatalf("generated full OIDC router.go missing %q", want)
+		}
+	}
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated full OIDC .env.example: %v", err)
+	}
+	for _, want := range []string{"OIDC_ISSUER=", "OIDC_AUDIENCE=saas-api-full", "OIDC_JWKS_URL=", "OIDC_DISCOVERY_URL=", "OIDC_TENANT_CLAIM=tenant_id", "OIDC_SCOPE_CLAIM=scope"} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated full OIDC .env.example missing %q", want)
+		}
+	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "BearerAuth")
+
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full OIDC service tidy failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full OIDC service tests failed:\n%s\nerror: %v", output, err)
+	}
+}
+
 func TestContractsLintFailsForMissingPolicy(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
