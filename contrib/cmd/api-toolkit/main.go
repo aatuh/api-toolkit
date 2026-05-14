@@ -895,6 +895,49 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 			"next_cursor": map[string]any{"type": "string", "nullable": true},
 		},
 	})
+	registry.RegisterSchema("WidgetImportItem", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+		},
+	})
+	registry.RegisterSchema("WidgetImportRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"items"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WidgetImportItem"}, "minItems": 1, "maxItems": 100},
+		},
+	})
+	registry.RegisterSchema("WidgetImportResult", map[string]any{
+		"type":     "object",
+		"required": []string{"created", "widget_ids"},
+		"properties": map[string]any{
+			"created":    map[string]any{"type": "integer", "minimum": 0},
+			"widget_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		},
+	})
+	registry.RegisterSchema("OperationAccepted", map[string]any{
+		"type":     "object",
+		"required": []string{"state"},
+		"properties": map[string]any{
+			"id":       map[string]any{"type": "string"},
+			"state":    map[string]any{"type": "string", "enum": []string{"pending"}},
+			"location": map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("WidgetImportOperation", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "state"},
+		"properties": map[string]any{
+			"id":      map[string]any{"type": "string"},
+			"state":   map[string]any{"type": "string", "enum": []string{"pending", "running", "succeeded", "failed", "canceled"}},
+			"result":  map[string]any{"$ref": "#/components/schemas/WidgetImportResult", "nullable": true},
+			"problem": map[string]any{"$ref": "#/components/schemas/Problem", "nullable": true},
+		},
+	})
 	registry.RegisterSchema("Organization", map[string]any{
 		"type":     "object",
 		"required": []string{"id", "name", "created_at", "updated_at"},
@@ -1033,6 +1076,24 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		Description: "Widget",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	widgetImportBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetImportRequest"},
+		},
+	}
+	operationAcceptedResponse := specs.Response{
+		Description: "Operation accepted",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/OperationAccepted"},
+		},
+	}
+	operationResponse := specs.Response{
+		Description: "Operation",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetImportOperation"},
 		},
 	}
 	organizationCreateBody := &specs.RequestBody{
@@ -1235,6 +1296,18 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Responses:   map[int]specs.Response{http.StatusOK: membershipResponse},
 		}, routepolicy.WithTenantRequired("invitation"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
 		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOperation",
+			Method:      http.MethodGet,
+			Path:        "/operations/{id}",
+			Summary:     "Get operation",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("operations:read"),
+			Responses: map[int]specs.Response{http.StatusOK: operationResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "listWidgets",
 			Method:      http.MethodGet,
 			Path:        "/widgets",
@@ -1266,6 +1339,19 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Security:    auth("widgets:write"),
 			RequestBody: jsonBody,
 			Responses:   map[int]specs.Response{http.StatusCreated: widgetResponse, http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createWidgetImport",
+			Method:      http.MethodPost,
+			Path:        "/widgets/imports",
+			Summary:     "Create widget import",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: widgetImportBody,
+			Responses:   map[int]specs.Response{http.StatusAccepted: operationAcceptedResponse},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "updateWidget",
@@ -2392,6 +2478,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
 	{Name: "internal/app/api_keys.go", Body: fullAppAPIKeysTemplate},
 	{Name: "internal/app/api_keys_test.go", Body: fullAppAPIKeysTestTemplate},
+	{Name: "internal/app/async.go", Body: fullAppAsyncTemplate},
+	{Name: "internal/app/async_test.go", Body: fullAppAsyncTestTemplate},
 	{Name: "internal/app/tenancy.go", Body: fullAppTenancyTemplate},
 	{Name: "internal/app/tenancy_test.go", Body: fullAppTenancyTestTemplate},
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
@@ -2672,13 +2760,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
-	"github.com/aatuh/api-toolkit/v2/ports"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
-	"github.com/aatuh/api-toolkit/v2/ports"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/v2/ports"
 {{ end }}
+	"github.com/aatuh/api-toolkit/v2/ports"
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/httpapi"
 )
@@ -2706,6 +2793,18 @@ func run(ctx context.Context) error {
 	widgets := app.NewWidgetService()
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
+	asyncJobs := app.NewAsyncService(widgets)
+	asyncRunner, err := async.New(async.Config{
+		Store:        asyncJobs,
+		Handler:      asyncJobs,
+		Logger:       ports.NopLogger{},
+		BatchSize:    5,
+		Concurrency:  2,
+		PollInterval: time.Second,
+	})
+	if err != nil {
+		return err
+	}
 {{ if eq .AuthMode "jwt" }}	jwtMiddleware, err := newJWTMiddleware(ctx, cfg)
 	if err != nil {
 		return err
@@ -2722,14 +2821,19 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	servers := []*http.Server{publicServer}
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
+	go func() {
+		if err := asyncRunner.Run(ctx); err != nil {
+			errCh <- err
+		}
+	}()
 	for _, srv := range servers {
 		server := srv
 		go func() {
@@ -3292,6 +3396,413 @@ func TestAPIKeyServiceRequiresAdminAndPepper(t *testing.T) {
 func fixedAPIKeyTime() time.Time {
 	return time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
 }
+`
+
+const fullAppAsyncTemplate = `package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v2/operations"
+)
+
+const WidgetImportJobKind = "widgets.import"
+
+type WidgetImportItem struct {
+	Name string ` + "`json:\"name\"`" + `
+}
+
+type WidgetImportResult struct {
+	Created   int      ` + "`json:\"created\"`" + `
+	WidgetIDs []string ` + "`json:\"widget_ids\"`" + `
+}
+
+type AsyncService struct {
+	mu               sync.Mutex
+	nextOperation    int
+	nextEvent        int
+	widgets          *WidgetService
+	operations       map[string]operations.Operation[WidgetImportResult]
+	operationTenants map[string]string
+	replays          map[string]string
+	events           map[string]outboxEvent
+	queue            []string
+}
+
+type outboxEvent struct {
+	ID          string
+	OperationID string
+	TenantID    string
+	Kind        string
+	Payload     []byte
+	State       string
+	Attempts    int
+}
+
+type widgetImportPayload struct {
+	OperationID string             ` + "`json:\"operation_id\"`" + `
+	Items       []WidgetImportItem ` + "`json:\"items\"`" + `
+}
+
+func NewAsyncService(widgets *WidgetService) *AsyncService {
+	if widgets == nil {
+		widgets = NewWidgetService()
+	}
+	return &AsyncService{
+		widgets:          widgets,
+		operations:       map[string]operations.Operation[WidgetImportResult]{},
+		operationTenants: map[string]string{},
+		replays:          map[string]string{},
+		events:           map[string]outboxEvent{},
+	}
+}
+
+func (s *AsyncService) StartWidgetImport(ctx context.Context, tenantID, idempotencyKey string, items []WidgetImportItem) (operations.Operation[WidgetImportResult], bool, error) {
+	if err := ctx.Err(); err != nil {
+		return operations.Operation[WidgetImportResult]{}, false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	cleaned, err := cleanWidgetImportItems(items)
+	if err != nil {
+		return operations.Operation[WidgetImportResult]{}, false, err
+	}
+	if tenantID == "" || idempotencyKey == "" {
+		return operations.Operation[WidgetImportResult]{}, false, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	replayKey := tenantID + "\x00widgets.import\x00" + idempotencyKey
+	if operationID, ok := s.replays[replayKey]; ok {
+		return s.operations[operationID], true, nil
+	}
+	s.nextOperation++
+	operationID := formatGeneratedID("op", s.nextOperation)
+	operation := operations.Operation[WidgetImportResult]{ID: operationID, State: operations.StatePending}
+	payload, err := json.Marshal(widgetImportPayload{OperationID: operationID, Items: cleaned})
+	if err != nil {
+		return operations.Operation[WidgetImportResult]{}, false, err
+	}
+	s.nextEvent++
+	eventID := formatGeneratedID("out", s.nextEvent)
+	s.operations[operationID] = operation
+	s.operationTenants[operationID] = tenantID
+	s.replays[replayKey] = operationID
+	s.events[eventID] = outboxEvent{
+		ID:          eventID,
+		OperationID: operationID,
+		TenantID:    tenantID,
+		Kind:        WidgetImportJobKind,
+		Payload:     payload,
+		State:       "pending",
+	}
+	s.queue = append(s.queue, eventID)
+	return operation, false, nil
+}
+
+func (s *AsyncService) GetOperation(ctx context.Context, tenantID, id string) (operations.Operation[WidgetImportResult], bool, error) {
+	if err := ctx.Err(); err != nil {
+		return operations.Operation[WidgetImportResult]{}, false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return operations.Operation[WidgetImportResult]{}, false, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.operationTenants[id] != tenantID {
+		return operations.Operation[WidgetImportResult]{}, false, nil
+	}
+	operation, ok := s.operations[id]
+	return operation, ok, nil
+}
+
+func (s *AsyncService) Lease(ctx context.Context, limit int) ([]async.Job, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	jobs := make([]async.Job, 0, limit)
+	for _, eventID := range s.queue {
+		if len(jobs) >= limit {
+			break
+		}
+		event := s.events[eventID]
+		if event.State != "pending" {
+			continue
+		}
+		event.State = "running"
+		event.Attempts++
+		s.events[eventID] = event
+		if operation, ok := s.operations[event.OperationID]; ok && operation.State == operations.StatePending {
+			running, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{To: operations.StateRunning})
+			if err != nil {
+				return nil, err
+			}
+			s.operations[event.OperationID] = running
+		}
+		jobs = append(jobs, async.Job{
+			ID:       event.ID,
+			Kind:     event.Kind,
+			TenantID: event.TenantID,
+			Payload:  append([]byte(nil), event.Payload...),
+			Attempts: event.Attempts,
+		})
+	}
+	return jobs, nil
+}
+
+func (s *AsyncService) Complete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	event, ok := s.events[id]
+	if !ok {
+		return ErrNotFound
+	}
+	event.State = "succeeded"
+	s.events[id] = event
+	return nil
+}
+
+func (s *AsyncService) Fail(ctx context.Context, id string, message string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	event, ok := s.events[id]
+	if !ok {
+		return ErrNotFound
+	}
+	event.State = "failed"
+	s.events[id] = event
+	if operation, ok := s.operations[event.OperationID]; ok && !operations.IsTerminal(operation.State) {
+		failed, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{
+			To:      operations.StateFailed,
+			Problem: &httpx.Problem{Title: "Async work failed", Detail: "worker failed"},
+		})
+		if err != nil {
+			return err
+		}
+		s.operations[event.OperationID] = failed
+	}
+	_ = message
+	return nil
+}
+
+func (s *AsyncService) Handle(ctx context.Context, job async.Job) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if async.SafeLabel(job.Kind) != WidgetImportJobKind {
+		return ErrValidation
+	}
+	var payload widgetImportPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		return ErrValidation
+	}
+	tenantID := strings.TrimSpace(job.TenantID)
+	operationID := strings.TrimSpace(payload.OperationID)
+	if tenantID == "" || operationID == "" {
+		return ErrValidation
+	}
+	createdIDs := make([]string, 0, len(payload.Items))
+	for i, item := range payload.Items {
+		widget, _, err := s.widgets.Create(ctx, tenantID, item.Name, operationID+"-"+formatGeneratedID("item", i+1))
+		if err != nil {
+			return err
+		}
+		createdIDs = append(createdIDs, widget.ID)
+	}
+	result := WidgetImportResult{Created: len(createdIDs), WidgetIDs: createdIDs}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operation, ok := s.operations[operationID]
+	if !ok {
+		return ErrNotFound
+	}
+	if operations.IsTerminal(operation.State) {
+		return nil
+	}
+	if operation.State == operations.StatePending {
+		running, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{To: operations.StateRunning})
+		if err != nil {
+			return err
+		}
+		operation = running
+	}
+	succeeded, err := operations.TransitionOperation(operation, operations.TransitionConfig[WidgetImportResult]{To: operations.StateSucceeded, Result: &result})
+	if err != nil {
+		return err
+	}
+	s.operations[operationID] = succeeded
+	return nil
+}
+
+func (s *AsyncService) Run(ctx context.Context, interval time.Duration) error {
+	if interval <= 0 {
+		interval = time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if err := s.runOnce(ctx); err != nil && ctx.Err() == nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *AsyncService) runOnce(ctx context.Context) error {
+	jobs, err := s.Lease(ctx, 1)
+	if err != nil || len(jobs) == 0 {
+		return err
+	}
+	job := jobs[0]
+	if err := s.Handle(ctx, job); err != nil {
+		return s.Fail(ctx, job.ID, async.SafeFailureMessage(err))
+	}
+	return s.Complete(ctx, job.ID)
+}
+
+func cleanWidgetImportItems(items []WidgetImportItem) ([]WidgetImportItem, error) {
+	if len(items) == 0 || len(items) > 100 {
+		return nil, ErrValidation
+	}
+	out := make([]WidgetImportItem, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(item.Name)
+		if name == "" || len(name) > 120 {
+			return nil, ErrValidation
+		}
+		out = append(out, WidgetImportItem{Name: name})
+	}
+	return out, nil
+}
+
+func formatGeneratedID(prefix string, n int) string {
+	return fmt.Sprintf("%s_%06d", prefix, n)
+}
+
+`
+
+const fullAppAsyncTestTemplate = `package app
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/operations"
+)
+
+func TestAsyncServiceCompletesWidgetImport(t *testing.T) {
+	ctx := context.Background()
+	widgets := NewWidgetService()
+	service := NewAsyncService(widgets)
+	operation, replayed, err := service.StartWidgetImport(ctx, "org_1", "idem_1", []WidgetImportItem{ {Name: " alpha "}, {Name: "beta"} })
+	if err != nil {
+		t.Fatalf("StartWidgetImport() error = %v", err)
+	}
+	if replayed || operation.State != operations.StatePending {
+		t.Fatalf("operation = %#v replayed=%v", operation, replayed)
+	}
+	replay, replayed, err := service.StartWidgetImport(ctx, "org_1", "idem_1", []WidgetImportItem{ {Name: "alpha"} })
+	if err != nil {
+		t.Fatalf("StartWidgetImport() replay error = %v", err)
+	}
+	if !replayed || replay.ID != operation.ID {
+		t.Fatalf("replay = %#v replayed=%v, want same operation", replay, replayed)
+	}
+
+	jobs, err := service.Lease(ctx, 1)
+	if err != nil {
+		t.Fatalf("Lease() error = %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].Kind != WidgetImportJobKind || jobs[0].TenantID != "org_1" {
+		t.Fatalf("leased jobs = %#v", jobs)
+	}
+	if err := service.Handle(ctx, jobs[0]); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if err := service.Complete(ctx, jobs[0].ID); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	got, ok, err := service.GetOperation(ctx, "org_1", operation.ID)
+	if err != nil {
+		t.Fatalf("GetOperation() error = %v", err)
+	}
+	if !ok || got.State != operations.StateSucceeded || got.Result == nil || got.Result.Created != 2 {
+		t.Fatalf("operation after completion = %#v ok=%v", got, ok)
+	}
+	if _, ok, err := service.GetOperation(ctx, "org_2", operation.ID); err != nil || ok {
+		t.Fatalf("cross-tenant GetOperation() ok=%v err=%v", ok, err)
+	}
+	list, err := widgets.List(ctx, "org_1")
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(list) != 2 || list[0].Name != "alpha" || list[1].Name != "beta" {
+		t.Fatalf("widgets = %#v", list)
+	}
+}
+
+func TestAsyncServiceFailureDoesNotExposePayloadOrRawError(t *testing.T) {
+	ctx := context.Background()
+	service := NewAsyncService(NewWidgetService())
+	operation, _, err := service.StartWidgetImport(ctx, "org_1", "idem_1", []WidgetImportItem{ {Name: "secret-widget-name"} })
+	if err != nil {
+		t.Fatalf("StartWidgetImport() error = %v", err)
+	}
+	jobs, err := service.Lease(ctx, 1)
+	if err != nil {
+		t.Fatalf("Lease() error = %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("leased jobs = %#v", jobs)
+	}
+	if err := service.Fail(ctx, jobs[0].ID, "provider failed with secret-widget-name"); err != nil {
+		t.Fatalf("Fail() error = %v", err)
+	}
+	got, ok, err := service.GetOperation(ctx, "org_1", operation.ID)
+	if err != nil {
+		t.Fatalf("GetOperation() error = %v", err)
+	}
+	if !ok || got.State != operations.StateFailed || got.Problem == nil {
+		t.Fatalf("failed operation = %#v ok=%v", got, ok)
+	}
+	if strings.Contains(got.Problem.Detail, "secret-widget-name") {
+		t.Fatalf("operation problem leaked payload: %#v", got.Problem)
+	}
+}
+
 `
 
 // #nosec G101 -- generated source uses invitation token variables, not hardcoded secrets.
@@ -3892,6 +4403,49 @@ func registerSchemas(registry *specs.Registry) {
 			"next_cursor": map[string]any{"type": "string", "nullable": true},
 		},
 	})
+	registry.RegisterSchema("WidgetImportItem", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+		},
+	})
+	registry.RegisterSchema("WidgetImportRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"items"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/WidgetImportItem"}, "minItems": 1, "maxItems": 100},
+		},
+	})
+	registry.RegisterSchema("WidgetImportResult", map[string]any{
+		"type":     "object",
+		"required": []string{"created", "widget_ids"},
+		"properties": map[string]any{
+			"created":    map[string]any{"type": "integer", "minimum": 0},
+			"widget_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		},
+	})
+	registry.RegisterSchema("OperationAccepted", map[string]any{
+		"type":     "object",
+		"required": []string{"state"},
+		"properties": map[string]any{
+			"id":       map[string]any{"type": "string"},
+			"state":    map[string]any{"type": "string", "enum": []string{"pending"}},
+			"location": map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("WidgetImportOperation", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "state"},
+		"properties": map[string]any{
+			"id":      map[string]any{"type": "string"},
+			"state":   map[string]any{"type": "string", "enum": []string{"pending", "running", "succeeded", "failed", "canceled"}},
+			"result":  map[string]any{"$ref": "#/components/schemas/WidgetImportResult", "nullable": true},
+			"problem": map[string]any{"$ref": "#/components/schemas/Problem", "nullable": true},
+		},
+	})
 	registry.RegisterSchema("Organization", map[string]any{
 		"type":     "object",
 		"required": []string{"id", "name", "created_at", "updated_at"},
@@ -4030,6 +4584,24 @@ func operations() []specs.Operation {
 		Description: "Widget",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/Widget"},
+		},
+	}
+	widgetImportBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetImportRequest"},
+		},
+	}
+	operationAcceptedResponse := specs.Response{
+		Description: "Operation accepted",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/OperationAccepted"},
+		},
+	}
+	operationResponse := specs.Response{
+		Description: "Operation",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/WidgetImportOperation"},
 		},
 	}
 	organizationCreateBody := &specs.RequestBody{
@@ -4232,6 +4804,18 @@ func operations() []specs.Operation {
 			Responses:   map[int]specs.Response{http.StatusOK: membershipResponse},
 		}, routepolicy.WithTenantRequired("invitation"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
 		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOperation",
+			Method:      http.MethodGet,
+			Path:        "/operations/{id}",
+			Summary:     "Get operation",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("operations:read"),
+			Responses: map[int]specs.Response{http.StatusOK: operationResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "listWidgets",
 			Method:      http.MethodGet,
 			Path:        "/widgets",
@@ -4263,6 +4847,19 @@ func operations() []specs.Operation {
 			Security:    auth("widgets:write"),
 			RequestBody: jsonBody,
 			Responses:   map[int]specs.Response{http.StatusCreated: widgetResponse, http.StatusOK: widgetResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createWidgetImport",
+			Method:      http.MethodPost,
+			Path:        "/widgets/imports",
+			Summary:     "Create widget import",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("widgets:write"),
+			RequestBody: widgetImportBody,
+			Responses:   map[int]specs.Response{http.StatusAccepted: operationAcceptedResponse},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "updateWidget",
@@ -4324,6 +4921,7 @@ import (
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
 	"github.com/aatuh/api-toolkit/v2/httpx"
+	apitkops "github.com/aatuh/api-toolkit/v2/operations"
 
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
@@ -4438,6 +5036,7 @@ type RouterConfig struct {
 	Widgets  *app.WidgetService
 	Tenancy  *app.TenancyService
 	APIKeys  *app.APIKeyService
+	Async    *app.AsyncService
 	APIKey   string
 	AdminKey string
 {{ if eq .AuthMode "jwt" }}	JWT      *jwtauth.Middleware
@@ -4459,8 +5058,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleCreateAPIKey)))
 	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleRevokeAPIKey)))
 	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
+	mux.Handle("GET /operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
 	mux.Handle("POST /widgets", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidget)))
+	mux.Handle("POST /widgets/imports", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidgetImport)))
 	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleUpdateWidget)))
 	mux.Handle("DELETE /widgets/{id}", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleDeleteWidget)))
 	return mux
@@ -4491,6 +5092,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	}
 	if cfg.APIKeys == nil {
 		cfg.APIKeys = app.NewAPIKeyService(os.Getenv("API_KEY_PEPPER"), cfg.Tenancy)
+	}
+	if cfg.Async == nil {
+		cfg.Async = app.NewAsyncService(cfg.Widgets)
 	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
@@ -4692,6 +5296,28 @@ func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, member.Public())
 }
 
+func (cfg RouterConfig) handleGetOperation(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	operationID := strings.TrimSpace(r.PathValue("id"))
+	if operationID == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "operation id is required"})
+		return
+	}
+	operation, found, err := cfg.Async.GetOperation(r.Context(), tenantID, operationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if !found {
+		writeAppError(w, app.ErrNotFound)
+		return
+	}
+	apitkops.WriteOperation(w, http.StatusOK, operation)
+}
+
 func (cfg RouterConfig) handleListWidgets(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := cfg.authenticateTenant(w, r)
 	if !ok {
@@ -4733,6 +5359,34 @@ func (cfg RouterConfig) handleCreateWidget(w http.ResponseWriter, r *http.Reques
 		status = http.StatusOK
 	}
 	writeJSON(w, status, widget.Public())
+}
+
+func (cfg RouterConfig) handleCreateWidgetImport(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireHeader(w, r, "Idempotency-Key")
+	if !ok {
+		return
+	}
+	req, ok := decodeWidgetImportRequest(w, r)
+	if !ok {
+		return
+	}
+	operation, replayed, err := cfg.Async.StartWidgetImport(r.Context(), tenantID, idempotencyKey, req.Items)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if replayed {
+		w.Header().Set("Idempotent-Replay", "true")
+	}
+	apitkops.WriteAccepted(w, apitkops.AcceptedConfig{
+		ID:         operation.ID,
+		Location:   "/operations/" + operation.ID,
+		RetryAfter: time.Second,
+	})
 }
 
 func (cfg RouterConfig) handleUpdateWidget(w http.ResponseWriter, r *http.Request) {
@@ -4779,6 +5433,10 @@ func (cfg RouterConfig) handleDeleteWidget(w http.ResponseWriter, r *http.Reques
 
 type widgetRequest struct {
 	Name string
+}
+
+type widgetImportRequest struct {
+	Items []app.WidgetImportItem
 }
 
 type organizationRequest struct {
@@ -4909,6 +5567,31 @@ func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest,
 		return widgetRequest{}, false
 	}
 	return widgetRequest{Name: name}, true
+}
+
+func decodeWidgetImportRequest(w http.ResponseWriter, r *http.Request) (widgetImportRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Items []app.WidgetImportItem ` + "`json:\"items\"`" + `
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return widgetImportRequest{}, false
+	}
+	if len(raw.Items) == 0 || len(raw.Items) > 100 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "items must contain 1 to 100 widgets"})
+		return widgetImportRequest{}, false
+	}
+	for _, item := range raw.Items {
+		name := strings.TrimSpace(item.Name)
+		if name == "" || len(name) > 120 {
+			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "item names are required"})
+			return widgetImportRequest{}, false
+		}
+	}
+	return widgetImportRequest{Items: raw.Items}, true
 }
 
 func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -5363,6 +6046,38 @@ func TestUpdateWidgetRequiresMatchingETag(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusPreconditionFailed {
 		t.Fatalf("conflict status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWidgetImportReturnsPollableOperation(t *testing.T) {
+	handler := newTestRouter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets/imports", strings.NewReader(` + "`" + `{"items":[{"name":"bulk-a"},{"name":"bulk-b"}]}` + "`" + `))
+	authorizeTestRequestAs(t, req, "org_1", "user_123", "widgets:write")
+	req.Header.Set("Idempotency-Key", "import-1")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("import status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	location := rec.Header().Get("Location")
+	if !strings.HasPrefix(location, "/operations/") || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("operation headers Location=%q Retry-After=%q", location, rec.Header().Get("Retry-After"))
+	}
+	var accepted map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted body: %v", err)
+	}
+	operationID, _ := accepted["id"].(string)
+	if operationID == "" || accepted["state"] != "pending" {
+		t.Fatalf("accepted body = %#v", accepted)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, location, nil)
+	authorizeTestRequestAs(t, req, "org_1", "user_123", "operations:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), operationID) || !strings.Contains(rec.Body.String(), "pending") {
+		t.Fatalf("operation poll status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -6114,7 +6829,7 @@ go run ./cmd/api
 
 Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.
 Redis is reserved for shared idempotency, rate limiting, and cache state.
-The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, and tenant-scoped idempotent widget writes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
+The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, and an async widget import with pollable operation state. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode uses ` + "`API_ACTOR_ID`" + ` for production actor identity. In non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` to exercise role flows before real API-key management is wired.
 
@@ -7894,6 +8609,8 @@ Default routes:
 - ` + "`GET /readyz`" + `
 - ` + "`GET /docs/openapi.json`" + `
 - ` + "`POST /widgets`" + ` with {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}` + "`Authorization: Bearer <token>`" + `{{ else if eq .AuthMode "dev-headers" }}` + "`X-Debug-User`" + `, ` + "`X-Debug-Tenant-ID`" + `, ` + "`X-Debug-Scopes`" + `{{ else }}` + "`X-API-Key`" + `{{ end }}, ` + "`X-Tenant-ID`" + `, and ` + "`Idempotency-Key`" + `
+- ` + "`POST /widgets/imports`" + ` with tenant auth and ` + "`Idempotency-Key`" + ` returns ` + "`202 Accepted`" + `
+- ` + "`GET /operations/{id}`" + ` with tenant auth returns pollable async state
 - ` + "`GET /health/detailed`" + ` with ` + "`X-Admin-Key`" + `
 - ` + "`GET /metrics`" + ` with ` + "`X-Admin-Key`" + `
 - ` + "`GET /debug/pprof/`" + ` with ` + "`X-Admin-Key`" + `

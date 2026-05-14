@@ -97,6 +97,11 @@ Goal:
   for production actor identity; the `X-Actor-ID` request header is only a
   non-production fallback for exercising role flows before durable API-key
   management is wired.
+- Generated full-profile async widget imports keep operation polling
+  tenant-scoped, reuse `Idempotency-Key` for replay-safe acceptance, and store
+  sanitized operation failure problems. Do not put raw request payloads,
+  provider errors, secrets, tenant identifiers, or idempotency keys into async
+  logs, metrics labels, Problem Details, or operation results.
 - Tenant middleware compares configured tenant sources before handlers run. Use
   `RequireAllSources` for routes that must prove a request header or URL tenant
   matches the authenticated tenant scope.
