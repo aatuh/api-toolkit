@@ -976,6 +976,46 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 		},
 		"additionalProperties": false,
 	})
+	registry.RegisterSchema("APIKey", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "organization_id", "name", "prefix", "scopes", "created_at"},
+		"properties": map[string]any{
+			"id":              map[string]any{"type": "string"},
+			"organization_id": map[string]any{"type": "string"},
+			"name":            map[string]any{"type": "string"},
+			"prefix":          map[string]any{"type": "string"},
+			"scopes":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"expires_at":      map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"last_used_at":    map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"revoked_at":      map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("APIKeyCreateRequest", map[string]any{
+		"type":     "object",
+		"required": []string{"name", "scopes"},
+		"properties": map[string]any{
+			"name":       map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+			"scopes":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1},
+			"expires_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+		"additionalProperties": false,
+	})
+	registry.RegisterSchema("APIKeyCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"api_key", "secret"},
+		"properties": map[string]any{
+			"api_key": map[string]any{"$ref": "#/components/schemas/APIKey"},
+			"secret":  map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("APIKeyList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/APIKey"}},
+		},
+	})
 }
 
 func fullScaffoldOperations(authSchemeName string) []specs.Operation {
@@ -1029,6 +1069,18 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		Description: "Invitation created",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/InvitationCreated"},
+		},
+	}
+	apiKeyCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreateRequest"},
+		},
+	}
+	apiKeyCreatedResponse := specs.Response{
+		Description: "API key created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreated"},
 		},
 	}
 	return []specs.Operation{
@@ -1121,6 +1173,53 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Security:    auth("invitations:write"),
 			RequestBody: invitationCreateBody,
 			Responses:   map[int]specs.Response{http.StatusCreated: invitationCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationAPIKeys",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/api-keys",
+			Summary:     "List organization API keys",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security: auth("api-keys:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "API key list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/APIKeyList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationAPIKey",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/api-keys",
+			Summary:     "Create organization API key",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("api-keys:write"),
+			RequestBody: apiKeyCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: apiKeyCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "revokeOrganizationAPIKey",
+			Method:      http.MethodDelete,
+			Path:        "/organizations/{organization_id}/api-keys/{api_key_id}",
+			Summary:     "Revoke organization API key",
+			Parameters: []specs.Parameter{
+				{Name: "api_key_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("api-keys:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Revoked"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
@@ -2288,8 +2387,11 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
 	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
+	{Name: "internal/domain/api_key.go", Body: fullDomainAPIKeyTemplate},
 	{Name: "internal/domain/tenancy.go", Body: fullDomainTenancyTemplate},
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
+	{Name: "internal/app/api_keys.go", Body: fullAppAPIKeysTemplate},
+	{Name: "internal/app/api_keys_test.go", Body: fullAppAPIKeysTestTemplate},
 	{Name: "internal/app/tenancy.go", Body: fullAppTenancyTemplate},
 	{Name: "internal/app/tenancy_test.go", Body: fullAppTenancyTestTemplate},
 	{Name: "internal/app/widgets.go", Body: fullAppWidgetsTemplate},
@@ -2599,13 +2701,14 @@ func run(ctx context.Context) error {
 	}
 	widgets := app.NewWidgetService()
 	tenancy := app.NewTenancyService()
+	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
 {{ if eq .AuthMode "oidc" }}	oidcMiddleware, err := newOIDCMiddleware(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, AdminKey: cfg.AdminKey{{ if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, AdminKey: cfg.AdminKey{{ if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
 	publicServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           httpapi.NewRouter(routerConfig),
@@ -2664,6 +2767,37 @@ func run(ctx context.Context) error {
 }
 
 {{ end }}
+`
+
+const fullDomainAPIKeyTemplate = `package domain
+
+import "time"
+
+type APIKey struct {
+	ID             string
+	OrganizationID string
+	Name           string
+	Prefix         string
+	Scopes         []string
+	ExpiresAt      *time.Time
+	LastUsedAt     *time.Time
+	RevokedAt      *time.Time
+	CreatedAt      time.Time
+}
+
+func (k APIKey) Public() map[string]any {
+	return map[string]any{
+		"id":              k.ID,
+		"organization_id": k.OrganizationID,
+		"name":            k.Name,
+		"prefix":          k.Prefix,
+		"scopes":          append([]string(nil), k.Scopes...),
+		"expires_at":      k.ExpiresAt,
+		"last_used_at":    k.LastUsedAt,
+		"revoked_at":      k.RevokedAt,
+		"created_at":      k.CreatedAt,
+	}
+}
 `
 
 const fullDomainTenancyTemplate = `package domain
@@ -2792,6 +2926,331 @@ func (w Widget) Public() map[string]any {
 		"name":      w.Name,
 		"version":   w.Version,
 	}
+}
+`
+
+// #nosec G101 -- generated source uses API key and secret variable names, not hardcoded production credentials.
+const fullAppAPIKeysTemplate = `package app
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"{{ .Module }}/internal/domain"
+)
+
+type APIKeyService struct {
+	mu        sync.Mutex
+	next      int
+	keys      map[string]apiKeyRecord
+	byHash    map[string]string
+	pepper    string
+	tenancy   *TenancyService
+	now       func() time.Time
+	newSecret func() (string, error)
+}
+
+type apiKeyRecord struct {
+	key  domain.APIKey
+	hash string
+}
+
+func NewAPIKeyService(pepper string, tenancy *TenancyService) *APIKeyService {
+	return &APIKeyService{
+		keys:      map[string]apiKeyRecord{},
+		byHash:    map[string]string{},
+		pepper:    strings.TrimSpace(pepper),
+		tenancy:   tenancy,
+		now:       time.Now,
+		newSecret: randomAPIKeySecret,
+	}
+}
+
+func (s *APIKeyService) Create(ctx context.Context, actorID, organizationID, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.APIKey{}, "", err
+	}
+	actorID = strings.TrimSpace(actorID)
+	organizationID = strings.TrimSpace(organizationID)
+	name = strings.TrimSpace(name)
+	cleanScopes, ok := normalizeAPIKeyScopes(scopes)
+	if actorID == "" || organizationID == "" || name == "" || !ok || strings.TrimSpace(s.pepper) == "" {
+		return domain.APIKey{}, "", ErrValidation
+	}
+	if err := s.requireRole(ctx, actorID, organizationID, domain.RoleAdmin); err != nil {
+		return domain.APIKey{}, "", err
+	}
+	secret, err := s.newSecret()
+	if err != nil {
+		return domain.APIKey{}, "", err
+	}
+	prefix := apiKeyPrefix(secret)
+	recordHash := s.hashSecret(secret)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.next++
+	now := s.now().UTC()
+	key := domain.APIKey{
+		ID:             fmt.Sprintf("key_%06d", s.next),
+		OrganizationID: organizationID,
+		Name:           name,
+		Prefix:         prefix,
+		Scopes:         cleanScopes,
+		ExpiresAt:      expiresAt,
+		CreatedAt:      now,
+	}
+	s.keys[key.ID] = apiKeyRecord{key: key, hash: recordHash}
+	s.byHash[recordHash] = key.ID
+	return key, secret, nil
+}
+
+func (s *APIKeyService) List(ctx context.Context, actorID, organizationID string) ([]domain.APIKey, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	actorID = strings.TrimSpace(actorID)
+	organizationID = strings.TrimSpace(organizationID)
+	if actorID == "" || organizationID == "" {
+		return nil, ErrValidation
+	}
+	if err := s.requireRole(ctx, actorID, organizationID, domain.RoleAdmin); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]domain.APIKey, 0, len(s.keys))
+	for _, record := range s.keys {
+		if record.key.OrganizationID == organizationID {
+			out = append(out, record.key)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+func (s *APIKeyService) Revoke(ctx context.Context, actorID, organizationID, keyID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	actorID = strings.TrimSpace(actorID)
+	organizationID = strings.TrimSpace(organizationID)
+	keyID = strings.TrimSpace(keyID)
+	if actorID == "" || organizationID == "" || keyID == "" {
+		return ErrValidation
+	}
+	if err := s.requireRole(ctx, actorID, organizationID, domain.RoleAdmin); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.keys[keyID]
+	if !ok || record.key.OrganizationID != organizationID {
+		return ErrNotFound
+	}
+	if record.key.RevokedAt == nil {
+		now := s.now().UTC()
+		record.key.RevokedAt = &now
+		s.keys[keyID] = record
+	}
+	return nil
+}
+
+func (s *APIKeyService) Verify(ctx context.Context, secret string) (domain.APIKey, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.APIKey{}, false, err
+	}
+	secret = strings.TrimSpace(secret)
+	if secret == "" || strings.TrimSpace(s.pepper) == "" {
+		return domain.APIKey{}, false, ErrValidation
+	}
+	hash := s.hashSecret(secret)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keyID, ok := s.byHash[hash]
+	if !ok {
+		return domain.APIKey{}, false, nil
+	}
+	record := s.keys[keyID]
+	now := s.now().UTC()
+	if record.key.RevokedAt != nil || (record.key.ExpiresAt != nil && !now.Before(*record.key.ExpiresAt)) {
+		return domain.APIKey{}, false, nil
+	}
+	record.key.LastUsedAt = &now
+	s.keys[keyID] = record
+	return record.key, true, nil
+}
+
+func (s *APIKeyService) requireRole(ctx context.Context, actorID, organizationID string, role domain.Role) error {
+	if s.tenancy == nil {
+		return ErrForbidden
+	}
+	ok, err := s.tenancy.HasRole(ctx, organizationID, actorID, role)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func (s *APIKeyService) hashSecret(secret string) string {
+	mac := hmac.New(sha256.New, []byte(s.pepper))
+	_, _ = mac.Write([]byte(strings.TrimSpace(secret)))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func randomAPIKeySecret() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return "atk_" + base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func apiKeyPrefix(secret string) string {
+	secret = strings.TrimSpace(secret)
+	if len(secret) <= 12 {
+		return secret
+	}
+	return secret[:12]
+}
+
+func normalizeAPIKeyScopes(scopes []string) ([]string, bool) {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "" || len(scope) > 80 || !safeAPIKeyScope(scope) {
+			return nil, false
+		}
+		if _, ok := seen[scope]; ok {
+			continue
+		}
+		seen[scope] = struct{}{}
+		out = append(out, scope)
+	}
+	sort.Strings(out)
+	return out, len(out) > 0
+}
+
+func safeAPIKeyScope(scope string) bool {
+	for _, r := range scope {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			continue
+		}
+		switch r {
+		case ':', '.', '_', '-':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+`
+
+// #nosec G101 -- generated tests use fixed API key secrets to verify hashing behavior.
+const fullAppAPIKeysTestTemplate = `package app
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestAPIKeyServiceHashesSecretAndRevokes(t *testing.T) {
+	tenancy := NewTenancyService()
+	tenancy.now = fixedAPIKeyTime
+	org, _, err := tenancy.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewAPIKeyService("test-pepper", tenancy)
+	service.now = fixedAPIKeyTime
+	service.newSecret = func() (string, error) { return "atk_raw-secret-value", nil }
+	expiresAt := fixedAPIKeyTime().Add(time.Hour)
+
+	key, secret, err := service.Create(context.Background(), "owner_1", org.ID, "CI", []string{"widgets:write", "widgets:read", "widgets:read"}, &expiresAt)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if secret != "atk_raw-secret-value" {
+		t.Fatalf("secret = %q", secret)
+	}
+	record := service.keys[key.ID]
+	if record.hash == "" || strings.Contains(record.hash, secret) || record.hash == secret {
+		t.Fatalf("stored hash is unsafe: %#v", record)
+	}
+	if key.Prefix == "" || key.Prefix == secret {
+		t.Fatalf("prefix = %q secret=%q", key.Prefix, secret)
+	}
+	if len(key.Scopes) != 2 {
+		t.Fatalf("deduped scopes = %#v", key.Scopes)
+	}
+	publicJSON, err := json.Marshal(key.Public())
+	if err != nil {
+		t.Fatalf("marshal public key: %v", err)
+	}
+	if strings.Contains(string(publicJSON), secret) {
+		t.Fatalf("public API key leaked secret: %s", publicJSON)
+	}
+	verified, ok, err := service.Verify(context.Background(), secret)
+	if err != nil || !ok {
+		t.Fatalf("Verify() key=%#v ok=%v err=%v", verified, ok, err)
+	}
+	if verified.LastUsedAt == nil {
+		t.Fatalf("Verify() did not update last_used_at: %#v", verified)
+	}
+	if err := service.Revoke(context.Background(), "owner_1", org.ID, key.ID); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	if _, ok, err := service.Verify(context.Background(), secret); err != nil || ok {
+		t.Fatalf("Verify() after revoke ok=%v err=%v", ok, err)
+	}
+}
+
+func TestAPIKeyServiceRequiresAdminAndPepper(t *testing.T) {
+	tenancy := NewTenancyService()
+	tenancy.now = fixedAPIKeyTime
+	tenancy.newToken = func() (string, error) { return "invite-token-value", nil }
+	org, _, err := tenancy.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	invitation, token, err := tenancy.InviteMember(context.Background(), "owner_1", org.ID, "viewer@example.com", "viewer")
+	if err != nil {
+		t.Fatalf("InviteMember() error = %v", err)
+	}
+	if _, err := tenancy.AcceptInvitation(context.Background(), invitation.ID, token, "viewer_1"); err != nil {
+		t.Fatalf("AcceptInvitation() error = %v", err)
+	}
+	service := NewAPIKeyService("test-pepper", tenancy)
+	if _, _, err := service.Create(context.Background(), "viewer_1", org.ID, "Viewer", []string{"widgets:read"}, nil); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("viewer create error = %v, want %v", err, ErrForbidden)
+	}
+	withoutPepper := NewAPIKeyService("", tenancy)
+	if _, _, err := withoutPepper.Create(context.Background(), "owner_1", org.ID, "Missing pepper", []string{"widgets:read"}, nil); !errors.Is(err, ErrValidation) {
+		t.Fatalf("missing pepper error = %v, want %v", err, ErrValidation)
+	}
+}
+
+func fixedAPIKeyTime() time.Time {
+	return time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
 }
 `
 
@@ -3474,6 +3933,46 @@ func registerSchemas(registry *specs.Registry) {
 			"token": map[string]any{"type": "string", "minLength": 1},
 		},
 	})
+	registry.RegisterSchema("APIKey", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "organization_id", "name", "prefix", "scopes", "created_at"},
+		"properties": map[string]any{
+			"id":              map[string]any{"type": "string"},
+			"organization_id": map[string]any{"type": "string"},
+			"name":            map[string]any{"type": "string"},
+			"prefix":          map[string]any{"type": "string"},
+			"scopes":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"expires_at":      map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"last_used_at":    map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"revoked_at":      map[string]any{"type": "string", "format": "date-time", "nullable": true},
+			"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("APIKeyCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name", "scopes"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name":       map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+			"scopes":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1},
+			"expires_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("APIKeyCreated", map[string]any{
+		"type":     "object",
+		"required": []string{"api_key", "secret"},
+		"properties": map[string]any{
+			"api_key": map[string]any{"$ref": "#/components/schemas/APIKey"},
+			"secret":  map[string]any{"type": "string"},
+		},
+	})
+	registry.RegisterSchema("APIKeyList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/APIKey"}},
+		},
+	})
 }
 
 func operations() []specs.Operation {
@@ -3527,6 +4026,18 @@ func operations() []specs.Operation {
 		Description: "Invitation created",
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: "#/components/schemas/InvitationCreated"},
+		},
+	}
+	apiKeyCreateBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreateRequest"},
+		},
+	}
+	apiKeyCreatedResponse := specs.Response{
+		Description: "API key created",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/APIKeyCreated"},
 		},
 	}
 	return []specs.Operation{
@@ -3619,6 +4130,53 @@ func operations() []specs.Operation {
 			Security:    auth("invitations:write"),
 			RequestBody: invitationCreateBody,
 			Responses:   map[int]specs.Response{http.StatusCreated: invitationCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "listOrganizationAPIKeys",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/api-keys",
+			Summary:     "List organization API keys",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security: auth("api-keys:read"),
+			Responses: map[int]specs.Response{
+				http.StatusOK: {
+					Description: "API key list",
+					Content: map[string]specs.MediaType{
+						"application/json": {SchemaRef: "#/components/schemas/APIKeyList"},
+					},
+				},
+			},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "createOrganizationAPIKey",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/api-keys",
+			Summary:     "Create organization API key",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("api-keys:write"),
+			RequestBody: apiKeyCreateBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: apiKeyCreatedResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "revokeOrganizationAPIKey",
+			Method:      http.MethodDelete,
+			Path:        "/organizations/{organization_id}/api-keys/{api_key_id}",
+			Summary:     "Revoke organization API key",
+			Parameters: []specs.Parameter{
+				{Name: "api_key_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("api-keys:write"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Revoked"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "acceptInvitation",
@@ -3719,6 +4277,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 {{ if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ end }}
@@ -3806,6 +4365,7 @@ func envDefault(name, fallback string) string {
 type RouterConfig struct {
 	Widgets  *app.WidgetService
 	Tenancy  *app.TenancyService
+	APIKeys  *app.APIKeyService
 	APIKey   string
 	AdminKey string
 {{ if eq .AuthMode "oidc" }}	OIDC     *oidcauth.Middleware
@@ -3821,6 +4381,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /organizations", cfg.protect("organizations:write", http.HandlerFunc(cfg.handleCreateOrganization)))
 	mux.Handle("GET /organizations/{organization_id}/members", cfg.protect("members:read", http.HandlerFunc(cfg.handleListMembers)))
 	mux.Handle("POST /organizations/{organization_id}/invitations", cfg.protect("invitations:write", http.HandlerFunc(cfg.handleCreateInvitation)))
+	mux.Handle("GET /organizations/{organization_id}/api-keys", cfg.protect("api-keys:read", http.HandlerFunc(cfg.handleListAPIKeys)))
+	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleCreateAPIKey)))
+	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", http.HandlerFunc(cfg.handleRevokeAPIKey)))
 	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", http.HandlerFunc(cfg.handleAcceptInvitation)))
 	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
 	mux.Handle("POST /widgets", cfg.protect("widgets:write", http.HandlerFunc(cfg.handleCreateWidget)))
@@ -3851,6 +4414,9 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	}
 	if cfg.Tenancy == nil {
 		cfg.Tenancy = app.NewTenancyService()
+	}
+	if cfg.APIKeys == nil {
+		cfg.APIKeys = app.NewAPIKeyService(os.Getenv("API_KEY_PEPPER"), cfg.Tenancy)
 	}
 	if cfg.APIKey == "" {
 		cfg.APIKey = "local-dev-key"
@@ -3956,6 +4522,75 @@ func (cfg RouterConfig) handleCreateInvitation(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"invitation": invitation.Public(), "token": token})
+}
+
+func (cfg RouterConfig) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	keys, err := cfg.APIKeys.List(r.Context(), actorID, organizationID)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		items = append(items, key.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (cfg RouterConfig) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decodeAPIKeyCreateRequest(w, r)
+	if !ok {
+		return
+	}
+	key, secret, err := cfg.APIKeys.Create(r.Context(), actorID, organizationID, req.Name, req.Scopes, req.ExpiresAt)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"api_key": key.Public(), "secret": secret})
+}
+
+func (cfg RouterConfig) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	keyID := strings.TrimSpace(r.PathValue("api_key_id"))
+	if keyID == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "api key id is required"})
+		return
+	}
+	if err := cfg.APIKeys.Revoke(r.Context(), actorID, organizationID, keyID); err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
@@ -4085,6 +4720,12 @@ type acceptInvitationRequest struct {
 	Token string
 }
 
+type apiKeyCreateRequest struct {
+	Name      string
+	Scopes    []string
+	ExpiresAt *time.Time
+}
+
 func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organizationRequest, bool) {
 	defer r.Body.Close()
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -4135,6 +4776,48 @@ func decodeAcceptInvitationRequest(w http.ResponseWriter, r *http.Request) (acce
 		return acceptInvitationRequest{}, false
 	}
 	return acceptInvitationRequest{Token: token}, true
+}
+
+func decodeAPIKeyCreateRequest(w http.ResponseWriter, r *http.Request) (apiKeyCreateRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Name      string   ` + "`json:\"name\"`" + `
+		Scopes    []string ` + "`json:\"scopes\"`" + `
+		ExpiresAt string   ` + "`json:\"expires_at\"`" + `
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return apiKeyCreateRequest{}, false
+	}
+	name := strings.TrimSpace(raw.Name)
+	if name == "" {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		return apiKeyCreateRequest{}, false
+	}
+	scopes := make([]string, 0, len(raw.Scopes))
+	for _, scope := range raw.Scopes {
+		scope = strings.TrimSpace(scope)
+		if scope != "" {
+			scopes = append(scopes, scope)
+		}
+	}
+	if len(scopes) == 0 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one scope is required"})
+		return apiKeyCreateRequest{}, false
+	}
+	var expiresAt *time.Time
+	if strings.TrimSpace(raw.ExpiresAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw.ExpiresAt))
+		if err != nil {
+			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "expires_at must be RFC3339"})
+			return apiKeyCreateRequest{}, false
+		}
+		parsed = parsed.UTC()
+		expiresAt = &parsed
+	}
+	return apiKeyCreateRequest{Name: name, Scopes: scopes, ExpiresAt: expiresAt}, true
 }
 
 func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
@@ -4516,6 +5199,54 @@ func TestOrganizationInvitationFlow(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/api-keys", strings.NewReader(` + "`" + `{"name":"CI","scopes":["widgets:read","widgets:write"],"expires_at":"2030-01-01T00:00:00Z"}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:write")
+	req.Header.Set("Idempotency-Key", "create-api-key")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create api key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var apiKeyBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiKeyBody); err != nil {
+		t.Fatalf("decode api key body: %v", err)
+	}
+	secret, _ := apiKeyBody["secret"].(string)
+	apiKey, _ := apiKeyBody["api_key"].(map[string]any)
+	apiKeyID, _ := apiKey["id"].(string)
+	if secret == "" || apiKeyID == "" || apiKey["prefix"] == "" {
+		t.Fatalf("api key body = %#v", apiKeyBody)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/organizations/"+orgID+"/api-keys", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), apiKeyID) {
+		t.Fatalf("list api keys status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Fatalf("list api keys leaked secret: %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/organizations/"+orgID+"/api-keys/"+apiKeyID, nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_1", "api-keys:write")
+	req.Header.Set("Idempotency-Key", "revoke-api-key")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("revoke api key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/api-keys", strings.NewReader(` + "`" + `{"name":"Member","scopes":["widgets:read"]}` + "`" + `))
+	authorizeTestRequestAs(t, req, orgID, "member_1", "api-keys:write")
+	req.Header.Set("Idempotency-Key", "member-api-key")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("member api key create status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/organizations/"+orgID+"/invitations", strings.NewReader(` + "`" + `{"email":"second@example.com","role":"viewer"}` + "`" + `))
 	authorizeTestRequestAs(t, req, orgID, "member_1", "invitations:write")
 	req.Header.Set("Idempotency-Key", "invite-second")
@@ -4579,7 +5310,8 @@ func createOrganization(t *testing.T, handler http.Handler, actorID, name string
 
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
-	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: app.NewTenancyService(){{ if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	tenancy := app.NewTenancyService()
+	return NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy){{ if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
 }
 
 func authorizeTestRequest(t *testing.T, req *http.Request, tenantID string) {

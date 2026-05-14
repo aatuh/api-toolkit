@@ -727,8 +727,11 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, name := range []string{
 		"go.mod",
 		"cmd/api/main.go",
+		"internal/domain/api_key.go",
 		"internal/domain/tenancy.go",
 		"internal/domain/widget.go",
+		"internal/app/api_keys.go",
+		"internal/app/api_keys_test.go",
 		"internal/app/tenancy.go",
 		"internal/app/tenancy_test.go",
 		"internal/app/widgets.go",
@@ -800,7 +803,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -810,7 +813,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile client: %v", err)
 	}
-	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "PathParam(\"id\",", "PathParam(\"organization_id\","} {
+	for _, want := range []string{"package apiclient", "func (c *Client) CreateWidget", "func (c *Client) UpdateWidget", "func (c *Client) CreateOrganization", "func (c *Client) CreateOrganizationInvitation", "func (c *Client) CreateOrganizationAPIKey", "func (c *Client) RevokeOrganizationAPIKey", "PathParam(\"id\",", "PathParam(\"organization_id\",", "PathParam(\"api_key_id\","} {
 		if !strings.Contains(string(generatedClient), want) {
 			t.Fatalf("generated full-profile client missing %q", want)
 		}
