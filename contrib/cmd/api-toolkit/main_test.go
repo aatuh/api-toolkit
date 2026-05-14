@@ -59,6 +59,114 @@ func TestRunVersionJSON(t *testing.T) {
 	}
 }
 
+func TestClientsGoGeneratesBuildableClient(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{
+		"/widgets": {
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {
+					"201": {"description": "created", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		},
+		"/widgets/{id}": {
+			"get": {
+				"operationId": "getWidget",
+				"parameters": [
+					{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
+					{"name": "X-Tenant-ID", "in": "header", "required": true, "schema": {"type": "string"}}
+				],
+				"responses": {
+					"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"404": {"description": "not found", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		}
+	}`)
+	clientDir := filepath.Join(tmp, "client")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"clients", "go",
+		"--openapi", specPath,
+		"--out", clientDir,
+		"--package", "apiclient",
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("clients go failed: %s", out.String())
+	}
+	generated, err := os.ReadFile(filepath.Join(clientDir, "client.go"))
+	if err != nil {
+		t.Fatalf("read generated client.go: %v", err)
+	}
+	for _, want := range []string{
+		"package apiclient",
+		"type Client struct",
+		"func WithAPIKey",
+		"func WithBearerToken",
+		"func (c *Client) CreateWidget",
+		"func (c *Client) GetWidget",
+		"type Problem struct",
+		"type Error struct",
+		"PathParam(\"id\",",
+	} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated client.go missing %q:\n%s", want, generated)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte("module example.com/clienttest\n\ngo 1.25.0\n"), 0o600); err != nil {
+		t.Fatalf("write temp go.mod: %v", err)
+	}
+	cmd := exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = tmp
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated client package should build:\n%s\nerror: %v", output, err)
+	}
+}
+
+func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	writeTestOpenAPI(t, specPath, `{}`)
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "traversal output",
+			args: []string{"clients", "go", "--openapi", specPath, "--out", "../escape", "--package", "apiclient"},
+			want: "output directory must stay under the current working directory",
+		},
+		{
+			name: "invalid package",
+			args: []string{"clients", "go", "--openapi", specPath, "--out", filepath.Join(tmp, "client"), "--package", "api-client"},
+			want: "invalid Go package name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var errOut strings.Builder
+			code := run(context.Background(), tt.args, &strings.Builder{}, &errOut)
+			if code == 0 {
+				t.Fatal("expected clients go to fail")
+			}
+			if !strings.Contains(errOut.String(), tt.want) {
+				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
+			}
+		})
+	}
+}
+
 func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 	var errOut strings.Builder
 	code := run(context.Background(), []string{"new", "service", "--module", "example.com/my-api", "--dir", "../escape"}, &strings.Builder{}, &errOut)
@@ -761,6 +869,15 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service contracts diff failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "client-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service client check failed:\n%s\nerror: %v", output, err)
+	}
+	if _, err := os.Stat(filepath.Join(serviceDir, "internal", "client", "apiclient", "client.go")); err != nil {
+		t.Fatalf("expected generated full-profile client output: %v", err)
 	}
 }
 

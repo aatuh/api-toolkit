@@ -23,7 +23,7 @@ Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, and generated HTTP smoke tests. The roadmap
 continues with durable Postgres repositories, async/outbox workers, audit,
 webhook delivery, object storage, OIDC/JWKS auth, OpenAPI 3.1, and generated Go
-client output.
+client output checked into the scaffold.
 
 ## Runtime Contract
 
