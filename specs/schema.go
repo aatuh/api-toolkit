@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -38,6 +39,38 @@ func RegisterSchemaFrom[T any](registry *Registry, name string, opts SchemaOptio
 	}
 	registry.RegisterSchema(name, schema)
 	return nil
+}
+
+// SchemaRef returns a schema reference object.
+func SchemaRef(ref string) map[string]any {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return map[string]any{}
+	}
+	return map[string]any{"$ref": ref}
+}
+
+// NullableSchema returns a copy of schema marked nullable.
+func NullableSchema(schema map[string]any) map[string]any {
+	out := cloneAnyMap(schema)
+	out["nullable"] = true
+	return out
+}
+
+// SchemaWithExample returns a copy of schema with an OpenAPI example value.
+func SchemaWithExample(schema map[string]any, example any) map[string]any {
+	out := cloneAnyMap(schema)
+	out["example"] = example
+	return out
+}
+
+// SchemaWithEnum returns a copy of schema with OpenAPI enum values.
+func SchemaWithEnum(schema map[string]any, values ...any) map[string]any {
+	out := cloneAnyMap(schema)
+	if len(values) > 0 {
+		out["enum"] = append([]any(nil), values...)
+	}
+	return out
 }
 
 func schemaForType(typ reflect.Type, opts SchemaOptions, stack map[reflect.Type]bool) (map[string]any, error) {
@@ -118,6 +151,10 @@ func structSchema(typ reflect.Type, opts SchemaOptions, stack map[reflect.Type]b
 		if err != nil {
 			return nil, err
 		}
+		fieldSchema, err = applyFieldSchemaTags(field, fieldSchema)
+		if err != nil {
+			return nil, err
+		}
 		properties[name] = fieldSchema
 		if requiredSchemaField(field) {
 			required = append(required, name)
@@ -132,6 +169,84 @@ func structSchema(typ reflect.Type, opts SchemaOptions, stack map[reflect.Type]b
 		out["required"] = required
 	}
 	return out, nil
+}
+
+func applyFieldSchemaTags(field reflect.StructField, schema map[string]any) (map[string]any, error) {
+	out := cloneAnyMap(schema)
+	if isTrueTag(field.Tag.Get("nullable")) {
+		out["nullable"] = true
+	}
+	if raw := strings.TrimSpace(field.Tag.Get("example")); raw != "" {
+		value, err := parseSchemaLiteral(raw, field.Type)
+		if err != nil {
+			return nil, fmt.Errorf("%s example tag: %w", field.Name, err)
+		}
+		out["example"] = value
+	}
+	if raw := strings.TrimSpace(field.Tag.Get("enum")); raw != "" {
+		parts := strings.Split(raw, ",")
+		values := make([]any, 0, len(parts))
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			value, err := parseSchemaLiteral(part, field.Type)
+			if err != nil {
+				return nil, fmt.Errorf("%s enum tag: %w", field.Name, err)
+			}
+			values = append(values, value)
+		}
+		if len(values) > 0 {
+			out["enum"] = values
+		}
+	}
+	return out, nil
+}
+
+func isTrueTag(value string) bool {
+	value = strings.TrimSpace(strings.ToLower(value))
+	return value == "true" || value == "1" || value == "yes"
+}
+
+func parseSchemaLiteral(raw string, typ reflect.Type) (any, error) {
+	typ = indirectSchemaType(typ)
+	if typ == reflect.TypeOf(time.Time{}) {
+		return raw, nil
+	}
+	switch typ.Kind() {
+	case reflect.String:
+		return raw, nil
+	case reflect.Bool:
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		value, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	case reflect.Float32, reflect.Float64:
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128,
+		reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
+		reflect.Pointer, reflect.Slice, reflect.Struct, reflect.UnsafePointer:
+		return raw, nil
+	}
+	return raw, nil
 }
 
 func schemaFieldName(field reflect.StructField) string {
