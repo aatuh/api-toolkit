@@ -104,6 +104,11 @@ source of truth is `docs/release-runbook.md`.
   `DATABASE_URL` is configured. The store persists widget create/update/delete
   state in the generated `widgets` table while preserving the local in-memory
   default for tests and lightweight development.
+- Generated `saas-api-full` API-key services now switch to a generated
+  Postgres API-key store when `DATABASE_URL` is configured. The store persists
+  only keyed hash bytes, display prefixes, scopes, expiry, revocation, and
+  last-used timestamps; raw API-key secrets are still returned once and are not
+  durable data.
 - Generated `saas-api-full` audit recording now delegates to the contrib
   Postgres audit store when `DATABASE_URL` is configured, after the generated
   service has produced event IDs, timestamps, and redaction-safe metadata.
