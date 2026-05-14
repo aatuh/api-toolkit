@@ -113,6 +113,10 @@ source of truth is `docs/release-runbook.md`.
   accepts `AdminAddr` and `AdminRouter` for a separate admin listener, and
   `APIService.AdminHandler()` exposes the composed admin handler for tests and
   custom server wiring.
+- `github.com/aatuh/api-toolkit/contrib/v2/cache` and
+  `github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis` add
+  experimental cache contracts and a Redis-backed cache adapter with TTL,
+  delete, health-check, and reusable adapter-contract coverage.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.

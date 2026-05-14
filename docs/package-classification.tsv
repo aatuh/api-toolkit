@@ -68,6 +68,7 @@ github.com/aatuh/api-toolkit/v2/upload	stable	direct-tests	Stable multipart uplo
 github.com/aatuh/api-toolkit/v2/webhooks	stable	direct-tests	Stable webhook verification and receiver helpers.
 github.com/aatuh/api-toolkit/v2/testutil/authtest	test-only	test-support	Root test support package; not stable public API.
 github.com/aatuh/api-toolkit/contrib/v2	excluded	excluded	Module marker package only; no stable API promise.
+github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis	experimental	direct-tests	Redis cache adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/cedar	experimental	direct-tests	Third-party policy adapter.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/chi	supported-adapter	direct-tests	Supported chi router adapter and authz route validation helpers.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/clock	wrapper-only	wrapper-smoke-tested	Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.
@@ -90,6 +91,8 @@ github.com/aatuh/api-toolkit/contrib/v2/adapters/ulid	wrapper-only	wrapper-smoke
 github.com/aatuh/api-toolkit/contrib/v2/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
 github.com/aatuh/api-toolkit/contrib/v2/adapters/validation	experimental	direct-tests	Validation adapter.
 github.com/aatuh/api-toolkit/contrib/v2/bootstrap	supported-adapter	direct-tests	Contrib bootstrap composition helpers.
+github.com/aatuh/api-toolkit/contrib/v2/cache	experimental	direct-tests	Experimental cache contracts.
+github.com/aatuh/api-toolkit/contrib/v2/cache/cachetest	test-only	test-support	Reusable cache adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/migrate	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/tester	tooling	direct-tests	CLI tooling package.
