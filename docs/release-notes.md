@@ -134,6 +134,10 @@ source of truth is `docs/release-runbook.md`.
   experimental Postgres-backed operation repository for pollable async
   operations, including tenant-scoped context helpers, JSON result/problem
   storage, create/update support, and fail-closed tenant validation.
+- `github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres` adds an
+  experimental Postgres transactional outbox adapter with enqueue, due-event
+  leasing using `FOR UPDATE SKIP LOCKED`, lease-owner completion, retry
+  backoff, dead-letter transition, and `contrib/async.Store` compatibility.
 - `github.com/aatuh/api-toolkit/contrib/v2/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.
