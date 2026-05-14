@@ -99,6 +99,11 @@ source of truth is `docs/release-runbook.md`.
   generated unit tests, starts the API on localhost, and performs HTTP smoke
   checks for readiness, OpenAPI, authentication failure, tenant membership,
   object writes, and admin detailed health before tearing Docker volumes down.
+- Generated `saas-api-full` widget services now use an application storage
+  port, and the generated runtime switches to a Postgres widget store when
+  `DATABASE_URL` is configured. The store persists widget create/update/delete
+  state in the generated `widgets` table while preserving the local in-memory
+  default for tests and lightweight development.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

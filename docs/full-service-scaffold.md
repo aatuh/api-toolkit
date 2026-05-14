@@ -104,7 +104,9 @@ The full profile standardizes these defaults:
 The profile generates or is expected to generate:
 
 - `internal/domain`, `internal/app`, and `internal/adapters/postgres`
-  boundaries with thin HTTP handlers.
+  boundaries with thin HTTP handlers. Generated widget services use an
+  application storage port and switch to the Postgres widget store when
+  `DATABASE_URL` is configured.
 - Postgres migrations for organizations, memberships, invitations, API keys,
   widgets, operations, outbox events, audit events, webhook endpoints, and
   webhook deliveries.
