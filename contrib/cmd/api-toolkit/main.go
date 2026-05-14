@@ -2787,6 +2787,8 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/adapters/postgres/postgres_test.go", Body: fullPostgresAdapterTestTemplate},
 	{Name: "internal/adapters/postgres/widgets.go", Body: fullPostgresWidgetStoreTemplate},
 	{Name: "internal/adapters/postgres/widgets_test.go", Body: fullPostgresWidgetStoreTestTemplate},
+	{Name: "internal/adapters/postgres/api_keys.go", Body: fullPostgresAPIKeyStoreTemplate},
+	{Name: "internal/adapters/postgres/api_keys_test.go", Body: fullPostgresAPIKeyStoreTestTemplate},
 	{Name: "internal/adapters/redis/cache.go", Body: fullRedisCacheAdapterTemplate},
 	{Name: "internal/adapters/redis/cache_test.go", Body: fullRedisCacheAdapterTestTemplate},
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
@@ -3126,6 +3128,7 @@ func run(ctx context.Context) error {
 		cancel()
 		defer pool.Close()
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
+		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(&pgxpooladapter.Adapter{Pool: pool}, auditpostgres.Options{}))
 		readiness = postgres.HealthChecker{Pool: pool}
 	}
@@ -3919,7 +3922,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -3936,12 +3938,22 @@ type APIKeyService struct {
 	pepper    string
 	tenancy   *TenancyService
 	now       func() time.Time
+	newID     func() (string, error)
 	newSecret func() (string, error)
+	store     APIKeyStore
 }
 
 type apiKeyRecord struct {
 	key  domain.APIKey
 	hash string
+}
+
+type APIKeyStore interface {
+	CreateAPIKey(ctx context.Context, key domain.APIKey, hash string) error
+	ListAPIKeys(ctx context.Context, organizationID string) ([]domain.APIKey, error)
+	GetAPIKeyByHash(ctx context.Context, hash string) (domain.APIKey, bool, error)
+	RevokeAPIKey(ctx context.Context, organizationID, keyID string, revokedAt time.Time) (bool, error)
+	TouchAPIKey(ctx context.Context, keyID string, lastUsedAt time.Time) error
 }
 
 func NewAPIKeyService(pepper string, tenancy *TenancyService) *APIKeyService {
@@ -3951,8 +3963,15 @@ func NewAPIKeyService(pepper string, tenancy *TenancyService) *APIKeyService {
 		pepper:    strings.TrimSpace(pepper),
 		tenancy:   tenancy,
 		now:       time.Now,
+		newID:     randomAPIKeyID,
 		newSecret: randomAPIKeySecret,
 	}
+}
+
+func NewAPIKeyServiceWithStore(pepper string, tenancy *TenancyService, store APIKeyStore) *APIKeyService {
+	service := NewAPIKeyService(pepper, tenancy)
+	service.store = store
+	return service
 }
 
 func (s *APIKeyService) Create(ctx context.Context, actorID, organizationID, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
@@ -3973,6 +3992,10 @@ func (s *APIKeyService) Create(ctx context.Context, actorID, organizationID, nam
 	if err != nil {
 		return domain.APIKey{}, "", err
 	}
+	keyID, err := s.newID()
+	if err != nil {
+		return domain.APIKey{}, "", err
+	}
 	prefix := apiKeyPrefix(secret)
 	recordHash := s.hashSecret(secret)
 	s.mu.Lock()
@@ -3980,13 +4003,19 @@ func (s *APIKeyService) Create(ctx context.Context, actorID, organizationID, nam
 	s.next++
 	now := s.now().UTC()
 	key := domain.APIKey{
-		ID:             fmt.Sprintf("key_%06d", s.next),
+		ID:             keyID,
 		OrganizationID: organizationID,
 		Name:           name,
 		Prefix:         prefix,
 		Scopes:         cleanScopes,
 		ExpiresAt:      expiresAt,
 		CreatedAt:      now,
+	}
+	if s.store != nil {
+		if err := s.store.CreateAPIKey(ctx, key, recordHash); err != nil {
+			return domain.APIKey{}, "", err
+		}
+		return key, secret, nil
 	}
 	s.keys[key.ID] = apiKeyRecord{key: key, hash: recordHash}
 	s.byHash[recordHash] = key.ID
@@ -4004,6 +4033,9 @@ func (s *APIKeyService) List(ctx context.Context, actorID, organizationID string
 	}
 	if err := s.requireRole(ctx, actorID, organizationID, domain.RoleAdmin); err != nil {
 		return nil, err
+	}
+	if s.store != nil {
+		return s.store.ListAPIKeys(ctx, organizationID)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -4032,6 +4064,17 @@ func (s *APIKeyService) Revoke(ctx context.Context, actorID, organizationID, key
 	if err := s.requireRole(ctx, actorID, organizationID, domain.RoleAdmin); err != nil {
 		return err
 	}
+	if s.store != nil {
+		revokedAt := s.now().UTC()
+		ok, err := s.store.RevokeAPIKey(ctx, organizationID, keyID, revokedAt)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrNotFound
+		}
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.keys[keyID]
@@ -4055,6 +4098,21 @@ func (s *APIKeyService) Verify(ctx context.Context, secret string) (domain.APIKe
 		return domain.APIKey{}, false, ErrValidation
 	}
 	hash := s.hashSecret(secret)
+	if s.store != nil {
+		key, ok, err := s.store.GetAPIKeyByHash(ctx, hash)
+		if err != nil || !ok {
+			return domain.APIKey{}, ok, err
+		}
+		now := s.now().UTC()
+		if key.RevokedAt != nil || (key.ExpiresAt != nil && !now.Before(*key.ExpiresAt)) {
+			return domain.APIKey{}, false, nil
+		}
+		key.LastUsedAt = &now
+		if err := s.store.TouchAPIKey(ctx, key.ID, now); err != nil {
+			return domain.APIKey{}, false, err
+		}
+		return key, true, nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	keyID, ok := s.byHash[hash]
@@ -4089,6 +4147,14 @@ func (s *APIKeyService) hashSecret(secret string) string {
 	mac := hmac.New(sha256.New, []byte(s.pepper))
 	_, _ = mac.Write([]byte(strings.TrimSpace(secret)))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func randomAPIKeyID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return "key_" + base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
 func randomAPIKeySecret() (string, error) {
@@ -4151,6 +4217,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"{{ .Module }}/internal/domain"
 )
 
 func TestAPIKeyServiceHashesSecretAndRevokes(t *testing.T) {
@@ -4227,6 +4295,113 @@ func TestAPIKeyServiceRequiresAdminAndPepper(t *testing.T) {
 	if _, _, err := withoutPepper.Create(context.Background(), "owner_1", org.ID, "Missing pepper", []string{"widgets:read"}, nil); !errors.Is(err, ErrValidation) {
 		t.Fatalf("missing pepper error = %v, want %v", err, ErrValidation)
 	}
+}
+
+func TestAPIKeyServiceWithStorePersistsHashAndTouchesUsage(t *testing.T) {
+	tenancy := NewTenancyService()
+	tenancy.now = fixedAPIKeyTime
+	org, _, err := tenancy.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	store := newRecordingAPIKeyStore()
+	service := NewAPIKeyServiceWithStore("test-pepper", tenancy, store)
+	service.now = fixedAPIKeyTime
+	service.newID = func() (string, error) { return "key_store_1", nil }
+	service.newSecret = func() (string, error) { return "atk_store-secret-value", nil }
+
+	key, secret, err := service.Create(context.Background(), "owner_1", org.ID, "Stored", []string{"widgets:read"}, nil)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if key.ID != "key_store_1" {
+		t.Fatalf("key ID = %q", key.ID)
+	}
+	if store.createdHash == "" || strings.Contains(store.createdHash, secret) {
+		t.Fatalf("stored hash leaked secret: %q", store.createdHash)
+	}
+	verified, ok, err := service.Verify(context.Background(), secret)
+	if err != nil || !ok {
+		t.Fatalf("Verify() key=%#v ok=%v err=%v", verified, ok, err)
+	}
+	if store.touchedKeyID != key.ID || store.touchedAt.IsZero() || verified.LastUsedAt == nil {
+		t.Fatalf("touch tracking key=%q at=%v verified=%#v", store.touchedKeyID, store.touchedAt, verified)
+	}
+	listed, err := service.List(context.Background(), "owner_1", org.ID)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != key.ID {
+		t.Fatalf("List() = %#v", listed)
+	}
+	if err := service.Revoke(context.Background(), "owner_1", org.ID, key.ID); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	if !store.revokedAt.Equal(fixedAPIKeyTime()) {
+		t.Fatalf("revokedAt = %v", store.revokedAt)
+	}
+}
+
+type recordingAPIKeyStore struct {
+	keys         map[string]domain.APIKey
+	byHash       map[string]string
+	createdHash  string
+	touchedKeyID string
+	touchedAt    time.Time
+	revokedAt    time.Time
+}
+
+func newRecordingAPIKeyStore() *recordingAPIKeyStore {
+	return &recordingAPIKeyStore{
+		keys:   map[string]domain.APIKey{},
+		byHash: map[string]string{},
+	}
+}
+
+func (s *recordingAPIKeyStore) CreateAPIKey(_ context.Context, key domain.APIKey, hash string) error {
+	s.createdHash = hash
+	s.keys[key.ID] = key
+	s.byHash[hash] = key.ID
+	return nil
+}
+
+func (s *recordingAPIKeyStore) ListAPIKeys(_ context.Context, organizationID string) ([]domain.APIKey, error) {
+	var out []domain.APIKey
+	for _, key := range s.keys {
+		if key.OrganizationID == organizationID {
+			out = append(out, key)
+		}
+	}
+	return out, nil
+}
+
+func (s *recordingAPIKeyStore) GetAPIKeyByHash(_ context.Context, hash string) (domain.APIKey, bool, error) {
+	keyID, ok := s.byHash[hash]
+	if !ok {
+		return domain.APIKey{}, false, nil
+	}
+	key, ok := s.keys[keyID]
+	return key, ok, nil
+}
+
+func (s *recordingAPIKeyStore) RevokeAPIKey(_ context.Context, organizationID, keyID string, revokedAt time.Time) (bool, error) {
+	key, ok := s.keys[keyID]
+	if !ok || key.OrganizationID != organizationID {
+		return false, nil
+	}
+	key.RevokedAt = &revokedAt
+	s.keys[keyID] = key
+	s.revokedAt = revokedAt
+	return true, nil
+}
+
+func (s *recordingAPIKeyStore) TouchAPIKey(_ context.Context, keyID string, lastUsedAt time.Time) error {
+	key := s.keys[keyID]
+	key.LastUsedAt = &lastUsedAt
+	s.keys[keyID] = key
+	s.touchedKeyID = keyID
+	s.touchedAt = lastUsedAt
+	return nil
 }
 
 func fixedAPIKeyTime() time.Time {
@@ -6433,6 +6608,429 @@ func scanFakeWidgetValues(values []any, dest ...any) error {
 			value, ok := values[i].(bool)
 			if !ok {
 				return fmt.Errorf("value %d is %T, want bool", i, values[i])
+			}
+			*d = value
+		case *time.Time:
+			value, ok := values[i].(time.Time)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want time.Time", i, values[i])
+			}
+			*d = value
+		default:
+			return fmt.Errorf("unsupported destination %T", dest[i])
+		}
+	}
+	return nil
+}
+`
+
+const fullPostgresAPIKeyStoreTemplate = `package postgres
+
+import (
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var (
+	ErrAPIKeyStoreRequired = errors.New("postgres api key store db is required")
+	ErrAPIKeyInvalid       = errors.New("postgres api key is invalid")
+)
+
+type APIKeyDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+type APIKeyStore struct {
+	db APIKeyDB
+}
+
+func NewAPIKeyStore(db APIKeyDB) *APIKeyStore {
+	return &APIKeyStore{db: db}
+}
+
+func (s *APIKeyStore) CreateAPIKey(ctx context.Context, key domain.APIKey, hash string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrAPIKeyStoreRequired
+	}
+	key.ID = strings.TrimSpace(key.ID)
+	key.OrganizationID = strings.TrimSpace(key.OrganizationID)
+	key.Name = strings.TrimSpace(key.Name)
+	key.Prefix = strings.TrimSpace(key.Prefix)
+	hashBytes, err := decodeAPIKeyHash(hash)
+	if err != nil {
+		return err
+	}
+	if key.ID == "" || key.OrganizationID == "" || key.Name == "" || key.Prefix == "" || len(key.Scopes) == 0 || key.CreatedAt.IsZero() {
+		return ErrAPIKeyInvalid
+	}
+	if _, err := s.db.Exec(ctx,
+		"insert into api_keys (id, organization_id, name, prefix, key_hash, scopes, expires_at, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+		key.ID,
+		key.OrganizationID,
+		key.Name,
+		key.Prefix,
+		hashBytes,
+		append([]string(nil), key.Scopes...),
+		nullableTime(key.ExpiresAt),
+		key.CreatedAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("create api key: %w", err)
+	}
+	return nil
+}
+
+func (s *APIKeyStore) ListAPIKeys(ctx context.Context, organizationID string) ([]domain.APIKey, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil || s.db == nil {
+		return nil, ErrAPIKeyStoreRequired
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, ErrAPIKeyInvalid
+	}
+	rows, err := s.db.Query(ctx,
+		"select id, organization_id, name, prefix, scopes, expires_at, last_used_at, revoked_at, created_at from api_keys where organization_id=$1 order by id",
+		organizationID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list api keys: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.APIKey
+	for rows.Next() {
+		key, err := scanAPIKey(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list api key rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *APIKeyStore) GetAPIKeyByHash(ctx context.Context, hash string) (domain.APIKey, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.APIKey{}, false, err
+	}
+	if s == nil || s.db == nil {
+		return domain.APIKey{}, false, ErrAPIKeyStoreRequired
+	}
+	hashBytes, err := decodeAPIKeyHash(hash)
+	if err != nil {
+		return domain.APIKey{}, false, err
+	}
+	row := s.db.QueryRow(ctx,
+		"select id, organization_id, name, prefix, scopes, expires_at, last_used_at, revoked_at, created_at from api_keys where key_hash=$1",
+		hashBytes,
+	)
+	key, err := scanAPIKey(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.APIKey{}, false, nil
+	}
+	if err != nil {
+		return domain.APIKey{}, false, fmt.Errorf("get api key by hash: %w", err)
+	}
+	return key, true, nil
+}
+
+func (s *APIKeyStore) RevokeAPIKey(ctx context.Context, organizationID, keyID string, revokedAt time.Time) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if s == nil || s.db == nil {
+		return false, ErrAPIKeyStoreRequired
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	keyID = strings.TrimSpace(keyID)
+	if organizationID == "" || keyID == "" || revokedAt.IsZero() {
+		return false, ErrAPIKeyInvalid
+	}
+	tag, err := s.db.Exec(ctx,
+		"update api_keys set revoked_at=$1 where organization_id=$2 and id=$3 and revoked_at is null",
+		revokedAt.UTC(),
+		organizationID,
+		keyID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("revoke api key: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+func (s *APIKeyStore) TouchAPIKey(ctx context.Context, keyID string, lastUsedAt time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrAPIKeyStoreRequired
+	}
+	keyID = strings.TrimSpace(keyID)
+	if keyID == "" || lastUsedAt.IsZero() {
+		return ErrAPIKeyInvalid
+	}
+	if _, err := s.db.Exec(ctx, "update api_keys set last_used_at=$1 where id=$2", lastUsedAt.UTC(), keyID); err != nil {
+		return fmt.Errorf("touch api key: %w", err)
+	}
+	return nil
+}
+
+type apiKeyScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanAPIKey(row apiKeyScanner) (domain.APIKey, error) {
+	var (
+		key        domain.APIKey
+		expiresAt  pgtype.Timestamptz
+		lastUsedAt pgtype.Timestamptz
+		revokedAt  pgtype.Timestamptz
+	)
+	if err := row.Scan(&key.ID, &key.OrganizationID, &key.Name, &key.Prefix, &key.Scopes, &expiresAt, &lastUsedAt, &revokedAt, &key.CreatedAt); err != nil {
+		return domain.APIKey{}, err
+	}
+	key.ExpiresAt = nullableTimestamptz(expiresAt)
+	key.LastUsedAt = nullableTimestamptz(lastUsedAt)
+	key.RevokedAt = nullableTimestamptz(revokedAt)
+	key.CreatedAt = key.CreatedAt.UTC()
+	return key, nil
+}
+
+func decodeAPIKeyHash(hash string) ([]byte, error) {
+	hash = strings.TrimSpace(hash)
+	decoded, err := hex.DecodeString(hash)
+	if err != nil || len(decoded) != sha256Size {
+		return nil, ErrAPIKeyInvalid
+	}
+	return decoded, nil
+}
+
+func nullableTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.UTC()
+}
+
+func nullableTimestamptz(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	t := value.Time.UTC()
+	return &t
+}
+
+const sha256Size = 32
+`
+
+const fullPostgresAPIKeyStoreTestTemplate = `package postgres
+
+import (
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"{{ .Module }}/internal/domain"
+)
+
+func TestAPIKeyStoreCreateStoresDecodedHash(t *testing.T) {
+	now := time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
+	hash := hex.EncodeToString([]byte("12345678901234567890123456789012"))
+	db := &fakeAPIKeyDB{execTag: pgconn.NewCommandTag("INSERT 0 1")}
+	store := NewAPIKeyStore(db)
+	err := store.CreateAPIKey(context.Background(), domain.APIKey{ID: "key_1", OrganizationID: "org_1", Name: "CI", Prefix: "atk_prefix", Scopes: []string{"widgets:read"}, CreatedAt: now}, hash)
+	if err != nil {
+		t.Fatalf("CreateAPIKey() error = %v", err)
+	}
+	if !strings.Contains(db.lastExecSQL, "insert into api_keys") {
+		t.Fatalf("CreateAPIKey() SQL = %q", db.lastExecSQL)
+	}
+	hashArg, ok := db.lastExecArgs[4].([]byte)
+	if !ok || string(hashArg) != "12345678901234567890123456789012" {
+		t.Fatalf("hash arg = %#v", db.lastExecArgs[4])
+	}
+	if strings.Contains(fmt.Sprint(db.lastExecArgs...), "raw-secret") {
+		t.Fatalf("exec args leaked raw secret: %#v", db.lastExecArgs)
+	}
+}
+
+func TestAPIKeyStoreListAndGetByHashScanKeys(t *testing.T) {
+	now := time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
+	values := []any{"key_1", "org_1", "CI", "atk_prefix", []string{"widgets:read"}, pgtype.Timestamptz{}, pgtype.Timestamptz{Time: now, Valid: true}, pgtype.Timestamptz{}, now}
+	db := &fakeAPIKeyDB{
+		rows: &fakeAPIKeyRows{rows: [][]any{values}},
+		row:  fakeAPIKeyRow{values: values},
+	}
+	store := NewAPIKeyStore(db)
+	keys, err := store.ListAPIKeys(context.Background(), "org_1")
+	if err != nil {
+		t.Fatalf("ListAPIKeys() error = %v", err)
+	}
+	if len(keys) != 1 || keys[0].ID != "key_1" || keys[0].LastUsedAt == nil {
+		t.Fatalf("ListAPIKeys() = %#v", keys)
+	}
+	hash := hex.EncodeToString([]byte("12345678901234567890123456789012"))
+	key, ok, err := store.GetAPIKeyByHash(context.Background(), hash)
+	if err != nil || !ok || key.ID != "key_1" {
+		t.Fatalf("GetAPIKeyByHash() key=%#v ok=%v err=%v", key, ok, err)
+	}
+}
+
+func TestAPIKeyStoreRevokeAndTouchUseSafeUpdates(t *testing.T) {
+	now := time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
+	db := &fakeAPIKeyDB{execTag: pgconn.NewCommandTag("UPDATE 1")}
+	store := NewAPIKeyStore(db)
+	ok, err := store.RevokeAPIKey(context.Background(), "org_1", "key_1", now)
+	if err != nil || !ok {
+		t.Fatalf("RevokeAPIKey() ok=%v err=%v", ok, err)
+	}
+	if !strings.Contains(db.lastExecSQL, "revoked_at") {
+		t.Fatalf("RevokeAPIKey() SQL = %q", db.lastExecSQL)
+	}
+	if err := store.TouchAPIKey(context.Background(), "key_1", now); err != nil {
+		t.Fatalf("TouchAPIKey() error = %v", err)
+	}
+	if !strings.Contains(db.lastExecSQL, "last_used_at") {
+		t.Fatalf("TouchAPIKey() SQL = %q", db.lastExecSQL)
+	}
+}
+
+func TestAPIKeyStoreRequiresDBAndValidHash(t *testing.T) {
+	if err := (*APIKeyStore)(nil).CreateAPIKey(context.Background(), domain.APIKey{}, strings.Repeat("0", 64)); !errors.Is(err, ErrAPIKeyStoreRequired) {
+		t.Fatalf("nil CreateAPIKey() error = %v, want %v", err, ErrAPIKeyStoreRequired)
+	}
+	store := NewAPIKeyStore(&fakeAPIKeyDB{})
+	if err := store.CreateAPIKey(context.Background(), domain.APIKey{ID: "key_1", OrganizationID: "org_1", Name: "CI", Prefix: "atk", Scopes: []string{"widgets:read"}, CreatedAt: time.Now()}, "not-hex"); !errors.Is(err, ErrAPIKeyInvalid) {
+		t.Fatalf("invalid hash CreateAPIKey() error = %v, want %v", err, ErrAPIKeyInvalid)
+	}
+}
+
+type fakeAPIKeyDB struct {
+	rows          pgx.Rows
+	row           pgx.Row
+	execTag       pgconn.CommandTag
+	execErr       error
+	lastQuerySQL  string
+	lastQueryArgs []any
+	lastRowSQL    string
+	lastRowArgs   []any
+	lastExecSQL   string
+	lastExecArgs  []any
+}
+
+func (f *fakeAPIKeyDB) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	f.lastQuerySQL = sql
+	f.lastQueryArgs = append([]any(nil), args...)
+	if f.rows == nil {
+		return &fakeAPIKeyRows{}, nil
+	}
+	return f.rows, nil
+}
+
+func (f *fakeAPIKeyDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	f.lastRowSQL = sql
+	f.lastRowArgs = append([]any(nil), args...)
+	if f.row == nil {
+		return fakeAPIKeyRow{err: pgx.ErrNoRows}
+	}
+	return f.row
+}
+
+func (f *fakeAPIKeyDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	f.lastExecSQL = sql
+	f.lastExecArgs = append([]any(nil), args...)
+	return f.execTag, f.execErr
+}
+
+type fakeAPIKeyRows struct {
+	rows [][]any
+	idx  int
+	err  error
+}
+
+func (r *fakeAPIKeyRows) Close() {}
+func (r *fakeAPIKeyRows) Err() error { return r.err }
+func (r *fakeAPIKeyRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+func (r *fakeAPIKeyRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeAPIKeyRows) Values() ([]any, error) { return r.rows[r.idx-1], nil }
+func (r *fakeAPIKeyRows) RawValues() [][]byte { return nil }
+func (r *fakeAPIKeyRows) Conn() *pgx.Conn { return nil }
+
+func (r *fakeAPIKeyRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+
+func (r *fakeAPIKeyRows) Scan(dest ...any) error {
+	if r.idx == 0 || r.idx > len(r.rows) {
+		return errors.New("Scan called without current row")
+	}
+	return scanFakeAPIKeyValues(r.rows[r.idx-1], dest...)
+}
+
+type fakeAPIKeyRow struct {
+	values []any
+	err    error
+}
+
+func (r fakeAPIKeyRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return scanFakeAPIKeyValues(r.values, dest...)
+}
+
+func scanFakeAPIKeyValues(values []any, dest ...any) error {
+	if len(values) != len(dest) {
+		return fmt.Errorf("value count %d does not match destination count %d", len(values), len(dest))
+	}
+	for i := range values {
+		switch d := dest[i].(type) {
+		case *string:
+			value, ok := values[i].(string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want string", i, values[i])
+			}
+			*d = value
+		case *[]string:
+			value, ok := values[i].([]string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want []string", i, values[i])
+			}
+			*d = append([]string(nil), value...)
+		case *pgtype.Timestamptz:
+			value, ok := values[i].(pgtype.Timestamptz)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want pgtype.Timestamptz", i, values[i])
 			}
 			*d = value
 		case *time.Time:
@@ -9610,6 +10208,9 @@ CREATE TABLE api_keys (
 	revoked_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX api_keys_key_hash_idx ON api_keys(key_hash);
+CREATE INDEX api_keys_organization_id_idx ON api_keys(organization_id);
 
 CREATE TABLE widgets (
 	id TEXT PRIMARY KEY,

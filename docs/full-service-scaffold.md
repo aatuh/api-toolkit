@@ -66,7 +66,9 @@ The full profile standardizes these defaults:
   routes require `X-Tenant-ID` to match the organization path parameter.
 - Generated API-key creation returns the raw secret once, stores only a
   peppered SHA-256 hash, exposes a non-secret prefix for display, tracks
-  `last_used_at` on verification, and supports revocation.
+  `last_used_at` on verification, and supports revocation. Local development
+  uses an in-memory API-key store; generated production wiring switches to the
+  Postgres API-key store when `DATABASE_URL` is configured.
 - Unsafe writes remain tenant-scoped and idempotent by default.
 - The generated widget import route returns `202 Accepted`, writes tenant-scoped
   operation state, enqueues a durable-async-shaped outbox job, exposes
@@ -106,9 +108,10 @@ The profile generates or is expected to generate:
 - `internal/domain`, `internal/app`, and `internal/adapters/postgres`
   boundaries with thin HTTP handlers. Generated widget services use an
   application storage port and switch to the Postgres widget store when
-  `DATABASE_URL` is configured. Generated audit recording delegates to the
-  Postgres audit store in the same mode after local redaction and event ID
-  generation.
+  `DATABASE_URL` is configured. Generated API-key services use the Postgres
+  API-key store in the same mode for hash storage, revocation, expiry, scopes,
+  and last-used tracking. Generated audit recording delegates to the Postgres
+  audit store after local redaction and event ID generation.
 - Postgres migrations for organizations, memberships, invitations, API keys,
   widgets, operations, outbox events, audit events, webhook endpoints, and
   webhook deliveries.
