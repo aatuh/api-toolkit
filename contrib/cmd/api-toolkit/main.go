@@ -3587,11 +3587,13 @@ CREATE TABLE webhook_deliveries (
 	id TEXT PRIMARY KEY,
 	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 	endpoint_id TEXT NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+	event_id TEXT NOT NULL,
 	event_type TEXT NOT NULL,
 	payload JSONB NOT NULL,
 	state TEXT NOT NULL DEFAULT 'pending',
 	attempts INTEGER NOT NULL DEFAULT 0,
 	next_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	last_status_code INTEGER,
 	last_error TEXT,
 	delivered_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()

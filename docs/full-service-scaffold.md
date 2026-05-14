@@ -42,7 +42,8 @@ The full profile standardizes these defaults:
   request ID, and redaction-safe metadata.
 - Webhook delivery signs outbound tenant-scoped events, rejects unsafe endpoint
   headers, retries with bounded backoff, stores sanitized delivery history, and
-  supports operator replay.
+  supports operator replay. The Postgres adapter owns endpoint/delivery/outbox
+  rows while endpoint signing secrets stay behind an application-owned resolver.
 - Object storage uses explicit bucket/key references, rejects traversal-shaped
   keys and secret-shaped metadata, applies content-type and size policy before
   network writes, and can use S3-compatible SigV4 requests or presigned URLs.
