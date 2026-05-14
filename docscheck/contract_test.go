@@ -814,6 +814,9 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 		"missing_disposition_count",
 		"expired_disposition_count",
 		"contrib_drift_packages_from_log",
+		"full_profile_scaffold_evidence",
+		"make full-profile-scaffold-check",
+		"FULL_PROFILE_INTEGRATION_CHECK_STATUS",
 		"publication_artifact_checksums",
 		"release-asset-manifest.tsv",
 		"docs/vulnerability-dispositions.tsv",
@@ -1008,6 +1011,30 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				Message   string `json:"message"`
 			} `json:"disposition_issues"`
 		} `json:"contrib_drift"`
+		FullProfileScaffoldEvidence struct {
+			Profile            string `json:"profile"`
+			ContractTest       string `json:"contract_test"`
+			ScaffoldValidation struct {
+				CheckName       string `json:"check_name"`
+				CommandLine     string `json:"command_line"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"scaffold_validation"`
+			ClientGeneration struct {
+				MakeTarget      string `json:"make_target"`
+				CommandLine     string `json:"command_line"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				CheckedInOutput bool   `json:"checked_in_output"`
+			} `json:"client_generation"`
+			IntegrationCheck struct {
+				CommandLine     string  `json:"command_line"`
+				Status          string  `json:"status"`
+				LogPath         *string `json:"log_path"`
+				ReleaseBlocking bool    `json:"release_blocking"`
+			} `json:"integration_check"`
+		} `json:"full_profile_scaffold_evidence"`
 		ArtifactTiers                   map[string]any `json:"artifact_tiers"`
 		PublicationArtifactExpectations struct {
 			LocalEvidenceAssets       []string `json:"local_evidence_assets"`
@@ -1128,6 +1155,36 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	}
 	if summary.ContribDrift.DispositionIssues == nil {
 		t.Fatal("contrib drift summary missing disposition_issues array")
+	}
+	if summary.FullProfileScaffoldEvidence.Profile != "saas-api-full" {
+		t.Fatalf("full profile evidence profile = %q, want saas-api-full", summary.FullProfileScaffoldEvidence.Profile)
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.ContractTest, "TestNewServiceGeneratesBuildableSaaSAPIFull") {
+		t.Fatalf("full profile evidence contract_test = %q", summary.FullProfileScaffoldEvidence.ContractTest)
+	}
+	if summary.FullProfileScaffoldEvidence.ScaffoldValidation.CheckName != "full-profile-scaffold-check" {
+		t.Fatalf("full profile scaffold check_name = %q", summary.FullProfileScaffoldEvidence.ScaffoldValidation.CheckName)
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.ScaffoldValidation.CommandLine, "make full-profile-scaffold-check") {
+		t.Fatalf("full profile scaffold command_line = %q", summary.FullProfileScaffoldEvidence.ScaffoldValidation.CommandLine)
+	}
+	if summary.FullProfileScaffoldEvidence.ScaffoldValidation.LogPath != ".ci-result/release-evidence/logs/full-profile-scaffold-check.log" {
+		t.Fatalf("full profile scaffold log path = %q", summary.FullProfileScaffoldEvidence.ScaffoldValidation.LogPath)
+	}
+	if !summary.FullProfileScaffoldEvidence.ScaffoldValidation.ReleaseBlocking {
+		t.Fatal("full profile scaffold validation must be release blocking")
+	}
+	if summary.FullProfileScaffoldEvidence.ClientGeneration.MakeTarget != "client-check" ||
+		!summary.FullProfileScaffoldEvidence.ClientGeneration.CheckedInOutput ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.ClientGeneration.CommandLine, "make client-check") {
+		t.Fatalf("full profile client generation evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ClientGeneration)
+	}
+	if summary.FullProfileScaffoldEvidence.IntegrationCheck.Status != "not_run_opt_in" ||
+		summary.FullProfileScaffoldEvidence.IntegrationCheck.ReleaseBlocking {
+		t.Fatalf("full profile integration evidence should be opt-in and non-blocking by default: %+v", summary.FullProfileScaffoldEvidence.IntegrationCheck)
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine, "make integration-check") {
+		t.Fatalf("full profile integration command = %q", summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine)
 	}
 	for _, tier := range []string{"local_release_evidence", "github_release_workflow"} {
 		if _, ok := summary.ArtifactTiers[tier]; !ok {

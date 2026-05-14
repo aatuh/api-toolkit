@@ -88,6 +88,12 @@ source of truth is `docs/release-runbook.md`.
   routes and application services with strict key, content-type, and size
   validation, OpenAPI/client coverage, audit hooks, and tests proving object
   payloads are not exposed in list/create responses or validation problems.
+- Release evidence now records `full_profile_scaffold_evidence`, and
+  `make release-check` includes a focused `make full-profile-scaffold-check`
+  target so the generated `saas-api-full` service, OpenAPI/contract workflow,
+  and generated Go client are explicit release signals. Generated Docker
+  integration checks remain opt-in and are reported separately through the
+  non-blocking integration evidence status.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

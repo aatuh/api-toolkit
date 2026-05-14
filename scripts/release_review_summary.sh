@@ -29,6 +29,7 @@ git_state = value(summary, ("git_state",), {})
 provenance = value(summary, ("provenance_policy",), {})
 vulnerability = value(summary, ("vulnerability_evidence",), {})
 contrib = value(summary, ("contrib_drift",), {})
+full_profile = value(summary, ("full_profile_scaffold_evidence",), {})
 expectations = value(summary, ("publication_artifact_expectations",), {})
 
 checks = summary.get("checks") or []
@@ -78,6 +79,13 @@ print(
     f"missing={contrib.get('missing_disposition_count')} "
     f"expired={contrib.get('expired_disposition_count')} "
     f"artifact={contrib.get('artifact_path')}"
+)
+print(
+    "full_profile_scaffold: "
+    f"profile={full_profile.get('profile')} "
+    f"validation={value(full_profile, ('scaffold_validation', 'status'))} "
+    f"client={value(full_profile, ('client_generation', 'status'))} "
+    f"integration={value(full_profile, ('integration_check', 'status'))}"
 )
 print(
     "artifact_expectations: "
