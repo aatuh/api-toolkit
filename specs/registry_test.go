@@ -142,6 +142,36 @@ func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
 	assertContentType(t, asMap(t, accepted["content"]), "application/problem+json")
 }
 
+func TestRegistryOpenAPI31Mode(t *testing.T) {
+	registry := NewRegistryWithOptions(Info{Title: "Widget API", Version: "1.0.0"}, RegistryOptions{
+		OpenAPIVersion: OpenAPIVersion31,
+	})
+	registry.Register(Operation{
+		OperationID: "listWidgets",
+		Method:      http.MethodGet,
+		Path:        "/widgets",
+		Responses:   map[int]Response{http.StatusOK: {Description: "OK"}},
+	})
+
+	doc := decodeOpenAPI(t, registry)
+	if doc["openapi"] != "3.1.0" {
+		t.Fatalf("openapi = %v, want 3.1.0", doc["openapi"])
+	}
+	if operation := operationAt(t, doc, "/widgets", "get"); operation["operationId"] != "listWidgets" {
+		t.Fatalf("operation = %#v", operation)
+	}
+}
+
+func TestRegistryWithEmptyOptionsPreservesOpenAPI30Default(t *testing.T) {
+	registry := NewRegistryWithOptions(Info{Title: "Widget API", Version: "1.0.0"}, RegistryOptions{})
+	registry.Register(Operation{Method: http.MethodGet, Path: "/widgets"})
+
+	doc := decodeOpenAPI(t, registry)
+	if doc["openapi"] != "3.0.0" {
+		t.Fatalf("openapi = %v, want 3.0.0", doc["openapi"])
+	}
+}
+
 func TestRegistryOpenAPIIncludesComponentsAndRefs(t *testing.T) {
 	registry := NewRegistry(Info{Title: "Components", Version: "1"})
 	registry.RegisterSchema("Widget", map[string]any{

@@ -100,17 +100,38 @@ type Operation struct {
 
 // Registry collects operations and produces a minimal OpenAPI document.
 type Registry struct {
-	mu         sync.RWMutex
-	info       Info
-	servers    []Server
-	security   []SecurityRequirement
-	ops        []Operation
-	components Components
+	mu             sync.RWMutex
+	info           Info
+	openAPIVersion string
+	servers        []Server
+	security       []SecurityRequirement
+	ops            []Operation
+	components     Components
+}
+
+// OpenAPIVersion identifies the OpenAPI document version emitted by a Registry.
+type OpenAPIVersion string
+
+const (
+	// OpenAPIVersion30 is the default version emitted by NewRegistry.
+	OpenAPIVersion30 OpenAPIVersion = "3.0.0"
+	// OpenAPIVersion31 enables OpenAPI 3.1 output for services that opt in.
+	OpenAPIVersion31 OpenAPIVersion = "3.1.0"
+)
+
+// RegistryOptions configures OpenAPI registry behavior.
+type RegistryOptions struct {
+	OpenAPIVersion OpenAPIVersion
 }
 
 // NewRegistry constructs an OpenAPI registry with the provided info.
 func NewRegistry(info Info) *Registry {
-	return &Registry{info: info}
+	return NewRegistryWithOptions(info, RegistryOptions{})
+}
+
+// NewRegistryWithOptions constructs an OpenAPI registry with explicit options.
+func NewRegistryWithOptions(info Info, opts RegistryOptions) *Registry {
+	return &Registry{info: info, openAPIVersion: normalizeOpenAPIVersion(opts.OpenAPIVersion)}
 }
 
 // SetServers replaces the server list.
@@ -216,13 +237,14 @@ func (r *Registry) Operations() []Operation {
 	return ops
 }
 
-// OpenAPI returns a JSON-encoded OpenAPI 3.0 document.
+// OpenAPI returns a JSON-encoded OpenAPI document.
 func (r *Registry) OpenAPI() ([]byte, error) {
 	if r == nil {
-		return json.Marshal(defaultOpenAPI(Info{}))
+		return json.Marshal(defaultOpenAPI(Info{}, string(OpenAPIVersion30)))
 	}
 	r.mu.RLock()
 	info := r.info
+	openAPIVersion := r.openAPIVersion
 	servers := append([]Server(nil), r.servers...)
 	security := cloneSecurityRequirements(r.security)
 	ops := append([]Operation(nil), r.ops...)
@@ -243,7 +265,7 @@ func (r *Registry) OpenAPI() ([]byte, error) {
 		paths[op.Path][method] = buildOperation(op)
 	}
 
-	spec := defaultOpenAPI(info)
+	spec := defaultOpenAPI(info, openAPIVersion)
 	spec["paths"] = paths
 	if len(servers) > 0 {
 		outServers := make([]map[string]any, 0, len(servers))
@@ -264,21 +286,35 @@ func (r *Registry) OpenAPI() ([]byte, error) {
 	return json.Marshal(spec)
 }
 
-func defaultOpenAPI(info Info) map[string]any {
+func defaultOpenAPI(info Info, version string) map[string]any {
 	if strings.TrimSpace(info.Title) == "" {
 		info.Title = "API"
 	}
 	if strings.TrimSpace(info.Version) == "" {
 		info.Version = "0.0.0"
 	}
+	if version == "" {
+		version = string(OpenAPIVersion30)
+	}
 	return map[string]any{
-		"openapi": "3.0.0",
+		"openapi": version,
 		"info": map[string]any{
 			"title":       info.Title,
 			"description": info.Description,
 			"version":     info.Version,
 		},
 		"paths": map[string]any{},
+	}
+}
+
+func normalizeOpenAPIVersion(version OpenAPIVersion) string {
+	switch version {
+	case OpenAPIVersion31:
+		return string(OpenAPIVersion31)
+	case OpenAPIVersion30:
+		return string(OpenAPIVersion30)
+	default:
+		return string(OpenAPIVersion30)
 	}
 }
 
