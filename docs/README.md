@@ -8,7 +8,7 @@ without scanning the root README.
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
-| [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the planned `saas-api-full` production foundation, support tier, and integration-test policy. |
+| [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
@@ -44,8 +44,8 @@ dev-bypass environment variables, trusts only configured loopback proxies by
 default, uses separate debug tenant and scope headers, and refuses to start with
 dev-header auth when `ENV=production`.
 
-The planned `saas-api-full` profile keeps the lean `saas-api` default intact and
-adds the heavier Postgres + Redis production foundation described in
+The `saas-api-full` profile keeps the lean `saas-api` default intact and starts
+the heavier Postgres + Redis production foundation described in
 [full-service-scaffold.md](full-service-scaffold.md).
 
 The same CLI can review OpenAPI artifacts before release. `contracts lint`

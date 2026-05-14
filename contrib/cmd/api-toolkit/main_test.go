@@ -598,6 +598,172 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	}
 }
 
+func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--auth", "api-key",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new full service failed: %s", out.String())
+	}
+
+	for _, name := range []string{
+		"go.mod",
+		"cmd/api/main.go",
+		"internal/domain/widget.go",
+		"internal/app/widgets.go",
+		"internal/adapters/postgres/postgres.go",
+		"internal/httpapi/router.go",
+		"internal/httpapi/router_test.go",
+		"internal/httpapi/openapi.go",
+		"migrations/0001_platform.sql",
+		"testdata/openapi.golden.json",
+		"Makefile",
+		".env.example",
+		".gitignore",
+		".dockerignore",
+		".github/workflows/ci.yml",
+		"Dockerfile",
+		"docker-compose.yml",
+		"deploy/kubernetes/deployment.yaml",
+		"deploy/kubernetes/service.yaml",
+		"deploy/kubernetes/admin-service.yaml",
+		"README.md",
+	} {
+		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
+			t.Fatalf("expected generated full-profile %s: %v", name, err)
+		}
+	}
+
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated full-profile .env.example: %v", err)
+	}
+	for _, want := range []string{
+		"DATABASE_URL=",
+		"REDIS_ADDR=localhost:6379",
+		"API_KEY_PEPPER=",
+		"ADMIN_ADDR=:9090",
+	} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated full-profile .env.example missing %q", want)
+		}
+	}
+
+	generatedMigration, err := os.ReadFile(filepath.Join(serviceDir, "migrations", "0001_platform.sql"))
+	if err != nil {
+		t.Fatalf("read generated migration: %v", err)
+	}
+	for _, want := range []string{
+		"CREATE TABLE organizations",
+		"CREATE TABLE memberships",
+		"CREATE TABLE invitations",
+		"CREATE TABLE api_keys",
+		"CREATE TABLE widgets",
+		"CREATE TABLE operations",
+		"CREATE TABLE outbox_events",
+		"CREATE TABLE audit_events",
+		"CREATE TABLE webhook_endpoints",
+		"CREATE TABLE webhook_deliveries",
+	} {
+		if !strings.Contains(string(generatedMigration), want) {
+			t.Fatalf("generated migration missing %q", want)
+		}
+	}
+
+	generatedRouter, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "router.go"))
+	if err != nil {
+		t.Fatalf("read generated full-profile router: %v", err)
+	}
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem"} {
+		if !strings.Contains(string(generatedRouter), want) {
+			t.Fatalf("generated full-profile router missing %q", want)
+		}
+	}
+
+	generatedMakefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))
+	if err != nil {
+		t.Fatalf("read generated full-profile Makefile: %v", err)
+	}
+	for _, want := range []string{"openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:"} {
+		if !strings.Contains(string(generatedMakefile), want) {
+			t.Fatalf("generated full-profile Makefile missing %q", want)
+		}
+	}
+
+	generatedCompose, err := os.ReadFile(filepath.Join(serviceDir, "docker-compose.yml"))
+	if err != nil {
+		t.Fatalf("read generated full-profile compose: %v", err)
+	}
+	for _, want := range []string{
+		"postgres:",
+		"image: postgres:18-alpine",
+		"redis:",
+		"image: redis:7-alpine",
+		"minio:",
+		"profiles: [objectstore]",
+	} {
+		if !strings.Contains(string(generatedCompose), want) {
+			t.Fatalf("generated full-profile docker-compose.yml missing %q:\n%s", want, generatedCompose)
+		}
+	}
+
+	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read generated full-profile README.md: %v", err)
+	}
+	for _, want := range []string{
+		"Generated profile: `saas-api-full`.",
+		"Postgres stores tenants, API keys, widgets, operations, outbox, audit, and webhook delivery state.",
+		"`make integration-check`",
+	} {
+		if !strings.Contains(string(generatedREADME), want) {
+			t.Fatalf("generated full-profile README.md missing %q", want)
+		}
+	}
+	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
+
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service tidy failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "openapi-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service openapi check failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-lint")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service contracts lint failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "contracts-diff")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile service contracts diff failed:\n%s\nerror: %v", output, err)
+	}
+}
+
 func TestContractsLintFailsForMissingPolicy(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")

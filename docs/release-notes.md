@@ -36,6 +36,14 @@ source of truth is `docs/release-runbook.md`.
   release-note coverage for future `saas-api-full` full-profile runtime assets
   under `contrib/cmd/api-toolkit`, including generated Kubernetes YAML and
   other scaffold templates.
+- `api-toolkit new service` now supports an initial `--profile saas-api-full`
+  scaffold with API-key auth, hexagonal `internal/domain`, `internal/app`,
+  `internal/adapters/postgres`, and `internal/httpapi` boundaries, Postgres
+  migrations for tenant/platform tables, Docker Compose Postgres/Redis assets
+  with optional MinIO, Kubernetes starter manifests, OpenAPI golden checks,
+  contract lint/diff targets, and generated HTTP smoke tests for readiness,
+  OpenAPI, auth failure, validation failure, idempotent create replay, and ETag
+  conflicts.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
