@@ -2791,6 +2791,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
 	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
 	{Name: "migrations/0001_platform.sql", Body: fullMigrationTemplate},
+	{Name: "scripts/integration_check.sh", Body: fullIntegrationCheckScriptTemplate},
 	{Name: "Makefile", Body: fullMakefileTemplate},
 	{Name: ".env.example", Body: fullEnvTemplate},
 	{Name: ".gitignore", Body: fullGitignoreTemplate},
@@ -9289,14 +9290,152 @@ client-check:
 	$(GO) test ./internal/client/apiclient
 
 integration-check:
-	$(COMPOSE) up -d postgres redis
-	$(GO) test ./...
-	$(COMPOSE) down -v
+	bash scripts/integration_check.sh
 
 clean:
 	$(GO) clean -testcache
 
 finalize: fmt test build openapi-check contracts-lint contracts-diff clean
+`
+
+const fullIntegrationCheckScriptTemplate = `#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required for integration-check" >&2
+  exit 2
+fi
+
+read -r -a compose_cmd <<< "${COMPOSE:-docker compose}"
+
+compose() {
+  "${compose_cmd[@]}" "$@"
+}
+
+tmp_dir="$(mktemp -d)"
+api_pid=""
+
+cleanup() {
+  if [ -n "${api_pid}" ] && kill -0 "${api_pid}" 2>/dev/null; then
+    kill "${api_pid}" 2>/dev/null || true
+    wait "${api_pid}" 2>/dev/null || true
+  fi
+  # Default cleanup command: docker compose down -v.
+  compose down -v
+  rm -rf "${tmp_dir}"
+}
+trap cleanup EXIT
+
+wait_for_postgres() {
+  for _ in $(seq 1 60); do
+    if compose exec -T postgres pg_isready -U api -d api >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "postgres did not become ready" >&2
+  return 1
+}
+
+wait_for_redis() {
+  for _ in $(seq 1 60); do
+    if [ "$(compose exec -T redis redis-cli ping 2>/dev/null | tr -d '\r')" = "PONG" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "redis did not become ready" >&2
+  return 1
+}
+
+wait_for_http() {
+  local url="$1"
+  for _ in $(seq 1 90); do
+    if curl -fsS "${url}/readyz" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [ -n "${api_pid}" ] && ! kill -0 "${api_pid}" 2>/dev/null; then
+      echo "api process exited before readiness" >&2
+      sed -n '1,120p' "${tmp_dir}/api.log" >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+  echo "api did not become ready" >&2
+  sed -n '1,120p' "${tmp_dir}/api.log" >&2 || true
+  return 1
+}
+
+json_id() {
+  sed -nE 's/.*"id":"([^"]+)".*/\1/p'
+}
+
+export ENV=integration
+export API_ADDR="${INTEGRATION_API_ADDR:-127.0.0.1:18080}"
+export ADMIN_ADDR="${INTEGRATION_ADMIN_ADDR:-127.0.0.1:19090}"
+default_db_user="${POSTGRES_USER:-api}"
+default_db_password="${POSTGRES_PASSWORD:-api}"
+export DATABASE_URL="${DATABASE_URL:-postgres://${default_db_user}:${default_db_password}@localhost:5432/api?sslmode=disable}"
+export REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
+export CACHE_STORE="${CACHE_STORE:-redis}"
+export API_KEY="${API_KEY:-local-dev-key}"
+export ADMIN_KEY="${ADMIN_KEY:-local-admin-key}"
+export API_ACTOR_ID="${API_ACTOR_ID:-integration-actor}"
+export API_KEY_PEPPER="${API_KEY_PEPPER:-integration-pepper-change-me}"
+
+api_url="http://${API_ADDR}"
+admin_url="http://${ADMIN_ADDR}"
+
+compose up -d postgres redis
+wait_for_postgres
+wait_for_redis
+
+compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api < migrations/0001_platform.sql
+
+go test ./...
+
+go run ./cmd/api >"${tmp_dir}/api.log" 2>&1 &
+api_pid="$!"
+wait_for_http "${api_url}"
+
+curl -fsS "${api_url}/docs/openapi.json" >/dev/null
+
+auth_status="$(curl -sS -o "${tmp_dir}/auth.json" -w '%{http_code}' "${api_url}/organizations")"
+if [ "${auth_status}" != "401" ]; then
+  echo "expected unauthenticated organization request to return 401, got ${auth_status}" >&2
+  sed -n '1,80p' "${tmp_dir}/auth.json" >&2 || true
+  exit 1
+fi
+
+org_json="$(curl -fsS -X POST "${api_url}/organizations" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "Idempotency-Key: integration-create-organization" \
+  --data '{"name":"Integration"}')"
+org_id="$(printf '%s' "${org_json}" | json_id)"
+if [ -z "${org_id}" ]; then
+  echo "create organization response did not include id" >&2
+  exit 1
+fi
+
+curl -fsS "${api_url}/organizations/${org_id}/members" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" >/dev/null
+
+curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-put-object" \
+  --data '{"key":"integration.txt","content_type":"text/plain","content_base64":"aGVsbG8="}' >/dev/null
+
+curl -fsS "${admin_url}/health/detailed" \
+  -H "X-Admin-Key: ${ADMIN_KEY}" >/dev/null
+
+echo "integration-check passed"
 `
 
 const fullEnvTemplate = `ENV=development
@@ -9561,7 +9700,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, object writes, and admin health. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `

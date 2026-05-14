@@ -94,6 +94,11 @@ source of truth is `docs/release-runbook.md`.
   and generated Go client are explicit release signals. Generated Docker
   integration checks remain opt-in and are reported separately through the
   non-blocking integration evidence status.
+- Generated `saas-api-full` `integration-check` now uses a dedicated
+  script that starts Postgres and Redis, applies the generated migration, runs
+  generated unit tests, starts the API on localhost, and performs HTTP smoke
+  checks for readiness, OpenAPI, authentication failure, tenant membership,
+  object writes, and admin detailed health before tearing Docker volumes down.
 - `specs.NewRegistryWithOptions` now supports explicit OpenAPI 3.1 output via
   `specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31}` while
   preserving the existing `specs.NewRegistry` OpenAPI 3.0 default.

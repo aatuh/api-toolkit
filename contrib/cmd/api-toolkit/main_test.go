@@ -754,6 +754,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/httpapi/openapi.go",
 		"internal/client/apiclient/client.go",
 		"migrations/0001_platform.sql",
+		"scripts/integration_check.sh",
 		"testdata/openapi.golden.json",
 		"Makefile",
 		".env.example",
@@ -847,10 +848,36 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:"} {
+	for _, want := range []string{"openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
+	}
+	generatedIntegration, err := os.ReadFile(filepath.Join(serviceDir, "scripts", "integration_check.sh"))
+	if err != nil {
+		t.Fatalf("read generated full-profile integration script: %v", err)
+	}
+	for _, want := range []string{
+		"compose up -d postgres redis",
+		"psql -v ON_ERROR_STOP=1 -U api -d api",
+		"go test ./...",
+		"go run ./cmd/api",
+		"/docs/openapi.json",
+		"/health/detailed",
+		"X-API-Key: ${API_KEY}",
+		"X-Actor-ID: ${API_ACTOR_ID}",
+		"Idempotency-Key:",
+		"docker compose down -v",
+	} {
+		if !strings.Contains(string(generatedIntegration), want) {
+			t.Fatalf("generated full-profile integration script missing %q", want)
+		}
+	}
+	cmd := exec.CommandContext(context.Background(), "bash", "-n", "scripts/integration_check.sh")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated full-profile integration script syntax failed:\n%s\nerror: %v", output, err)
 	}
 
 	generatedCompose, err := os.ReadFile(filepath.Join(serviceDir, "docker-compose.yml"))
@@ -885,9 +912,9 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	}
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
 
-	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd = exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
-	output, err := cmd.CombinedOutput()
+	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service tidy failed:\n%s\nerror: %v", output, err)
 	}

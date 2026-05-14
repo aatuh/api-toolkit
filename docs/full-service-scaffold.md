@@ -111,9 +111,11 @@ The profile generates or is expected to generate:
 - Docker Compose with Postgres and Redis by default, plus optional MinIO under
   an explicit profile for object storage checks.
 - opt-in Docker integration tests through a generated `integration-check`
-  target; these are
-  intentionally outside default `make finalize` so local and CI release gates
-  stay reliable without Docker.
+  target; the generated script starts Postgres and Redis, applies migrations,
+  runs `go test ./...`, starts the API on localhost, and performs HTTP smoke
+  checks for readiness, OpenAPI, auth failure, tenant routes, object writes,
+  and admin health. These checks are intentionally outside default
+  `make finalize` so local and CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
 - A checked-in typed Go client plus a generated `client-check` target.
@@ -131,8 +133,9 @@ release-note coverage because they change the production skeleton users receive.
 Unit and contract tests remain mandatory for every package. Real dependency
 tests are opt-in:
 
-- The generated `integration-check` target may start Postgres, Redis, and
-  optional MinIO through Docker Compose.
+- The generated `integration-check` target starts Postgres and Redis through
+  Docker Compose and may include optional MinIO checks when object-store
+  production wiring is enabled.
 - Integration checks should verify migrations, tenant isolation, scoped API
   keys, idempotent writes, ETag conflicts, async polling, outbox retries, audit
   writes, webhook delivery/replay, readiness, metrics, and admin listener
