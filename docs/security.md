@@ -158,6 +158,9 @@ operator-only surfaces.
 - Mount combined system endpoints with `bootstrap.MountSystemEndpointsToWithAdmin`
   when detailed health, pprof, or metrics are present so operator-only routes
   require an explicit wrapper.
+- Prefer `bootstrap.APIServiceConfig.AdminAddr` for new generated services that
+  can run a separate admin listener; public routes keep public probes/docs while
+  detailed health, metrics, and pprof stay on the admin handler.
 - To migrate policy-free pprof, replace `pprof.RegisterRoutes(router)` with
   `pprof.RegisterAdminRoutes(router, requireAdmin)` and fail startup if it
   returns an error.

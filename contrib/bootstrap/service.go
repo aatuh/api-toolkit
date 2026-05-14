@@ -35,8 +35,10 @@ type BackgroundTask struct {
 // APIServiceConfig configures a reusable production API composition root.
 type APIServiceConfig struct {
 	Addr                    string
+	AdminAddr               string
 	Log                     ports.Logger
 	Router                  ports.HTTPRouter
+	AdminRouter             ports.HTTPRouter
 	RegisterRoutes          func(ports.HTTPRouter) error
 	SystemEndpoints         SystemEndpoints
 	Admin                   SystemEndpointAdminOptions
@@ -51,8 +53,10 @@ type APIServiceConfig struct {
 // APIService is a reusable HTTP API composition root for generated services.
 type APIService struct {
 	addr            string
+	adminAddr       string
 	log             ports.Logger
 	router          ports.HTTPRouter
+	adminRouter     ports.HTTPRouter
 	serverOptions   []ServerOption
 	shutdownHooks   []ShutdownHook
 	backgroundTasks []BackgroundTask
@@ -85,12 +89,31 @@ func NewAPIService(config APIServiceConfig) (*APIService, error) {
 			return nil, fmt.Errorf("register routes: %w", err)
 		}
 	}
+	adminAddr := strings.TrimSpace(config.AdminAddr)
+	var adminRouter ports.HTTPRouter
+	if adminAddr != "" {
+		adminRouter = config.AdminRouter
+		if adminRouter == nil {
+			var err error
+			adminRouter, err = NewDefaultRouter(log)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	if hasSystemEndpoints(config.SystemEndpoints) {
 		if config.Admin.RequireAdmin == nil {
 			return nil, errors.New("api service system endpoints require an admin wrapper")
 		}
-		if err := MountSystemEndpointsToWithAdmin(router, config.SystemEndpoints, config.Admin); err != nil {
-			return nil, err
+		if adminRouter != nil {
+			mountPublicSystemEndpointsTo(router, config.SystemEndpoints)
+			if err := mountAdminSystemEndpointsTo(adminRouter, config.SystemEndpoints, config.Admin); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := MountSystemEndpointsToWithAdmin(router, config.SystemEndpoints, config.Admin); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -100,8 +123,10 @@ func NewAPIService(config APIServiceConfig) (*APIService, error) {
 	}
 	return &APIService{
 		addr:            addr,
+		adminAddr:       adminAddr,
 		log:             log,
 		router:          router,
+		adminRouter:     adminRouter,
 		serverOptions:   append([]ServerOption(nil), config.ServerOptions...),
 		shutdownHooks:   append([]ShutdownHook(nil), config.ShutdownHooks...),
 		backgroundTasks: append([]BackgroundTask(nil), config.BackgroundTasks...),
@@ -116,6 +141,14 @@ func (s *APIService) Handler() http.Handler {
 	return s.router
 }
 
+// AdminHandler returns the composed admin HTTP handler when AdminAddr is configured.
+func (s *APIService) AdminHandler() http.Handler {
+	if s == nil || s.adminRouter == nil {
+		return http.NewServeMux()
+	}
+	return s.adminRouter
+}
+
 // Start starts the HTTP server and shuts down when ctx is canceled.
 func (s *APIService) Start(ctx context.Context) error {
 	if s == nil {
@@ -124,28 +157,28 @@ func (s *APIService) Start(ctx context.Context) error {
 	if s.log == nil {
 		s.log = ports.NopLogger{}
 	}
-	s.log.Info("http server starting", "addr", s.addr)
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	taskErrCh, tasksDone := startBackgroundTasks(runCtx, s.backgroundTasks, s.log)
-	serverErrCh := make(chan error, 1)
-	go func() {
-		serverErrCh <- runServer(runCtx, HardenedServer(s.addr, s.Handler(), s.serverOptions...))
-	}()
+	serverErrCh, serverCount := s.startServers(runCtx)
 
 	var err error
 	var taskErr error
 	if taskErrCh == nil {
 		err = <-serverErrCh
+		serverCount--
 	} else {
 		select {
 		case err = <-serverErrCh:
+			serverCount--
 		case taskErr = <-taskErrCh:
 			cancel()
 			err = <-serverErrCh
+			serverCount--
 		}
 	}
 	cancel()
+	err = errors.Join(err, drainServerErrors(serverErrCh, serverCount))
 	<-tasksDone
 	if taskErr == nil {
 		taskErr = receiveBackgroundTaskError(taskErrCh)
@@ -159,6 +192,53 @@ func (s *APIService) Start(ctx context.Context) error {
 		return err
 	}
 	return hookErr
+}
+
+type apiServerConfig struct {
+	name    string
+	addr    string
+	handler http.Handler
+}
+
+func (s *APIService) serverConfigs() []apiServerConfig {
+	servers := []apiServerConfig{{
+		name:    "public",
+		addr:    s.addr,
+		handler: s.Handler(),
+	}}
+	if strings.TrimSpace(s.adminAddr) != "" {
+		servers = append(servers, apiServerConfig{
+			name:    "admin",
+			addr:    s.adminAddr,
+			handler: s.AdminHandler(),
+		})
+	}
+	return servers
+}
+
+func (s *APIService) startServers(ctx context.Context) (<-chan error, int) {
+	servers := s.serverConfigs()
+	errCh := make(chan error, len(servers))
+	for _, server := range servers {
+		server := server
+		s.log.Info("http server starting", "name", server.name, "addr", server.addr)
+		go func() {
+			err := runServer(ctx, HardenedServer(server.addr, server.handler, s.serverOptions...))
+			if err != nil {
+				err = fmt.Errorf("%s server: %w", server.name, err)
+			}
+			errCh <- err
+		}()
+	}
+	return errCh, len(servers)
+}
+
+func drainServerErrors(ch <-chan error, count int) error {
+	var err error
+	for i := 0; i < count; i++ {
+		err = errors.Join(err, <-ch)
+	}
+	return err
 }
 
 func startBackgroundTasks(ctx context.Context, tasks []BackgroundTask, log ports.Logger) (<-chan error, <-chan struct{}) {

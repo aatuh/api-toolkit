@@ -57,6 +57,10 @@
 // ---------
 //
 // `APIServiceConfig.StartupChecks` validates wiring before serving traffic.
+// `APIServiceConfig.AdminAddr` starts a separate admin listener; the public
+// handler keeps only public health/docs/version routes while the admin handler
+// serves detailed health, metrics, and pprof behind the configured admin
+// wrapper.
 // `APIServiceConfig.BackgroundTasks` runs named tasks such as health refresh
 // schedulers with the service context; a task error fails the service and
 // triggers graceful shutdown.
