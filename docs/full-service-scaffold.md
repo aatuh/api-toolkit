@@ -160,16 +160,18 @@ The profile generates or is expected to generate:
   widgets, operations, outbox events, audit events, object metadata, webhook
   endpoints, and webhook deliveries.
 - Docker Compose with Postgres and Redis by default, plus optional MinIO under
-  an explicit profile for object storage checks.
+  an explicit profile for object storage checks. The compose file includes a
+  bucket-initializer service for the generated `api-objects` bucket.
 - opt-in Docker integration tests through a generated `integration-check`
   target; the generated script starts Postgres and Redis, applies migrations,
   runs `go test ./...`, starts the API on localhost, and performs HTTP smoke
   checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key
   auth, idempotent widget writes, ETag conflict handling, async operation
-  polling, webhook delivery/replay, object writes, admin health, admin metrics,
-  admin pprof, and public admin-route isolation. These checks are intentionally
-  outside default `make finalize` so local and CI release gates stay reliable
-  without Docker.
+  polling, outbox completion/retry behavior, webhook delivery/replay, object
+  write/readback, audit writes, admin health, admin metrics, admin pprof, and
+  public admin-route isolation. Set `INTEGRATION_OBJECT_STORE=s3` to run the
+  object checks against MinIO. These checks are intentionally outside default
+  `make finalize` so local and CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
 - A checked-in typed Go client plus a generated `client-check` target.
@@ -188,12 +190,12 @@ Unit and contract tests remain mandatory for every package. Real dependency
 tests are opt-in:
 
 - The generated `integration-check` target starts Postgres and Redis through
-  Docker Compose and may include optional MinIO checks when object-store
-  production wiring is enabled.
+  Docker Compose. Set `INTEGRATION_OBJECT_STORE=s3` to include MinIO-backed S3
+  object-storage checks.
 - Integration checks verify migrations, tenant isolation, scoped API keys,
   managed API-key authentication, idempotent writes, ETag conflict handling,
   async polling, outbox completion/retry behavior, webhook delivery/replay,
-  object writes, admin health, metrics, pprof, audit writes, and admin listener
-  isolation.
+  object write/readback, admin health, metrics, pprof, audit writes, and admin
+  listener isolation.
 - Default `make finalize` must not require Docker, cloud credentials, or network
   services outside module downloads and tool installation.

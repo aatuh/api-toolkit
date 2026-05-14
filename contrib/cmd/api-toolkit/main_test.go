@@ -882,6 +882,9 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"/health/detailed",
 		"/metrics",
 		"/debug/pprof/",
+		"INTEGRATION_OBJECT_STORE",
+		"wait_for_minio",
+		"minio-init",
 		"X-API-Key: ${API_KEY}",
 		"X-Actor-ID: ${API_ACTOR_ID}",
 		"Idempotency-Key:",
@@ -898,6 +901,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"outbox retry was not recorded",
 		"webhook delivery list leaked signing secret",
 		"replay webhook delivery",
+		"object get did not return stored content",
 		"audit_events",
 		"audit events were not recorded",
 		"public pprof endpoint should be isolated",
@@ -925,6 +929,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"image: redis:7-alpine",
 		"minio:",
 		"profiles: [objectstore]",
+		"minio-init:",
 	} {
 		if !strings.Contains(string(generatedCompose), want) {
 			t.Fatalf("generated full-profile docker-compose.yml missing %q:\n%s", want, generatedCompose)
