@@ -2923,6 +2923,135 @@ func TestContractsChangelogAndImpactReportClientChanges(t *testing.T) {
 	}
 }
 
+func TestContractsLintRequiresOpenAPI31FeatureMetadata(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	spec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			},
+			"schemas": {
+				"Problem": {
+					"type": "object",
+					"properties": {"title": {"type": "string"}, "status": {"type": "integer"}}
+				},
+				"Event": {
+					"oneOf": [
+						{"type": "object", "properties": {"kind": {"type": "string"}}}
+					]
+				}
+			}
+		},
+		"paths": {
+			"/exports": {
+				"get": {
+					"operationId": "getExport",
+					"responses": {
+						"200": {"description": "ok", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["exports:read"]}]
+				}
+			},
+			"/events": {
+				"get": {
+					"operationId": "streamEvents",
+					"responses": {
+						"200": {"description": "ok", "content": {"text/event-stream": {"schema": {"type": "string"}}}},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["events:read"]}]
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(specPath, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected contracts lint to fail")
+	}
+	for _, want := range []string{
+		"client_schema_composition_review_required",
+		"binary_response_metadata_required",
+		"streaming_metadata_required",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func TestContractsImpactReportsSchemaDefaultsEnumsAndComposition(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	baseSpec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Widget": {
+					"x-api-toolkit-client-compatible": true,
+					"oneOf": [{"$ref": "#/components/schemas/WidgetA"}],
+					"properties": {
+						"status": {"type": "string", "enum": ["active", "archived"], "default": "active"}
+					}
+				},
+				"WidgetA": {"type": "object"},
+				"WidgetB": {"type": "object"}
+			}
+		},
+		"paths": {}
+	}`
+	headSpec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Widget": {
+					"x-api-toolkit-client-compatible": true,
+					"oneOf": [{"$ref": "#/components/schemas/WidgetA"}, {"$ref": "#/components/schemas/WidgetB"}],
+					"properties": {
+						"status": {"type": "string", "enum": ["active", "beta"], "default": "beta"}
+					}
+				},
+				"WidgetA": {"type": "object"},
+				"WidgetB": {"type": "object"}
+			}
+		},
+		"paths": {}
+	}`
+	if err := os.WriteFile(base, []byte(baseSpec), 0o600); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	if err := os.WriteFile(head, []byte(headSpec), 0o600); err != nil {
+		t.Fatalf("write head: %v", err)
+	}
+
+	var impact strings.Builder
+	code := run(context.Background(), []string{"contracts", "impact", "--base", base, "--head", head}, &impact, &impact)
+	if code != 1 {
+		t.Fatalf("contracts impact exit code = %d output=%s", code, impact.String())
+	}
+	for _, want := range []string{
+		"schema_default_changed",
+		"schema_enum_value_added",
+		"schema_enum_value_removed",
+		"schema_composition_changed",
+	} {
+		if !strings.Contains(impact.String(), want) {
+			t.Fatalf("impact missing %q:\n%s", want, impact.String())
+		}
+	}
+}
+
 func TestContractsDiffFailsForBreakingChanges(t *testing.T) {
 	tmp := t.TempDir()
 	base := filepath.Join(tmp, "base.json")
