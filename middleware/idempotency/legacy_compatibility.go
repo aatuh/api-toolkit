@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const legacyInFlightCompatibilityUnknownKeyValue = "[redacted]"

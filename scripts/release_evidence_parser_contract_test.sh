@@ -79,15 +79,15 @@ PY
 
 cat >"$repo_root/docs/contrib-api-drift-dispositions.tsv" <<'TSV'
 package	status	reason	release_note_acknowledgement	reviewed_on	expires_on	owner
-github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
-github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible	incompatible	contract fixture	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
-github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed	incompatible	contract fixture with compatible and incompatible headings in one package	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
-github.com/aatuh/api-toolkit/contrib/v2/pkg/malformed	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
+github.com/aatuh/api-toolkit/contrib/v3/pkg/compatible	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
+github.com/aatuh/api-toolkit/contrib/v3/pkg/incompatible	incompatible	contract fixture	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
+github.com/aatuh/api-toolkit/contrib/v3/pkg/mixed	incompatible	contract fixture with compatible and incompatible headings in one package	docs/release-notes.md package-tied incompatible contrib acknowledgement	2026-05-01	2099-01-01	contrib
+github.com/aatuh/api-toolkit/contrib/v3/pkg/malformed	compatible	contract fixture	not_required	2026-05-01	2099-01-01	contrib
 TSV
 
 cat >"$repo_root/logs/contrib-compatible.log" <<'LOG'
 Contrib API drift report (report-only)
-DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible
+DRIFT github.com/aatuh/api-toolkit/contrib/v3/pkg/compatible
 Compatible changes:
 - added method
 Report complete: drift_packages=1 skipped_packages=0 compatible_drift_packages=1 incompatible_drift_packages=0
@@ -95,7 +95,7 @@ LOG
 
 cat >"$repo_root/logs/contrib-incompatible.log" <<'LOG'
 Contrib API drift report (report-only)
-DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible
+DRIFT github.com/aatuh/api-toolkit/contrib/v3/pkg/incompatible
 Incompatible changes:
 - removed method
 Report complete: drift_packages=1 skipped_packages=0 compatible_drift_packages=0 incompatible_drift_packages=1
@@ -103,7 +103,7 @@ LOG
 
 cat >"$repo_root/logs/contrib-mixed.log" <<'LOG'
 Contrib API drift report (report-only)
-DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed
+DRIFT github.com/aatuh/api-toolkit/contrib/v3/pkg/mixed
 Incompatible changes:
 - changed exported struct comparability
 Compatible changes:
@@ -113,19 +113,19 @@ LOG
 
 cat >"$repo_root/logs/contrib-none.log" <<'LOG'
 Contrib API drift report (report-only)
-OK   github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible
+OK   github.com/aatuh/api-toolkit/contrib/v3/pkg/compatible
 Report complete: drift_packages=0 skipped_packages=0 compatible_drift_packages=0 incompatible_drift_packages=0
 LOG
 
 cat >"$repo_root/logs/contrib-skipped.log" <<'LOG'
 Contrib API drift report (report-only)
-SKIP github.com/aatuh/api-toolkit/contrib/v2/pkg/skipped (missing in baseline or working tree)
+SKIP github.com/aatuh/api-toolkit/contrib/v3/pkg/skipped (missing in baseline or working tree)
 Report complete: drift_packages=0 skipped_packages=1 compatible_drift_packages=0 incompatible_drift_packages=0
 LOG
 
 cat >"$repo_root/logs/contrib-malformed.log" <<'LOG'
 Contrib API drift report (report-only)
-DRIFT github.com/aatuh/api-toolkit/contrib/v2/pkg/malformed
+DRIFT github.com/aatuh/api-toolkit/contrib/v3/pkg/malformed
 Unexpected heading:
 - parser should not call this compatible
 Report complete: drift_packages=1 skipped_packages=0 compatible_drift_packages=0 incompatible_drift_packages=0
@@ -143,17 +143,17 @@ import json
 import sys
 
 compatible, incompatible, mixed, none, skipped, malformed = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
-if compatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/compatible", "status": "compatible"}]:
+if compatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v3/pkg/compatible", "status": "compatible"}]:
     raise SystemExit(f"compatible drift fixture parsed incorrectly: {compatible}")
-if incompatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/incompatible", "status": "incompatible"}]:
+if incompatible["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v3/pkg/incompatible", "status": "incompatible"}]:
     raise SystemExit(f"incompatible drift fixture parsed incorrectly: {incompatible}")
-if mixed["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/mixed", "status": "incompatible"}]:
+if mixed["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v3/pkg/mixed", "status": "incompatible"}]:
     raise SystemExit(f"mixed same-package drift fixture parsed incorrectly: {mixed}")
 if none["packages"] or none["drift_package_count"] != 0:
     raise SystemExit(f"no-drift fixture parsed incorrectly: {none}")
 if skipped["packages"] or skipped["skipped_package_count"] != 1:
     raise SystemExit(f"skipped fixture parsed incorrectly: {skipped}")
-if malformed["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v2/pkg/malformed", "status": "unknown"}]:
+if malformed["packages"] != [{"package": "github.com/aatuh/api-toolkit/contrib/v3/pkg/malformed", "status": "unknown"}]:
     raise SystemExit(f"malformed drift fixture should be unknown: {malformed}")
 if malformed["missing_disposition_count"] == 0:
     raise SystemExit(f"unknown drift status must fail disposition review: {malformed}")

@@ -19,8 +19,16 @@ import (
 
 var (
 	rootModulePath    = strings.Join([]string{"github.com", "aatuh", "api-toolkit"}, "/")
-	contribModulePath = rootModulePath + "/contrib/v2"
+	contribModulePath = rootModulePath + "/contrib/v3"
 )
+
+func skipV2CompatibilitySurfaceChecksOnV3(t *testing.T) {
+	t.Helper()
+	mod, err := os.ReadFile(filepath.Join(mustRepoRoot(t), "go.mod"))
+	if err == nil && strings.Contains(string(mod), "module "+rootModulePath+"/v3") {
+		t.Skip("v3 branch has removed the v2 compatibility-only surfaces")
+	}
+}
 
 func TestPublicMarkdownUsesV2ModulePaths(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
@@ -56,7 +64,7 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 	serviceDir := filepath.Join(tmpDir, "my-api")
 	doc := string(content)
 	for _, required := range []string{
-		"go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service",
+		"go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service",
 		"--module example.com/my-api",
 		"--profile saas-api",
 		"make finalize",
@@ -152,7 +160,7 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 func TestRootTestsUseContribModulePath(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	fset := token.NewFileSet()
-	forbidden := rootModulePath + "/v2/contrib"
+	forbidden := rootModulePath + "/v3/contrib"
 
 	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -271,6 +279,7 @@ func TestPublicDocsDoNotTeachPolicyFreeAdminMounts(t *testing.T) {
 }
 
 func TestCompatibilitySensitivePortsManifestIsCurrent(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	manifestPath := filepath.Join(repoRoot, "docs", "ports-surface.md")
 	manifest, err := os.ReadFile(manifestPath)
@@ -321,7 +330,7 @@ func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 	classes := loadPackageClassifications(t, repoRoot)
 	packages := listedGoPackages(t, repoRoot)
 
-	assertClassifiedPackages(t, "root", packages, classes, rootModulePath+"/v2", map[string]bool{
+	assertClassifiedPackages(t, "root", packages, classes, rootModulePath+"/v3", map[string]bool{
 		"stable":             true,
 		"compatibility-only": true,
 		"experimental":       true,
@@ -335,8 +344,8 @@ func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 		apiStatus  string
 		testStatus string
 	}{
-		{rootModulePath + "/v2/docscheck", "excluded", "direct-tests"},
-		{rootModulePath + "/v2/testutil/authtest", "test-only", "test-support"},
+		{rootModulePath + "/v3/docscheck", "excluded", "direct-tests"},
+		{rootModulePath + "/v3/testutil/authtest", "test-only", "test-support"},
 	} {
 		cls, ok := classes[required.importPath]
 		if !ok {
@@ -1576,13 +1585,13 @@ func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
 		"## V3 removal matrix",
 		"## V3 owner checklist",
 		"`ports/billing.go`",
-		"`github.com/aatuh/api-toolkit/v2/compat/billing`",
+		"`github.com/aatuh/api-toolkit/v3/compat/billing`",
 		"`ports.DatabasePool.Stat`",
 		"`ports.DatabaseStats`",
 		"`ports.DatabasePoolSnapshotProvider`",
 		"`ports.SnapshotDatabasePoolStats`",
 		"`response_writer`",
-		"`github.com/aatuh/api-toolkit/v2/httpx`",
+		"`github.com/aatuh/api-toolkit/v3/httpx`",
 		"`ports/idempotency.go` keeps `IdempotencyReleaser.Release(ctx, key)`",
 		"`ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)` is the preferred token-aware release path",
 		"`contrib/adapters/idempotencytest` owns reusable adapter contract coverage",
@@ -1763,18 +1772,18 @@ func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) 
 	}
 
 	for _, importPath := range []string{
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/resend",
-		"github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe",
-		"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk",
-		"github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi",
-		"github.com/aatuh/api-toolkit/contrib/v2/middleware/oteltrace",
-		"github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog",
-		"github.com/aatuh/api-toolkit/contrib/v2/telemetry",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/resend",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe",
+		"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk",
+		"github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi",
+		"github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace",
+		"github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog",
+		"github.com/aatuh/api-toolkit/contrib/v3/telemetry",
 	} {
 		contract, ok := contracts[importPath]
 		if !ok {
@@ -1900,6 +1909,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 }
 
 func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	inventory := readText(t, filepath.Join(repoRoot, "docs", "response-writer-inventory.md"))
 	fset := token.NewFileSet()
@@ -1928,7 +1938,7 @@ func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if importPath == rootModulePath+"/v2/response_writer" {
+			if importPath == rootModulePath+"/v3/response_writer" {
 				rel, relErr := filepath.Rel(repoRoot, path)
 				if relErr != nil {
 					rel = path
@@ -1968,7 +1978,7 @@ func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 func TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	forbidden := []string{
-		`"github.com/aatuh/api-toolkit/v2/response_writer"`,
+		`"github.com/aatuh/api-toolkit/v3/response_writer"`,
 		"ports.CheckoutSessionRequest",
 		"ports.PaymentProvider",
 		"ports.BillingProvider",
@@ -2024,6 +2034,7 @@ func TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces(t *testing.T) {
 }
 
 func TestV3RemovalMatrixHasExecutableEvidence(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
 	matrix := markdownSection(t, roadmap, "## V3 removal matrix")
@@ -2126,6 +2137,7 @@ func normalizeWhitespace(text string) string {
 }
 
 func TestV3DebtChecklistRowsStayExecutable(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
 	matrix := markdownSection(t, roadmap, "## V3 removal matrix")
@@ -2233,11 +2245,12 @@ func TestCompatibilitySensitivePortsGovernanceDocs(t *testing.T) {
 }
 
 func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	requirements := map[string][]string{
 		filepath.Join(repoRoot, "ports", "doc.go"): {
 			"Compatibility-sensitive exceptions",
-			"github.com/aatuh/api-toolkit/v2/compat/billing",
+			"github.com/aatuh/api-toolkit/v3/compat/billing",
 			"DatabasePoolSnapshotProvider",
 			"SnapshotDatabasePoolStats",
 			"httpx",
@@ -2250,7 +2263,7 @@ func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
 		},
 		filepath.Join(repoRoot, "response_writer", "doc.go"): {
 			"source compatibility",
-			"github.com/aatuh/api-toolkit/v2/httpx",
+			"github.com/aatuh/api-toolkit/v3/httpx",
 			"compatibility-sensitive",
 			"not a template",
 		},
@@ -2499,12 +2512,13 @@ func TestReleaseNotesIncludeStableSurfaceChecklist(t *testing.T) {
 }
 
 func TestDeprecatedBillingPortsPointToCompatPackage(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	path := filepath.Join(repoRoot, "ports", "billing.go")
 	code := readText(t, path)
 
 	for _, name := range exportedTopLevelNames(t, path) {
-		replacement := rootModulePath + "/v2/compat/billing." + name
+		replacement := rootModulePath + "/v3/compat/billing." + name
 		deprecation := "Deprecated: use " + replacement + "."
 		if !strings.Contains(code, deprecation) {
 			t.Fatalf("ports/billing.go missing deprecation replacement for %s: %s", name, replacement)
@@ -2513,13 +2527,14 @@ func TestDeprecatedBillingPortsPointToCompatPackage(t *testing.T) {
 }
 
 func TestDeprecatedBillingPortsStayInCompatibilitySource(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	deprecatedNames := stringSet(exportedTopLevelNames(t, filepath.Join(repoRoot, "ports", "billing.go")))
 	violations := scanGoSourceViolations(t, repoRoot, func(fset *token.FileSet, path string, file *ast.File) []string {
 		if allowedDeprecatedBillingSource(repoRoot, path) {
 			return nil
 		}
-		aliases, dotImport := importAliases(file, rootModulePath+"/v2/ports")
+		aliases, dotImport := importAliases(file, rootModulePath+"/v3/ports")
 		if len(aliases) == 0 && !dotImport {
 			return nil
 		}
@@ -2546,12 +2561,13 @@ func TestDeprecatedBillingPortsStayInCompatibilitySource(t *testing.T) {
 }
 
 func TestDatabaseStatsStayInCompatibilityOrAdapterSource(t *testing.T) {
+	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
 	violations := scanGoSourceViolations(t, repoRoot, func(fset *token.FileSet, path string, file *ast.File) []string {
 		if allowedDatabaseStatsSource(repoRoot, path) {
 			return nil
 		}
-		aliases, dotImport := importAliases(file, rootModulePath+"/v2/ports")
+		aliases, dotImport := importAliases(file, rootModulePath+"/v3/ports")
 		if len(aliases) == 0 && !dotImport {
 			return nil
 		}
@@ -2831,7 +2847,7 @@ func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 			if err != nil {
 				return []string{err.Error()}
 			}
-			if importPath == rootModulePath+"/v2/response_writer" {
+			if importPath == rootModulePath+"/v3/response_writer" {
 				return []string{sourceViolation(repoRoot, path, fset, imp.Pos(), "imports legacy response_writer from idempotency")}
 			}
 		}
@@ -3053,8 +3069,8 @@ func TestPublicPackageDocsAvoidPlaceholderUtilities(t *testing.T) {
 }
 
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
-var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v2[^` + "`" + `]*)` + "`")
-var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v2[^"]*"`)
+var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v3[^` + "`" + `]*)` + "`")
+var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v3[^"]*"`)
 
 func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
 	t.Helper()
@@ -3161,10 +3177,10 @@ func forbiddenModuleToken(token string) bool {
 	if token == rootModulePath+"/" || strings.HasPrefix(token, rootModulePath+"/.") {
 		return false
 	}
-	if token == rootModulePath+"/v2" {
+	if token == rootModulePath+"/v3" {
 		return false
 	}
-	if strings.HasPrefix(token, rootModulePath+"/v2/") {
+	if strings.HasPrefix(token, rootModulePath+"/v3/") {
 		return false
 	}
 	if token == contribModulePath {
@@ -3443,7 +3459,7 @@ func stableRootPackagesFromClassification(t *testing.T, repoRoot string) []strin
 	classes := loadPackageClassifications(t, repoRoot)
 	var packages []string
 	for _, cls := range classes {
-		if !inModule(cls.ImportPath, rootModulePath+"/v2") {
+		if !inModule(cls.ImportPath, rootModulePath+"/v3") {
 			continue
 		}
 		if cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only" {

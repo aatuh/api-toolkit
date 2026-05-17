@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 // RolesFromContext returns the roles associated with the current request context.
@@ -35,26 +35,22 @@ var ErrRequireRoleMissingRole = errors.New("required role is missing")
 // ErrRequireRoleMissingResolver indicates RolesFromContext was not configured.
 var ErrRequireRoleMissingResolver = errors.New("rolesFromContext resolver is missing")
 
-// NewRequireRoleMiddleware constructs a role enforcement middleware.
-//
-// This constructor keeps the v2-compatible single-return shape. Invalid
-// configuration is retained on the middleware and fails closed at request time;
-// callers that want startup validation should use
-// NewRequireRoleMiddlewareChecked or ValidateRequireRoleMiddleware.
-func NewRequireRoleMiddleware(role string, rolesFromCtx RolesFromContext) *RequireRoleMiddleware {
-	return &RequireRoleMiddleware{
-		role:         strings.ToLower(strings.TrimSpace(role)),
-		rolesFromCtx: rolesFromCtx,
-	}
-}
-
-// NewRequireRoleMiddlewareChecked constructs a role enforcement middleware and
+// NewRequireRoleMiddleware constructs a role enforcement middleware and
 // returns configuration errors for startup validation.
-func NewRequireRoleMiddlewareChecked(role string, rolesFromCtx RolesFromContext) (*RequireRoleMiddleware, error) {
+func NewRequireRoleMiddleware(role string, rolesFromCtx RolesFromContext) (*RequireRoleMiddleware, error) {
 	if err := validateRequireRoleConfig(role, rolesFromCtx); err != nil {
 		return nil, err
 	}
-	return NewRequireRoleMiddleware(role, rolesFromCtx), nil
+	return &RequireRoleMiddleware{
+		role:         strings.ToLower(strings.TrimSpace(role)),
+		rolesFromCtx: rolesFromCtx,
+	}, nil
+}
+
+// NewRequireRoleMiddlewareChecked is retained as an explicit checked alias for
+// v2 migration code.
+func NewRequireRoleMiddlewareChecked(role string, rolesFromCtx RolesFromContext) (*RequireRoleMiddleware, error) {
+	return NewRequireRoleMiddleware(role, rolesFromCtx)
 }
 
 // Handler wraps the next handler with role checks.

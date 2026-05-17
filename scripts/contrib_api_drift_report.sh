@@ -35,7 +35,7 @@ while IFS= read -r raw_line || [ -n "$raw_line" ]; do
     continue
   fi
   case "$pkg" in
-    github.com/aatuh/api-toolkit/contrib/v2/*) ;;
+    github.com/aatuh/api-toolkit/contrib/v3/*) ;;
     *)
       echo "Invalid contrib API drift package in $manifest: $pkg" >&2
       exit 2
@@ -84,7 +84,7 @@ compatible_drift_count=0
 incompatible_drift_count=0
 enforced_incompatible_drift_count=0
 for pkg in "${packages[@]}"; do
-  rel="${pkg#github.com/aatuh/api-toolkit/contrib/v2}"
+  rel="${pkg#github.com/aatuh/api-toolkit/contrib/v3}"
   rel="${rel#/}"
   old_path="$worktree/contrib/$rel"
   new_path="$repo_root/contrib/$rel"

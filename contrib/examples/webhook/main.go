@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
-	"github.com/aatuh/api-toolkit/v2/webhooks"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
+	"github.com/aatuh/api-toolkit/v3/webhooks"
 )
 
 const (

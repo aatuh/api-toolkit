@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Manager implements ports.DocsManager for managing documentation.

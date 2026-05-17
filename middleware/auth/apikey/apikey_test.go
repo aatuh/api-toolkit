@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 func TestHandlerAuthenticatesAuthorizationAPIKey(t *testing.T) {

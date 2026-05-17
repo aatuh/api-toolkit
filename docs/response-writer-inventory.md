@@ -1,13 +1,13 @@
 # Response Writer Compatibility Inventory
 
-`github.com/aatuh/api-toolkit/v2/response_writer` is retained for v2 source
+`github.com/aatuh/api-toolkit/v3/response_writer` is retained for v2 source
 compatibility only. New response helpers should use `httpx` or package-local
 capture code instead of teaching this legacy package as the preferred path.
 
 ## Current repository dependents
 
 No current root or contrib runtime package imports
-`github.com/aatuh/api-toolkit/v2/response_writer`. The public package remains
+`github.com/aatuh/api-toolkit/v3/response_writer`. The public package remains
 in place as a compatibility-only v2 surface for external callers.
 
 Cleared v39 imports:

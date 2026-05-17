@@ -39,21 +39,6 @@ type IdempotencyStore interface {
 	Save(ctx context.Context, key string, record IdempotencyRecord, ttl time.Duration) error
 }
 
-// IdempotencyReleaser removes an in-flight reservation or stale record.
-//
-// Release keeps the v2-compatible source contract. It should be a no-op when
-// the key is missing, expired, completed, or ambiguous, and may remove an
-// in-flight record by key without checking ReservationToken. New stores should
-// also implement IdempotencyReservationReleaser so middleware can use token-aware
-// cleanup for current in-flight reservations.
-//
-// The idempotency middleware requires release semantics so non-stored outcomes
-// can reopen a key safely for later retries without deleting completed replay
-// records or ambiguous safety records.
-type IdempotencyReleaser interface {
-	Release(ctx context.Context, key string) error
-}
-
 // IdempotencyReservationReleaser removes an in-flight reservation using the
 // reservation token recorded by the middleware.
 //
@@ -74,16 +59,9 @@ type IdempotencyReservationReleaser interface {
 	ReleaseReservation(ctx context.Context, key string, token string) error
 }
 
-// ReleasableIdempotencyStore combines persistence and release semantics for
-// idempotent request processing.
-type ReleasableIdempotencyStore interface {
-	IdempotencyStore
-	IdempotencyReleaser
-}
-
-// ReservationReleasableIdempotencyStore combines persistence, legacy release,
-// and token-aware release semantics for idempotent request processing.
+// ReservationReleasableIdempotencyStore combines persistence and token-aware
+// release semantics for idempotent request processing.
 type ReservationReleasableIdempotencyStore interface {
-	ReleasableIdempotencyStore
+	IdempotencyStore
 	IdempotencyReservationReleaser
 }

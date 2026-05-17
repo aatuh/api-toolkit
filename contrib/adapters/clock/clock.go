@@ -3,7 +3,7 @@ package clock
 import (
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // SystemClock implements shared.Clock using time.Now().

@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/entitlements"
+	"github.com/aatuh/api-toolkit/contrib/v3/entitlements"
 )
 
 // StoreFactory creates an isolated store for a test.

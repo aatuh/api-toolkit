@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestIntegrationAliasesMiddleware(t *testing.T) {

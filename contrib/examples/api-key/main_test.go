@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
 )
 
 func TestDemoVerifier(t *testing.T) {

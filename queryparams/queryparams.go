@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
 )
 
 // Sort describes parsed sort fields in request order.

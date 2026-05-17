@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // OpenAndPingDB opens a DB pool and verifies connectivity with a short timeout.

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 func TestInternalCheckFunctionsCoverSuccessAndFailurePaths(t *testing.T) {

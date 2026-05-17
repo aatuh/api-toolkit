@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestFromCtxReturnsTransactionWhenPresent(t *testing.T) {
@@ -162,7 +162,6 @@ type recordingPool struct {
 
 func (p *recordingPool) Ping(context.Context) error { return nil }
 func (p *recordingPool) Close()                     {}
-func (p *recordingPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *recordingPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	p.acquireCount++

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 type operationResult struct {

@@ -13,8 +13,8 @@ import (
 	"github.com/stripe/stripe-go/v79/client"
 	"github.com/stripe/stripe-go/v79/webhook"
 
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
 )
 
 // Provider implements compatbilling.PaymentProvider using Stripe Checkout + webhooks.

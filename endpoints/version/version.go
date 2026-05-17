@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 // Config controls how the version endpoint is registered.

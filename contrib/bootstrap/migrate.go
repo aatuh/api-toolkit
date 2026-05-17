@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/migrate"
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type migratorFactory func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (ports.Migrator, error)

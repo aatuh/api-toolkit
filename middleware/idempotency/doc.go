@@ -15,17 +15,13 @@
 // Idempotency-Key; when enabled, handled requests without a key fail with a
 // Problem Details 400 instead of falling through to the handler.
 //
-// Compatibility helpers:
+// Token-aware release helpers:
 //
-//   - Store implementations should preserve ports.IdempotencyReleaser.Release(ctx, key)
-//     for v2 source compatibility and add ports.IdempotencyReservationReleaser
-//     when they can safely release only the current tokened in-flight reservation.
-//     The v3 sunset criteria are: maintained stores pass the token-aware adapter
-//     contract tests for token mismatch, missing-token legacy cleanup, completed
-//     record preservation, and ambiguous record preservation; mixed-version rollout
-//     telemetry shows no tokenless fallback events for the agreed support window;
-//     and release notes document migration and rollback expectations for custom
-//     stores.
+//   - Store implementations must implement ports.IdempotencyReservationReleaser
+//     so middleware releases only the current tokened in-flight reservation.
+//     Maintained stores pass the token-aware adapter contract tests for token
+//     mismatch, missing-token legacy cleanup, completed record preservation, and
+//     ambiguous record preservation.
 //   - OnLegacyInFlightCompatibility or LegacyInFlightCompatibilitySink emits
 //     additive mixed-version recovery telemetry with method/path/store correlation for
 //     both fallback attempts and outcomes.

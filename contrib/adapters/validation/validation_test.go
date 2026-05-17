@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
 )
 
 func TestValidateNilValueReturnsValidationError(t *testing.T) {

@@ -8,7 +8,7 @@
 // Most contracts in this package are intended to stay adapter-neutral.
 // Compatibility-sensitive exceptions remain stable for v2 source compatibility
 // only: the provider-shaped billing contracts in billing.go are deprecated in
-// favor of github.com/aatuh/api-toolkit/v2/compat/billing, and the driver-shaped
+// favor of github.com/aatuh/api-toolkit/v3/compat/billing, and the driver-shaped
 // database stats contracts in database.go should be replaced in new code by
 // DatabasePoolSnapshotProvider, SnapshotDatabasePoolStats, or adapter
 // StatSnapshot methods. The legacy response writer package is similarly

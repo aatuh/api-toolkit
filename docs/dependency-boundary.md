@@ -13,7 +13,7 @@ The root module is the stable core surface. It should stay free of contrib and a
 
 These dependencies belong in `contrib/go.mod`, not root `go.mod`:
 
-- `github.com/aatuh/api-toolkit/contrib/v2`
+- `github.com/aatuh/api-toolkit/contrib/v3`
 - `github.com/alicebob/miniredis/v2`
 - `github.com/redis/go-redis/v9`
 

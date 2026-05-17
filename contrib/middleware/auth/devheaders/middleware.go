@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
-	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Config controls dev header-based auth.

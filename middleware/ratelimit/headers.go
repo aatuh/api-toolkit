@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 // Quota describes a rate-limit quota snapshot for response headers.

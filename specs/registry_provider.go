@@ -3,7 +3,7 @@ package specs
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // RegistryProvider adapts an OpenAPI registry to the DocsProvider interface.

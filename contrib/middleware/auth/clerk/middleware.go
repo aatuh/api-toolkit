@@ -10,9 +10,9 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
-	"github.com/aatuh/api-toolkit/v2/middleware/auth/shared"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/v3/middleware/auth/shared"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Config controls Clerk JWT validation.

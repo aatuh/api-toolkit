@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 type policyTestRouter struct {

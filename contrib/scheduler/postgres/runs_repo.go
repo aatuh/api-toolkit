@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/scheduler"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/scheduler"
 )
 
 // RunsRepo stores scheduler job executions.

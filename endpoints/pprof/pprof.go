@@ -5,7 +5,7 @@ import (
 	"net/http"
 	pp "net/http/pprof"
 
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 // Router defines the minimal GET registration contract needed for pprof routes.

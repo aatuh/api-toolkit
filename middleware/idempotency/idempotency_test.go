@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestIdempotencyReplay(t *testing.T) {
@@ -1869,41 +1869,6 @@ func TestNewRejectsStoreWithoutReleaseSemantics(t *testing.T) {
 	}
 }
 
-func TestIdempotencySupportsLegacyOnlyReleaserCompatibilityPath(t *testing.T) {
-	store := &legacyOnlyReleaseStore{store: newMemoryStore()}
-	mw, err := New(Options{
-		Store: store,
-		ShouldStore: func(status int) bool {
-			return false
-		},
-	})
-	if err != nil {
-		t.Fatalf("new middleware: %v", err)
-	}
-
-	calls := 0
-	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	for i := 0; i < 2; i++ {
-		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("same"))
-		req.Header.Set("Idempotency-Key", "legacy-release-only")
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusNoContent {
-			t.Fatalf("request %d status = %d, want %d", i+1, rec.Code, http.StatusNoContent)
-		}
-	}
-	if calls != 2 {
-		t.Fatalf("expected legacy release path to reopen key for retry, got %d calls", calls)
-	}
-	if store.releaseCalls != 2 {
-		t.Fatalf("expected legacy Release to be called twice, got %d", store.releaseCalls)
-	}
-}
-
 func TestNewRejectsNegativeMaxResponseBytes(t *testing.T) {
 	if _, err := New(Options{
 		Store:            newMemoryStore(),
@@ -2684,40 +2649,6 @@ func (s *legacyRecoveryErrorStore) ReleaseReservation(_ context.Context, key, to
 		return nil
 	}
 	return s.releaseErr
-}
-
-type legacyOnlyReleaseStore struct {
-	store        *memoryStore
-	releaseCalls int
-}
-
-func (s *legacyOnlyReleaseStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
-	if s == nil || s.store == nil {
-		return ports.IdempotencyRecord{}, false, nil
-	}
-	return s.store.Get(ctx, key)
-}
-
-func (s *legacyOnlyReleaseStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
-	if s == nil || s.store == nil {
-		return false, nil
-	}
-	return s.store.TryBegin(ctx, key, record, ttl)
-}
-
-func (s *legacyOnlyReleaseStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
-	if s == nil || s.store == nil {
-		return nil
-	}
-	return s.store.Save(ctx, key, record, ttl)
-}
-
-func (s *legacyOnlyReleaseStore) Release(ctx context.Context, key string) error {
-	if s == nil || s.store == nil {
-		return nil
-	}
-	s.releaseCalls++
-	return s.store.Release(ctx, key)
 }
 
 func (m *memoryStore) isExpired(entry memoryEntry) bool {

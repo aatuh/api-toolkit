@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	health "github.com/aatuh/api-toolkit/v2/endpoints/health"
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	health "github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 type contractRouteRegistrar struct {

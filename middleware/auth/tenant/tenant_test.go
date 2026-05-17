@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 type staticParam struct {

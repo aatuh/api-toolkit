@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type ownerResource string

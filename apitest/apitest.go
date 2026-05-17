@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/contracttest"
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/contracttest"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 // AssertProblem asserts a Problem Details response and returns the decoded body.

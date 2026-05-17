@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"testing"
 
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestNewAppliesOptionsAndWebhookHelpers(t *testing.T) {

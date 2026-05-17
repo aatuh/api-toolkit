@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar"
 )
 
 var env = envvar.New()

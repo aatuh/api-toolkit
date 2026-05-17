@@ -64,7 +64,7 @@ init_repo() {
   cp "$repo_root/scripts/contrib_release_notes_check.sh" "$dir/scripts/contrib_release_notes_check.sh"
   chmod +x "$dir/scripts/"*.sh
   cat >"$dir/docs/contrib-api-drift-packages.txt" <<'MANIFEST'
-github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders
+github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders
 MANIFEST
   cat >"$dir/docs/release-notes.md" <<'NOTES'
 # Release Notes
@@ -72,9 +72,9 @@ NOTES
   cat >"$dir/docs/package-classification.tsv" <<'TSV'
 # Public package classification manifest.
 # Columns: import_path	api_status	test_status	notes
-github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
-github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter.
-github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
+github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter.
+github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
 TSV
   cat >"$dir/contrib/middleware/auth/devheaders/devheaders.go" <<'GO'
 package devheaders
@@ -119,7 +119,7 @@ write_drift_disposition_manifest() {
   {
     printf 'package\tstatus\treason\trelease_note_acknowledgement\treviewed_on\texpires_on\towner\n'
     printf '%s\tincompatible\t%s\t%s\t2026-05-01\t%s\tcontrib-auth-maintainers\n' \
-      "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders" \
+      "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders" \
       "Fake incompatible drift for contract tests." \
       "docs/release-notes.md package-tied incompatible contrib acknowledgement" \
       "$expires_on"
@@ -215,7 +215,7 @@ esac
 
 cat >>"$tooling_cli_dir/docs/release-notes.md" <<'NOTES'
 
-- `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` scaffold behavior changed.
+- `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` scaffold behavior changed.
 NOTES
 tooling_cli_ack_output="$(require_success tooling-cli-release-notes-acknowledged run_script_in_dir "$tooling_cli_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$tooling_cli_ack_output" in
@@ -241,7 +241,7 @@ esac
 
 cat >>"$full_profile_asset_dir/docs/release-notes.md" <<'NOTES'
 
-- `github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit` saas-api-full runtime assets changed.
+- `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` saas-api-full runtime assets changed.
 NOTES
 full_profile_asset_ack_output="$(require_success full-profile-runtime-asset-release-notes-acknowledged run_script_in_dir "$full_profile_asset_dir" PATH="$fake_bin:$PATH" CONTRIB_RELEASE_BASE_REF=v-base scripts/contrib_release_notes_check.sh)"
 case "$full_profile_asset_ack_output" in

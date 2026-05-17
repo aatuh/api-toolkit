@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/middleware/deprecation"
-	"github.com/aatuh/api-toolkit/v2/negotiation"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/middleware/deprecation"
+	"github.com/aatuh/api-toolkit/v3/negotiation"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 // ErrUnsupportedPolicy reports metadata the configured policy cannot enforce.

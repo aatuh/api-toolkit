@@ -10,7 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 func TestNewRejectsNilSpecAndNilMiddlewarePassesThrough(t *testing.T) {

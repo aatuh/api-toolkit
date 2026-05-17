@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
 )
 
 func TestParseListQuerySort(t *testing.T) {
@@ -63,10 +65,10 @@ func TestParseListQueryCustomFilterParser(t *testing.T) {
 	cfg := ListQueryConfig{
 		DefaultLimit: 10,
 		MaxLimit:     50,
-		FilterParser: func(values url.Values, _ ListQueryConfig) Filters {
+		FilterParser: func(values url.Values, _ ListQueryConfig) (Filters, fielderrors.FieldErrors) {
 			return Filters{
 				"token_hash": {values.Get("token") + "_hashed"},
-			}
+			}, nil
 		},
 	}
 
@@ -86,19 +88,19 @@ func TestParseListQueryCustomSortParser(t *testing.T) {
 	cfg := ListQueryConfig{
 		DefaultLimit: 10,
 		MaxLimit:     50,
-		SortParser: func(values url.Values, _ ListQueryConfig) []SortField {
+		SortParser: func(values url.Values, _ ListQueryConfig) ([]SortField, fielderrors.FieldErrors) {
 			order := values.Get("order")
 			if order == "" {
-				return nil
+				return nil, nil
 			}
 			parts := strings.Split(order, ":")
 			if len(parts) != 2 {
-				return nil
+				return nil, nil
 			}
 			return []SortField{{
 				Field: parts[0],
 				Desc:  strings.EqualFold(parts[1], "desc"),
-			}}
+			}}, nil
 		},
 	}
 
@@ -138,28 +140,31 @@ func TestParseListQueryReturnsFieldErrorsForUnsupportedFilterAndSort(t *testing.
 	}
 }
 
-func TestParseListQueryPreservesSingleReturnCompatibility(t *testing.T) {
+func TestParseListQueryCheckedReturnsPartialQueryWithErrors(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/items?limit=abc&filter[status]=active&sort=-created_at", nil)
 
-	q := ParseListQuery(req, ListQueryConfig{
+	q, err := ParseListQueryChecked(req, ListQueryConfig{
 		DefaultLimit:   10,
 		MaxLimit:       50,
 		AllowedFilters: []string{"status"},
 		AllowedSorts:   []string{"created_at"},
 	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
 
 	if q.Limit != 10 {
-		t.Fatalf("expected default limit through compatibility parser, got %d", q.Limit)
+		t.Fatalf("expected default limit through checked parser, got %d", q.Limit)
 	}
 	if got := q.First("status"); got != "active" {
-		t.Fatalf("expected filter through compatibility parser, got %q", got)
+		t.Fatalf("expected filter through checked parser, got %q", got)
 	}
 	if len(q.Sort) != 1 || q.Sort[0].Field != "created_at" || !q.Sort[0].Desc {
-		t.Fatalf("expected sort through compatibility parser, got %+v", q.Sort)
+		t.Fatalf("expected sort through checked parser, got %+v", q.Sort)
 	}
 }
 
-func TestDefaultParsersPreserveSingleReturnCompatibility(t *testing.T) {
+func TestDefaultCheckedParsersReturnValidatedValues(t *testing.T) {
 	values := url.Values{
 		"filter[status]": []string{"active"},
 		"sort":           []string{"-created_at"},
@@ -169,12 +174,18 @@ func TestDefaultParsersPreserveSingleReturnCompatibility(t *testing.T) {
 		AllowedSorts:   []string{"created_at"},
 	}
 
-	filters := DefaultFilterParser(values, cfg)
-	if got := filters["status"]; len(got) != 1 || got[0] != "active" {
-		t.Fatalf("expected compatible filter parser output, got %#v", filters)
+	filters, filterErrs := DefaultFilterParserChecked(values, cfg)
+	if len(filterErrs) > 0 {
+		t.Fatalf("expected no filter errors, got %v", filterErrs)
 	}
-	sortFields := DefaultSortParser(values, cfg)
+	if got := filters["status"]; len(got) != 1 || got[0] != "active" {
+		t.Fatalf("expected checked filter parser output, got %#v", filters)
+	}
+	sortFields, sortErrs := DefaultSortParserChecked(values, cfg)
+	if len(sortErrs) > 0 {
+		t.Fatalf("expected no sort errors, got %v", sortErrs)
+	}
 	if len(sortFields) != 1 || sortFields[0].Field != "created_at" || !sortFields[0].Desc {
-		t.Fatalf("expected compatible sort parser output, got %+v", sortFields)
+		t.Fatalf("expected checked sort parser output, got %+v", sortFields)
 	}
 }

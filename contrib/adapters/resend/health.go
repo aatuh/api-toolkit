@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/endpoints/health"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // HealthChecker returns a Resend health checker or nil when disabled.

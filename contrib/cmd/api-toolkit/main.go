@@ -23,8 +23,8 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
-	"github.com/aatuh/api-toolkit/v2/routepolicy"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 const toolVersion = "dev"
@@ -35,11 +35,11 @@ var (
 )
 
 const (
-	coreModulePath    = "github.com/aatuh/api-toolkit/v2"
-	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v2"
+	coreModulePath    = "github.com/aatuh/api-toolkit/v3"
+	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v3"
 )
 
-const defaultScaffoldModuleVersion = "v2.1.0"
+const defaultScaffoldModuleVersion = "v3.0.0"
 
 func main() {
 	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
@@ -290,8 +290,8 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	profile := fs.String("profile", "saas-api", "service profile")
 	authMode := fs.String("auth", "api-key", "authentication mode")
 	dir := fs.String("dir", ".", "output directory")
-	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v2")
-	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v2")
+	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v3")
+	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v3")
 	var providerWorkflows providerWorkflowFlag
 	fs.Var(&providerWorkflows, "with", "optional provider workflow for saas-api-full; repeatable: stripe-billing, resend-email, clerk-webhooks, entitlements")
 	var scaffoldClients scaffoldClientFlag
@@ -4657,8 +4657,8 @@ func generateService(cfg scaffoldConfig) error {
 		"AuthSchemeName":       scaffoldAuthSecuritySchemeName(cfg.AuthMode),
 		"CoreVersion":          cfg.ToolkitVersion,
 		"ContribVersion":       cfg.ToolkitVersion,
-		"CoreReplace":          replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
-		"ContribReplace":       replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
+		"CoreReplace":          replaceLine("github.com/aatuh/api-toolkit/v3", cfg.CoreReplace),
+		"ContribReplace":       replaceLine("github.com/aatuh/api-toolkit/contrib/v3", cfg.ContribReplace),
 		"HasProviderWorkflows": boolTemplateValue(len(cfg.Providers) > 0),
 		"ProviderWorkflows":    providerWorkflowInlineList(cfg.Providers),
 		"HasStripeBilling":     boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderStripe)),
@@ -9687,8 +9687,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
 	"{{ .Module }}/internal/app"
 {{ if eq .HasEntitlements "true" }}	"{{ .Module }}/internal/entitlements"
 {{ end }}
@@ -9898,7 +9898,7 @@ import (
 	"strings"
 	"testing"
 
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
 	"{{ .Module }}/internal/app"
 {{ if eq .HasEntitlements "true" }}	"{{ .Module }}/internal/entitlements"
 {{ end }}
@@ -10024,8 +10024,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
-	"github.com/aatuh/api-toolkit/v2/email"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/v3/email"
 	"{{ .Module }}/internal/app"
 )
 
@@ -10132,7 +10132,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/email"
+	"github.com/aatuh/api-toolkit/v3/email"
 	"{{ .Module }}/internal/app"
 )
 
@@ -10218,7 +10218,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
 	"{{ .Module }}/internal/app"
 )
 
@@ -10704,8 +10704,8 @@ const fullGoModTemplate = `module {{ .Module }}
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/v2 {{ .CoreVersion }}
-	github.com/aatuh/api-toolkit/contrib/v2 {{ .ContribVersion }}
+	github.com/aatuh/api-toolkit/v3 {{ .CoreVersion }}
+	github.com/aatuh/api-toolkit/contrib/v3 {{ .ContribVersion }}
 )
 
 {{ .CoreReplace }}{{ .ContribReplace }}`
@@ -10724,20 +10724,20 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres"
-	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
-	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
-{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
-{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
-{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres"
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
+{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
 {{ end }}
-	"github.com/aatuh/api-toolkit/v2/endpoints/version"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/version"
+	"github.com/aatuh/api-toolkit/v3/ports"
 	objectstorage "{{ .Module }}/internal/adapters/objectstore"
 	"{{ .Module }}/internal/adapters/postgres"
 	rediscache "{{ .Module }}/internal/adapters/redis"
@@ -11071,12 +11071,12 @@ import (
 	"syscall"
 	"time"
 
-	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
-	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v3/ports"
 	"{{ .Module }}/internal/adapters/postgres"
 	"{{ .Module }}/internal/app"
 )
@@ -11176,8 +11176,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
-	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
 )
 
 func main() {
@@ -11448,7 +11448,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
 )
 
 type AuditService struct {
@@ -11600,7 +11600,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
 )
 
 func TestAuditServiceRecordsAndRedactsMetadata(t *testing.T) {
@@ -11691,7 +11691,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/cache"
+	"github.com/aatuh/api-toolkit/contrib/v3/cache"
 )
 
 const webhookEventTypesCacheKey = "catalog:webhook-events"
@@ -12432,9 +12432,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/operations"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/operations"
 )
 
 const WidgetImportJobKind = "widgets.import"
@@ -12813,8 +12813,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	"github.com/aatuh/api-toolkit/v2/operations"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/v3/operations"
 )
 
 func TestAsyncServiceCompletesWidgetImport(t *testing.T) {
@@ -12982,7 +12982,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
 
 	"{{ .Module }}/internal/domain"
 )
@@ -13532,7 +13532,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
 )
 
 func TestWebhookServiceCreatesEndpointAndDispatchesTenantDelivery(t *testing.T) {
@@ -16994,12 +16994,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/operations"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/v3/ports"
 
 	"{{ .Module }}/internal/app"
 )
@@ -17166,9 +17166,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres"
-	"github.com/aatuh/api-toolkit/v2/operations"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/v3/operations"
 
 	"{{ .Module }}/internal/app"
 )
@@ -17221,10 +17221,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 var (
@@ -17624,9 +17624,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestNewWebhookStoreRequiresSecretKey(t *testing.T) {
@@ -17746,7 +17746,6 @@ type fakeWebhookPool struct {
 
 func (p *fakeWebhookPool) Ping(context.Context) error { return nil }
 func (p *fakeWebhookPool) Close()                     {}
-func (p *fakeWebhookPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *fakeWebhookPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	if p.conn == nil {
@@ -17875,8 +17874,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/objectstores3"
-	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3"
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v3/objectstore"
 
 	"{{ .Module }}/internal/app"
 )
@@ -18004,7 +18003,7 @@ import (
 	"strings"
 	"testing"
 
-	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v3/objectstore"
 
 	"{{ .Module }}/internal/app"
 )
@@ -18090,11 +18089,11 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis"
-	"github.com/aatuh/api-toolkit/contrib/v2/cache"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis"
+	"github.com/aatuh/api-toolkit/contrib/v3/cache"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 var (
@@ -18243,8 +18242,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v2/routepolicy"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 func OpenAPIDocument() ([]byte, error) {
@@ -19204,23 +19203,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
-	openapimw "github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	openapimw "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
-{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
-{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
-{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
+{{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
 {{ end }}
-	"github.com/aatuh/api-toolkit/v2/endpoints/health"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	corepprof "github.com/aatuh/api-toolkit/v2/endpoints/pprof"
-	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
-	ratelimitmw "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
-	apitkops "github.com/aatuh/api-toolkit/v2/operations"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	corepprof "github.com/aatuh/api-toolkit/v3/endpoints/pprof"
+	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	ratelimitmw "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	apitkops "github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/v3/ports"
 
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
@@ -21312,13 +21311,13 @@ import (
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-{{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-{{ else if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
-{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+{{ else if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk"
+{{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
 {{ end }}
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 {{ end }}
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
 	"{{ .Module }}/internal/app"
 {{ if eq .HasEntitlements "true" }}	entitlements "{{ .Module }}/internal/entitlements"
 {{ end }}
@@ -22444,7 +22443,7 @@ DROP TABLE IF EXISTS organizations;
 `
 
 const fullMakefileTemplate = `GO ?= go
-API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
+API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
@@ -23999,8 +23998,8 @@ const goModTemplate = `module {{ .Module }}
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/v2 {{ .CoreVersion }}
-	github.com/aatuh/api-toolkit/contrib/v2 {{ .ContribVersion }}
+	github.com/aatuh/api-toolkit/v3 {{ .CoreVersion }}
+	github.com/aatuh/api-toolkit/contrib/v3 {{ .ContribVersion }}
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	github.com/golang-jwt/jwt/v5 v5.3.0
 {{ end }}	github.com/redis/go-redis/v9 v9.19.0
 )
@@ -24020,33 +24019,33 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotencyredis"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/ratelimitredis"
-	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
-	requestlog "github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog"
-	"github.com/aatuh/api-toolkit/contrib/v2/telemetry"
-{{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	"github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/devheaders"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis"
+	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	requestlog "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog"
+	"github.com/aatuh/api-toolkit/contrib/v3/telemetry"
+{{ if eq .AuthMode "dev-headers" }}	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders"
 {{ end }}
-{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
-{{ end }}{{ if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
+{{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk"
+{{ end }}{{ if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
 {{ end }}	"github.com/redis/go-redis/v9"
-	"github.com/aatuh/api-toolkit/v2/authorization"
-	"github.com/aatuh/api-toolkit/v2/binding"
-	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v2/endpoints/health"
-	"github.com/aatuh/api-toolkit/v2/endpoints/version"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-{{ if or (eq .AuthMode "jwt") (eq .AuthMode "dev-headers") }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-{{ end }}{{ if eq .AuthMode "api-key" }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/apikey"
-{{ end }}	"github.com/aatuh/api-toolkit/v2/middleware/auth/tenant"
-	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/routecontracts"
-	"github.com/aatuh/api-toolkit/v2/routepolicy"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v3/binding"
+	"github.com/aatuh/api-toolkit/v3/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v3/endpoints/version"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "dev-headers") }}	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+{{ end }}{{ if eq .AuthMode "api-key" }}	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
+{{ end }}	"github.com/aatuh/api-toolkit/v3/middleware/auth/tenant"
+	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/routecontracts"
+	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 type createWidgetRequest struct {
@@ -24893,8 +24892,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 {{ end }}
-	"github.com/aatuh/api-toolkit/v2/contracttest"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/contracttest"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 var updateOpenAPI = flag.Bool("update-openapi", false, "rewrite testdata/openapi.golden.json")
@@ -25505,7 +25504,7 @@ func jwkFromRSAPublicKey(key *rsa.PublicKey) map[string]string {
 `
 
 const makefileTemplate = `GO ?= go
-API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
+API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 OUTPUT_DIR ?= .ci-result

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type fakeDatabasePool struct{}
@@ -14,7 +14,6 @@ func (fakeDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, erro
 	return nil, errors.New("not implemented")
 }
 func (fakeDatabasePool) Ping(context.Context) error { return nil }
-func (fakeDatabasePool) Stat() ports.DatabaseStats  { return nil }
 func (fakeDatabasePool) Close()                     {}
 
 func TestNewWithStartupTimeoutReturnsFactoryPool(t *testing.T) {

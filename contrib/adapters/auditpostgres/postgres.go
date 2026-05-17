@@ -9,10 +9,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
-	"github.com/aatuh/api-toolkit/v2/endpoints/health"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const defaultTable = "audit_events"

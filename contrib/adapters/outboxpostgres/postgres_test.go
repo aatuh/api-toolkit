@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
-	"github.com/aatuh/api-toolkit/contrib/v2/async/asynctest"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/contrib/v3/async/asynctest"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestAsyncStoreContract(t *testing.T) {
@@ -211,7 +211,6 @@ type fakeDBPool struct {
 
 func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
-func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	return p.conn, nil

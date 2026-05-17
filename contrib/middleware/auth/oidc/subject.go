@@ -3,7 +3,7 @@ package oidc
 import (
 	"context"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 type ctxKey string

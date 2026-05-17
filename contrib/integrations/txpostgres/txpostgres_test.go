@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	adaptertx "github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	adaptertx "github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestNewReturnsManager(t *testing.T) {
@@ -73,4 +73,3 @@ func (*fakePool) Close()                     {}
 func (*fakePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	return nil, errors.New("unused")
 }
-func (*fakePool) Stat() ports.DatabaseStats { return nil }

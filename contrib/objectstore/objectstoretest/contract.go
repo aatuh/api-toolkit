@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
 )
 
 // StoreFactory builds a fresh object store for one contract test run.

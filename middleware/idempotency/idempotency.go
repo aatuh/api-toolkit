@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const cleanupTimeout = 5 * time.Second
@@ -79,7 +79,6 @@ type Options struct {
 // Middleware enforces Idempotency-Key semantics.
 type Middleware struct {
 	opts                       Options
-	releaser                   ports.IdempotencyReleaser
 	reservationReleaser        ports.IdempotencyReservationReleaser
 	legacyClockSkewWarningOnce sync.Once
 	legacyRecoveryStoreType    string
@@ -90,11 +89,10 @@ func New(opts Options) (*Middleware, error) {
 	if opts.Store == nil {
 		return nil, errors.New("idempotency store is required")
 	}
-	releaser, ok := opts.Store.(ports.IdempotencyReleaser)
+	reservationReleaser, ok := opts.Store.(ports.IdempotencyReservationReleaser)
 	if !ok {
-		return nil, errors.New("idempotency store must implement release semantics")
+		return nil, errors.New("idempotency store must implement token-aware release semantics")
 	}
-	reservationReleaser, _ := opts.Store.(ports.IdempotencyReservationReleaser)
 	if opts.TTL < 0 {
 		return nil, errors.New("ttl must be non-negative")
 	}
@@ -177,7 +175,6 @@ func New(opts Options) (*Middleware, error) {
 	}
 	return &Middleware{
 		opts:                opts,
-		releaser:            releaser,
 		reservationReleaser: reservationReleaser,
 
 		legacyRecoveryStoreType: storeType,
@@ -505,13 +502,10 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 }
 
 func (m *Middleware) releaseReservation(ctx context.Context, key, token string) error {
-	if key == "" || m == nil || m.releaser == nil {
+	if key == "" || m == nil || m.reservationReleaser == nil {
 		return nil
 	}
-	if m.reservationReleaser != nil {
-		return m.reservationReleaser.ReleaseReservation(ctx, key, token)
-	}
-	return m.releaser.Release(ctx, key)
+	return m.reservationReleaser.ReleaseReservation(ctx, key, token)
 }
 
 func (m *Middleware) markAmbiguous(ctx context.Context, key, hash string) error {

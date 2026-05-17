@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const defaultStartupTimeout = 5 * time.Second
@@ -63,8 +63,8 @@ func (a *Adapter) Acquire(ctx context.Context) (ports.DatabaseConnection, error)
 	return &Connection{Conn: conn}, nil
 }
 
-// Stat returns the legacy database stats compatibility wrapper.
-func (a *Adapter) Stat() ports.DatabaseStats {
+// Stat returns the pgx-shaped database stats wrapper for adapter-specific callers.
+func (a *Adapter) Stat() *Stats {
 	return &Stats{Stat: a.Pool.Stat()}
 }
 
@@ -158,7 +158,7 @@ func (t *Transaction) Exec(ctx context.Context, sql string, args ...any) (ports.
 	return &Result{CommandTag: result}, nil
 }
 
-// Stats wraps pgxpool.Stat to implement ports.DatabaseStats.
+// Stats wraps pgxpool.Stat for adapter-specific callers that need pgx-shaped counters.
 type Stats struct {
 	*pgxpool.Stat
 }
