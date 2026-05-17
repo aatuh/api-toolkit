@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -70,6 +71,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runContracts(ctx, args[1:], stdout, stderr)
 	case "clients":
 		return runClients(ctx, args[1:], stdout, stderr)
+	case "ops":
+		return runOps(ctx, args[1:], stdout, stderr)
+	case "deploy":
+		return runDeploy(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -77,14 +82,23 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 const (
-	usageTopLevel      = "usage: api-toolkit <new|generate|contracts|clients|version>"
-	usageVersion       = "usage: api-toolkit version [--json]"
-	usageNew           = "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers] [--with stripe-billing|resend-email|clerk-webhooks]"
-	usageGenerate      = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--dir <path>]"
-	usageContracts     = "usage: api-toolkit contracts <lint|diff>"
-	usageContractsLint = "usage: api-toolkit contracts lint --openapi <openapi.json> [--public-path <path>] [--admin-path <path>]"
-	usageContractsDiff = "usage: api-toolkit contracts diff --base <openapi.json> --head <openapi.json>"
-	usageClients       = "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name> [--style raw|typed]"
+	usageTopLevel           = "usage: api-toolkit <new|generate|contracts|clients|ops|deploy|version>"
+	usageVersion            = "usage: api-toolkit version [--json]"
+	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
+	usageGenerate           = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--admin] [--field <field>] [--filter <field>] [--sort <field>] [--relationship <spec>] [--object-field <field>] [--dir <path>]"
+	usageContracts          = "usage: api-toolkit contracts <lint|diff|changelog|impact>"
+	usageContractsLint      = "usage: api-toolkit contracts lint --openapi <openapi.json> [--public-path <path>] [--admin-path <path>]"
+	usageContractsDiff      = "usage: api-toolkit contracts diff --base <openapi.json> --head <openapi.json>"
+	usageContractsChangelog = "usage: api-toolkit contracts changelog --base <openapi.json> --head <openapi.json>"
+	usageContractsImpact    = "usage: api-toolkit contracts impact --base <openapi.json> --head <openapi.json>"
+	usageClients            = "usage: api-toolkit clients <go|typescript>"
+	usageClientsGo          = "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name> [--style raw|typed]"
+	usageClientsTypeScript  = "usage: api-toolkit clients typescript --openapi <openapi.json> --out <dir> --package-name <name> --style fetch"
+	usageOps                = "usage: api-toolkit ops <observability>"
+	usageOpsObservability   = "usage: api-toolkit ops observability --profile saas-api-full --out <dir>"
+	usageDeploy             = "usage: api-toolkit deploy <helm|terraform>"
+	usageDeployHelm         = "usage: api-toolkit deploy helm --dir <project> --out <dir>"
+	usageDeployTerraform    = "usage: api-toolkit deploy terraform --cloud aws --dir <project> --out <dir>"
 )
 
 func isHelpArg(arg string) bool {
@@ -279,7 +293,9 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v2")
 	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v2")
 	var providerWorkflows providerWorkflowFlag
-	fs.Var(&providerWorkflows, "with", "optional provider workflow for saas-api-full; repeatable: stripe-billing, resend-email, clerk-webhooks")
+	fs.Var(&providerWorkflows, "with", "optional provider workflow for saas-api-full; repeatable: stripe-billing, resend-email, clerk-webhooks, entitlements")
+	var scaffoldClients scaffoldClientFlag
+	fs.Var(&scaffoldClients, "client", "client to generate for saas-api-full; repeatable: go, typescript")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -302,12 +318,18 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	clients, err := validateScaffoldClients(profileName, scaffoldClients.Values())
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	cfg := scaffoldConfig{
 		Module:         strings.TrimSpace(*module),
 		Dir:            strings.TrimSpace(*dir),
 		Profile:        profileName,
 		AuthMode:       authName,
 		Providers:      providers,
+		Clients:        clients,
 		CoreReplace:    strings.TrimSpace(*coreReplace),
 		ContribReplace: strings.TrimSpace(*contribReplace),
 		ToolkitVersion: scaffoldDependencyVersion(collectVersionMetadata()),
@@ -345,6 +367,17 @@ func runGenerate(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	etag := fs.Bool("etag", false, "generate optimistic concurrency with ETags")
 	audit := fs.Bool("audit", false, "record audit hooks")
 	webhooks := fs.Bool("webhooks", false, "emit webhook hooks")
+	admin := fs.Bool("admin", false, "generate admin routes")
+	var fields stringListFlag
+	var filters stringListFlag
+	var sorts stringListFlag
+	var relationships stringListFlag
+	var objectFields stringListFlag
+	fs.Var(&fields, "field", "resource field DSL; repeatable")
+	fs.Var(&filters, "filter", "list filter field; repeatable")
+	fs.Var(&sorts, "sort", "deterministic sort field; repeatable")
+	fs.Var(&relationships, "relationship", "relationship spec; repeatable")
+	fs.Var(&objectFields, "object-field", "object-backed field; repeatable")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -353,16 +386,22 @@ func runGenerate(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		return 1
 	}
 	cfg := resourceConfig{
-		Dir:          strings.TrimSpace(*dir),
-		Name:         strings.TrimSpace(*name),
-		Plural:       strings.TrimSpace(*plural),
-		TenantScoped: *tenantScoped,
-		CRUD:         *crud,
-		Postgres:     *postgres,
-		SoftDelete:   *softDelete,
-		ETag:         *etag,
-		Audit:        *audit,
-		Webhooks:     *webhooks,
+		Dir:           strings.TrimSpace(*dir),
+		Name:          strings.TrimSpace(*name),
+		Plural:        strings.TrimSpace(*plural),
+		TenantScoped:  *tenantScoped,
+		CRUD:          *crud,
+		Postgres:      *postgres,
+		SoftDelete:    *softDelete,
+		ETag:          *etag,
+		Audit:         *audit,
+		Webhooks:      *webhooks,
+		Admin:         *admin,
+		Fields:        fields.Values(),
+		Filters:       filters.Values(),
+		Sorts:         sorts.Values(),
+		Relationships: relationships.Values(),
+		ObjectFields:  objectFields.Values(),
 	}
 	if err := generateResource(ctx, cfg); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -373,22 +412,28 @@ func runGenerate(ctx context.Context, args []string, stdout, stderr io.Writer) i
 }
 
 const (
-	scaffoldProfileSaaSAPI     = "saas-api"
-	scaffoldProfileSaaSAPIFull = "saas-api-full"
-	scaffoldProfileDevAPI      = "dev-api"
-	scaffoldAuthAPIKey         = "api-key"
-	scaffoldAuthJWT            = "jwt"
-	scaffoldAuthClerk          = "clerk"
-	scaffoldAuthOIDC           = "oidc"
-	scaffoldAuthDevHeaders     = "dev-headers"
-	scaffoldProviderStripe     = "stripe-billing"
-	scaffoldProviderResend     = "resend-email"
-	scaffoldProviderClerkHooks = "clerk-webhooks"
+	scaffoldProfileSaaSAPI       = "saas-api"
+	scaffoldProfileSaaSAPIFull   = "saas-api-full"
+	scaffoldProfileSaaSWeb       = "saas-web"
+	scaffoldProfileDevAPI        = "dev-api"
+	scaffoldAuthAPIKey           = "api-key"
+	scaffoldAuthJWT              = "jwt"
+	scaffoldAuthClerk            = "clerk"
+	scaffoldAuthOIDC             = "oidc"
+	scaffoldAuthDevHeaders       = "dev-headers"
+	scaffoldAuthSession          = "session"
+	scaffoldAuthOIDCSession      = "oidc-session"
+	scaffoldClientGo             = "go"
+	scaffoldClientTypeScript     = "typescript"
+	scaffoldProviderStripe       = "stripe-billing"
+	scaffoldProviderResend       = "resend-email"
+	scaffoldProviderClerkHooks   = "clerk-webhooks"
+	scaffoldProviderEntitlements = "entitlements"
 )
 
 func isSupportedScaffoldProfile(profile string) bool {
 	switch strings.TrimSpace(profile) {
-	case scaffoldProfileSaaSAPI, scaffoldProfileSaaSAPIFull, scaffoldProfileDevAPI:
+	case scaffoldProfileSaaSAPI, scaffoldProfileSaaSAPIFull, scaffoldProfileSaaSWeb, scaffoldProfileDevAPI:
 		return true
 	default:
 		return false
@@ -399,21 +444,29 @@ func validateScaffoldAuthMode(profile, authMode string) (string, error) {
 	profile = strings.TrimSpace(profile)
 	authMode = strings.ToLower(strings.TrimSpace(authMode))
 	if authMode == "" {
-		if profile == scaffoldProfileDevAPI {
+		switch profile {
+		case scaffoldProfileDevAPI:
 			authMode = scaffoldAuthDevHeaders
-		} else {
+		case scaffoldProfileSaaSWeb:
+			authMode = scaffoldAuthSession
+		default:
 			authMode = scaffoldAuthAPIKey
 		}
 	}
 	switch authMode {
 	case scaffoldAuthAPIKey, scaffoldAuthJWT, scaffoldAuthClerk:
-		if profile == scaffoldProfileDevAPI {
+		if profile == scaffoldProfileDevAPI || profile == scaffoldProfileSaaSWeb {
 			return "", fmt.Errorf("auth mode %q is not supported for profile %q", authMode, profile)
 		}
 		return authMode, nil
 	case scaffoldAuthOIDC:
 		if profile != scaffoldProfileSaaSAPIFull {
 			return "", fmt.Errorf("auth mode %q requires profile %q", authMode, scaffoldProfileSaaSAPIFull)
+		}
+		return authMode, nil
+	case scaffoldAuthSession, scaffoldAuthOIDCSession:
+		if profile != scaffoldProfileSaaSWeb {
+			return "", fmt.Errorf("auth mode %q requires profile %q", authMode, scaffoldProfileSaaSWeb)
 		}
 		return authMode, nil
 	case scaffoldAuthDevHeaders:
@@ -450,6 +503,30 @@ func (f providerWorkflowFlag) Values() []string {
 	return append([]string(nil), f.values...)
 }
 
+type scaffoldClientFlag struct {
+	values []string
+}
+
+func (f *scaffoldClientFlag) String() string {
+	if f == nil {
+		return ""
+	}
+	return strings.Join(f.values, ",")
+}
+
+func (f *scaffoldClientFlag) Set(value string) error {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return errors.New("client must not be empty")
+	}
+	f.values = append(f.values, value)
+	return nil
+}
+
+func (f scaffoldClientFlag) Values() []string {
+	return append([]string(nil), f.values...)
+}
+
 func validateScaffoldProviderWorkflows(profile string, workflows []string) ([]string, error) {
 	if len(workflows) == 0 {
 		return nil, nil
@@ -462,16 +539,46 @@ func validateScaffoldProviderWorkflows(profile string, workflows []string) ([]st
 	for _, workflow := range workflows {
 		workflow = strings.ToLower(strings.TrimSpace(workflow))
 		switch workflow {
-		case scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks:
+		case scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks, scaffoldProviderEntitlements:
 			seen[workflow] = true
 		default:
 			return nil, fmt.Errorf("unsupported provider workflow %q", workflow)
 		}
 	}
 	ordered := make([]string, 0, len(seen))
-	for _, workflow := range []string{scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks} {
+	for _, workflow := range []string{scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks, scaffoldProviderEntitlements} {
 		if seen[workflow] {
 			ordered = append(ordered, workflow)
+		}
+	}
+	return ordered, nil
+}
+
+func validateScaffoldClients(profile string, clients []string) ([]string, error) {
+	profile = strings.TrimSpace(profile)
+	if len(clients) == 0 {
+		if profile == scaffoldProfileSaaSAPIFull {
+			return []string{scaffoldClientGo}, nil
+		}
+		return nil, nil
+	}
+	if profile != scaffoldProfileSaaSAPIFull {
+		return nil, fmt.Errorf("client generation requires profile %q", scaffoldProfileSaaSAPIFull)
+	}
+	seen := map[string]bool{scaffoldClientGo: true}
+	for _, client := range clients {
+		client = strings.ToLower(strings.TrimSpace(client))
+		switch client {
+		case scaffoldClientGo, scaffoldClientTypeScript:
+			seen[client] = true
+		default:
+			return nil, fmt.Errorf("unsupported scaffold client %q", client)
+		}
+	}
+	ordered := make([]string, 0, len(seen))
+	for _, client := range []string{scaffoldClientGo, scaffoldClientTypeScript} {
+		if seen[client] {
+			ordered = append(ordered, client)
 		}
 	}
 	return ordered, nil
@@ -565,6 +672,60 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		}
 		fmt.Fprintln(stdout, "contracts diff passed")
 		return 0
+	case "changelog":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageContractsChangelog)
+			return 0
+		}
+		fs := flag.NewFlagSet("contracts changelog", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		base := fs.String("base", "", "base OpenAPI JSON file")
+		head := fs.String("head", "", "head OpenAPI JSON file")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		report, err := compareOpenAPIContracts(*base, *head)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprint(stdout, renderOpenAPIChangelog(report))
+		return 0
+	case "impact":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageContractsImpact)
+			return 0
+		}
+		fs := flag.NewFlagSet("contracts impact", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		base := fs.String("base", "", "base OpenAPI JSON file")
+		head := fs.String("head", "", "head OpenAPI JSON file")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		report, err := compareOpenAPIContracts(*base, *head)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		payload, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintln(stdout, string(payload))
+		if report.Breaking {
+			return 1
+		}
+		return 0
 	default:
 		fmt.Fprintf(stderr, "unknown contracts command %q\n", args[0])
 		return 2
@@ -576,39 +737,174 @@ func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		fmt.Fprintln(stdout, usageClients)
 		return 0
 	}
-	if len(args) == 0 || args[0] != "go" {
+	if len(args) == 0 {
 		fmt.Fprintln(stderr, usageClients)
 		return 2
 	}
-	if leafHelpRequested(args[1:]) {
-		fmt.Fprintln(stdout, usageClients)
+	switch args[0] {
+	case "go":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageClientsGo)
+			return 0
+		}
+		fs := flag.NewFlagSet("clients go", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
+		outDir := fs.String("out", "", "output directory")
+		packageName := fs.String("package", "apiclient", "Go package name")
+		style := fs.String("style", goClientStyleRaw, "Go client style: raw or typed")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		cfg := goClientConfig{
+			OpenAPIPath: strings.TrimSpace(*openAPIPath),
+			OutDir:      strings.TrimSpace(*outDir),
+			Package:     strings.TrimSpace(*packageName),
+			Style:       strings.ToLower(strings.TrimSpace(*style)),
+		}
+		if err := generateGoClient(cfg); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", filepath.Join(cfg.OutDir, "client.go"))
 		return 0
-	}
-	fs := flag.NewFlagSet("clients go", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
-	outDir := fs.String("out", "", "output directory")
-	packageName := fs.String("package", "apiclient", "Go package name")
-	style := fs.String("style", goClientStyleRaw, "Go client style: raw or typed")
-	if err := fs.Parse(args[1:]); err != nil {
+	case "typescript":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageClientsTypeScript)
+			return 0
+		}
+		fs := flag.NewFlagSet("clients typescript", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
+		outDir := fs.String("out", "", "output directory")
+		packageName := fs.String("package-name", "api-client", "TypeScript package name")
+		style := fs.String("style", typescriptClientStyleFetch, "TypeScript client style")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		cfg := typescriptClientConfig{
+			OpenAPIPath: strings.TrimSpace(*openAPIPath),
+			OutDir:      strings.TrimSpace(*outDir),
+			PackageName: strings.TrimSpace(*packageName),
+			Style:       strings.ToLower(strings.TrimSpace(*style)),
+		}
+		if err := generateTypeScriptClient(cfg); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", filepath.Join(cfg.OutDir, "src", "index.ts"))
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown clients command %q\n", args[0])
 		return 2
 	}
-	if err := ctx.Err(); err != nil {
-		fmt.Fprintf(stderr, "context canceled: %v\n", err)
-		return 1
+}
+
+func runOps(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageOps)
+		return 0
 	}
-	cfg := goClientConfig{
-		OpenAPIPath: strings.TrimSpace(*openAPIPath),
-		OutDir:      strings.TrimSpace(*outDir),
-		Package:     strings.TrimSpace(*packageName),
-		Style:       strings.ToLower(strings.TrimSpace(*style)),
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, usageOps)
+		return 2
 	}
-	if err := generateGoClient(cfg); err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
+	switch args[0] {
+	case "observability":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageOpsObservability)
+			return 0
+		}
+		fs := flag.NewFlagSet("ops observability", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		profile := fs.String("profile", scaffoldProfileSaaSAPIFull, "scaffold profile")
+		outDir := fs.String("out", "", "output directory")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		if err := generateObservabilityBundle(strings.TrimSpace(*profile), strings.TrimSpace(*outDir)); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", strings.TrimSpace(*outDir))
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown ops command %q\n", args[0])
+		return 2
 	}
-	fmt.Fprintf(stdout, "generated %s\n", filepath.Join(cfg.OutDir, "client.go"))
-	return 0
+}
+
+func runDeploy(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageDeploy)
+		return 0
+	}
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, usageDeploy)
+		return 2
+	}
+	switch args[0] {
+	case "helm":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageDeployHelm)
+			return 0
+		}
+		fs := flag.NewFlagSet("deploy helm", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		projectDir := fs.String("dir", ".", "generated service directory")
+		outDir := fs.String("out", "deploy/helm", "output directory")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		if err := generateHelmChart(strings.TrimSpace(*projectDir), strings.TrimSpace(*outDir)); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", strings.TrimSpace(*outDir))
+		return 0
+	case "terraform":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageDeployTerraform)
+			return 0
+		}
+		fs := flag.NewFlagSet("deploy terraform", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		cloud := fs.String("cloud", "aws", "cloud target")
+		projectDir := fs.String("dir", ".", "generated service directory")
+		outDir := fs.String("out", "deploy/terraform/aws", "output directory")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if err := ctx.Err(); err != nil {
+			fmt.Fprintf(stderr, "context canceled: %v\n", err)
+			return 1
+		}
+		if err := generateTerraformStarter(strings.TrimSpace(*cloud), strings.TrimSpace(*projectDir), strings.TrimSpace(*outDir)); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", strings.TrimSpace(*outDir))
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown deploy command %q\n", args[0])
+		return 2
+	}
 }
 
 type stringListFlag struct {
@@ -755,17 +1051,997 @@ func writeGeneratedFileReplace(root *os.Root, name string, data []byte) error {
 	return nil
 }
 
+type typescriptClientConfig struct {
+	OpenAPIPath string
+	OutDir      string
+	PackageName string
+	Style       string
+}
+
+const typescriptClientStyleFetch = "fetch"
+
+func generateTypeScriptClient(cfg typescriptClientConfig) error {
+	if cfg.OpenAPIPath == "" {
+		return errors.New("--openapi is required")
+	}
+	if strings.TrimSpace(cfg.OutDir) == "" {
+		return errors.New("--out is required")
+	}
+	if !validTypeScriptPackageName(cfg.PackageName) {
+		return fmt.Errorf("invalid TypeScript package name %q", cfg.PackageName)
+	}
+	if cfg.Style == "" {
+		cfg.Style = typescriptClientStyleFetch
+	}
+	if cfg.Style != typescriptClientStyleFetch {
+		return fmt.Errorf("unsupported TypeScript client style %q", cfg.Style)
+	}
+	loaded, err := loadOpenAPI(cfg.OpenAPIPath)
+	if err != nil {
+		return err
+	}
+	if err := loaded.validate(); err != nil {
+		return err
+	}
+	outDir, err := safeOutputDir(cfg.OutDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
+	}
+	root, err := os.OpenRoot(outDir)
+	if err != nil {
+		return fmt.Errorf("open output root: %w", err)
+	}
+	defer root.Close()
+	files := map[string][]byte{
+		"src/index.ts": []byte(renderTypeScriptFetchClient(loaded.doc)),
+		"package.json": []byte(renderTypeScriptPackageJSON(cfg.PackageName)),
+		"tsconfig.json": []byte(`{
+  "compilerOptions": {
+    "declaration": true,
+    "lib": ["ES2022", "DOM"],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "outDir": "dist",
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": ["src/**/*.ts"]
+}
+`),
+		"README.md": []byte(renderTypeScriptClientReadme(cfg.PackageName)),
+	}
+	for _, name := range sortedMapKeys(files) {
+		if err := writeGeneratedFileReplace(root, name, files[name]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validTypeScriptPackageName(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" || strings.Contains(name, "..") || strings.ContainsAny(name, "\\ \t\r\n") || strings.HasPrefix(name, ".") {
+		return false
+	}
+	parts := strings.Split(name, "/")
+	if strings.HasPrefix(name, "@") {
+		if len(parts) != 2 || !strings.HasPrefix(parts[0], "@") || len(parts[0]) == 1 {
+			return false
+		}
+		return validNPMNamePart(strings.TrimPrefix(parts[0], "@")) && validNPMNamePart(parts[1])
+	}
+	if len(parts) != 1 {
+		return false
+	}
+	return validNPMNamePart(name)
+}
+
+func validNPMNamePart(value string) bool {
+	if value == "" || strings.HasPrefix(value, ".") || strings.HasPrefix(value, "-") {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		ch := value[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func renderTypeScriptPackageJSON(packageName string) string {
+	return fmt.Sprintf(`{
+  "name": %s,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+`, strconv.Quote(packageName))
+}
+
+func renderTypeScriptClientReadme(packageName string) string {
+	return fmt.Sprintf(`# %s
+
+Generated fetch client for the api-toolkit supported OpenAPI subset.
+
+The client supports JSON request and response bodies, path/query/header parameters, API key auth, bearer auth, Problem Details errors, and raw response access through the returned response object.
+`, packageName)
+}
+
+func renderTypeScriptFetchClient(doc *openapi3.T) string {
+	var out strings.Builder
+	out.WriteString(`export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  [key: string]: unknown;
+}
+
+export interface ClientResponse<T> {
+  data: T;
+  response: Response;
+}
+
+export interface RequestOptions {
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+  apiKey?: string;
+  bearerToken?: string;
+}
+
+export class ProblemDetailsError extends Error {
+  readonly problem: ProblemDetails;
+  readonly response: Response;
+
+  constructor(problem: ProblemDetails, response: Response) {
+    super(problem.title || response.statusText || "API request failed");
+    this.name = "ProblemDetailsError";
+    this.problem = problem;
+    this.response = response;
+  }
+}
+
+export interface APIClientOptions {
+  baseURL: string;
+  fetch?: typeof fetch;
+  apiKey?: string;
+  bearerToken?: string;
+}
+
+`)
+	renderTypeScriptSchemas(&out, doc)
+	operations := typedClientOperationsFromOpenAPI(doc)
+	for _, operation := range operations {
+		if strings.TrimSpace(operation.OperationID) == "" {
+			continue
+		}
+		renderTypeScriptOperationTypes(&out, operation)
+	}
+	out.WriteString(`export class APIClient {
+  private readonly baseURL: string;
+  private readonly fetcher: typeof fetch;
+  private apiKey?: string;
+  private bearerToken?: string;
+
+  constructor(options: APIClientOptions) {
+    this.baseURL = options.baseURL.replace(/\/+$/, "");
+    this.fetcher = options.fetch || fetch.bind(globalThis);
+    this.apiKey = options.apiKey;
+    this.bearerToken = options.bearerToken;
+  }
+
+  setAPIKey(apiKey: string): void {
+    this.apiKey = apiKey;
+  }
+
+  setBearerToken(token: string): void {
+    this.bearerToken = token;
+  }
+
+`)
+	for _, operation := range operations {
+		if strings.TrimSpace(operation.OperationID) == "" {
+			continue
+		}
+		renderTypeScriptOperation(&out, operation)
+	}
+	out.WriteString(`  private async request<T>(method: string, path: string, query: URLSearchParams, body: unknown, options: RequestOptions): Promise<ClientResponse<T>> {
+    const url = new URL(this.baseURL + path);
+    for (const [key, value] of query.entries()) {
+      url.searchParams.set(key, value);
+    }
+    const headers = new Headers(options.headers || {});
+    if (this.apiKey || options.apiKey) {
+      headers.set("X-API-Key", options.apiKey || this.apiKey || "");
+    }
+    if (this.bearerToken || options.bearerToken) {
+      headers.set("Authorization", "Bearer " + (options.bearerToken || this.bearerToken || ""));
+    }
+    const init: RequestInit = { method, headers, signal: options.signal };
+    if (body !== undefined) {
+      headers.set("Content-Type", "application/json");
+      init.body = JSON.stringify(body);
+    }
+    const response = await this.fetcher(url, init);
+    if (!response.ok) {
+      throw new ProblemDetailsError(await decodeProblem(response), response);
+    }
+    const data = response.status === 204 ? undefined as T : await response.json() as T;
+    return { data, response };
+  }
+}
+
+async function decodeProblem(response: Response): Promise<ProblemDetails> {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/problem+json") || contentType.includes("application/json")) {
+    try {
+      return await response.json() as ProblemDetails;
+    } catch {
+      return { title: response.statusText, status: response.status };
+    }
+  }
+  return { title: response.statusText, status: response.status, detail: await response.text() };
+}
+`)
+	return out.String()
+}
+
+func renderTypeScriptSchemas(out *strings.Builder, doc *openapi3.T) {
+	if doc == nil || doc.Components == nil || len(doc.Components.Schemas) == 0 {
+		return
+	}
+	for _, name := range sortedSchemaNames(doc.Components.Schemas) {
+		if strings.EqualFold(name, "Problem") {
+			continue
+		}
+		ref := doc.Components.Schemas[name]
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		typeName := exportedGoIdentifier(name)
+		schema := ref.Value
+		if schema.Type != nil && !schema.Type.Is("object") && len(schema.Properties) == 0 {
+			fmt.Fprintf(out, "export type %s = %s;\n\n", typeName, tsTypeForSchemaRef(ref, true))
+			continue
+		}
+		required := stringSet(schema.Required)
+		properties := sortedMapKeys(schema.Properties)
+		fmt.Fprintf(out, "export interface %s {\n", typeName)
+		for _, property := range properties {
+			propertyRef := schema.Properties[property]
+			if propertyRef == nil {
+				continue
+			}
+			_, isRequired := required[property]
+			fmt.Fprintf(out, "  %s%s: %s;\n", safeTSPropertyName(property), optionalMarker(isRequired), tsTypeForSchemaRef(propertyRef, isRequired))
+		}
+		out.WriteString("}\n\n")
+	}
+}
+
+func renderTypeScriptOperationTypes(out *strings.Builder, operation typedClientOperation) {
+	optionParams := typedOperationOptionParameters(operation)
+	if len(optionParams) == 0 {
+		return
+	}
+	fmt.Fprintf(out, "export interface %sParams {\n", exportedGoIdentifier(operation.OperationID))
+	for _, param := range optionParams {
+		fmt.Fprintf(out, "  %s%s: %s;\n", tsParamName(param.Name), optionalMarker(param.Required), strings.TrimSuffix(tsTypeForSchemaRef(param.Schema, param.Required), " | null"))
+	}
+	out.WriteString("}\n\n")
+}
+
+func renderTypeScriptOperation(out *strings.Builder, operation typedClientOperation) {
+	methodName := lowerFirst(exportedGoIdentifier(operation.OperationID))
+	pathParams := typedOperationPathParameters(operation)
+	optionParams := typedOperationOptionParameters(operation)
+	responseType := tsOperationResponseType(operation.Operation)
+	requestType, hasRequestBody := tsOperationRequestBodyType(operation.Operation)
+	args := make([]string, 0, len(pathParams)+3)
+	for _, param := range pathParams {
+		args = append(args, fmt.Sprintf("%s: %s", tsParamName(param.Name), strings.TrimSuffix(tsTypeForSchemaRef(param.Schema, true), " | null")))
+	}
+	if len(optionParams) > 0 {
+		args = append(args, fmt.Sprintf("params: %sParams", exportedGoIdentifier(operation.OperationID)))
+	}
+	if hasRequestBody {
+		args = append(args, fmt.Sprintf("body: %s", requestType))
+	}
+	args = append(args, "options: RequestOptions = {}")
+	fmt.Fprintf(out, "  async %s(%s): Promise<ClientResponse<%s>> {\n", methodName, strings.Join(args, ", "), responseType)
+	out.WriteString("    const query = new URLSearchParams();\n")
+	out.WriteString("    const headers = new Headers(options.headers || {});\n")
+	if len(optionParams) > 0 {
+		for _, param := range optionParams {
+			name := tsParamName(param.Name)
+			if strings.EqualFold(param.In, "query") {
+				if param.Required {
+					fmt.Fprintf(out, "    query.set(%s, String(params.%s));\n", strconv.Quote(param.Name), name)
+				} else {
+					fmt.Fprintf(out, "    if (params.%s !== undefined) query.set(%s, String(params.%s));\n", name, strconv.Quote(param.Name), name)
+				}
+			}
+			if strings.EqualFold(param.In, "header") {
+				if param.Required {
+					fmt.Fprintf(out, "    headers.set(%s, String(params.%s));\n", strconv.Quote(param.Name), name)
+				} else {
+					fmt.Fprintf(out, "    if (params.%s !== undefined) headers.set(%s, String(params.%s));\n", name, strconv.Quote(param.Name), name)
+				}
+			}
+		}
+	}
+	pathExpr := tsPathExpression(operation.Path, pathParams)
+	bodyArg := "undefined"
+	if hasRequestBody {
+		bodyArg = "body"
+	}
+	fmt.Fprintf(out, "    return this.request<%s>(%s, %s, query, %s, { ...options, headers: Object.fromEntries(headers.entries()) });\n", responseType, strconv.Quote(operation.Method), pathExpr, bodyArg)
+	out.WriteString("  }\n\n")
+}
+
+func tsOperationRequestBodyType(operation *openapi3.Operation) (string, bool) {
+	if operation == nil || operation.RequestBody == nil || operation.RequestBody.Value == nil {
+		return "", false
+	}
+	schema := jsonMediaSchema(operation.RequestBody.Value.Content)
+	if schema == nil {
+		return "unknown", true
+	}
+	return strings.TrimSuffix(tsTypeForSchemaRef(schema, true), " | null"), true
+}
+
+func tsOperationResponseType(operation *openapi3.Operation) string {
+	if operation == nil || operation.Responses == nil {
+		return "unknown"
+	}
+	statuses := make([]int, 0, len(operation.Responses.Map()))
+	byStatus := map[int]*openapi3.ResponseRef{}
+	for status, response := range operation.Responses.Map() {
+		code, err := strconv.Atoi(status)
+		if err != nil {
+			continue
+		}
+		if code >= 200 && code < 300 {
+			statuses = append(statuses, code)
+			byStatus[code] = response
+		}
+	}
+	sort.Ints(statuses)
+	for _, status := range statuses {
+		response := byStatus[status]
+		if response == nil || response.Value == nil {
+			continue
+		}
+		schema := jsonMediaSchema(response.Value.Content)
+		if schema == nil {
+			continue
+		}
+		return strings.TrimSuffix(tsTypeForSchemaRef(schema, true), " | null")
+	}
+	return "void"
+}
+
+func tsTypeForSchemaRef(ref *openapi3.SchemaRef, required bool) string {
+	if ref == nil {
+		return "unknown"
+	}
+	if name := schemaNameFromRef(ref.Ref); name != "" {
+		typeName := exportedGoIdentifier(name)
+		if required && !schemaRefNullable(ref) {
+			return typeName
+		}
+		return typeName + " | null"
+	}
+	if ref.Value == nil {
+		return "unknown"
+	}
+	schema := ref.Value
+	var tsType string
+	if len(schema.Enum) > 0 {
+		values := make([]string, 0, len(schema.Enum))
+		for _, value := range schema.Enum {
+			text, ok := value.(string)
+			if !ok {
+				continue
+			}
+			values = append(values, strconv.Quote(text))
+		}
+		if len(values) > 0 {
+			tsType = strings.Join(values, " | ")
+		}
+	}
+	if tsType == "" {
+		switch {
+		case schema.Type != nil && schema.Type.Includes("array"):
+			tsType = "Array<" + strings.TrimSuffix(tsTypeForSchemaRef(schema.Items, true), " | null") + ">"
+		case schema.Type != nil && (schema.Type.Includes("integer") || schema.Type.Includes("number")):
+			tsType = "number"
+		case schema.Type != nil && schema.Type.Includes("boolean"):
+			tsType = "boolean"
+		case schema.Type != nil && schema.Type.Includes("string"):
+			tsType = "string"
+		case schema.Type != nil && schema.Type.Includes("object"):
+			tsType = "Record<string, unknown>"
+		default:
+			tsType = "unknown"
+		}
+	}
+	if required && !schemaRefNullable(ref) {
+		return tsType
+	}
+	return tsType + " | null"
+}
+
+func optionalMarker(required bool) string {
+	if required {
+		return ""
+	}
+	return "?"
+}
+
+func safeTSPropertyName(name string) string {
+	if isTSIdentifier(name) {
+		return name
+	}
+	return strconv.Quote(name)
+}
+
+func isTSIdentifier(name string) bool {
+	if name == "" {
+		return false
+	}
+	first := name[0]
+	if (first < 'a' || first > 'z') && (first < 'A' || first > 'Z') && first != '_' && first != '$' {
+		return false
+	}
+	for i := 1; i < len(name); i++ {
+		ch := name[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '$' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func tsParamName(name string) string {
+	return goParamName(name)
+}
+
+func lowerFirst(value string) string {
+	if value == "" {
+		return value
+	}
+	return strings.ToLower(value[:1]) + value[1:]
+}
+
+func sortedMapKeys[V any](values map[string]V) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		if strings.TrimSpace(key) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeGeneratedFilesReplace(outDir string, files map[string][]byte) error {
+	outDir, err := safeOutputDir(outDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
+	}
+	root, err := os.OpenRoot(outDir)
+	if err != nil {
+		return fmt.Errorf("open output root: %w", err)
+	}
+	defer root.Close()
+	for _, name := range sortedMapKeys(files) {
+		if err := writeGeneratedFileReplace(root, name, files[name]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func tsPathExpression(path string, pathParams []typedClientParameter) string {
+	expr := strconv.Quote(path)
+	for _, param := range pathParams {
+		name := tsParamName(param.Name)
+		expr = strings.ReplaceAll(expr, "{"+param.Name+"}", "${encodeURIComponent(String("+name+"))}")
+	}
+	if strings.Contains(expr, "${") {
+		return "`" + strings.Trim(expr, "\"") + "`"
+	}
+	return expr
+}
+
+func generateObservabilityBundle(profile, outDir string) error {
+	if strings.TrimSpace(profile) != scaffoldProfileSaaSAPIFull {
+		return fmt.Errorf("observability bundle supports profile %q", scaffoldProfileSaaSAPIFull)
+	}
+	if strings.TrimSpace(outDir) == "" {
+		return errors.New("--out is required")
+	}
+	return writeGeneratedFilesReplace(outDir, map[string][]byte{
+		"grafana/saas-api-full-dashboard.json": []byte(observabilityGrafanaDashboardTemplate),
+		"prometheus/saas-api-full-rules.yaml":  []byte(observabilityPrometheusRulesTemplate),
+		"runbooks/observability.md":            []byte(observabilityRunbookTemplate),
+	})
+}
+
+func generateHelmChart(projectDir, outDir string) error {
+	if strings.TrimSpace(projectDir) == "" {
+		return errors.New("--dir is required")
+	}
+	if strings.TrimSpace(outDir) == "" {
+		return errors.New("--out is required")
+	}
+	if _, err := safeOutputDir(projectDir); err != nil {
+		return err
+	}
+	return writeGeneratedFilesReplace(outDir, map[string][]byte{
+		"Chart.yaml":                       []byte(helmChartTemplate),
+		"values.yaml":                      []byte(helmValuesTemplate),
+		"templates/api-deployment.yaml":    []byte(helmAPIDeploymentTemplate),
+		"templates/worker-deployment.yaml": []byte(helmWorkerDeploymentTemplate),
+		"templates/migration-job.yaml":     []byte(helmMigrationJobTemplate),
+		"templates/service.yaml":           []byte(helmServiceTemplate),
+		"templates/admin-service.yaml":     []byte(helmAdminServiceTemplate),
+		"templates/network-policy.yaml":    []byte(helmNetworkPolicyTemplate),
+		"templates/hpa.yaml":               []byte(helmHPATemplate),
+		"templates/pdb.yaml":               []byte(helmPDBTemplate),
+		"templates/configmap.yaml":         []byte(helmConfigMapTemplate),
+		"templates/secret.yaml":            []byte(helmSecretTemplate),
+		"README.md":                        []byte(helmReadmeTemplate),
+	})
+}
+
+func generateTerraformStarter(cloud, projectDir, outDir string) error {
+	if strings.TrimSpace(cloud) != "aws" {
+		return fmt.Errorf("unsupported terraform cloud %q", cloud)
+	}
+	if strings.TrimSpace(projectDir) == "" {
+		return errors.New("--dir is required")
+	}
+	if strings.TrimSpace(outDir) == "" {
+		return errors.New("--out is required")
+	}
+	if _, err := safeOutputDir(projectDir); err != nil {
+		return err
+	}
+	return writeGeneratedFilesReplace(outDir, map[string][]byte{
+		"main.tf":      []byte(terraformAWSMainTemplate),
+		"variables.tf": []byte(terraformAWSVariablesTemplate),
+		"outputs.tf":   []byte(terraformAWSOutputsTemplate),
+		"README.md":    []byte(terraformAWSReadmeTemplate),
+	})
+}
+
+const observabilityGrafanaDashboardTemplate = `{
+  "title": "api-toolkit saas-api-full",
+  "schemaVersion": 39,
+  "panels": [
+    {"title": "HTTP latency", "type": "timeseries", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket[5m])) by (le, route, method))"}]},
+    {"title": "HTTP errors", "type": "timeseries", "targets": [{"expr": "sum(rate(http_server_requests_total{code=~\"5..\"}[5m])) by (route, method)"}]},
+    {"title": "Readiness", "type": "stat", "targets": [{"expr": "api_toolkit_readiness_state"}]},
+    {"title": "Idempotency outcomes", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_idempotency_outcomes_total[5m])) by (outcome)"}]},
+    {"title": "Rate limits", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_rate_limit_decisions_total[5m])) by (decision)"}]},
+    {"title": "Outbox jobs", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_outbox_jobs_total[5m])) by (state, kind)"}]},
+    {"title": "Webhook delivery", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_webhook_delivery_total[5m])) by (state)"}]},
+    {"title": "Audit failures", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_audit_write_failures_total[5m]))"}]}
+  ]
+}
+`
+
+const observabilityPrometheusRulesTemplate = `groups:
+  - name: api-toolkit-saas-api-full
+    rules:
+      - alert: ApiHighErrorRate
+        expr: sum(rate(http_server_requests_total{code=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_total[5m])), 1) > 0.02
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: API 5xx error rate is above 2%.
+      - alert: ApiReadinessFailing
+        expr: api_toolkit_readiness_state == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: API readiness has failed for five minutes.
+      - alert: OutboxBacklogGrowing
+        expr: sum(api_toolkit_outbox_jobs_total{state="pending"}) > 1000
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Async outbox backlog is growing.
+      - alert: WebhookDeliveryDeadLetters
+        expr: increase(api_toolkit_webhook_delivery_total{state="dead_letter"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Webhook deliveries are entering dead letter state.
+      - alert: DependencyHealthFailing
+        expr: api_toolkit_dependency_health_state == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: A bounded-label dependency health check is failing.
+`
+
+const observabilityRunbookTemplate = `# Observability Runbook
+
+The generated bundle assumes bounded labels only: route, method, code class, dependency, job kind, state, and outcome. tenant IDs are intentionally not metric labels.
+
+## SLO Defaults
+
+- API availability: readiness succeeds and 5xx rate stays below 2%.
+- API latency: p95 latency per route remains inside the service-owned objective.
+- Async processing: outbox pending jobs drain and dead letters are investigated.
+- Webhook delivery: dead letters trigger operator review and replay after the receiver is fixed.
+
+## Operator Actions
+
+- For readiness failures, inspect Postgres and Redis health before restarting workloads.
+- For idempotency or rate-limit spikes, verify client retry behavior and route policies.
+- For admin endpoint isolation, confirm metrics, pprof, and detailed health are reachable only through the internal admin service or admin listener.
+`
+
+const helmChartTemplate = `apiVersion: v2
+name: api-toolkit-service
+description: api-toolkit saas-api-full starter chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+`
+
+const helmValuesTemplate = `image:
+  repository: example/api
+  tag: latest
+
+secretName: api-toolkit-secrets
+
+api:
+  replicas: 2
+  port: 8080
+  livez: /livez
+  readyz: /readyz
+
+adminService:
+  enabled: true
+  port: 9090
+
+worker:
+  replicas: 1
+
+migration:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 10
+`
+
+const helmAPIDeploymentTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/app/api"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+            - name: admin
+              containerPort: {{ .Values.adminService.port }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.livez }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.readyz }}
+              port: http
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+`
+
+const helmWorkerDeploymentTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/component: worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/app/worker"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+`
+
+const helmMigrationJobTemplate = `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-migrate
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/app/migrate", "plan"]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+`
+
+const helmServiceTemplate = `apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+`
+
+const helmAdminServiceTemplate = `apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-admin
+  annotations:
+    api-toolkit/admin-internal-only: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}
+    app.kubernetes.io/component: api
+  ports:
+    - name: admin
+      port: 9090
+      targetPort: admin
+`
+
+const helmNetworkPolicyTemplate = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-default
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+  policyTypes: ["Ingress", "Egress"]
+`
+
+const helmHPATemplate = `apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-api
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+`
+
+const helmPDBTemplate = `apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+`
+
+const helmConfigMapTemplate = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+data:
+  APP_ENV: production
+`
+
+// #nosec G101 -- generated Kubernetes Secret template uses placeholders, not real credentials.
+const helmSecretTemplate = `apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.secretName }}
+type: Opaque
+stringData:
+  DATABASE_URL: replace-me
+  REDIS_URL: replace-me
+`
+
+const helmReadmeTemplate = `# Helm Starter
+
+This chart packages the generated API server, worker, migration Job, admin Service, probes, resources, NetworkPolicy, HPA, PDB, and secret/config references. The admin Service is internal-only by default.
+`
+
+const terraformAWSMainTemplate = `resource "aws_db_instance" "postgres" {
+  identifier           = var.name
+  engine               = "postgres"
+  instance_class       = var.postgres_instance_class
+  allocated_storage    = 20
+  username             = var.postgres_username
+  password             = var.postgres_password
+  skip_final_snapshot  = true
+}
+
+resource "aws_elasticache_replication_group" "redis" {
+  replication_group_id = "${var.name}-redis"
+  description          = "Redis for api-toolkit generated services"
+  node_type            = var.redis_node_type
+  num_cache_clusters   = 1
+}
+
+resource "aws_s3_bucket" "objects" {
+  bucket = var.object_bucket_name
+}
+
+resource "aws_iam_policy" "service" {
+  name   = "${var.name}-service"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${aws_s3_bucket.objects.arn}/*"
+      }
+    ]
+  })
+}
+`
+
+const terraformAWSVariablesTemplate = `variable "name" {
+  type    = string
+  default = "api-toolkit"
+}
+
+variable "postgres_instance_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+
+variable "postgres_username" {
+  type = string
+}
+
+variable "postgres_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "redis_node_type" {
+  type    = string
+  default = "cache.t4g.micro"
+}
+
+variable "object_bucket_name" {
+  type = string
+}
+`
+
+const terraformAWSOutputsTemplate = `output "database_endpoint" {
+  value = aws_db_instance.postgres.address
+}
+
+output "redis_endpoint" {
+  value = aws_elasticache_replication_group.redis.primary_endpoint_address
+}
+
+output "object_bucket_name" {
+  value = aws_s3_bucket.objects.bucket
+}
+
+output "service_policy_arn" {
+  value = aws_iam_policy.service.arn
+}
+`
+
+const terraformAWSReadmeTemplate = `# AWS Terraform Starter
+
+This starter creates dependency primitives for the generated service: RDS Postgres, ElastiCache Redis, an S3 bucket, IAM policy examples, and outputs that can be copied into Helm values or your deployment pipeline.
+
+It intentionally avoids choosing ECS or EKS application hosting. Wire these outputs into the platform you already operate.
+`
+
 type resourceConfig struct {
-	Dir          string
-	Name         string
-	Plural       string
-	TenantScoped bool
-	CRUD         bool
-	Postgres     bool
-	SoftDelete   bool
-	ETag         bool
-	Audit        bool
-	Webhooks     bool
+	Dir           string
+	Name          string
+	Plural        string
+	TenantScoped  bool
+	CRUD          bool
+	Postgres      bool
+	SoftDelete    bool
+	ETag          bool
+	Audit         bool
+	Webhooks      bool
+	Admin         bool
+	Fields        []string
+	Filters       []string
+	Sorts         []string
+	Relationships []string
+	ObjectFields  []string
 }
 
 type resourceManifest struct {
@@ -778,17 +2054,46 @@ type resourceManifest struct {
 }
 
 type resourceTemplateData struct {
-	Module     string
-	Name       string
-	Plural     string
-	Type       string
-	Field      string
-	Var        string
-	Table      string
-	ScopeRead  string
-	ScopeWrite string
-	Migration  string
-	Prefix     string
+	Module                    string
+	Name                      string
+	Plural                    string
+	Type                      string
+	Field                     string
+	Var                       string
+	Table                     string
+	ScopeRead                 string
+	ScopeWrite                string
+	Migration                 string
+	Prefix                    string
+	DomainFields              string
+	PublicEntries             string
+	RequestFields             string
+	DecodeValidation          string
+	ServiceCreateParams       string
+	ServiceCreateArgs         string
+	ServiceTestCreateArgs     string
+	ServiceCreateValidation   string
+	ServiceCreateAssignments  string
+	ServiceUpdateParams       string
+	ServiceUpdateArgs         string
+	ServiceTestUpdateArgs     string
+	ServiceUpdateValidation   string
+	ServiceUpdateAssignments  string
+	SQLInsertColumns          string
+	SQLInsertPlaceholders     string
+	SQLUpdateAssignments      string
+	SQLSaveArgs               string
+	SQLVersionPlaceholder     string
+	SQLDeletedPlaceholder     string
+	SQLCreatedPlaceholder     string
+	SQLUpdatedPlaceholder     string
+	SQLSelectColumns          string
+	SQLScanDestinations       string
+	MigrationColumns          string
+	OpenAPIResourceRequired   string
+	OpenAPIResourceProperties string
+	OpenAPICreateRequired     string
+	OpenAPICreateProperties   string
 }
 
 func generateResource(ctx context.Context, cfg resourceConfig) error {
@@ -818,6 +2123,10 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 	if manifest.Resources[cfg.Name] || manifest.Resources[cfg.Plural] {
 		return fmt.Errorf("resource %q already exists", cfg.Name)
 	}
+	fieldRendering, err := renderResourceFieldSupport(cfg.Fields)
+	if err != nil {
+		return err
+	}
 	data := resourceTemplateData{
 		Module:     manifest.Module,
 		Name:       cfg.Name,
@@ -831,6 +2140,7 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 		Migration:  nextResourceMigrationName(rootDir, cfg.Plural),
 		Prefix:     resourceIDPrefix(cfg.Name),
 	}
+	applyResourceFieldRendering(&data, fieldRendering)
 	if err := assertResourceAnchors(rootDir); err != nil {
 		return err
 	}
@@ -851,6 +2161,7 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 		{fmt.Sprintf("internal/httpapi/%s.go", cfg.Plural), resourceHTTPTemplate},
 		{fmt.Sprintf("internal/httpapi/%s_test.go", cfg.Plural), resourceHTTPTestTemplate},
 		{filepath.Join("migrations", data.Migration), resourceMigrationTemplate},
+		{filepath.Join("migrations", strings.Replace(data.Migration, ".up.sql", ".down.sql", 1)), resourceMigrationDownTemplate},
 	}
 	for _, file := range files {
 		rendered, err := renderResourceTemplate(file.name, file.body, data)
@@ -940,7 +2251,308 @@ func validateResourceConfig(cfg resourceConfig) error {
 	if !cfg.CRUD {
 		return errors.New("--crud is required")
 	}
+	for _, field := range cfg.Fields {
+		if _, err := parseResourceField(field); err != nil {
+			return err
+		}
+	}
+	for _, name := range append(append(append([]string{}, cfg.Filters...), cfg.Sorts...), cfg.ObjectFields...) {
+		if !validResourceName(strings.TrimSpace(name)) {
+			return fmt.Errorf("invalid resource field reference %q", name)
+		}
+	}
+	for _, relationship := range cfg.Relationships {
+		if strings.TrimSpace(relationship) == "" || strings.ContainsAny(relationship, "\r\n\t") {
+			return fmt.Errorf("invalid relationship %q", relationship)
+		}
+	}
 	return nil
+}
+
+type resourceField struct {
+	Name     string
+	Type     string
+	Required bool
+	Unique   bool
+	Default  string
+	Enum     []string
+}
+
+type resourceFieldRendering struct {
+	DomainFields              string
+	PublicEntries             string
+	RequestFields             string
+	DecodeValidation          string
+	ServiceCreateParams       string
+	ServiceCreateArgs         string
+	ServiceTestCreateArgs     string
+	ServiceCreateValidation   string
+	ServiceCreateAssignments  string
+	ServiceUpdateParams       string
+	ServiceUpdateArgs         string
+	ServiceTestUpdateArgs     string
+	ServiceUpdateValidation   string
+	ServiceUpdateAssignments  string
+	SQLInsertColumns          string
+	SQLInsertPlaceholders     string
+	SQLUpdateAssignments      string
+	SQLSaveArgs               string
+	SQLVersionPlaceholder     string
+	SQLDeletedPlaceholder     string
+	SQLCreatedPlaceholder     string
+	SQLUpdatedPlaceholder     string
+	SQLSelectColumns          string
+	SQLScanDestinations       string
+	MigrationColumns          string
+	OpenAPIResourceRequired   string
+	OpenAPIResourceProperties string
+	OpenAPICreateRequired     string
+	OpenAPICreateProperties   string
+}
+
+func parseResourceField(raw string) (resourceField, error) {
+	raw = strings.TrimSpace(raw)
+	parts := strings.Split(raw, ":")
+	if len(parts) < 2 {
+		return resourceField{}, fmt.Errorf("invalid --field %q", raw)
+	}
+	field := resourceField{Name: strings.TrimSpace(parts[0]), Type: strings.TrimSpace(parts[1])}
+	if !validResourceName(field.Name) {
+		return resourceField{}, fmt.Errorf("invalid --field name %q", field.Name)
+	}
+	switch field.Type {
+	case "string", "text", "int", "bool", "decimal", "timestamp", "json", "uuid":
+	default:
+		return resourceField{}, fmt.Errorf("unsupported --field type %q", field.Type)
+	}
+	for _, option := range parts[2:] {
+		option = strings.TrimSpace(option)
+		switch {
+		case option == "required":
+			field.Required = true
+		case option == "unique":
+			field.Unique = true
+		case strings.HasPrefix(option, "default="):
+			field.Default = strings.TrimPrefix(option, "default=")
+		case strings.HasPrefix(option, "enum="):
+			values := strings.Split(strings.TrimPrefix(option, "enum="), "|")
+			for _, value := range values {
+				value = strings.TrimSpace(value)
+				if value == "" {
+					return resourceField{}, fmt.Errorf("invalid empty enum value for --field %q", field.Name)
+				}
+				field.Enum = append(field.Enum, value)
+			}
+		case option == "":
+			return resourceField{}, fmt.Errorf("invalid empty option for --field %q", field.Name)
+		default:
+			return resourceField{}, fmt.Errorf("unsupported --field option %q", option)
+		}
+	}
+	return field, nil
+}
+
+func renderResourceFieldSupport(rawFields []string) (resourceFieldRendering, error) {
+	var fields []resourceField
+	for _, raw := range rawFields {
+		field, err := parseResourceField(raw)
+		if err != nil {
+			return resourceFieldRendering{}, err
+		}
+		fields = append(fields, field)
+	}
+	if len(fields) == 0 {
+		return resourceFieldRendering{
+			SQLInsertColumns:      "",
+			SQLInsertPlaceholders: "",
+			SQLUpdateAssignments:  "",
+			SQLSaveArgs:           "",
+			SQLVersionPlaceholder: "$4",
+			SQLDeletedPlaceholder: "$5",
+			SQLCreatedPlaceholder: "$6",
+			SQLUpdatedPlaceholder: "$7",
+			SQLSelectColumns:      "",
+			SQLScanDestinations:   "",
+		}, nil
+	}
+	var out resourceFieldRendering
+	insertColumns := make([]string, 0, len(fields))
+	insertPlaceholders := make([]string, 0, len(fields))
+	updateAssignments := make([]string, 0, len(fields))
+	saveArgs := make([]string, 0, len(fields))
+	selectColumns := make([]string, 0, len(fields))
+	scanDestinations := make([]string, 0, len(fields))
+	resourceRequired := []string{}
+	createRequired := []string{}
+	for i, field := range fields {
+		goName := exportedGoIdentifier(field.Name)
+		goParam := goParamName(field.Name)
+		goType := resourceFieldGoType(field)
+		column := field.Name
+		jsonName := field.Name
+		placeholder := fmt.Sprintf("$%d", i+4)
+		out.DomainFields += fmt.Sprintf("\t%s %s\n", goName, goType)
+		out.PublicEntries += fmt.Sprintf("\t\t%q: r.%s,\n", jsonName, goName)
+		out.RequestFields += fmt.Sprintf("\t%s %s `json:%q`\n", goName, goType, jsonName)
+		out.ServiceCreateParams += fmt.Sprintf(", %s %s", goParam, goType)
+		out.ServiceCreateArgs += fmt.Sprintf(", req.%s", goName)
+		out.ServiceTestCreateArgs += ", " + resourceFieldTestValue(field)
+		out.ServiceUpdateParams += fmt.Sprintf(", %s %s", goParam, goType)
+		out.ServiceUpdateArgs += fmt.Sprintf(", req.%s", goName)
+		out.ServiceTestUpdateArgs += ", " + resourceFieldTestValue(field)
+		out.ServiceCreateAssignments += fmt.Sprintf("\t\t%s: %s,\n", goName, goParam)
+		out.ServiceUpdateAssignments += fmt.Sprintf("\titem.%s = %s\n", goName, goParam)
+		if resourceFieldNeedsTrim(field) {
+			out.DecodeValidation += fmt.Sprintf("\treq.%s = strings.TrimSpace(req.%s)\n", goName, goName)
+			out.ServiceCreateValidation += fmt.Sprintf("\t%s = strings.TrimSpace(%s)\n", goParam, goParam)
+			out.ServiceUpdateValidation += fmt.Sprintf("\t%s = strings.TrimSpace(%s)\n", goParam, goParam)
+		}
+		if field.Required {
+			resourceRequired = append(resourceRequired, jsonName)
+			createRequired = append(createRequired, jsonName)
+			if resourceFieldNeedsTrim(field) {
+				out.DecodeValidation += fmt.Sprintf("\tif req.%s == \"\" {\n\t\twriteAppError(w, app.ErrValidation)\n\t\treturn req, false\n\t}\n", goName)
+			}
+		}
+		insertColumns = append(insertColumns, column)
+		insertPlaceholders = append(insertPlaceholders, placeholder)
+		updateAssignments = append(updateAssignments, fmt.Sprintf("%s=excluded.%s", column, column))
+		saveArgs = append(saveArgs, "item."+goName)
+		selectColumns = append(selectColumns, column)
+		scanDestinations = append(scanDestinations, "&item."+goName)
+		out.MigrationColumns += fmt.Sprintf("\t%s %s%s,\n", column, resourceFieldSQLType(field), resourceFieldSQLNullability(field))
+		out.OpenAPIResourceProperties += fmt.Sprintf("\t\t\t%q: %s,\n", jsonName, resourceFieldOpenAPISchema(field))
+		out.OpenAPICreateProperties += fmt.Sprintf("\t\t\t%q: %s,\n", jsonName, resourceFieldOpenAPISchema(field))
+	}
+	if len(insertColumns) > 0 {
+		out.SQLInsertColumns = ", " + strings.Join(insertColumns, ", ")
+		out.SQLInsertPlaceholders = ", " + strings.Join(insertPlaceholders, ", ")
+		out.SQLUpdateAssignments = ", " + strings.Join(updateAssignments, ", ")
+		out.SQLSaveArgs = ", " + strings.Join(saveArgs, ", ")
+		out.SQLSelectColumns = ", " + strings.Join(selectColumns, ", ")
+		out.SQLScanDestinations = ", " + strings.Join(scanDestinations, ", ")
+	}
+	tailStart := len(fields) + 4
+	out.SQLVersionPlaceholder = fmt.Sprintf("$%d", tailStart)
+	out.SQLDeletedPlaceholder = fmt.Sprintf("$%d", tailStart+1)
+	out.SQLCreatedPlaceholder = fmt.Sprintf("$%d", tailStart+2)
+	out.SQLUpdatedPlaceholder = fmt.Sprintf("$%d", tailStart+3)
+	if len(resourceRequired) > 0 {
+		out.OpenAPIResourceRequired = ", " + quotedStringList(resourceRequired)
+		out.OpenAPICreateRequired = ", " + quotedStringList(createRequired)
+	}
+	return out, nil
+}
+
+func applyResourceFieldRendering(data *resourceTemplateData, rendering resourceFieldRendering) {
+	data.DomainFields = rendering.DomainFields
+	data.PublicEntries = rendering.PublicEntries
+	data.RequestFields = rendering.RequestFields
+	data.DecodeValidation = rendering.DecodeValidation
+	data.ServiceCreateParams = rendering.ServiceCreateParams
+	data.ServiceCreateArgs = rendering.ServiceCreateArgs
+	data.ServiceTestCreateArgs = rendering.ServiceTestCreateArgs
+	data.ServiceCreateValidation = rendering.ServiceCreateValidation
+	data.ServiceCreateAssignments = rendering.ServiceCreateAssignments
+	data.ServiceUpdateParams = rendering.ServiceUpdateParams
+	data.ServiceUpdateArgs = rendering.ServiceUpdateArgs
+	data.ServiceTestUpdateArgs = rendering.ServiceTestUpdateArgs
+	data.ServiceUpdateValidation = rendering.ServiceUpdateValidation
+	data.ServiceUpdateAssignments = rendering.ServiceUpdateAssignments
+	data.SQLInsertColumns = rendering.SQLInsertColumns
+	data.SQLInsertPlaceholders = rendering.SQLInsertPlaceholders
+	data.SQLUpdateAssignments = rendering.SQLUpdateAssignments
+	data.SQLSaveArgs = rendering.SQLSaveArgs
+	data.SQLVersionPlaceholder = rendering.SQLVersionPlaceholder
+	data.SQLDeletedPlaceholder = rendering.SQLDeletedPlaceholder
+	data.SQLCreatedPlaceholder = rendering.SQLCreatedPlaceholder
+	data.SQLUpdatedPlaceholder = rendering.SQLUpdatedPlaceholder
+	data.SQLSelectColumns = rendering.SQLSelectColumns
+	data.SQLScanDestinations = rendering.SQLScanDestinations
+	data.MigrationColumns = rendering.MigrationColumns
+	data.OpenAPIResourceRequired = rendering.OpenAPIResourceRequired
+	data.OpenAPIResourceProperties = rendering.OpenAPIResourceProperties
+	data.OpenAPICreateRequired = rendering.OpenAPICreateRequired
+	data.OpenAPICreateProperties = rendering.OpenAPICreateProperties
+}
+
+func resourceFieldGoType(field resourceField) string {
+	switch field.Type {
+	case "int":
+		return "int"
+	case "bool":
+		return "bool"
+	default:
+		return "string"
+	}
+}
+
+func resourceFieldTestValue(field resourceField) string {
+	switch field.Type {
+	case "int":
+		return "1"
+	case "bool":
+		return "true"
+	default:
+		if len(field.Enum) > 0 {
+			return strconv.Quote(field.Enum[0])
+		}
+		return strconv.Quote("sample-" + strings.ReplaceAll(field.Name, "_", "-"))
+	}
+}
+
+func resourceFieldNeedsTrim(field resourceField) bool {
+	return resourceFieldGoType(field) == "string"
+}
+
+func resourceFieldSQLType(field resourceField) string {
+	switch field.Type {
+	case "int":
+		return "INTEGER"
+	case "bool":
+		return "BOOLEAN"
+	case "text", "json":
+		return "TEXT"
+	case "timestamp":
+		return "TIMESTAMPTZ"
+	default:
+		return "TEXT"
+	}
+}
+
+func resourceFieldSQLNullability(field resourceField) string {
+	if field.Required {
+		return " NOT NULL"
+	}
+	return ""
+}
+
+func resourceFieldOpenAPISchema(field resourceField) string {
+	if len(field.Enum) > 0 {
+		return fmt.Sprintf("map[string]any{\"type\": \"string\", \"enum\": []string{%s}}", quotedStringList(field.Enum))
+	}
+	switch field.Type {
+	case "int":
+		return `map[string]any{"type": "integer"}`
+	case "bool":
+		return `map[string]any{"type": "boolean"}`
+	case "timestamp":
+		return `map[string]any{"type": "string", "format": "date-time"}`
+	case "uuid":
+		return `map[string]any{"type": "string", "format": "uuid"}`
+	case "json":
+		return `map[string]any{"type": "string", "description": "JSON-encoded field"}`
+	default:
+		return `map[string]any{"type": "string"}`
+	}
+}
+
+func quotedStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, strconv.Quote(value))
+	}
+	return strings.Join(quoted, ", ")
 }
 
 func validResourceName(value string) bool {
@@ -1100,7 +2712,23 @@ func resourceIDPrefix(name string) string {
 }
 
 func renderResourceManifestEntry(cfg resourceConfig) string {
-	return fmt.Sprintf("  - name: %s\n    plural: %s\n    tenant_scoped: %t\n    crud: %t\n    postgres: %t\n    soft_delete: %t\n    etag: %t\n    audit: %t\n    webhooks: %t\n", cfg.Name, cfg.Plural, cfg.TenantScoped, cfg.CRUD, cfg.Postgres, cfg.SoftDelete, cfg.ETag, cfg.Audit, cfg.Webhooks)
+	var out strings.Builder
+	fmt.Fprintf(&out, "  - name: %s\n    plural: %s\n    tenant_scoped: %t\n    crud: %t\n    postgres: %t\n    soft_delete: %t\n    etag: %t\n    audit: %t\n    webhooks: %t\n    admin: %t\n", cfg.Name, cfg.Plural, cfg.TenantScoped, cfg.CRUD, cfg.Postgres, cfg.SoftDelete, cfg.ETag, cfg.Audit, cfg.Webhooks, cfg.Admin)
+	writeYAMLList := func(name string, values []string) {
+		if len(values) == 0 {
+			return
+		}
+		fmt.Fprintf(&out, "    %s:\n", name)
+		for _, value := range values {
+			fmt.Fprintf(&out, "      - %s\n", value)
+		}
+	}
+	writeYAMLList("fields", cfg.Fields)
+	writeYAMLList("filters", cfg.Filters)
+	writeYAMLList("sorts", cfg.Sorts)
+	writeYAMLList("relationships", cfg.Relationships)
+	writeYAMLList("object_fields", cfg.ObjectFields)
+	return out.String()
 }
 
 func renderResourceRouteRegistrations(data resourceTemplateData) string {
@@ -1115,22 +2743,23 @@ func renderResourceRouteRegistrations(data resourceTemplateData) string {
 func renderResourceOpenAPISchemas(data resourceTemplateData) string {
 	return fmt.Sprintf(`	registry.RegisterSchema("%s", map[string]any{
 		"type":     "object",
-		"required": []string{"id", "tenant_id", "name", "version"},
+		"required": []string{"id", "tenant_id", "name", "version"%s},
 		"properties": map[string]any{
 			"id":         map[string]any{"type": "string"},
 			"tenant_id":  map[string]any{"type": "string"},
 			"name":       map[string]any{"type": "string"},
-			"version":    map[string]any{"type": "integer", "format": "int64"},
+%s			"version":    map[string]any{"type": "integer", "format": "int64"},
 			"created_at": map[string]any{"type": "string", "format": "date-time"},
 			"updated_at": map[string]any{"type": "string", "format": "date-time"},
 		},
 	})
 	registry.RegisterSchema("%sCreateRequest", map[string]any{
 		"type":                 "object",
-		"required":             []string{"name"},
+		"required":             []string{"name"%s},
 		"additionalProperties": false,
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+%s
 		},
 	})
 	registry.RegisterSchema("%sList", map[string]any{
@@ -1141,7 +2770,7 @@ func renderResourceOpenAPISchemas(data resourceTemplateData) string {
 			"next_cursor": map[string]any{"type": "string", "nullable": true},
 		},
 	})
-`, data.Type, data.Type, data.Type, data.Type)
+`, data.Type, data.OpenAPIResourceRequired, data.OpenAPIResourceProperties, data.Type, data.OpenAPICreateRequired, data.OpenAPICreateProperties, data.Type, data.Type)
 }
 
 func renderResourceOpenAPIVariables(data resourceTemplateData) string {
@@ -1237,7 +2866,7 @@ type {{ .Type }} struct {
 	ID        string
 	TenantID  string
 	Name      string
-	Version   int64
+{{ .DomainFields }}	Version   int64
 	DeletedAt *time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -1252,7 +2881,7 @@ func (r {{ .Type }}) Public() map[string]any {
 		"id":         r.ID,
 		"tenant_id":  r.TenantID,
 		"name":       r.Name,
-		"version":    r.Version,
+{{ .PublicEntries }}		"version":    r.Version,
 		"created_at": r.CreatedAt,
 		"updated_at": r.UpdatedAt,
 	}
@@ -1339,7 +2968,7 @@ func (s *{{ .Type }}Service) List(ctx context.Context, tenantID, cursor string, 
 	return items, next, nil
 }
 
-func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string) (domain.{{ .Type }}, error) {
+func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string{{ .ServiceCreateParams }}) (domain.{{ .Type }}, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.{{ .Type }}{}, err
 	}
@@ -1348,7 +2977,7 @@ func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string) 
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	name = strings.TrimSpace(name)
-	if tenantID == "" || name == "" {
+{{ .ServiceCreateValidation }}	if tenantID == "" || name == "" {
 		return domain.{{ .Type }}{}, ErrValidation
 	}
 	s.mu.Lock()
@@ -1359,7 +2988,7 @@ func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string) 
 		ID:        fmt.Sprintf("{{ .Prefix }}_%06d", s.next),
 		TenantID:  tenantID,
 		Name:      name,
-		Version:   1,
+{{ .ServiceCreateAssignments }}		Version:   1,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -1373,7 +3002,7 @@ func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string) 
 	return item, nil
 }
 
-func (s *{{ .Type }}Service) Update(ctx context.Context, tenantID, id, name, ifMatch string) (domain.{{ .Type }}, error) {
+func (s *{{ .Type }}Service) Update(ctx context.Context, tenantID, id, name, ifMatch string{{ .ServiceUpdateParams }}) (domain.{{ .Type }}, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.{{ .Type }}{}, err
 	}
@@ -1384,7 +3013,7 @@ func (s *{{ .Type }}Service) Update(ctx context.Context, tenantID, id, name, ifM
 	id = strings.TrimSpace(id)
 	name = strings.TrimSpace(name)
 	ifMatch = strings.TrimSpace(ifMatch)
-	if tenantID == "" || id == "" || name == "" || ifMatch == "" {
+{{ .ServiceUpdateValidation }}	if tenantID == "" || id == "" || name == "" || ifMatch == "" {
 		return domain.{{ .Type }}{}, ErrValidation
 	}
 	s.mu.Lock()
@@ -1400,7 +3029,7 @@ func (s *{{ .Type }}Service) Update(ctx context.Context, tenantID, id, name, ifM
 		return domain.{{ .Type }}{}, ErrPreconditionFailed
 	}
 	item.Name = name
-	item.Version++
+{{ .ServiceUpdateAssignments }}	item.Version++
 	item.UpdatedAt = s.now().UTC()
 	if s.store != nil {
 		if err := s.store.Save(ctx, item); err != nil {
@@ -1471,7 +3100,7 @@ import (
 func Test{{ .Type }}ServiceCRUDIsTenantScoped(t *testing.T) {
 	service := New{{ .Type }}Service()
 	ctx := context.Background()
-	created, err := service.Create(ctx, "org_1", "Alpha")
+	created, err := service.Create(ctx, "org_1", "Alpha"{{ .ServiceTestCreateArgs }})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -1486,14 +3115,14 @@ func Test{{ .Type }}ServiceCRUDIsTenantScoped(t *testing.T) {
 	if err != nil || len(other) != 0 {
 		t.Fatalf("cross tenant List() items=%#v err=%v", other, err)
 	}
-	updated, err := service.Update(ctx, "org_1", created.ID, "Beta", created.ETag())
+	updated, err := service.Update(ctx, "org_1", created.ID, "Beta", created.ETag(){{ .ServiceTestUpdateArgs }})
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 	if updated.Name != "Beta" || updated.Version != 2 {
 		t.Fatalf("updated {{ .Name }} = %#v", updated)
 	}
-	if _, err := service.Update(ctx, "org_1", created.ID, "Gamma", created.ETag()); !errors.Is(err, ErrPreconditionFailed) {
+	if _, err := service.Update(ctx, "org_1", created.ID, "Gamma", created.ETag(){{ .ServiceTestUpdateArgs }}); !errors.Is(err, ErrPreconditionFailed) {
 		t.Fatalf("stale Update() error = %v, want %v", err, ErrPreconditionFailed)
 	}
 	if err := service.Delete(ctx, "org_1", created.ID); err != nil {
@@ -1559,9 +3188,9 @@ func (s *{{ .Type }}Store) Save(ctx context.Context, item domain.{{ .Type }}) er
 		return Err{{ .Type }}Invalid
 	}
 	_, err := s.db.Exec(ctx,
-		"insert into {{ .Table }} (id, organization_id, name, version, deleted_at, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7) "+
-			"on conflict (id) do update set name=excluded.name, version=excluded.version, deleted_at=excluded.deleted_at, updated_at=excluded.updated_at",
-		item.ID, item.TenantID, item.Name, item.Version, item.DeletedAt, item.CreatedAt.UTC(), item.UpdatedAt.UTC(),
+		"insert into {{ .Table }} (id, organization_id, name{{ .SQLInsertColumns }}, version, deleted_at, created_at, updated_at) values ($1, $2, $3{{ .SQLInsertPlaceholders }}, {{ .SQLVersionPlaceholder }}, {{ .SQLDeletedPlaceholder }}, {{ .SQLCreatedPlaceholder }}, {{ .SQLUpdatedPlaceholder }}) "+
+			"on conflict (id) do update set name=excluded.name{{ .SQLUpdateAssignments }}, version=excluded.version, deleted_at=excluded.deleted_at, updated_at=excluded.updated_at",
+		item.ID, item.TenantID, item.Name{{ .SQLSaveArgs }}, item.Version, item.DeletedAt, item.CreatedAt.UTC(), item.UpdatedAt.UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("save {{ .Name }}: %w", err)
@@ -1576,7 +3205,7 @@ func (s *{{ .Type }}Store) Get(ctx context.Context, tenantID, id string) (domain
 	if s == nil || s.db == nil {
 		return domain.{{ .Type }}{}, false, Err{{ .Type }}StoreRequired
 	}
-	row := s.db.QueryRow(ctx, "select id, organization_id, name, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and id=$2", strings.TrimSpace(tenantID), strings.TrimSpace(id))
+	row := s.db.QueryRow(ctx, "select id, organization_id, name{{ .SQLSelectColumns }}, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and id=$2", strings.TrimSpace(tenantID), strings.TrimSpace(id))
 	item, err := scan{{ .Type }}(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.{{ .Type }}{}, false, nil
@@ -1603,7 +3232,7 @@ func (s *{{ .Type }}Store) List(ctx context.Context, tenantID, cursor string, li
 		limit = 50
 	}
 	rows, err := s.db.Query(ctx,
-		"select id, organization_id, name, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and deleted_at is null and ($2 = '' or id > $2) order by id limit $3",
+		"select id, organization_id, name{{ .SQLSelectColumns }}, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and deleted_at is null and ($2 = '' or id > $2) order by id limit $3",
 		tenantID, cursor, limit+1,
 	)
 	if err != nil {
@@ -1636,7 +3265,7 @@ type {{ .Var }}Scanner interface {
 func scan{{ .Type }}(row {{ .Var }}Scanner) (domain.{{ .Type }}, error) {
 	var item domain.{{ .Type }}
 	var deleted pgtype.Timestamptz
-	if err := row.Scan(&item.ID, &item.TenantID, &item.Name, &item.Version, &deleted, &item.CreatedAt, &item.UpdatedAt); err != nil {
+	if err := row.Scan(&item.ID, &item.TenantID, &item.Name{{ .SQLScanDestinations }}, &item.Version, &deleted, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return domain.{{ .Type }}{}, err
 	}
 	if deleted.Valid {
@@ -1688,6 +3317,7 @@ import (
 
 type {{ .Var }}Request struct {
 	Name string ` + "`json:\"name\"`" + `
+{{ .RequestFields }}
 }
 
 func (cfg RouterConfig) handleList{{ .Field }}(w http.ResponseWriter, r *http.Request) {
@@ -1728,7 +3358,7 @@ func (cfg RouterConfig) handleCreate{{ .Type }}(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	item, err := cfg.{{ .Field }}.Create(r.Context(), tenantID, req.Name)
+	item, err := cfg.{{ .Field }}.Create(r.Context(), tenantID, req.Name{{ .ServiceCreateArgs }})
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -1764,7 +3394,7 @@ func (cfg RouterConfig) handleUpdate{{ .Type }}(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	item, err := cfg.{{ .Field }}.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch)
+	item, err := cfg.{{ .Field }}.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch{{ .ServiceUpdateArgs }})
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -1814,6 +3444,7 @@ func decode{{ .Type }}Request(w http.ResponseWriter, r *http.Request) ({{ .Var }
 		return req, false
 	}
 	req.Name = strings.TrimSpace(req.Name)
+{{ .DecodeValidation }}
 	if req.Name == "" {
 		writeAppError(w, app.ErrValidation)
 		return req, false
@@ -1909,13 +3540,17 @@ const resourceMigrationTemplate = `CREATE TABLE {{ .Table }} (
 	id TEXT PRIMARY KEY,
 	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 	name TEXT NOT NULL,
-	version BIGINT NOT NULL DEFAULT 1,
+{{ .MigrationColumns }}	version BIGINT NOT NULL DEFAULT 1,
 	deleted_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX {{ .Table }}_organization_id_idx ON {{ .Table }}(organization_id, id) WHERE deleted_at IS NULL;
+`
+
+const resourceMigrationDownTemplate = `-- Local/schema-teardown helper only. Do not run in production.
+DROP TABLE IF EXISTS {{ .Table }};
 `
 
 func renderGoClient(packageName string, operations []specs.Operation) []byte {
@@ -2485,6 +4120,7 @@ type scaffoldConfig struct {
 	Profile        string
 	AuthMode       string
 	Providers      []string
+	Clients        []string
 	CoreReplace    string
 	ContribReplace string
 	ToolkitVersion string
@@ -2506,6 +4142,9 @@ func generateService(cfg scaffoldConfig) error {
 			return err
 		}
 		cfg.AuthMode = authMode
+	}
+	if cfg.Profile == scaffoldProfileSaaSAPIFull && len(cfg.Clients) == 0 {
+		cfg.Clients = []string{scaffoldClientGo}
 	}
 	if !isSemVerModuleVersion(cfg.ToolkitVersion) {
 		cfg.ToolkitVersion = defaultScaffoldModuleVersion
@@ -2543,6 +4182,9 @@ func generateService(cfg scaffoldConfig) error {
 		"HasStripeBilling":     boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderStripe)),
 		"HasResendEmail":       boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderResend)),
 		"HasClerkWebhooks":     boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderClerkHooks)),
+		"HasEntitlements":      boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderEntitlements)),
+		"HasGoClient":          boolTemplateValue(hasScaffoldClient(cfg.Clients, scaffoldClientGo)),
+		"HasTypeScriptClient":  boolTemplateValue(hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript)),
 	}
 	files := scaffoldFilesForConfig(cfg)
 	for _, file := range files {
@@ -2574,12 +4216,23 @@ func generateService(cfg scaffoldConfig) error {
 		return err
 	}
 	if cfg.Profile == scaffoldProfileSaaSAPIFull {
-		client, err := renderSaaSAPIFullGoClient()
-		if err != nil {
-			return err
+		if hasScaffoldClient(cfg.Clients, scaffoldClientGo) {
+			client, err := renderSaaSAPIFullGoClient()
+			if err != nil {
+				return err
+			}
+			if err := writeGeneratedFile(root, "internal/client/apiclient/client.go", client); err != nil {
+				return err
+			}
 		}
-		if err := writeGeneratedFile(root, "internal/client/apiclient/client.go", client); err != nil {
-			return err
+		if hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript) {
+			client, err := renderSaaSAPIFullTypeScriptClient()
+			if err != nil {
+				return err
+			}
+			if err := writeGeneratedFile(root, "internal/client/ts/src/index.ts", client); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -2662,6 +4315,15 @@ func boolTemplateValue(value bool) string {
 func hasScaffoldProvider(providers []string, provider string) bool {
 	for _, current := range providers {
 		if current == provider {
+			return true
+		}
+	}
+	return false
+}
+
+func hasScaffoldClient(clients []string, client string) bool {
+	for _, current := range clients {
+		if current == client {
 			return true
 		}
 	}
@@ -2785,6 +4447,14 @@ func renderSaaSAPIFullGoClient() ([]byte, error) {
 		return nil, fmt.Errorf("format full scaffold Go client: %w", err)
 	}
 	return formatted, nil
+}
+
+func renderSaaSAPIFullTypeScriptClient() ([]byte, error) {
+	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(renderTypeScriptFetchClient(doc)), nil
 }
 
 func registerFullScaffoldSchemas(registry *specs.Registry) {
@@ -4112,6 +5782,134 @@ func diffOpenAPI(basePath, headPath string) error {
 	return nil
 }
 
+type openAPIContractReport struct {
+	Breaking          bool                  `json:"breaking"`
+	AddedOperations   []openAPIOperationRef `json:"added_operations"`
+	RemovedOperations []openAPIOperationRef `json:"removed_operations"`
+	ChangedOperations []openAPIChangeRef    `json:"changed_operations"`
+	Findings          []string              `json:"findings"`
+}
+
+type openAPIOperationRef struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	OperationID string `json:"operation_id"`
+}
+
+type openAPIChangeRef struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Code   string `json:"code"`
+	Detail string `json:"detail,omitempty"`
+}
+
+func compareOpenAPIContracts(basePath, headPath string) (openAPIContractReport, error) {
+	baseLoaded, err := loadOpenAPI(basePath)
+	if err != nil {
+		return openAPIContractReport{}, fmt.Errorf("base: %w", err)
+	}
+	if err := baseLoaded.validate(); err != nil {
+		return openAPIContractReport{}, fmt.Errorf("base: %w", err)
+	}
+	headLoaded, err := loadOpenAPI(headPath)
+	if err != nil {
+		return openAPIContractReport{}, fmt.Errorf("head: %w", err)
+	}
+	if err := headLoaded.validate(); err != nil {
+		return openAPIContractReport{}, fmt.Errorf("head: %w", err)
+	}
+	baseOps := operationsFromOpenAPIDocument(baseLoaded.doc)
+	headOps := operationsFromOpenAPIDocument(headLoaded.doc)
+	baseByKey := operationsByMethodPath(baseOps)
+	headByKey := operationsByMethodPath(headOps)
+	report := openAPIContractReport{}
+	for key, operation := range headByKey {
+		if _, ok := baseByKey[key]; !ok {
+			report.AddedOperations = append(report.AddedOperations, operationRef(operation))
+		}
+	}
+	for key, operation := range baseByKey {
+		if _, ok := headByKey[key]; !ok {
+			report.RemovedOperations = append(report.RemovedOperations, operationRef(operation))
+		}
+	}
+	findings := diffOperations(baseOps, headOps)
+	findings = append(findings, diffSecuritySchemes(baseLoaded.doc, headLoaded.doc)...)
+	findings = append(findings, diffGlobalSecurity(baseLoaded.doc, headLoaded.doc)...)
+	findings = append(findings, diffOperationSchemas(baseLoaded.doc, headLoaded.doc)...)
+	findings = append(findings, diffComponentSchemas(baseLoaded.doc, headLoaded.doc)...)
+	for _, finding := range findings {
+		report.Findings = append(report.Findings, finding.String())
+		report.ChangedOperations = append(report.ChangedOperations, openAPIChangeRef{
+			Method: finding.Method,
+			Path:   finding.Path,
+			Code:   finding.Code,
+			Detail: finding.Detail,
+		})
+	}
+	sortOperationRefs(report.AddedOperations)
+	sortOperationRefs(report.RemovedOperations)
+	sort.Slice(report.ChangedOperations, func(i, j int) bool {
+		left := report.ChangedOperations[i]
+		right := report.ChangedOperations[j]
+		return strings.Join([]string{left.Path, left.Method, left.Code, left.Detail}, "\x00") < strings.Join([]string{right.Path, right.Method, right.Code, right.Detail}, "\x00")
+	})
+	sort.Strings(report.Findings)
+	report.Breaking = len(report.RemovedOperations) > 0 || len(report.Findings) > 0
+	return report, nil
+}
+
+func operationsByMethodPath(operations []specs.Operation) map[string]specs.Operation {
+	out := make(map[string]specs.Operation, len(operations))
+	for _, operation := range operations {
+		out[strings.ToUpper(operation.Method)+" "+operation.Path] = operation
+	}
+	return out
+}
+
+func operationRef(operation specs.Operation) openAPIOperationRef {
+	return openAPIOperationRef{
+		Method:      strings.ToUpper(operation.Method),
+		Path:        operation.Path,
+		OperationID: operation.OperationID,
+	}
+}
+
+func sortOperationRefs(values []openAPIOperationRef) {
+	sort.Slice(values, func(i, j int) bool {
+		left := values[i]
+		right := values[j]
+		return strings.Join([]string{left.Path, left.Method, left.OperationID}, "\x00") < strings.Join([]string{right.Path, right.Method, right.OperationID}, "\x00")
+	})
+}
+
+func renderOpenAPIChangelog(report openAPIContractReport) string {
+	var out strings.Builder
+	out.WriteString("# OpenAPI Changelog\n\n")
+	writeOperationSection := func(title string, operations []openAPIOperationRef) {
+		fmt.Fprintf(&out, "## %s\n", title)
+		if len(operations) == 0 {
+			out.WriteString("- None\n\n")
+			return
+		}
+		for _, operation := range operations {
+			fmt.Fprintf(&out, "- %s %s %s\n", operation.Method, operation.Path, operation.OperationID)
+		}
+		out.WriteString("\n")
+	}
+	writeOperationSection("Added operations", report.AddedOperations)
+	writeOperationSection("Removed operations", report.RemovedOperations)
+	out.WriteString("## Compatibility findings\n")
+	if len(report.Findings) == 0 {
+		out.WriteString("- None\n")
+		return out.String()
+	}
+	for _, finding := range report.Findings {
+		fmt.Fprintf(&out, "- %s\n", finding)
+	}
+	return out.String()
+}
+
 type openAPIDiffFinding struct {
 	Code   string
 	Method string
@@ -4991,6 +6789,9 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 	if profile == scaffoldProfileSaaSAPIFull {
 		return fullScaffoldFiles
 	}
+	if profile == scaffoldProfileSaaSWeb {
+		return saasWebScaffoldFiles
+	}
 	return scaffoldFiles
 }
 
@@ -5007,6 +6808,12 @@ func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
 	}
 	if hasScaffoldProvider(cfg.Providers, scaffoldProviderClerkHooks) {
 		files = append(files, clerkWebhooksScaffoldFiles...)
+	}
+	if hasScaffoldProvider(cfg.Providers, scaffoldProviderEntitlements) {
+		files = append(files, entitlementsScaffoldFiles...)
+	}
+	if hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript) {
+		files = append(files, fullTypeScriptClientScaffoldFiles...)
 	}
 	return files
 }
@@ -5057,6 +6864,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
 	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
 	{Name: "migrations/20260517000100_platform.up.sql", Body: fullMigrationTemplate},
+	{Name: "migrations/20260517000100_platform.down.sql", Body: fullMigrationDownTemplate},
 	{Name: "scripts/integration_check.sh", Body: fullIntegrationCheckScriptTemplate},
 	{Name: "Makefile", Body: fullMakefileTemplate},
 	{Name: ".env.example", Body: fullEnvTemplate},
@@ -5076,26 +6884,417 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "deploy/kubernetes/pod-disruption-budget.yaml", Body: fullKubernetesPDBTemplate},
 	{Name: "deploy/kubernetes/hpa.yaml", Body: fullKubernetesHPATemplate},
 	{Name: "deploy/kubernetes/network-policy.yaml", Body: fullKubernetesNetworkPolicyTemplate},
+	{Name: "observability/grafana/saas-api-full-dashboard.json", Body: observabilityGrafanaDashboardTemplate},
+	{Name: "observability/prometheus/saas-api-full-rules.yaml", Body: observabilityPrometheusRulesTemplate},
+	{Name: "observability/runbooks/observability.md", Body: observabilityRunbookTemplate},
+	{Name: "docs/providers/provider-runbook.md", Body: providerRunbookTemplate},
+	{Name: "deploy/helm/Chart.yaml", Body: helmChartTemplate},
+	{Name: "deploy/helm/values.yaml", Body: helmValuesTemplate},
+	{Name: "deploy/helm/README.md", Body: helmReadmeTemplate},
+	{Name: "deploy/terraform/aws/main.tf", Body: terraformAWSMainTemplate},
+	{Name: "deploy/terraform/aws/variables.tf", Body: terraformAWSVariablesTemplate},
+	{Name: "deploy/terraform/aws/outputs.tf", Body: terraformAWSOutputsTemplate},
+	{Name: "deploy/terraform/aws/README.md", Body: terraformAWSReadmeTemplate},
 	{Name: "README.md", Body: fullReadmeTemplate},
+}
+
+var fullTypeScriptClientScaffoldFiles = []scaffoldFile{
+	{Name: "internal/client/ts/package.json", Body: fullTypeScriptPackageTemplate},
+	{Name: "internal/client/ts/tsconfig.json", Body: fullTypeScriptTSConfigTemplate},
+	{Name: "internal/client/ts/README.md", Body: fullTypeScriptReadmeTemplate},
+}
+
+var saasWebScaffoldFiles = []scaffoldFile{
+	{Name: "go.mod", Body: saasWebGoModTemplate},
+	{Name: "cmd/web/main.go", Body: saasWebMainTemplate},
+	{Name: "internal/session/session.go", Body: saasWebSessionTemplate},
+	{Name: "internal/session/session_test.go", Body: saasWebSessionTestTemplate},
+	{Name: "Makefile", Body: saasWebMakefileTemplate},
+	{Name: ".env.example", Body: saasWebEnvTemplate},
+	{Name: "README.md", Body: saasWebReadmeTemplate},
 }
 
 var stripeBillingScaffoldFiles = []scaffoldFile{
 	{Name: "internal/providers/stripebilling/billing.go", Body: providerStripeBillingTemplate},
 	{Name: "internal/providers/stripebilling/billing_test.go", Body: providerStripeBillingTestTemplate},
+	{Name: "testdata/providers/stripe-webhook.json", Body: providerStripeWebhookFixtureTemplate},
 	{Name: "docs/providers/stripe-billing.md", Body: providerStripeBillingDocTemplate},
 }
 
 var resendEmailScaffoldFiles = []scaffoldFile{
 	{Name: "internal/providers/resendemail/invitations.go", Body: providerResendEmailTemplate},
 	{Name: "internal/providers/resendemail/invitations_test.go", Body: providerResendEmailTestTemplate},
+	{Name: "testdata/providers/resend-invitation.json", Body: providerResendFixtureTemplate},
 	{Name: "docs/providers/resend-email.md", Body: providerResendEmailDocTemplate},
 }
 
 var clerkWebhooksScaffoldFiles = []scaffoldFile{
 	{Name: "internal/providers/clerkwebhooks/webhooks.go", Body: providerClerkWebhooksTemplate},
 	{Name: "internal/providers/clerkwebhooks/webhooks_test.go", Body: providerClerkWebhooksTestTemplate},
+	{Name: "testdata/providers/clerk-webhook.json", Body: providerClerkWebhookFixtureTemplate},
 	{Name: "docs/providers/clerk-webhooks.md", Body: providerClerkWebhooksDocTemplate},
 }
+
+var entitlementsScaffoldFiles = []scaffoldFile{
+	{Name: "internal/entitlements/entitlements.go", Body: entitlementsTemplate},
+	{Name: "internal/entitlements/entitlements_test.go", Body: entitlementsTestTemplate},
+	{Name: "docs/providers/entitlements.md", Body: entitlementsDocTemplate},
+}
+
+const fullTypeScriptPackageTemplate = `{
+  "name": "@example/api-client",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+`
+
+const fullTypeScriptTSConfigTemplate = `{
+  "compilerOptions": {
+    "declaration": true,
+    "lib": ["ES2022", "DOM"],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "outDir": "dist",
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": ["src/**/*.ts"]
+}
+`
+
+const fullTypeScriptReadmeTemplate = `# TypeScript Client
+
+Generated fetch client for this service's OpenAPI contract. Regenerate it with:
+
+` + "`" + `api-toolkit clients typescript --openapi ../../testdata/openapi.golden.json --out . --package-name @example/api-client --style fetch` + "`" + `
+`
+
+const saasWebGoModTemplate = `module {{ .Module }}
+
+go 1.25.0
+`
+
+const saasWebMainTemplate = `package main
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+
+	"{{ .Module }}/internal/session"
+)
+
+func main() {
+	manager := session.New(session.Config{
+		CookieName: "sid",
+		Production: os.Getenv("APP_ENV") == "production",
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		manager.Rotate(w, r, "")
+		w.WriteHeader(http.StatusNoContent)
+	})
+	addr := ":8080"
+	if value := os.Getenv("ADDR"); value != "" {
+		addr = value
+	}
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+`
+
+const saasWebSessionTemplate = `package session
+
+import (
+	"crypto/subtle"
+	"errors"
+	"net/http"
+	"strings"
+)
+
+type Config struct {
+	CookieName string
+	Production bool
+}
+
+type Manager struct {
+	config Config
+}
+
+func New(config Config) *Manager {
+	if strings.TrimSpace(config.CookieName) == "" {
+		config.CookieName = "sid"
+	}
+	return &Manager{config: config}
+}
+
+func (m *Manager) Cookie(sessionID string) *http.Cookie {
+	return &http.Cookie{
+		Name:     m.config.CookieName,
+		Value:    sessionID,
+		Path:     "/",
+		HttpOnly: true, // HttpOnly
+		Secure:   true, // Secure
+		SameSite: http.SameSiteLaxMode, // SameSite=Lax
+	}
+}
+
+func (m *Manager) Rotate(w http.ResponseWriter, _ *http.Request, nextSessionID string) {
+	cookie := m.Cookie(nextSessionID)
+	if nextSessionID == "" {
+		cookie.MaxAge = -1
+	}
+	http.SetCookie(w, cookie)
+}
+
+func ValidateCSRF(r *http.Request) error {
+	header := strings.TrimSpace(r.Header.Get("X-CSRF-Token"))
+	cookie, err := r.Cookie("csrf_token")
+	if err != nil {
+		return err
+	}
+	token := strings.TrimSpace(cookie.Value)
+	if header == "" || token == "" {
+		return errors.New("csrf token is required")
+	}
+	if subtle.ConstantTimeCompare([]byte(header), []byte(token)) != 1 {
+		return errors.New("csrf token mismatch")
+	}
+	return nil
+}
+`
+
+const saasWebSessionTestTemplate = `package session
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestCookieSecurityDefaults(t *testing.T) {
+	manager := New(Config{CookieName: "sid", Production: true})
+	cookie := manager.Cookie("session-1")
+	if !cookie.HttpOnly || !cookie.Secure {
+		t.Fatalf("cookie missing secure flags: %#v", cookie)
+	}
+	if cookie.SameSite == 0 {
+		t.Fatalf("cookie missing SameSite")
+	}
+}
+
+func TestValidateCSRF(t *testing.T) {
+	req := httptest.NewRequest("POST", "/", nil)
+	req.Header.Set("X-CSRF-Token", "token")
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "token"})
+	if err := ValidateCSRF(req); err != nil {
+		t.Fatalf("ValidateCSRF returned error: %v", err)
+	}
+}
+`
+
+const saasWebMakefileTemplate = `GO ?= go
+
+.PHONY: test build finalize
+
+test:
+	$(GO) test ./...
+
+build:
+	$(GO) build -trimpath -o bin/web ./cmd/web
+
+finalize: test build
+`
+
+const saasWebEnvTemplate = `APP_ENV=development
+ADDR=:8080
+SESSION_SECRET=replace-me
+REDIS_URL=redis://localhost:6379/0
+`
+
+const saasWebReadmeTemplate = `# SaaS Web
+
+Browser/session scaffold with cookie-backed sessions, CSRF checks, secure cookie defaults, and an OIDC-session extension point isolated from API-first profiles.
+`
+
+const entitlementsTemplate = `package entitlements
+
+import (
+	"context"
+	"errors"
+	"strings"
+)
+
+type Feature string
+
+type Plan struct {
+	ID       string
+	Features map[Feature]bool
+	Quotas   map[Feature]int64
+}
+
+type Store interface {
+	PlanForTenant(context.Context, string) (Plan, error)
+	IncrementUsage(context.Context, string, Feature, int64) (int64, error)
+}
+
+type Service struct {
+	Store Store
+}
+
+func (s Service) Allowed(ctx context.Context, tenantID string, feature Feature) (bool, error) {
+	if s.Store == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(string(feature)) == "" {
+		return false, errors.New("invalid entitlement check")
+	}
+	plan, err := s.Store.PlanForTenant(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+	return plan.Features[feature], nil
+}
+
+func (s Service) Consume(ctx context.Context, tenantID string, feature Feature, amount int64) (bool, error) {
+	if amount <= 0 {
+		return false, errors.New("amount must be positive")
+	}
+	plan, err := s.Store.PlanForTenant(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+	limit := plan.Quotas[feature]
+	if limit <= 0 {
+		return plan.Features[feature], nil
+	}
+	used, err := s.Store.IncrementUsage(ctx, tenantID, feature, amount)
+	if err != nil {
+		return false, err
+	}
+	return used <= limit, nil
+}
+`
+
+const entitlementsTestTemplate = `package entitlements
+
+import (
+	"context"
+	"testing"
+)
+
+type fakeStore struct {
+	plan Plan
+	used int64
+}
+
+func (s *fakeStore) PlanForTenant(context.Context, string) (Plan, error) {
+	return s.plan, nil
+}
+
+func (s *fakeStore) IncrementUsage(_ context.Context, _ string, _ Feature, amount int64) (int64, error) {
+	s.used += amount
+	return s.used, nil
+}
+
+func TestAllowedAndQuota(t *testing.T) {
+	store := &fakeStore{plan: Plan{
+		Features: map[Feature]bool{"widgets": true},
+		Quotas: map[Feature]int64{"widgets": 2},
+	}}
+	service := Service{Store: store}
+	allowed, err := service.Allowed(context.Background(), "tenant-1", "widgets")
+	if err != nil || !allowed {
+		t.Fatalf("Allowed() = %v, %v", allowed, err)
+	}
+	allowed, err = service.Consume(context.Background(), "tenant-1", "widgets", 3)
+	if err != nil {
+		t.Fatalf("Consume() error = %v", err)
+	}
+	if allowed {
+		t.Fatal("quota should be exceeded")
+	}
+}
+`
+
+const entitlementsDocTemplate = `# Entitlements
+
+The optional entitlements workflow is provider-neutral app code. It models plans, features, tenant entitlements, quotas, and usage counters without importing billing-provider SDKs.
+
+When combined with Stripe billing, provider webhooks should update app-owned billing mappings and then update these entitlements. Do not log billing customer IDs, subscription IDs, or quota usage payloads as high-cardinality metric labels.
+`
+
+const providerRunbookTemplate = `# Provider Runbook
+
+Provider workflows are app-owned starter code. Local tests use fake providers and checked-in fixtures; live checks are opt-in through ` + "`RUN_PROVIDER_LIVE_CHECKS=true make provider-live-check`" + ` and must never run from default ` + "`make finalize`" + `.
+
+## Replay
+
+- Keep signed webhook fixtures under ` + "`testdata/providers`" + `.
+- Reproduce provider callback failures with deterministic fixture payloads before using sandbox credentials.
+- Never paste live API keys, webhook secrets, customer IDs, invitation tokens, or callback bodies into issue trackers or logs.
+
+## Failure Modes
+
+- Signature failures: verify the configured secret and provider clock tolerance.
+- Tenant mismatch: reject the callback and inspect app-owned billing or identity mappings.
+- Provider outage: retry app-owned operations with idempotency keys and keep user-visible errors generic.
+`
+
+const providerStripeWebhookFixtureTemplate = `{
+  "id": "evt_test_checkout_completed",
+  "type": "checkout.session.completed",
+  "livemode": false,
+  "data": {
+    "object": {
+      "id": "cs_test_fixture",
+      "client_reference_id": "org_fixture",
+      "metadata": {
+        "tenant_id": "org_fixture"
+      }
+    }
+  }
+}
+`
+
+const providerResendFixtureTemplate = `{
+  "to": "member@example.test",
+  "template": "invitation",
+  "tenant_id": "org_fixture",
+  "redacted_token_prefix": "inv_"
+}
+`
+
+const providerClerkWebhookFixtureTemplate = `{
+  "type": "organizationMembership.created",
+  "data": {
+    "id": "mem_fixture",
+    "organization": {
+      "id": "org_fixture"
+    },
+    "public_user_data": {
+      "user_id": "user_fixture"
+    }
+  }
+}
+`
 
 const providerStripeBillingTemplate = `package stripebilling
 
@@ -6010,15 +8209,23 @@ module: {{ .Module }}
 generator_version: {{ .CoreVersion }}
 openapi: testdata/openapi.golden.json
 client:
+{{ if eq .HasGoClient "true" }}
   go:
     path: internal/client/apiclient
     package: apiclient
+{{ end }}{{ if eq .HasTypeScriptClient "true" }}
+  typescript:
+    path: internal/client/ts
+    package_name: "@example/api-client"
+    style: fetch
+{{ end }}
 resources:
   # api-toolkit:manifest-resources
 providers:
 {{ if eq .HasStripeBilling "true" }}  - stripe-billing
 {{ end }}{{ if eq .HasResendEmail "true" }}  - resend-email
 {{ end }}{{ if eq .HasClerkWebhooks "true" }}  - clerk-webhooks
+{{ end }}{{ if eq .HasEntitlements "true" }}  - entitlements
 {{ end }}{{ if eq .HasProviderWorkflows "true" }}
 {{ end }}
   # api-toolkit:manifest-providers
@@ -6511,11 +8718,12 @@ func run(args []string) error {
 	table := flags.String("table", "schema_migrations", "migration table")
 	lock := flags.Int64("lock", 0, "advisory lock key")
 	timeout := flags.Duration("timeout", 15*time.Minute, "migration timeout")
+	allowDangerousDown := flags.Bool("allow-dangerous-down", false, "allow local/schema-teardown down migrations")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("command required: up | status | check")
+		return errors.New("command required: plan | up | status | check | verify | down")
 	}
 	if strings.TrimSpace(*dir) == "" {
 		*dir = "migrations"
@@ -6527,13 +8735,22 @@ func run(args []string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
-	migrator, err := bootstrap.NewMigrator(databaseURL, *table, *lock, false, logzap.NewProduction(), []string{*dir}, nil)
+	command := strings.ToLower(flags.Arg(0))
+	downAllowed := command == "down" && *allowDangerousDown && strings.EqualFold(strings.TrimSpace(os.Getenv("ALLOW_DANGEROUS_MIGRATION_DOWN")), "true")
+	migrator, err := bootstrap.NewMigrator(databaseURL, *table, *lock, downAllowed, logzap.NewProduction(), []string{*dir}, nil)
 	if err != nil {
 		return fmt.Errorf("create migrator: %w", err)
 	}
 	defer migrator.Close()
 
-	switch strings.ToLower(flags.Arg(0)) {
+	switch command {
+	case "plan":
+		status, err := bootstrap.Status(ctx, migrator, *dir)
+		if err != nil {
+			return err
+		}
+		fmt.Print(status)
+		return nil
 	case "up":
 		if err := bootstrap.RunUp(ctx, migrator, *dir); err != nil {
 			return err
@@ -6558,8 +8775,24 @@ func run(args []string) error {
 		}
 		fmt.Fprintln(os.Stdout, "migrations up-to-date")
 		return nil
+	case "verify":
+		status, err := bootstrap.Status(ctx, migrator, *dir)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(status, "checksum") || strings.Contains(status, "dirty") {
+			fmt.Print(status)
+			return errors.New("migration verification failed")
+		}
+		fmt.Fprintln(os.Stdout, "migration checksums verified")
+		return nil
+	case "down":
+		if !downAllowed {
+			return errors.New("down migrations require --allow-dangerous-down and ALLOW_DANGEROUS_MIGRATION_DOWN=true")
+		}
+		return errors.New("down migrations are generated only for local/schema-teardown use; add project-specific RunDown wiring before use")
 	default:
-		return errors.New("unknown command; expected up, status, or check")
+		return errors.New("unknown command; expected plan, up, status, check, verify, or down")
 	}
 }
 `
@@ -17469,13 +19702,27 @@ CREATE TABLE webhook_deliveries (
 );
 `
 
+const fullMigrationDownTemplate = `-- Local/schema-teardown helper only. Do not run in production.
+DROP TABLE IF EXISTS webhook_deliveries;
+DROP TABLE IF EXISTS webhook_endpoints;
+DROP TABLE IF EXISTS objects;
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS operations;
+DROP TABLE IF EXISTS widgets;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS invitations;
+DROP TABLE IF EXISTS memberships;
+DROP TABLE IF EXISTS organizations;
+`
+
 const fullMakefileTemplate = `GO ?= go
 API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
 
-.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check resource-check migrate-up migrate-status migrate-check integration-check clean finalize
+.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff contracts-changelog contracts-impact client-check client-ts-check resource-check provider-check provider-live-check migrate-plan migrate-up migrate-status migrate-check migrate-verify migrate-down integration-check clean finalize
 
 deps:
 	$(GO) mod tidy
@@ -17503,6 +19750,12 @@ contracts-lint:
 contracts-diff:
 	$(API_TOOLKIT) contracts diff --base $(OPENAPI_BASE) --head $(OPENAPI)
 
+contracts-changelog:
+	$(API_TOOLKIT) contracts changelog --base $(OPENAPI_BASE) --head $(OPENAPI)
+
+contracts-impact:
+	$(API_TOOLKIT) contracts impact --base $(OPENAPI_BASE) --head $(OPENAPI)
+
 client-check: deps
 	@tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp"' EXIT; \
@@ -17511,7 +19764,31 @@ client-check: deps
 	cmp -s "$$tmp/client.go" internal/client/apiclient/client.go || { echo "generated Go client is out of date"; diff -u "$$tmp/client.go" internal/client/apiclient/client.go; exit 1; }
 	$(GO) test ./internal/client/apiclient
 
+client-ts-check:
+	@if [ -f internal/client/ts/src/index.ts ]; then \
+		tmp=$$(mktemp -d); \
+		trap 'rm -rf "$$tmp"' EXIT; \
+		cp internal/client/ts/src/index.ts "$$tmp/index.ts"; \
+		$(API_TOOLKIT) clients typescript --openapi $(OPENAPI) --out internal/client/ts --package-name @example/api-client --style fetch; \
+		cmp -s "$$tmp/index.ts" internal/client/ts/src/index.ts || { echo "generated TypeScript client is out of date"; diff -u "$$tmp/index.ts" internal/client/ts/src/index.ts; exit 1; }; \
+	else \
+		echo "TypeScript client not generated"; \
+	fi
+
 resource-check: test openapi-check contracts-lint contracts-diff client-check
+
+provider-check:
+	@packages=""; \
+	if [ -d internal/providers ]; then packages="$$packages ./internal/providers/..."; fi; \
+	if [ -d internal/entitlements ]; then packages="$$packages ./internal/entitlements/..."; fi; \
+	if [ -z "$$packages" ]; then echo "no provider workflows generated"; else $(GO) test $$packages; fi
+
+provider-live-check:
+	@if [ "$${RUN_PROVIDER_LIVE_CHECKS:-}" != "true" ]; then echo "set RUN_PROVIDER_LIVE_CHECKS=true to run live provider checks"; exit 2; fi
+	$(GO) test -tags=provider_live ./internal/providers/...
+
+migrate-plan:
+	$(GO) run ./cmd/migrate plan
 
 migrate-up:
 	$(GO) run ./cmd/migrate up
@@ -17521,6 +19798,12 @@ migrate-status:
 
 migrate-check:
 	$(GO) run ./cmd/migrate check
+
+migrate-verify:
+	$(GO) run ./cmd/migrate verify
+
+migrate-down:
+	ALLOW_DANGEROUS_MIGRATION_DOWN=true $(GO) run ./cmd/migrate --allow-dangerous-down down
 
 integration-check:
 	bash scripts/integration_check.sh
@@ -18791,6 +21074,7 @@ Optional provider workflows generated: {{ .ProviderWorkflows }}.
 {{ if eq .HasStripeBilling "true" }}` + "`internal/providers/stripebilling`" + ` creates tenant-scoped checkout sessions and verifies Stripe webhooks before audit writes.
 {{ end }}{{ if eq .HasResendEmail "true" }}` + "`internal/providers/resendemail`" + ` sends invitation emails through a sender boundary with a no-op local fallback.
 {{ end }}{{ if eq .HasClerkWebhooks "true" }}` + "`internal/providers/clerkwebhooks`" + ` verifies signed Clerk callbacks before user or organization sync hooks run.
+{{ end }}{{ if eq .HasEntitlements "true" }}` + "`internal/entitlements`" + ` provides provider-neutral plan, feature, quota, and usage checks for app-owned billing composition.
 {{ end }}Provider SDKs and provider-specific imports stay in the generated app module; the toolkit root module remains provider-neutral.
 {{ end }}
 

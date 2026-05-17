@@ -59,7 +59,11 @@ worker lifecycle management. It exposes `/livez` separately from `/readyz`:
 liveness is process-only, while readiness reflects configured Postgres/Redis
 dependencies. Runtime OpenAPI request validation is enabled by default, and
 response validation is enabled in development/test or by setting
-`OPENAPI_RESPONSE_VALIDATION=true`.
+`OPENAPI_RESPONSE_VALIDATION=true`. The CLI now also includes the optional
+TypeScript fetch client generator, observability bundle generator, Helm chart
+starter, AWS Terraform dependency starter, OpenAPI changelog/impact commands,
+and a separate `saas-web` session profile so browser-session concerns stay out
+of API-first scaffolds.
 
 ## Runtime Contract
 
@@ -71,10 +75,12 @@ The full profile standardizes these defaults:
 - Generated services only connect to Postgres when `DATABASE_URL` is set; in
   production it is mandatory, startup pings the database, and required table
   checks catch unapplied migrations before serving traffic.
-- Generated services include `cmd/migrate up|status|check`, backed by the
-  contrib migrator. Docker Compose and Kubernetes starter assets run this
-  command before API/worker startup, while `migrate-check` fails closed if any
-  migration is still pending.
+- Generated services include `cmd/migrate plan|up|status|check|verify|down`,
+  backed by the contrib migrator. Docker Compose and Kubernetes starter assets
+  run this command before API/worker startup, while `migrate-check` fails closed
+  if any migration is still pending. `down` is guarded for local/schema-teardown
+  use only and requires both `--allow-dangerous-down` and
+  `ALLOW_DANGEROUS_MIGRATION_DOWN=true`.
 - `bootstrap.NewAPIService` owns the generated HTTP lifecycle. Public routes
   are registered through `APIServiceConfig.RegisterRoutes`; detailed health,
   metrics, and pprof are mounted through bootstrap admin system endpoints and
@@ -171,12 +177,16 @@ The full profile standardizes these defaults:
   `pprof.RegisterAdminRoutes`; generated tests assert `/debug/pprof/` is not
   reachable on the public handler and requires `X-Admin-Key` on the admin
   handler.
-- OpenAPI 3.1 and a typed Go client are generated from route contracts.
+- OpenAPI 3.1 and a typed Go client are generated from route contracts. Passing
+  `--client typescript` also generates a checked-in fetch-based TypeScript
+  client package and `client-ts-check` target.
 - `api-toolkit generate resource --tenant-scoped --crud --postgres
   --soft-delete --etag --audit --webhooks` is supported inside generated
   `saas-api-full` projects. It adds domain/app/Postgres/httpapi files,
   a new `*.up.sql` migration, OpenAPI route contracts, audit and webhook hooks,
   checked-in typed client regeneration, and a `resource-check` Makefile target.
+  The v2 field DSL and route-shaping flags are accepted through `--field`,
+  `--filter`, `--sort`, `--admin`, `--relationship`, and `--object-field`.
   The generator fails closed when `api-toolkit.yaml` is missing, the profile is
   not `saas-api-full`, the resource already exists, or expected generated
   anchors were removed.
@@ -230,13 +240,15 @@ The profile generates or is expected to generate:
   Service, PodDisruptionBudget, HPA, NetworkPolicy, resource requests/limits,
   non-root security contexts, and `/livez`/`/readyz` probes.
 - A checked-in typed Go client plus a generated `client-check` target that
-  regenerates with `api-toolkit clients go --style typed`.
+  regenerates with `api-toolkit clients go --style typed`. Selecting
+  `--client typescript` also emits `internal/client/ts` and `client-ts-check`
+  for the fetch TypeScript client.
 - A generated `api-toolkit.yaml` manifest with profile, module, OpenAPI path,
   typed Go client output path, resource inventory, provider inventory, and
   generator version. Resource generation updates this manifest and runs the
   OpenAPI golden/client regeneration path automatically.
 - Optional provider workflows can be added with repeatable `--with` flags:
-  `stripe-billing`, `resend-email`, and `clerk-webhooks`. These generate
+  `stripe-billing`, `resend-email`, `clerk-webhooks`, and `entitlements`. These generate
   starter packages under the generated app's `internal/providers` tree, add
   only generated-app configuration, and keep provider-specific imports out of
   the toolkit root module.
@@ -249,18 +261,25 @@ The profile generates or is expected to generate:
 - `clerk-webhooks` emits a signed callback handler, tenant mismatch failures,
   provider docs, and generated tests for bad signatures, tenant mismatch, and
   secret redaction from audit metadata.
+- `entitlements` emits provider-neutral app-owned plan, feature, quota, and
+  usage-counter services that can be updated by billing workflows without
+  reintroducing provider-shaped root ports.
 
 ## Operational Commands
 
 Generated full-profile services include command targets for the production
 workflow:
 
-- `make migrate-up`, `make migrate-status`, and `make migrate-check` call
-  `cmd/migrate up|status|check` against contrib migrator-compatible
-  `migrations/*.up.sql` files. Run `migrate-check` before starting API or worker
-  replicas in environments where the migration Job is not used.
+- `make migrate-plan`, `make migrate-up`, `make migrate-status`,
+  `make migrate-check`, `make migrate-verify`, and guarded `make migrate-down`
+  call `cmd/migrate plan|up|status|check|verify|down` against contrib
+  migrator-compatible `migrations/*.up.sql` files. Run `migrate-check` before
+  starting API or worker replicas in environments where the migration Job is not
+  used.
 - `make client-check` regenerates the checked-in typed Go client from
   `testdata/openapi.golden.json` using `api-toolkit clients go --style typed`.
+- `make client-ts-check` regenerates the optional checked-in TypeScript fetch
+  client when it exists.
 - `make resource-check` verifies generated OpenAPI, typed client output, and
   generated resource tests after `api-toolkit generate resource`.
 - `make integration-check` is opt-in Docker evidence. It exercises Postgres,
@@ -273,16 +292,19 @@ workflow:
 generated `saas-api-full` project that still has `api-toolkit.yaml` and expected
 generated anchors. The generator adds tenant-scoped CRUD files, a Postgres
 migration, OpenAPI registration, audit hooks, optional webhook events, ETag
-update behavior, soft delete behavior, tests, and typed client regeneration. It
-does not mutate arbitrary Go services.
+update behavior, soft delete behavior, tests, and typed client regeneration.
+The v2 flags accept field definitions, filters, deterministic sorts, admin
+routes, relationships, and object-backed fields, but still fail closed outside
+intact generated projects. It does not mutate arbitrary Go services.
 
 ## Provider Workflows
 
 Provider workflows are selected at scaffold time with repeatable `--with` flags.
 The generated code uses app-owned boundaries and fake-provider tests instead of
-adding Stripe, Resend, or Clerk SDK dependencies to the toolkit root module.
-Provider secrets belong in generated app configuration or secret stores, never
-in OpenAPI examples, metrics labels, audit metadata, or Problem Details.
+adding Stripe, Resend, Clerk, or billing-domain SDK dependencies to the toolkit
+root module. Provider secrets belong in generated app configuration or secret
+stores, never in OpenAPI examples, metrics labels, audit metadata, or Problem
+Details.
 
 ## Deployment Assets
 
@@ -290,10 +312,11 @@ The generated Kubernetes starter assets are intentionally generic. They define
 an API Deployment, worker Deployment, migration Job, public Service,
 internal-only admin Service, ConfigMap, Secret placeholder, PodDisruptionBudget,
 HPA, NetworkPolicy, resource requests/limits, non-root security contexts, and
-`/livez`/`/readyz` probes. They assume Postgres, Redis, and any S3-compatible
-object store are externally provisioned or reachable through environment
-configuration; Helm, Terraform, and cloud-provider-specific resources remain out
-of scope.
+`/livez`/`/readyz` probes. `api-toolkit deploy helm` turns the same starter
+shape into a reusable chart. `api-toolkit deploy terraform --cloud aws` emits
+dependency primitives for RDS Postgres, ElastiCache Redis, S3, and IAM policy
+examples whose outputs can be consumed by Helm values. GCP, Azure, Helm
+operators, and Terraform application hosting modules remain extension points.
 
 ## Support Tier
 

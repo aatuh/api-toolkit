@@ -163,6 +163,23 @@ Goal:
   hooks run. Keep provider API keys, webhook secrets, and callback payloads out
   of Problem Details, OpenAPI examples, metrics labels, and generated audit
   metadata.
+- Optional generated entitlements are provider-neutral app-owned boundaries.
+  Keep billing customer IDs, subscription IDs, quota counters, and usage events
+  out of metric labels and public errors; billing webhooks should update
+  app-owned mappings before changing tenant entitlements.
+- The generated `saas-web` profile is isolated from API-first scaffolds. Cookie
+  sessions must use HttpOnly, Secure, and SameSite defaults; CSRF tokens must be
+  compared in constant time; login callback state must be validated before
+  session rotation; and raw session IDs or CSRF tokens must not appear in logs,
+  metrics, audit metadata, OpenAPI examples, or Problem Details.
+- Generated migration `down` commands are guarded for local/schema-teardown
+  only. Do not enable `ALLOW_DANGEROUS_MIGRATION_DOWN=true` in shared or
+  production environments, and review `migrate plan`/`migrate verify` output
+  before rollout.
+- Generated observability, Helm, and Terraform starters are templates, not a
+  substitute for environment-specific network policy and secret management.
+  Keep Terraform state, Helm values, Kubernetes Secret manifests, DSNs, API keys,
+  provider tokens, and object-store credentials out of source control.
 - Generated full-profile cache wiring keeps local development in memory and
   uses Redis only when `CACHE_STORE=redis` or production defaults select it.
   Keep cache keys application-owned and low sensitivity; do not store API-key

@@ -77,8 +77,16 @@ func TestRunHelpUsageExitsZero(t *testing.T) {
 		{name: "contracts group help", args: []string{"contracts", "help"}, want: usageContracts},
 		{name: "contracts lint help", args: []string{"contracts", "lint", "--help"}, want: usageContractsLint},
 		{name: "contracts diff help", args: []string{"contracts", "diff", "-h"}, want: usageContractsDiff},
+		{name: "contracts changelog help", args: []string{"contracts", "changelog", "--help"}, want: usageContractsChangelog},
+		{name: "contracts impact help", args: []string{"contracts", "impact", "-h"}, want: usageContractsImpact},
 		{name: "clients group help", args: []string{"clients", "help"}, want: usageClients},
-		{name: "clients go help", args: []string{"clients", "go", "--help"}, want: usageClients},
+		{name: "clients go help", args: []string{"clients", "go", "--help"}, want: usageClientsGo},
+		{name: "clients typescript help", args: []string{"clients", "typescript", "--help"}, want: usageClientsTypeScript},
+		{name: "ops group help", args: []string{"ops", "help"}, want: usageOps},
+		{name: "ops observability help", args: []string{"ops", "observability", "--help"}, want: usageOpsObservability},
+		{name: "deploy group help", args: []string{"deploy", "help"}, want: usageDeploy},
+		{name: "deploy helm help", args: []string{"deploy", "helm", "--help"}, want: usageDeployHelm},
+		{name: "deploy terraform help", args: []string{"deploy", "terraform", "--help"}, want: usageDeployTerraform},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,6 +112,8 @@ func TestRunUnknownCommandsExitTwo(t *testing.T) {
 		{"generate", "unknown"},
 		{"contracts", "unknown"},
 		{"clients", "unknown"},
+		{"ops", "unknown"},
+		{"deploy", "unknown"},
 	}
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
@@ -378,6 +388,131 @@ func TestClientsGoGeneratesTypedClient(t *testing.T) {
 	}
 }
 
+func TestClientsTypeScriptGeneratesFetchPackage(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	spec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"},
+				"BearerAuth": {"type": "http", "scheme": "bearer"}
+			},
+			"schemas": {
+				"Problem": {
+					"type": "object",
+					"properties": {
+						"type": {"type": "string"},
+						"title": {"type": "string"},
+						"status": {"type": "integer"},
+						"detail": {"type": "string"}
+					}
+				},
+				"Widget": {
+					"type": "object",
+					"required": ["id", "name", "state"],
+					"properties": {
+						"id": {"type": "string", "examples": ["wdg_123"]},
+						"name": {"type": "string"},
+						"state": {"type": "string", "enum": ["active", "archived"]},
+						"next_cursor": {"type": ["string", "null"]},
+						"tags": {"type": "array", "items": {"type": "string"}}
+					}
+				},
+				"WidgetCreateRequest": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"}
+					}
+				}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/WidgetCreateRequest"}}}
+					},
+					"responses": {
+						"201": {"description": "created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			},
+			"/widgets/{id}": {
+				"get": {
+					"operationId": "getWidget",
+					"parameters": [
+						{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
+						{"name": "X-Tenant-ID", "in": "header", "required": true, "schema": {"type": "string"}},
+						{"name": "include_deleted", "in": "query", "required": false, "schema": {"type": "boolean"}}
+					],
+					"responses": {
+						"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}},
+						"404": {"description": "not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"BearerAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(specPath, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+	clientDir := filepath.Join(tmp, "ts-client")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"clients", "typescript",
+		"--openapi", specPath,
+		"--out", clientDir,
+		"--package-name", "@example/my-api-client",
+		"--style", "fetch",
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("clients typescript failed: %s", out.String())
+	}
+	index, err := os.ReadFile(filepath.Join(clientDir, "src", "index.ts"))
+	if err != nil {
+		t.Fatalf("read generated src/index.ts: %v", err)
+	}
+	for _, want := range []string{
+		"export interface Widget",
+		"id: string;",
+		"state: \"active\" | \"archived\";",
+		"next_cursor?: string | null;",
+		"export interface WidgetCreateRequest",
+		"export class ProblemDetailsError extends Error",
+		"setAPIKey",
+		"setBearerToken",
+		"async createWidget(body: WidgetCreateRequest",
+		"Promise<ClientResponse<Widget>>",
+		"async getWidget(id: string, params: GetWidgetParams",
+		"headers.set(\"X-Tenant-ID\", String(params.xTenantID));",
+		"query.set(\"include_deleted\", String(params.includeDeleted));",
+	} {
+		if !strings.Contains(string(index), want) {
+			t.Fatalf("generated src/index.ts missing %q:\n%s", want, index)
+		}
+	}
+	pkg, err := os.ReadFile(filepath.Join(clientDir, "package.json"))
+	if err != nil {
+		t.Fatalf("read package.json: %v", err)
+	}
+	if !strings.Contains(string(pkg), `"name": "@example/my-api-client"`) {
+		t.Fatalf("package.json missing package name:\n%s", pkg)
+	}
+	for _, file := range []string{"tsconfig.json", "README.md"} {
+		if _, err := os.Stat(filepath.Join(clientDir, file)); err != nil {
+			t.Fatalf("expected %s: %v", file, err)
+		}
+	}
+}
+
 func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
@@ -417,6 +552,110 @@ func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
 	}
 }
 
+func TestOpsObservabilityGeneratesBundle(t *testing.T) {
+	outDir := filepath.Join(t.TempDir(), "observability")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"ops", "observability",
+		"--profile", "saas-api-full",
+		"--out", outDir,
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("ops observability failed: %s", out.String())
+	}
+	tests := map[string][]string{
+		"grafana/saas-api-full-dashboard.json": {
+			`"title": "api-toolkit saas-api-full"`,
+			`http_server_duration_seconds`,
+			`api_toolkit_outbox_jobs_total`,
+		},
+		"prometheus/saas-api-full-rules.yaml": {
+			"ApiHighErrorRate",
+			"ApiReadinessFailing",
+			"WebhookDeliveryDeadLetters",
+		},
+		"runbooks/observability.md": {
+			"tenant IDs are intentionally not metric labels",
+			"admin endpoint isolation",
+		},
+	}
+	for file, wants := range tests {
+		data, err := os.ReadFile(filepath.Join(outDir, file))
+		if err != nil {
+			t.Fatalf("read generated %s: %v", file, err)
+		}
+		for _, want := range wants {
+			if !strings.Contains(string(data), want) {
+				t.Fatalf("%s missing %q:\n%s", file, want, data)
+			}
+		}
+	}
+}
+
+func TestDeployGeneratorsGenerateHelmAndTerraformAWS(t *testing.T) {
+	tmp := t.TempDir()
+	helmDir := filepath.Join(tmp, "helm")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"deploy", "helm",
+		"--dir", ".",
+		"--out", helmDir,
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("deploy helm failed: %s", out.String())
+	}
+	for _, file := range []string{
+		"Chart.yaml",
+		"values.yaml",
+		"templates/api-deployment.yaml",
+		"templates/worker-deployment.yaml",
+		"templates/migration-job.yaml",
+		"templates/admin-service.yaml",
+		"templates/network-policy.yaml",
+		"templates/hpa.yaml",
+		"templates/pdb.yaml",
+	} {
+		if _, err := os.Stat(filepath.Join(helmDir, file)); err != nil {
+			t.Fatalf("expected helm file %s: %v", file, err)
+		}
+	}
+	values, err := os.ReadFile(filepath.Join(helmDir, "values.yaml"))
+	if err != nil {
+		t.Fatalf("read values.yaml: %v", err)
+	}
+	for _, want := range []string{"livez", "readyz", "adminService:", "migration:"} {
+		if !strings.Contains(string(values), want) {
+			t.Fatalf("values.yaml missing %q:\n%s", want, values)
+		}
+	}
+
+	terraformDir := filepath.Join(tmp, "terraform", "aws")
+	out.Reset()
+	code = run(context.Background(), []string{
+		"deploy", "terraform",
+		"--cloud", "aws",
+		"--dir", ".",
+		"--out", terraformDir,
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("deploy terraform failed: %s", out.String())
+	}
+	for _, file := range []string{"main.tf", "variables.tf", "outputs.tf", "README.md"} {
+		if _, err := os.Stat(filepath.Join(terraformDir, file)); err != nil {
+			t.Fatalf("expected terraform file %s: %v", file, err)
+		}
+	}
+	mainTF, err := os.ReadFile(filepath.Join(terraformDir, "main.tf"))
+	if err != nil {
+		t.Fatalf("read main.tf: %v", err)
+	}
+	for _, want := range []string{"aws_db_instance", "aws_elasticache_replication_group", "aws_s3_bucket", "aws_iam_policy"} {
+		if !strings.Contains(string(mainTF), want) {
+			t.Fatalf("main.tf missing %q:\n%s", want, mainTF)
+		}
+	}
+}
+
 func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 	var errOut strings.Builder
 	code := run(context.Background(), []string{"new", "service", "--module", "example.com/my-api", "--dir", "../escape"}, &strings.Builder{}, &errOut)
@@ -437,7 +676,7 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 	}{
 		{name: "dev headers require development profile", profile: "saas-api", auth: "dev-headers", want: "auth mode \"dev-headers\" requires an explicit development profile"},
 		{name: "production modes stay on saas profile", profile: "dev-api", auth: "api-key", want: "auth mode \"api-key\" is not supported for profile \"dev-api\""},
-		{name: "unknown", profile: "saas-api", auth: "session", want: "unsupported auth mode \"session\""},
+		{name: "session requires web profile", profile: "saas-api", auth: "session", want: "auth mode \"session\" requires profile \"saas-web\""},
 	}
 
 	for _, tt := range tests {
@@ -490,6 +729,96 @@ func TestNewServiceRejectsUnsupportedProviderWorkflows(t *testing.T) {
 				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testing.T) {
+	serviceDir := filepath.Join(t.TempDir(), "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--auth", "api-key",
+		"--client", "typescript",
+		"--with", "entitlements",
+		"--dir", serviceDir,
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new service failed: %s", out.String())
+	}
+	for _, file := range []string{
+		"internal/client/apiclient/client.go",
+		"internal/client/ts/src/index.ts",
+		"internal/entitlements/entitlements.go",
+		"internal/entitlements/entitlements_test.go",
+		"docs/providers/entitlements.md",
+		"observability/prometheus/saas-api-full-rules.yaml",
+		"deploy/helm/Chart.yaml",
+		"deploy/terraform/aws/main.tf",
+	} {
+		if _, err := os.Stat(filepath.Join(serviceDir, file)); err != nil {
+			t.Fatalf("expected generated file %s: %v", file, err)
+		}
+	}
+	manifest, err := os.ReadFile(filepath.Join(serviceDir, "api-toolkit.yaml"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	for _, want := range []string{
+		"profile: saas-api-full",
+		"typescript:",
+		"path: internal/client/ts",
+		"- entitlements",
+	} {
+		if !strings.Contains(string(manifest), want) {
+			t.Fatalf("manifest missing %q:\n%s", want, manifest)
+		}
+	}
+	makefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	for _, want := range []string{"client-ts-check", "provider-check", "migrate-plan", "migrate-verify", "migrate-down"} {
+		if !strings.Contains(string(makefile), want) {
+			t.Fatalf("Makefile missing %q:\n%s", want, makefile)
+		}
+	}
+}
+
+func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
+	serviceDir := filepath.Join(t.TempDir(), "web")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-web",
+		"--profile", "saas-web",
+		"--auth", "session",
+		"--dir", serviceDir,
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new saas-web service failed: %s", out.String())
+	}
+	for _, file := range []string{
+		"go.mod",
+		"cmd/web/main.go",
+		"internal/session/session.go",
+		"internal/session/session_test.go",
+		"README.md",
+		"Makefile",
+	} {
+		if _, err := os.Stat(filepath.Join(serviceDir, file)); err != nil {
+			t.Fatalf("expected saas-web file %s: %v", file, err)
+		}
+	}
+	sessionCode, err := os.ReadFile(filepath.Join(serviceDir, "internal/session/session.go"))
+	if err != nil {
+		t.Fatalf("read session.go: %v", err)
+	}
+	for _, want := range []string{"SameSite=Lax", "HttpOnly", "Secure", "Rotate", "ValidateCSRF"} {
+		if !strings.Contains(string(sessionCode), want) {
+			t.Fatalf("session.go missing %q:\n%s", want, sessionCode)
+		}
 	}
 }
 
@@ -1046,6 +1375,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"api-toolkit.yaml",
 		"cmd/migrate/main.go",
 		"migrations/20260517000100_platform.up.sql",
+		"migrations/20260517000100_platform.down.sql",
 		"scripts/integration_check.sh",
 		"testdata/openapi.golden.json",
 		"Makefile",
@@ -1140,7 +1470,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated migrate main.go: %v", err)
 	}
-	for _, want := range []string{"command required: up | status | check", "DATABASE_URL is required", "MIGRATIONS_DIR", "migrations", "bootstrap.NewMigrator", "bootstrap.RunUp", "bootstrap.Status", `strings.Contains(status, "*")`} {
+	for _, want := range []string{"command required: plan | up | status | check | verify | down", "DATABASE_URL is required", "MIGRATIONS_DIR", "migrations", "bootstrap.NewMigrator", "bootstrap.RunUp", "bootstrap.Status", `strings.Contains(status, "*")`, "ALLOW_DANGEROUS_MIGRATION_DOWN"} {
 		if !strings.Contains(string(generatedMigrate), want) {
 			t.Fatalf("generated migrate main.go missing %q", want)
 		}
@@ -1469,6 +1799,7 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"--with", "stripe-billing",
 		"--with", "resend-email",
 		"--with", "clerk-webhooks",
+		"--with", "entitlements",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -1484,9 +1815,16 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"internal/providers/resendemail/invitations_test.go",
 		"internal/providers/clerkwebhooks/webhooks.go",
 		"internal/providers/clerkwebhooks/webhooks_test.go",
+		"internal/entitlements/entitlements.go",
+		"internal/entitlements/entitlements_test.go",
+		"testdata/providers/stripe-webhook.json",
+		"testdata/providers/resend-invitation.json",
+		"testdata/providers/clerk-webhook.json",
 		"docs/providers/stripe-billing.md",
 		"docs/providers/resend-email.md",
 		"docs/providers/clerk-webhooks.md",
+		"docs/providers/entitlements.md",
+		"docs/providers/provider-runbook.md",
 	} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated provider workflow %s: %v", name, err)
@@ -1497,7 +1835,7 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated manifest: %v", err)
 	}
-	for _, want := range []string{"- stripe-billing", "- resend-email", "- clerk-webhooks"} {
+	for _, want := range []string{"- stripe-billing", "- resend-email", "- clerk-webhooks", "- entitlements"} {
 		if !strings.Contains(string(generatedManifest), want) {
 			t.Fatalf("generated manifest missing %q:\n%s", want, generatedManifest)
 		}
@@ -1528,10 +1866,11 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		t.Fatalf("read generated README: %v", err)
 	}
 	for _, want := range []string{
-		"Optional provider workflows generated: `stripe-billing`, `resend-email`, `clerk-webhooks`.",
+		"Optional provider workflows generated: `stripe-billing`, `resend-email`, `clerk-webhooks`, `entitlements`.",
 		"`internal/providers/stripebilling` creates tenant-scoped checkout sessions and verifies Stripe webhooks before audit writes.",
 		"`internal/providers/resendemail` sends invitation emails through a sender boundary with a no-op local fallback.",
 		"`internal/providers/clerkwebhooks` verifies signed Clerk callbacks before user or organization sync hooks run.",
+		"`internal/entitlements` provides provider-neutral plan, feature, quota, and usage checks for app-owned billing composition.",
 	} {
 		if !strings.Contains(string(generatedREADME), want) {
 			t.Fatalf("generated README missing provider docs %q:\n%s", want, generatedREADME)
@@ -1614,6 +1953,13 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 		"--dir", serviceDir,
 		"--name", "project",
 		"--plural", "projects",
+		"--field", "status:string:enum=active|archived",
+		"--field", "rank:int",
+		"--filter", "status",
+		"--sort", "name",
+		"--admin",
+		"--relationship", "owner:organizations",
+		"--object-field", "attachment_key",
 		"--tenant-scoped",
 		"--crud",
 		"--postgres",
@@ -1637,6 +1983,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 		"internal/httpapi/projects.go",
 		"internal/httpapi/projects_test.go",
 		"migrations/20260517000200_projects.up.sql",
+		"migrations/20260517000200_projects.down.sql",
 	} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
 			t.Fatalf("expected generated resource file %s: %v", name, err)
@@ -1646,7 +1993,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated manifest after resource: %v", err)
 	}
-	for _, want := range []string{"name: project", "plural: projects", "tenant_scoped: true", "postgres: true", "soft_delete: true", "etag: true", "audit: true", "webhooks: true"} {
+	for _, want := range []string{"name: project", "plural: projects", "tenant_scoped: true", "postgres: true", "soft_delete: true", "etag: true", "audit: true", "webhooks: true", "admin: true", "status:string:enum=active|archived", "rank:int", "filters:", "sorts:", "relationships:", "object_fields:"} {
 		if !strings.Contains(string(generatedManifest), want) {
 			t.Fatalf("generated manifest missing resource %q:\n%s", want, generatedManifest)
 		}
@@ -1673,9 +2020,27 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read openapi after resource: %v", err)
 	}
-	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject"} {
+	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject", `"status": map[string]any{"type": "string", "enum": []string{"active", "archived"}}`, `"rank":`, `"type": "integer"`} {
 		if !strings.Contains(string(generatedOpenAPI), want) {
 			t.Fatalf("generated openapi missing resource wiring %q", want)
+		}
+	}
+	generatedDomain, err := os.ReadFile(filepath.Join(serviceDir, "internal", "domain", "project.go"))
+	if err != nil {
+		t.Fatalf("read generated domain resource: %v", err)
+	}
+	for _, want := range []string{"Status", "string", "Rank", "int", `"status":`, `r.Status`, `"rank":`, `r.Rank`} {
+		if !strings.Contains(string(generatedDomain), want) {
+			t.Fatalf("generated domain missing resource field %q:\n%s", want, generatedDomain)
+		}
+	}
+	generatedMigration, err := os.ReadFile(filepath.Join(serviceDir, "migrations", "20260517000200_projects.up.sql"))
+	if err != nil {
+		t.Fatalf("read generated resource migration: %v", err)
+	}
+	for _, want := range []string{"status TEXT", "rank INTEGER"} {
+		if !strings.Contains(string(generatedMigration), want) {
+			t.Fatalf("generated migration missing resource field %q:\n%s", want, generatedMigration)
 		}
 	}
 	cmd := exec.CommandContext(context.Background(), "go", "test", "./...")
@@ -2410,6 +2775,92 @@ func TestContractsDiffAllowsAdditiveOperations(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "contracts diff passed") {
 		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestContractsChangelogAndImpactReportClientChanges(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	head := filepath.Join(tmp, "head.json")
+	writeTestOpenAPI(t, base, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {
+					"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			},
+			"post": {
+				"operationId": "createWidget",
+				"requestBody": {
+					"required": true,
+					"content": {"application/json": {"schema": {"type": "object"}}}
+				},
+				"responses": {
+					"201": {"description": "created", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:write"]}]
+			}
+		}
+	}`)
+	writeTestOpenAPI(t, head, `{
+		"/widgets": {
+			"get": {
+				"operationId": "listWidgets",
+				"responses": {
+					"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["widgets:read"]}]
+			}
+		},
+		"/projects": {
+			"get": {
+				"operationId": "listProjects",
+				"responses": {
+					"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object"}}}},
+					"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+				},
+				"security": [{"ApiKeyAuth": ["projects:read"]}]
+			}
+		}
+	}`)
+
+	var changelog strings.Builder
+	code := run(context.Background(), []string{"contracts", "changelog", "--base", base, "--head", head}, &changelog, &changelog)
+	if code != 0 {
+		t.Fatalf("contracts changelog failed: %s", changelog.String())
+	}
+	for _, want := range []string{
+		"# OpenAPI Changelog",
+		"Added operations",
+		"GET /projects listProjects",
+		"Removed operations",
+		"POST /widgets createWidget",
+	} {
+		if !strings.Contains(changelog.String(), want) {
+			t.Fatalf("changelog missing %q:\n%s", want, changelog.String())
+		}
+	}
+
+	var impact strings.Builder
+	code = run(context.Background(), []string{"contracts", "impact", "--base", base, "--head", head}, &impact, &impact)
+	if code != 1 {
+		t.Fatalf("contracts impact exit code = %d output=%s", code, impact.String())
+	}
+	var report map[string]any
+	if err := json.Unmarshal([]byte(impact.String()), &report); err != nil {
+		t.Fatalf("decode impact report: %v\n%s", err, impact.String())
+	}
+	if breaking, _ := report["breaking"].(bool); !breaking {
+		t.Fatalf("impact report should be breaking: %#v", report)
+	}
+	removed, _ := report["removed_operations"].([]any)
+	if len(removed) != 1 {
+		t.Fatalf("impact report removed operations = %#v", report["removed_operations"])
 	}
 }
 
