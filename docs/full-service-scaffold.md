@@ -63,7 +63,9 @@ response validation is enabled in development/test or by setting
 TypeScript fetch client generator, observability bundle generator, Helm chart
 starter, AWS Terraform dependency starter, OpenAPI changelog/impact commands,
 and a separate `saas-web` session profile so browser-session concerns stay out
-of API-first scaffolds.
+of API-first scaffolds. `saas-web` emits secure cookie sessions, CSRF
+middleware, memory and Redis-backed session-store boundaries, OIDC callback
+state validation, safe browser CORS, and production startup checks.
 
 ## Runtime Contract
 

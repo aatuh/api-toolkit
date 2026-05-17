@@ -815,10 +815,56 @@ func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read session.go: %v", err)
 	}
-	for _, want := range []string{"SameSite=Lax", "HttpOnly", "Secure", "Rotate", "ValidateCSRF"} {
+	for _, want := range []string{
+		"SameSite=Lax",
+		"HttpOnly",
+		"Secure",
+		"Rotate",
+		"ValidateCSRF",
+		"NewRedisStore",
+		"CSRFMiddleware",
+		"BeginOIDCLogin",
+		"ValidateOIDCCallback",
+		"BrowserSafeCORS",
+		"SESSION_SECRET must be at least 32 characters in production",
+	} {
 		if !strings.Contains(string(sessionCode), want) {
 			t.Fatalf("session.go missing %q:\n%s", want, sessionCode)
 		}
+	}
+	sessionTests, err := os.ReadFile(filepath.Join(serviceDir, "internal/session/session_test.go"))
+	if err != nil {
+		t.Fatalf("read session_test.go: %v", err)
+	}
+	for _, want := range []string{
+		"TestProductionValidationRequiresSecret",
+		"TestCSRFMiddlewareRejectsMissingToken",
+		"TestSessionRotationPreventsFixation",
+		"TestOIDCCallbackValidatesState",
+		"TestBrowserSafeCORSRejectsWildcardAndUnknownOrigin",
+	} {
+		if !strings.Contains(string(sessionTests), want) {
+			t.Fatalf("session tests missing %q:\n%s", want, sessionTests)
+		}
+	}
+	goMod, err := os.ReadFile(filepath.Join(serviceDir, "go.mod"))
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	if !strings.Contains(string(goMod), "github.com/redis/go-redis/v9") {
+		t.Fatalf("go.mod missing Redis session dependency:\n%s", goMod)
+	}
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated saas-web tidy failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated saas-web tests failed:\n%s\nerror: %v", output, err)
 	}
 }
 

@@ -6982,23 +6982,41 @@ Generated fetch client for this service's OpenAPI contract. Regenerate it with:
 const saasWebGoModTemplate = `module {{ .Module }}
 
 go 1.25.0
+
+require github.com/redis/go-redis/v9 v9.19.0
 `
 
 const saasWebMainTemplate = `package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"{{ .Module }}/internal/session"
 )
 
 func main() {
-	manager := session.New(session.Config{
-		CookieName: "sid",
-		Production: os.Getenv("APP_ENV") == "production",
-	})
+	config := session.ConfigFromEnv(os.Getenv)
+	config.AuthMode = "{{ .AuthMode }}"
+	if err := config.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	store, err := newSessionStore(config)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	manager, err := session.New(config, store)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -7009,16 +7027,60 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		manager.Rotate(w, r, "")
+		if err := manager.Rotate(w, r, ""); err != nil {
+			http.Error(w, "logout failed", http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("/login/oidc", func(w http.ResponseWriter, r *http.Request) {
+		if config.AuthMode != "oidc-session" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := manager.BeginOIDCLogin(w, r); err != nil {
+			http.Error(w, "login unavailable", http.StatusInternalServerError)
+		}
+	})
+	mux.HandleFunc("/auth/oidc/callback", func(w http.ResponseWriter, r *http.Request) {
+		if config.AuthMode != "oidc-session" {
+			http.NotFound(w, r)
+			return
+		}
+		code, err := manager.ValidateOIDCCallback(r)
+		if err != nil {
+			http.Error(w, "invalid login callback", http.StatusBadRequest)
+			return
+		}
+		if err := manager.Rotate(w, r, "oidc:"+code); err != nil {
+			http.Error(w, "session rotation failed", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusFound)
+	})
+	mux.Handle("/account", manager.CSRFMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})))
+
 	addr := ":8080"
 	if value := os.Getenv("ADDR"); value != "" {
 		addr = value
 	}
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	handler := session.BrowserSafeCORS(config.AppOrigin)(mux)
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func newSessionStore(config session.Config) (session.Store, error) {
+	switch strings.ToLower(strings.TrimSpace(config.StoreKind)) {
+	case "", "memory":
+		return session.NewMemoryStore(), nil
+	case "redis":
+		return session.NewRedisStore(config.RedisURL, "session:")
+	default:
+		return nil, errors.New("unsupported SESSION_STORE")
 	}
 }
 `
@@ -7026,26 +7088,124 @@ func main() {
 const saasWebSessionTemplate = `package session
 
 import (
+	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Config struct {
-	CookieName string
-	Production bool
+	CookieName       string
+	Production       bool
+	SessionSecret    string
+	SessionTTL       time.Duration
+	StoreKind        string
+	RedisURL         string
+	AuthMode         string
+	AppOrigin        string
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCRedirectURL  string
+}
+
+type Session struct {
+	ID        string    ` + "`json:\"id\"`" + `
+	UserID    string    ` + "`json:\"user_id\"`" + `
+	CSRFToken string    ` + "`json:\"csrf_token\"`" + `
+	ExpiresAt time.Time ` + "`json:\"expires_at\"`" + `
+}
+
+type Store interface {
+	Create(context.Context, Session, time.Duration) (Session, error)
+	Get(context.Context, string) (Session, bool, error)
+	Delete(context.Context, string) error
 }
 
 type Manager struct {
 	config Config
+	store  Store
 }
 
-func New(config Config) *Manager {
+func ConfigFromEnv(lookup func(string) string) Config {
+	if lookup == nil {
+		lookup = func(string) string { return "" }
+	}
+	ttl := 8 * time.Hour
+	if raw := strings.TrimSpace(lookup("SESSION_TTL")); raw != "" {
+		if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
+			ttl = parsed
+		}
+	}
+	return Config{
+		CookieName:       defaultString(lookup("SESSION_COOKIE_NAME"), "sid"),
+		Production:       lookup("APP_ENV") == "production",
+		SessionSecret:    lookup("SESSION_SECRET"),
+		SessionTTL:       ttl,
+		StoreKind:        defaultString(lookup("SESSION_STORE"), "memory"),
+		RedisURL:         lookup("REDIS_URL"),
+		AppOrigin:        lookup("APP_ORIGIN"),
+		OIDCIssuer:       lookup("OIDC_ISSUER"),
+		OIDCClientID:     lookup("OIDC_CLIENT_ID"),
+		OIDCClientSecret: lookup("OIDC_CLIENT_SECRET"),
+		OIDCRedirectURL:  lookup("OIDC_REDIRECT_URL"),
+	}
+}
+
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.CookieName) == "" {
+		return errors.New("SESSION_COOKIE_NAME is required")
+	}
+	if c.SessionTTL <= 0 {
+		return errors.New("SESSION_TTL must be positive")
+	}
+	if c.Production && len(c.SessionSecret) < 32 {
+		return errors.New("SESSION_SECRET must be at least 32 characters in production")
+	}
+	if strings.EqualFold(strings.TrimSpace(c.StoreKind), "redis") && strings.TrimSpace(c.RedisURL) == "" {
+		return errors.New("REDIS_URL is required when SESSION_STORE=redis")
+	}
+	if strings.TrimSpace(c.AppOrigin) == "*" {
+		return errors.New("APP_ORIGIN must not be wildcard")
+	}
+	if c.AuthMode == "oidc-session" {
+		for name, value := range map[string]string{
+			"OIDC_ISSUER":        c.OIDCIssuer,
+			"OIDC_CLIENT_ID":     c.OIDCClientID,
+			"OIDC_CLIENT_SECRET": c.OIDCClientSecret,
+			"OIDC_REDIRECT_URL":  c.OIDCRedirectURL,
+		} {
+			if strings.TrimSpace(value) == "" {
+				return errors.New(name + " is required for oidc-session")
+			}
+		}
+	}
+	return nil
+}
+
+func New(config Config, store Store) (*Manager, error) {
 	if strings.TrimSpace(config.CookieName) == "" {
 		config.CookieName = "sid"
 	}
-	return &Manager{config: config}
+	if config.SessionTTL <= 0 {
+		config.SessionTTL = 8 * time.Hour
+	}
+	if store == nil {
+		return nil, errors.New("session store is required")
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return &Manager{config: config, store: store}, nil
 }
 
 func (m *Manager) Cookie(sessionID string) *http.Cookie {
@@ -7059,12 +7219,121 @@ func (m *Manager) Cookie(sessionID string) *http.Cookie {
 	}
 }
 
-func (m *Manager) Rotate(w http.ResponseWriter, _ *http.Request, nextSessionID string) {
-	cookie := m.Cookie(nextSessionID)
-	if nextSessionID == "" {
-		cookie.MaxAge = -1
+func (m *Manager) Create(w http.ResponseWriter, r *http.Request, userID string) (Session, error) {
+	csrfToken, err := randomToken()
+	if err != nil {
+		return Session{}, err
 	}
-	http.SetCookie(w, cookie)
+	session, err := m.store.Create(r.Context(), Session{
+		UserID:    userID,
+		CSRFToken: csrfToken,
+		ExpiresAt: time.Now().Add(m.config.SessionTTL),
+	}, m.config.SessionTTL)
+	if err != nil {
+		return Session{}, err
+	}
+	http.SetCookie(w, m.Cookie(session.ID))
+	http.SetCookie(w, m.csrfCookie(session.CSRFToken))
+	return session, nil
+}
+
+func (m *Manager) Rotate(w http.ResponseWriter, r *http.Request, nextUserID string) error {
+	if cookie, err := r.Cookie(m.config.CookieName); err == nil {
+		if err := m.store.Delete(r.Context(), cookie.Value); err != nil {
+			return err
+		}
+	}
+	if nextUserID == "" {
+		clear := m.Cookie("")
+		clear.MaxAge = -1
+		http.SetCookie(w, clear)
+		csrf := m.csrfCookie("")
+		csrf.MaxAge = -1
+		http.SetCookie(w, csrf)
+		return nil
+	}
+	_, err := m.Create(w, r, nextUserID)
+	return err
+}
+
+func (m *Manager) ValidateCSRF(r *http.Request) error {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+		return nil
+	}
+	cookie, err := r.Cookie(m.config.CookieName)
+	if err != nil {
+		return err
+	}
+	session, ok, err := m.store.Get(r.Context(), cookie.Value)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("session not found")
+	}
+	if err := ValidateCSRF(r); err != nil {
+		return err
+	}
+	header := strings.TrimSpace(r.Header.Get("X-CSRF-Token"))
+	if subtle.ConstantTimeCompare([]byte(header), []byte(session.CSRFToken)) != 1 {
+		return errors.New("csrf token mismatch")
+	}
+	return nil
+}
+
+func (m *Manager) CSRFMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := m.ValidateCSRF(r); err != nil {
+			http.Error(w, "csrf validation failed", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (m *Manager) BeginOIDCLogin(w http.ResponseWriter, r *http.Request) error {
+	state, err := randomToken()
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oidc_state",
+		Value:    state,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int((10 * time.Minute).Seconds()),
+	})
+	http.Redirect(w, r, BuildOIDCAuthorizationURL(m.config, state), http.StatusFound)
+	return nil
+}
+
+func (m *Manager) ValidateOIDCCallback(r *http.Request) (string, error) {
+	stateCookie, err := r.Cookie("oidc_state")
+	if err != nil {
+		return "", err
+	}
+	state := strings.TrimSpace(r.URL.Query().Get("state"))
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if state == "" || code == "" {
+		return "", errors.New("oidc callback requires state and code")
+	}
+	if subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 {
+		return "", errors.New("oidc state mismatch")
+	}
+	return code, nil
+}
+
+func BuildOIDCAuthorizationURL(config Config, state string) string {
+	base := strings.TrimRight(config.OIDCIssuer, "/") + "/authorize"
+	values := url.Values{}
+	values.Set("client_id", config.OIDCClientID)
+	values.Set("redirect_uri", config.OIDCRedirectURL)
+	values.Set("response_type", "code")
+	values.Set("scope", "openid profile email")
+	values.Set("state", state)
+	return base + "?" + values.Encode()
 }
 
 func ValidateCSRF(r *http.Request) error {
@@ -7082,18 +7351,177 @@ func ValidateCSRF(r *http.Request) error {
 	}
 	return nil
 }
+
+func BrowserSafeCORS(origin string) func(http.Handler) http.Handler {
+	origin = strings.TrimSpace(origin)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestOrigin := strings.TrimSpace(r.Header.Get("Origin"))
+			if requestOrigin != "" {
+				if origin == "" || requestOrigin != origin {
+					http.Error(w, "origin not allowed", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Access-Control-Allow-Origin", requestOrigin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Vary", "Origin")
+				if r.Method == http.MethodOptions {
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+type MemoryStore struct {
+	mu       sync.Mutex
+	sessions map[string]Session
+}
+
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{sessions: map[string]Session{}}
+}
+
+func (s *MemoryStore) Create(_ context.Context, session Session, ttl time.Duration) (Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if session.ID == "" {
+		id, err := randomToken()
+		if err != nil {
+			return Session{}, err
+		}
+		session.ID = id
+	}
+	if session.ExpiresAt.IsZero() {
+		session.ExpiresAt = time.Now().Add(ttl)
+	}
+	s.sessions[session.ID] = session
+	return session, nil
+}
+
+func (s *MemoryStore) Get(_ context.Context, id string) (Session, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.sessions[id]
+	if !ok {
+		return Session{}, false, nil
+	}
+	if time.Now().After(session.ExpiresAt) {
+		delete(s.sessions, id)
+		return Session{}, false, nil
+	}
+	return session, true, nil
+}
+
+func (s *MemoryStore) Delete(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.sessions, id)
+	return nil
+}
+
+type RedisStore struct {
+	client *redis.Client
+	prefix string
+}
+
+func NewRedisStore(rawURL, prefix string) (*RedisStore, error) {
+	options, err := redis.ParseURL(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, err
+	}
+	if prefix == "" {
+		prefix = "session:"
+	}
+	return &RedisStore{client: redis.NewClient(options), prefix: prefix}, nil
+}
+
+func (s *RedisStore) Create(ctx context.Context, session Session, ttl time.Duration) (Session, error) {
+	if session.ID == "" {
+		id, err := randomToken()
+		if err != nil {
+			return Session{}, err
+		}
+		session.ID = id
+	}
+	if session.ExpiresAt.IsZero() {
+		session.ExpiresAt = time.Now().Add(ttl)
+	}
+	payload, err := json.Marshal(session)
+	if err != nil {
+		return Session{}, err
+	}
+	if err := s.client.Set(ctx, s.prefix+session.ID, payload, ttl).Err(); err != nil {
+		return Session{}, err
+	}
+	return session, nil
+}
+
+func (s *RedisStore) Get(ctx context.Context, id string) (Session, bool, error) {
+	payload, err := s.client.Get(ctx, s.prefix+id).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return Session{}, false, nil
+	}
+	if err != nil {
+		return Session{}, false, err
+	}
+	var session Session
+	if err := json.Unmarshal(payload, &session); err != nil {
+		return Session{}, false, err
+	}
+	return session, true, nil
+}
+
+func (s *RedisStore) Delete(ctx context.Context, id string) error {
+	return s.client.Del(ctx, s.prefix+id).Err()
+}
+
+func (m *Manager) csrfCookie(token string) *http.Cookie {
+	return &http.Cookie{
+		Name:     "csrf_token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func randomToken() (string, error) {
+	var data [32]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(data[:]), nil
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
 `
 
 const saasWebSessionTestTemplate = `package session
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
 func TestCookieSecurityDefaults(t *testing.T) {
-	manager := New(Config{CookieName: "sid", Production: true})
+	manager, err := New(Config{CookieName: "sid", SessionTTL: 8, Production: true, SessionSecret: strings.Repeat("s", 32)}, NewMemoryStore())
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
 	cookie := manager.Cookie("session-1")
 	if !cookie.HttpOnly || !cookie.Secure {
 		t.Fatalf("cookie missing secure flags: %#v", cookie)
@@ -7103,12 +7531,92 @@ func TestCookieSecurityDefaults(t *testing.T) {
 	}
 }
 
+func TestProductionValidationRequiresSecret(t *testing.T) {
+	config := Config{CookieName: "sid", SessionTTL: 8, Production: true, SessionSecret: "short"}
+	if err := config.Validate(); err == nil {
+		t.Fatal("expected production validation failure")
+	}
+}
+
 func TestValidateCSRF(t *testing.T) {
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/", nil)
 	req.Header.Set("X-CSRF-Token", "token")
 	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "token"})
 	if err := ValidateCSRF(req); err != nil {
 		t.Fatalf("ValidateCSRF returned error: %v", err)
+	}
+}
+
+func TestCSRFMiddlewareRejectsMissingToken(t *testing.T) {
+	manager, err := New(Config{CookieName: "sid", SessionTTL: 8}, NewMemoryStore())
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	handler := manager.CSRFMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), "POST", "/account", nil))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", recorder.Code)
+	}
+}
+
+func TestSessionRotationPreventsFixation(t *testing.T) {
+	manager, err := New(Config{CookieName: "sid", SessionTTL: 8}, NewMemoryStore())
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	first := httptest.NewRecorder()
+	firstReq := httptest.NewRequestWithContext(context.Background(), "POST", "/login", nil)
+	session, err := manager.Create(first, firstReq, "user-1")
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	second := httptest.NewRecorder()
+	secondReq := httptest.NewRequestWithContext(context.Background(), "POST", "/callback", nil)
+	secondReq.AddCookie(&http.Cookie{Name: "sid", Value: session.ID})
+	if err := manager.Rotate(second, secondReq, "user-1"); err != nil {
+		t.Fatalf("Rotate() error = %v", err)
+	}
+	if _, ok, err := manager.store.Get(context.Background(), session.ID); err != nil || ok {
+		t.Fatalf("old session still exists ok=%v err=%v", ok, err)
+	}
+}
+
+func TestOIDCCallbackValidatesState(t *testing.T) {
+	manager, err := New(Config{
+		CookieName:       "sid",
+		SessionTTL:       8,
+		AuthMode:         "oidc-session",
+		OIDCIssuer:       "https://issuer.example.test",
+		OIDCClientID:     "client",
+		OIDCClientSecret: "secret",
+		OIDCRedirectURL:  "https://app.example.test/auth/oidc/callback",
+	}, NewMemoryStore())
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?code=abc&state=expected", nil)
+	req.AddCookie(&http.Cookie{Name: "oidc_state", Value: "wrong"})
+	if _, err := manager.ValidateOIDCCallback(req); err == nil {
+		t.Fatal("expected state validation failure")
+	}
+}
+
+func TestBrowserSafeCORSRejectsWildcardAndUnknownOrigin(t *testing.T) {
+	if err := (Config{CookieName: "sid", SessionTTL: 8, AppOrigin: "*"}).Validate(); err == nil {
+		t.Fatal("expected wildcard origin validation failure")
+	}
+	handler := BrowserSafeCORS("https://app.example.test")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req.Header.Set("Origin", "https://evil.example.test")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", recorder.Code)
 	}
 }
 `
@@ -7128,13 +7636,23 @@ finalize: test build
 
 const saasWebEnvTemplate = `APP_ENV=development
 ADDR=:8080
-SESSION_SECRET=replace-me
+APP_ORIGIN=http://localhost:8080
+SESSION_COOKIE_NAME=sid
+SESSION_SECRET=replace-me-with-at-least-32-bytes
+SESSION_STORE=memory
+SESSION_TTL=8h
 REDIS_URL=redis://localhost:6379/0
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URL=http://localhost:8080/auth/oidc/callback
 `
 
 const saasWebReadmeTemplate = `# SaaS Web
 
-Browser/session scaffold with cookie-backed sessions, CSRF checks, secure cookie defaults, and an OIDC-session extension point isolated from API-first profiles.
+Browser/session scaffold with cookie-backed sessions, memory and Redis-backed session stores, CSRF middleware, secure cookie defaults, browser-safe CORS, logout/session rotation, and an OIDC-session callback flow isolated from API-first profiles.
+
+Use ` + "`--auth oidc-session`" + ` when generating this profile to require OIDC issuer, client, secret, and redirect configuration at startup. Production mode requires a high-entropy ` + "`SESSION_SECRET`" + ` and rejects wildcard browser origins.
 `
 
 const entitlementsTemplate = `package entitlements
