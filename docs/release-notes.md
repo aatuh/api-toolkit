@@ -287,6 +287,10 @@ source of truth is `docs/release-runbook.md`.
   async worker runner with lease/complete/fail store contracts, bounded
   concurrency, graceful shutdown, low-cardinality metric hooks, and logs that
   avoid job payloads and raw handler errors.
+- `github.com/aatuh/api-toolkit/contrib/v2/async` now includes an
+  experimental fail-closed handler mux for routing leased jobs by sanitized
+  low-cardinality kind, allowing one durable queue or outbox to back multiple
+  worker concerns without inspecting job payloads.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres` adds an
   experimental Postgres-backed operation repository for pollable async
   operations, including tenant-scoped context helpers, JSON result/problem
