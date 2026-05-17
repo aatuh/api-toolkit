@@ -82,7 +82,8 @@ The full profile standardizes these defaults:
   run this command before API/worker startup, while `migrate-check` fails closed
   if any migration is still pending. `down` is guarded for local/schema-teardown
   use only and requires both `--allow-dangerous-down` and
-  `ALLOW_DANGEROUS_MIGRATION_DOWN=true`.
+  `ALLOW_DANGEROUS_MIGRATION_DOWN=true`; when both guards are present it reverts
+  one latest applied migration through `bootstrap.RunDown`.
 - `bootstrap.NewAPIService` owns the generated HTTP lifecycle. Public routes
   are registered through `APIServiceConfig.RegisterRoutes`; detailed health,
   metrics, and pprof are mounted through bootstrap admin system endpoints and

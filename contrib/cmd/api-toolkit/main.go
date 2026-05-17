@@ -9308,7 +9308,11 @@ func run(args []string) error {
 		if !downAllowed {
 			return errors.New("down migrations require --allow-dangerous-down and ALLOW_DANGEROUS_MIGRATION_DOWN=true")
 		}
-		return errors.New("down migrations are generated only for local/schema-teardown use; add project-specific RunDown wiring before use")
+		if err := bootstrap.RunDown(ctx, migrator, *dir); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stdout, "one migration reverted")
+		return nil
 	default:
 		return errors.New("unknown command; expected plan, up, status, check, verify, or down")
 	}
