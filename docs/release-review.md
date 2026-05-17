@@ -109,10 +109,11 @@ Verification checklist:
   for publication evidence. Also review
   `openapi_31_full_scaffold.status`, `typed_client_generation.status`,
   `resource_generator_check.status`, `provider_flag_generation.status`,
-  `worker_check.status`, and `integration_workflow.status`; these are covered by
-  the same release-blocking scaffold contract. `integration_check.status` is
-  opt-in and non-blocking unless release reviewers explicitly ran generated
-  Docker integration checks and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
+  `asset_validation.status`, `worker_check.status`, and
+  `integration_workflow.status`; these are covered by the same release-blocking
+  scaffold contract. `integration_check.status` is opt-in and non-blocking
+  unless release reviewers explicitly ran generated Docker integration checks
+  and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
 
 ## Known v2 debt status
 

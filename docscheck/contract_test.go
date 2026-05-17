@@ -821,6 +821,7 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 		"provider_flag_generation",
 		"worker_check",
 		"integration_workflow",
+		"asset_validation",
 		"make full-profile-scaffold-check",
 		"FULL_PROFILE_INTEGRATION_CHECK_STATUS",
 		"publication_artifact_checksums",
@@ -1079,6 +1080,14 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				Status          string `json:"status"`
 				ReleaseBlocking bool   `json:"release_blocking"`
 			} `json:"observability_bundle"`
+			AssetValidation struct {
+				MakeTargets     []string `json:"make_targets"`
+				CommandLine     string   `json:"command_line"`
+				ContractTest    string   `json:"contract_test"`
+				Status          string   `json:"status"`
+				LogPath         string   `json:"log_path"`
+				ReleaseBlocking bool     `json:"release_blocking"`
+			} `json:"asset_validation"`
 			DeploymentPackaging struct {
 				Helm struct {
 					CommandLine     string `json:"command_line"`
@@ -1304,6 +1313,17 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 		!strings.Contains(summary.FullProfileScaffoldEvidence.ObservabilityBundle.ContractTest, "TestOpsObservabilityGeneratesBundle") ||
 		!summary.FullProfileScaffoldEvidence.ObservabilityBundle.ReleaseBlocking {
 		t.Fatalf("full profile observability evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ObservabilityBundle)
+	}
+	for _, want := range []string{"asset-check", "observability-check", "deploy-check"} {
+		if !containsString(summary.FullProfileScaffoldEvidence.AssetValidation.MakeTargets, want) {
+			t.Fatalf("full profile asset validation evidence missing %q: %+v", want, summary.FullProfileScaffoldEvidence.AssetValidation)
+		}
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.AssetValidation.CommandLine, "make asset-check observability-check deploy-check") ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.AssetValidation.ContractTest, "TestNewServiceGeneratesFullProfileProviderWorkflows") ||
+		summary.FullProfileScaffoldEvidence.AssetValidation.LogPath != ".ci-result/release-evidence/logs/full-profile-scaffold-check.log" ||
+		!summary.FullProfileScaffoldEvidence.AssetValidation.ReleaseBlocking {
+		t.Fatalf("full profile asset validation evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.AssetValidation)
 	}
 	if !strings.Contains(summary.FullProfileScaffoldEvidence.DeploymentPackaging.Helm.CommandLine, "deploy helm") ||
 		!summary.FullProfileScaffoldEvidence.DeploymentPackaging.Helm.ReleaseBlocking ||
