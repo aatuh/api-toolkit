@@ -199,6 +199,11 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit new service --profile saas-api-full` now checks in typed Go
   client output and its generated `client-check` target regenerates with
   `api-toolkit clients go --style typed`.
+- `api-toolkit contracts lint`, `contracts diff`, and `clients go --style typed`
+  now normalize OpenAPI 3.1 schema `type` arrays containing `null` and
+  schema-level `examples` before parser validation. Contract linting also
+  rejects Go client method, schema type, and parameter identifier collisions
+  that would make typed client output unstable or unbuildable.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.

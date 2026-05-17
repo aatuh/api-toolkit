@@ -1630,6 +1630,172 @@ func TestContractsLintFailsForDuplicateOperationIDs(t *testing.T) {
 	}
 }
 
+func TestContractsLintAcceptsOpenAPI31NullableExamplesAndTypedClientAssumptions(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	if err := os.WriteFile(specPath, []byte(`{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			},
+			"schemas": {
+				"Problem": {
+					"type": "object",
+					"properties": {
+						"type": {"type": "string"},
+						"title": {"type": "string"},
+						"status": {"type": "integer"}
+					}
+				},
+				"Widget": {
+					"type": "object",
+					"required": ["id", "name"],
+					"properties": {
+						"id": {"type": "string", "examples": ["wgt_1"]},
+						"name": {"type": "string"},
+						"description": {"type": ["string", "null"], "examples": ["demo"]}
+					}
+				},
+				"WidgetList": {
+					"type": "object",
+					"required": ["items"],
+					"properties": {
+						"items": {"type": "array", "items": {"$ref": "#/components/schemas/Widget"}},
+						"next_cursor": {"type": ["string", "null"], "examples": ["cursor_1"]}
+					}
+				}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"parameters": [
+						{"name": "X-Tenant-ID", "in": "header", "required": true, "schema": {"type": "string", "examples": ["tenant_1"]}},
+						{"name": "cursor", "in": "query", "required": false, "schema": {"type": ["string", "null"], "examples": ["cursor_1"]}}
+					],
+					"responses": {
+						"200": {
+							"description": "ok",
+							"content": {
+								"application/json": {
+									"schema": {"$ref": "#/components/schemas/WidgetList"},
+									"examples": {"ok": {"value": {"items": []}}}
+								}
+							}
+						},
+						"400": {
+							"description": "bad request",
+							"content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
+						}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	var out strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected OpenAPI 3.1 lint to pass: %s", out.String())
+	}
+	clientDir := filepath.Join(tmp, "client")
+	out.Reset()
+	code = run(context.Background(), []string{
+		"clients", "go",
+		"--openapi", specPath,
+		"--out", clientDir,
+		"--package", "apiclient",
+		"--style", "typed",
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected typed client generation to pass: %s", out.String())
+	}
+	generated, err := os.ReadFile(filepath.Join(clientDir, "client.go"))
+	if err != nil {
+		t.Fatalf("read generated client: %v", err)
+	}
+	for _, want := range []string{
+		"Description *string `json:\"description,omitempty\"`",
+		"NextCursor *string  `json:\"next_cursor,omitempty\"`",
+		"type ListWidgetsParams struct",
+		"Cursor    *string",
+		"XTenantID string",
+		"func (c *Client) ListWidgets(ctx context.Context, params ListWidgetsParams, opts ...RequestOption) (*WidgetList, *http.Response, error)",
+	} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated typed client missing %q:\n%s", want, generated)
+		}
+	}
+}
+
+func TestContractsLintFailsForGoClientIdentifierConflicts(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	if err := os.WriteFile(specPath, []byte(`{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			},
+			"schemas": {
+				"Problem": {"type": "object"},
+				"Widget": {"type": "object", "properties": {"id": {"type": "string"}}},
+				"widget": {"type": "object", "properties": {"id": {"type": "string"}}}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "get-widget",
+					"parameters": [
+						{"name": "X-Tenant-ID", "in": "header", "required": true, "schema": {"type": "string"}},
+						{"name": "x_tenant_id", "in": "query", "required": false, "schema": {"type": "string"}}
+					],
+					"responses": {
+						"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			},
+			"/widget-exports": {
+				"get": {
+					"operationId": "get_widget",
+					"responses": {
+						"200": {"description": "ok"},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	var errOut strings.Builder
+	code := run(context.Background(), []string{"contracts", "lint", "--openapi", specPath}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected lint to fail")
+	}
+	for _, want := range []string{
+		"go_client_method_id_conflict",
+		"go_client_schema_id_conflict",
+		"go_client_parameter_id_conflict",
+	} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
 func TestContractsLintAllowsAdditionalPublicPath(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
@@ -2161,6 +2327,66 @@ func TestContractsDiffFailsForComponentSchemaBreakingChanges(t *testing.T) {
 		if !strings.Contains(errOut.String(), want) {
 			t.Fatalf("stderr missing %q:\n%s", want, errOut.String())
 		}
+	}
+}
+
+func TestContractsDiffHandlesOpenAPI31NullableAndExamples(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "base.json")
+	examplesOnly := filepath.Join(tmp, "examples-only.json")
+	nullableRemoved := filepath.Join(tmp, "nullable-removed.json")
+	baseSpec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"schemas": {
+				"Widget": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "string", "examples": ["wgt_1"]},
+						"description": {"type": ["string", "null"], "examples": ["old"]}
+					}
+				}
+			},
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"get": {
+					"operationId": "listWidgets",
+					"responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}}},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`
+	examplesOnlySpec := strings.ReplaceAll(baseSpec, `"examples": ["old"]`, `"examples": ["new"]`)
+	nullableRemovedSpec := strings.ReplaceAll(examplesOnlySpec, `"type": ["string", "null"], "examples": ["new"]`, `"type": "string", "examples": ["new"]`)
+	if err := os.WriteFile(base, []byte(baseSpec), 0o600); err != nil {
+		t.Fatalf("write base spec: %v", err)
+	}
+	if err := os.WriteFile(examplesOnly, []byte(examplesOnlySpec), 0o600); err != nil {
+		t.Fatalf("write examples-only spec: %v", err)
+	}
+	if err := os.WriteFile(nullableRemoved, []byte(nullableRemovedSpec), 0o600); err != nil {
+		t.Fatalf("write nullable-removed spec: %v", err)
+	}
+
+	var out strings.Builder
+	code := run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", examplesOnly}, &out, &out)
+	if code != 0 {
+		t.Fatalf("expected examples-only diff to pass: %s", out.String())
+	}
+
+	var errOut strings.Builder
+	code = run(context.Background(), []string{"contracts", "diff", "--base", base, "--head", nullableRemoved}, &strings.Builder{}, &errOut)
+	if code == 0 {
+		t.Fatal("expected nullable removal diff to fail")
+	}
+	if !strings.Contains(errOut.String(), "schema_type_changed Widget.description") {
+		t.Fatalf("stderr missing nullable schema diff:\n%s", errOut.String())
 	}
 }
 

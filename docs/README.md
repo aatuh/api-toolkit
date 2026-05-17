@@ -75,6 +75,9 @@ subset: JSON request bodies, path/query/header options, API-key auth, bearer
 auth, and Problem Details error decoding. The default `raw` style preserves the
 original operation helpers; `--style typed` also generates component schema
 structs, typed request/response methods, and raw method escape hatches.
+The contract and client commands accept OpenAPI 3.1 schema `type` arrays that
+include `null` and schema-level `examples`, normalizing them to the toolkit's
+compatibility model before validation.
 
 `api-toolkit version` prints the tool version, Go runtime, main module, core
 module version, contrib module version, and optional build commit/date fields.
