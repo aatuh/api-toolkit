@@ -352,11 +352,15 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 			AdminPaths:                        adminPaths.Values(),
 		})
 		securityFindings := lintUndefinedSecuritySchemes(loaded.doc, operations)
-		if len(findings) > 0 || len(securityFindings) > 0 {
+		clientFindings := lintGoClientCompatibility(loaded.doc, operations)
+		if len(findings) > 0 || len(securityFindings) > 0 || len(clientFindings) > 0 {
 			for _, finding := range findings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
 			for _, finding := range securityFindings {
+				fmt.Fprintln(stderr, finding.Error())
+			}
+			for _, finding := range clientFindings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
 			return 1
@@ -2260,12 +2264,157 @@ func loadOpenAPI(path string) (loadedOpenAPI, error) {
 	if path == "" {
 		return loadedOpenAPI{}, errors.New("--openapi is required")
 	}
+	data, err := readOpenAPIFile(path)
+	if err != nil {
+		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
+	}
+	data, err = normalizeOpenAPI31NullableTypes(data)
+	if err != nil {
+		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
+	}
 	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(path)
+	doc, err := loader.LoadFromData(data)
 	if err != nil {
 		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
 	}
 	return loadedOpenAPI{doc: doc, loader: loader}, nil
+}
+
+func readOpenAPIFile(path string) ([]byte, error) {
+	clean := filepath.Clean(path)
+	rootPath := "."
+	rootName := clean
+	if filepath.IsAbs(clean) {
+		rootPath = string(filepath.Separator)
+		rootName = strings.TrimPrefix(clean, rootPath)
+	}
+	if rootName == "." || rootName == "" {
+		return nil, errors.New("openapi path must name a file")
+	}
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	file, err := root.Open(rootName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	const maxOpenAPIBytes = 16 << 20
+	data, err := io.ReadAll(io.LimitReader(file, maxOpenAPIBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxOpenAPIBytes {
+		return nil, fmt.Errorf("openapi file exceeds %d bytes", maxOpenAPIBytes)
+	}
+	return data, nil
+}
+
+func normalizeOpenAPI31NullableTypes(data []byte) ([]byte, error) {
+	var doc any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	root, ok := doc.(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	version, _ := root["openapi"].(string)
+	if !strings.HasPrefix(strings.TrimSpace(version), "3.1") {
+		return data, nil
+	}
+	normalizeNullableTypeArrays(root)
+	normalized, err := json.Marshal(root)
+	if err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
+
+func normalizeNullableTypeArrays(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		normalizeSchemaExamples(typed)
+		if rawType, ok := typed["type"]; ok {
+			if nullable, replacement, ok := nullableTypeReplacement(rawType); ok {
+				typed["nullable"] = nullable
+				typed["type"] = replacement
+			}
+		}
+		for _, child := range typed {
+			normalizeNullableTypeArrays(child)
+		}
+	case []any:
+		for _, child := range typed {
+			normalizeNullableTypeArrays(child)
+		}
+	}
+}
+
+func normalizeSchemaExamples(value map[string]any) {
+	if !looksLikeSchemaObject(value) {
+		return
+	}
+	rawExamples, ok := value["examples"]
+	if !ok {
+		return
+	}
+	examples, ok := rawExamples.([]any)
+	if !ok || len(examples) == 0 {
+		delete(value, "examples")
+		return
+	}
+	if _, hasExample := value["example"]; !hasExample {
+		value["example"] = examples[0]
+	}
+	delete(value, "examples")
+}
+
+func looksLikeSchemaObject(value map[string]any) bool {
+	for _, key := range []string{
+		"$ref",
+		"additionalProperties",
+		"allOf",
+		"anyOf",
+		"enum",
+		"format",
+		"items",
+		"nullable",
+		"oneOf",
+		"properties",
+		"required",
+		"type",
+	} {
+		if _, ok := value[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func nullableTypeReplacement(raw any) (bool, any, bool) {
+	values, ok := raw.([]any)
+	if !ok {
+		return false, nil, false
+	}
+	nonNull := make([]any, 0, len(values))
+	nullable := false
+	for _, value := range values {
+		if text, ok := value.(string); ok && text == "null" {
+			nullable = true
+			continue
+		}
+		nonNull = append(nonNull, value)
+	}
+	if !nullable || len(nonNull) == 0 {
+		return false, nil, false
+	}
+	if len(nonNull) == 1 {
+		return true, nonNull[0], true
+	}
+	return true, nonNull, true
 }
 
 func (loaded loadedOpenAPI) validate() error {
@@ -2336,6 +2485,101 @@ func lintUndefinedSecuritySchemes(doc *openapi3.T, operations []specs.Operation)
 				Message: fmt.Sprintf("security scheme %q is referenced but not defined in components.securitySchemes", name),
 			})
 		}
+	}
+	return findings
+}
+
+func lintGoClientCompatibility(doc *openapi3.T, operations []specs.Operation) []openAPILintFinding {
+	var findings []openAPILintFinding
+	methodOwners := map[string]specs.Operation{}
+	for _, operation := range operations {
+		operationID := strings.TrimSpace(operation.OperationID)
+		if operationID == "" {
+			continue
+		}
+		methodName := exportedGoIdentifier(operationID)
+		if previous, ok := methodOwners[methodName]; ok && strings.TrimSpace(previous.OperationID) != operationID {
+			findings = append(findings, openAPILintFinding{
+				Code:    "go_client_method_id_conflict",
+				Method:  operation.Method,
+				Path:    operation.Path,
+				Message: fmt.Sprintf("operationId %q and %q both generate Go method %s", previous.OperationID, operationID, methodName),
+			})
+			continue
+		}
+		methodOwners[methodName] = operation
+	}
+	if doc != nil && doc.Components != nil {
+		schemaOwners := map[string]string{}
+		for _, schemaName := range sortedSchemaNames(doc.Components.Schemas) {
+			if strings.EqualFold(schemaName, "Problem") {
+				continue
+			}
+			typeName := exportedGoIdentifier(schemaName)
+			if goClientReservedTypeNames()[typeName] {
+				findings = append(findings, openAPILintFinding{
+					Code:    "go_client_schema_id_conflict",
+					Method:  "GLOBAL",
+					Message: fmt.Sprintf("schema %q generates reserved Go type %s", schemaName, typeName),
+				})
+				continue
+			}
+			if previous, ok := schemaOwners[typeName]; ok && previous != schemaName {
+				findings = append(findings, openAPILintFinding{
+					Code:    "go_client_schema_id_conflict",
+					Method:  "GLOBAL",
+					Message: fmt.Sprintf("schemas %q and %q both generate Go type %s", previous, schemaName, typeName),
+				})
+				continue
+			}
+			schemaOwners[typeName] = schemaName
+		}
+	}
+	for _, operation := range typedClientOperationsFromOpenAPI(doc) {
+		findings = append(findings, lintGoClientPathParameterIdentifiers(operation)...)
+		findings = append(findings, lintGoClientOptionParameterIdentifiers(operation)...)
+	}
+	return findings
+}
+
+func goClientReservedTypeNames() map[string]bool {
+	return map[string]bool{
+		"Client":        true,
+		"Error":         true,
+		"Option":        true,
+		"Problem":       true,
+		"RequestOption": true,
+	}
+}
+
+func lintGoClientPathParameterIdentifiers(operation typedClientOperation) []openAPILintFinding {
+	return lintGoClientParameterIdentifiers(operation, typedOperationPathParameters(operation), goParamName, "path parameter")
+}
+
+func lintGoClientOptionParameterIdentifiers(operation typedClientOperation) []openAPILintFinding {
+	return lintGoClientParameterIdentifiers(operation, typedOperationOptionParameters(operation), exportedGoIdentifier, "request parameter")
+}
+
+func lintGoClientParameterIdentifiers(operation typedClientOperation, parameters []typedClientParameter, identifier func(string) string, label string) []openAPILintFinding {
+	owners := map[string]string{}
+	var findings []openAPILintFinding
+	for _, parameter := range parameters {
+		name := strings.TrimSpace(parameter.Name)
+		if name == "" {
+			continue
+		}
+		goName := identifier(name)
+		key := strings.ToLower(strings.TrimSpace(parameter.In)) + ":" + name
+		if previous, ok := owners[goName]; ok && previous != key {
+			findings = append(findings, openAPILintFinding{
+				Code:    "go_client_parameter_id_conflict",
+				Method:  operation.Method,
+				Path:    operation.Path,
+				Message: fmt.Sprintf("%s %s and %s both generate Go identifier %s", label, previous, key, goName),
+			})
+			continue
+		}
+		owners[goName] = key
 	}
 	return findings
 }
@@ -3039,9 +3283,15 @@ func diffSchemaValue(path string, baseSchema, headSchema *openapi3.Schema) []ope
 
 func schemaTypeFingerprint(schema *openapi3.Schema) string {
 	if schema == nil || schema.Type == nil {
+		if schema != nil && schema.Nullable {
+			return "null"
+		}
 		return ""
 	}
 	types := append([]string(nil), schema.Type.Slice()...)
+	if schema.Nullable {
+		types = append(types, "null")
+	}
 	sort.Strings(types)
 	return strings.Join(types, "|")
 }
