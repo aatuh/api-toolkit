@@ -1047,7 +1047,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "backgroundTasks", "cfg.AsyncWorkerEnabled", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStoreAndEndpointPolicy", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.EndpointPolicy", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "backgroundTasks", "cfg.AsyncWorkerEnabled", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookServiceWithEndpointPolicy", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
@@ -1067,7 +1067,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated app webhooks: %v", err)
 	}
-	for _, want := range []string{"RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "webhookdelivery.AttemptRecorder"} {
+	for _, want := range []string{"NewWebhookServiceWithEndpointPolicy", "EndpointPolicy: s.endpointPolicy", "RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "webhookdelivery.AttemptRecorder"} {
 		if !strings.Contains(string(generatedWebhooks), want) {
 			t.Fatalf("generated app webhooks missing %q", want)
 		}
@@ -1132,6 +1132,11 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"go run ./cmd/api",
 		"go run ./cmd/worker",
 		"ASYNC_WORKER_ENABLED=false",
+		"WEBHOOK_RECEIVER_ADDR",
+		"webhook_receiver_log",
+		"webhook delivery did not succeed",
+		"failing webhook did not record retryable failure",
+		"outbox dead-letter was not recorded",
 		"command -v python3",
 		"/livez",
 		"/docs/openapi.json",
