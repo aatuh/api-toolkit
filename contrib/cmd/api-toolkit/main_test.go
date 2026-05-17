@@ -950,7 +950,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/httpapi/router_test.go",
 		"internal/httpapi/openapi.go",
 		"internal/client/apiclient/client.go",
-		"migrations/0001_platform.sql",
+		"cmd/migrate/main.go",
+		"migrations/20260517000100_platform.up.sql",
 		"scripts/integration_check.sh",
 		"testdata/openapi.golden.json",
 		"Makefile",
@@ -958,12 +959,19 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		".gitignore",
 		".dockerignore",
 		".github/workflows/ci.yml",
+		".github/workflows/integration.yml",
 		"Dockerfile",
 		"docker-compose.yml",
+		"deploy/kubernetes/configmap.yaml",
+		"deploy/kubernetes/secret.example.yaml",
+		"deploy/kubernetes/migration-job.yaml",
 		"deploy/kubernetes/deployment.yaml",
 		"deploy/kubernetes/worker-deployment.yaml",
 		"deploy/kubernetes/service.yaml",
 		"deploy/kubernetes/admin-service.yaml",
+		"deploy/kubernetes/pod-disruption-budget.yaml",
+		"deploy/kubernetes/hpa.yaml",
+		"deploy/kubernetes/network-policy.yaml",
 		"README.md",
 	} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
@@ -996,7 +1004,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		}
 	}
 
-	generatedMigration, err := os.ReadFile(filepath.Join(serviceDir, "migrations", "0001_platform.sql"))
+	generatedMigration, err := os.ReadFile(filepath.Join(serviceDir, "migrations", "20260517000100_platform.up.sql"))
 	if err != nil {
 		t.Fatalf("read generated migration: %v", err)
 	}
@@ -1021,6 +1029,16 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	} {
 		if !strings.Contains(string(generatedMigration), want) {
 			t.Fatalf("generated migration missing %q", want)
+		}
+	}
+
+	generatedMigrate, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "migrate", "main.go"))
+	if err != nil {
+		t.Fatalf("read generated migrate main.go: %v", err)
+	}
+	for _, want := range []string{"command required: up | status | check", "DATABASE_URL is required", "MIGRATIONS_DIR", "migrations", "bootstrap.NewMigrator", "bootstrap.RunUp", "bootstrap.Status", `strings.Contains(status, "*")`} {
+		if !strings.Contains(string(generatedMigrate), want) {
+			t.Fatalf("generated migrate main.go missing %q", want)
 		}
 	}
 
@@ -1114,7 +1132,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "--style typed", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "migrate-up:", "migrate-status:", "migrate-check:", "--style typed", "$(GO) build -trimpath -o bin/migrate ./cmd/migrate", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
@@ -1126,6 +1144,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"compose up -d postgres redis",
 		"cp .env.example .env",
+		"go run ./cmd/migrate up",
+		"go run ./cmd/migrate check",
 		"psql -v ON_ERROR_STOP=1 -U api -d api",
 		"go mod tidy",
 		"go test ./...",
@@ -1188,6 +1208,10 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"postgres:",
 		"image: postgres:18-alpine",
+		"migrate:",
+		"entrypoint: [\"/migrate\"]",
+		"command: [\"-dir\", \"/migrations\", \"up\"]",
+		"service_completed_successfully",
 		"worker:",
 		"entrypoint: [\"/worker\"]",
 		"/var/lib/postgresql",
@@ -1210,9 +1234,19 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Dockerfile: %v", err)
 	}
-	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath -o /out/api ./cmd/api", "go build -trimpath -o /out/worker ./cmd/worker", "COPY --from=build /out/worker /worker"} {
+	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath -o /out/api ./cmd/api", "go build -trimpath -o /out/worker ./cmd/worker", "go build -trimpath -o /out/migrate ./cmd/migrate", "COPY --from=build /out/worker /worker", "COPY --from=build /out/migrate /migrate", "COPY migrations /migrations"} {
 		if !strings.Contains(string(generatedDockerfile), want) {
 			t.Fatalf("generated full-profile Dockerfile missing %q:\n%s", want, generatedDockerfile)
+		}
+	}
+
+	generatedDeployment, err := os.ReadFile(filepath.Join(serviceDir, "deploy", "kubernetes", "deployment.yaml"))
+	if err != nil {
+		t.Fatalf("read generated deployment: %v", err)
+	}
+	for _, want := range []string{"configMapRef", "secretKeyRef", "runAsNonRoot: true", "readOnlyRootFilesystem: true", "requests:", "limits:", "path: /livez", "path: /readyz", "ASYNC_WORKER_ENABLED"} {
+		if !strings.Contains(string(generatedDeployment), want) {
+			t.Fatalf("generated deployment missing %q:\n%s", want, generatedDeployment)
 		}
 	}
 
@@ -1220,9 +1254,39 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated worker deployment: %v", err)
 	}
-	for _, want := range []string{"name: api-worker", "command: [\"/worker\"]", "ASYNC_WORKER_ENABLED", "DATABASE_URL", "WEBHOOK_SECRET_KEY"} {
+	for _, want := range []string{"name: api-worker", "command: [\"/worker\"]", "configMapRef", "secretKeyRef", "runAsNonRoot: true", "readOnlyRootFilesystem: true", "requests:", "limits:", "DATABASE_URL", "WEBHOOK_SECRET_KEY"} {
 		if !strings.Contains(string(generatedWorkerDeployment), want) {
 			t.Fatalf("generated worker deployment missing %q:\n%s", want, generatedWorkerDeployment)
+		}
+	}
+
+	for name, wants := range map[string][]string{
+		"configmap.yaml":             {"kind: ConfigMap", "OPENAPI_REQUEST_VALIDATION", "ASYNC_WORKER_ENABLED"},
+		"secret.example.yaml":        {"kind: Secret", "database-url", "api-key-pepper", "webhook-secret-key"},
+		"migration-job.yaml":         {"kind: Job", "command: [\"/migrate\"]", "args: [\"-dir\", \"/migrations\", \"up\"]", "restartPolicy: OnFailure", "backoffLimit: 3"},
+		"admin-service.yaml":         {"kind: Service", "api-toolkit.dev/internal-only: \"true\"", "type: ClusterIP"},
+		"pod-disruption-budget.yaml": {"kind: PodDisruptionBudget", "minAvailable: 1"},
+		"hpa.yaml":                   {"kind: HorizontalPodAutoscaler", "minReplicas: 2", "maxReplicas: 10"},
+		"network-policy.yaml":        {"kind: NetworkPolicy", "policyTypes:", "Ingress", "Egress"},
+	} {
+		generatedAsset, err := os.ReadFile(filepath.Join(serviceDir, "deploy", "kubernetes", name))
+		if err != nil {
+			t.Fatalf("read generated kubernetes %s: %v", name, err)
+		}
+		for _, want := range wants {
+			if !strings.Contains(string(generatedAsset), want) {
+				t.Fatalf("generated kubernetes %s missing %q:\n%s", name, want, generatedAsset)
+			}
+		}
+	}
+
+	generatedIntegrationWorkflow, err := os.ReadFile(filepath.Join(serviceDir, ".github", "workflows", "integration.yml"))
+	if err != nil {
+		t.Fatalf("read generated integration workflow: %v", err)
+	}
+	for _, want := range []string{"workflow_dispatch:", "schedule:", "make integration-check", "docker compose"} {
+		if !strings.Contains(string(generatedIntegrationWorkflow), want) {
+			t.Fatalf("generated integration workflow missing %q:\n%s", want, generatedIntegrationWorkflow)
 		}
 	}
 
@@ -1235,6 +1299,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.",
 		"The generated binary uses `bootstrap.NewAPIService`",
 		"`cmd/worker` runs background jobs without serving public HTTP traffic.",
+		"`cmd/migrate` applies and checks contrib migrator-compatible SQL files under `migrations/`.",
 		"`/livez` is a process liveness probe",
 		"Runtime OpenAPI request validation is enabled by default.",
 		"The public router emits bounded Prometheus HTTP request metrics, and `/metrics` is served only from the admin router.",

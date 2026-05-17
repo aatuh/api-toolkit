@@ -3605,6 +3605,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
 	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
 	{Name: "cmd/worker/main.go", Body: fullCmdWorkerTemplate},
+	{Name: "cmd/migrate/main.go", Body: fullCmdMigrateTemplate},
 	{Name: "internal/domain/api_key.go", Body: fullDomainAPIKeyTemplate},
 	{Name: "internal/domain/tenancy.go", Body: fullDomainTenancyTemplate},
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
@@ -3644,19 +3645,26 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "internal/httpapi/openapi.go", Body: fullHTTPAPIOpenAPITemplate},
 	{Name: "internal/httpapi/router.go", Body: fullHTTPAPIRouterTemplate},
 	{Name: "internal/httpapi/router_test.go", Body: fullHTTPAPIRouterTestTemplate},
-	{Name: "migrations/0001_platform.sql", Body: fullMigrationTemplate},
+	{Name: "migrations/20260517000100_platform.up.sql", Body: fullMigrationTemplate},
 	{Name: "scripts/integration_check.sh", Body: fullIntegrationCheckScriptTemplate},
 	{Name: "Makefile", Body: fullMakefileTemplate},
 	{Name: ".env.example", Body: fullEnvTemplate},
 	{Name: ".gitignore", Body: fullGitignoreTemplate},
 	{Name: ".dockerignore", Body: fullDockerignoreTemplate},
 	{Name: ".github/workflows/ci.yml", Body: fullCIWorkflowTemplate},
+	{Name: ".github/workflows/integration.yml", Body: fullIntegrationWorkflowTemplate},
 	{Name: "Dockerfile", Body: fullDockerfileTemplate},
 	{Name: "docker-compose.yml", Body: fullComposeTemplate},
+	{Name: "deploy/kubernetes/configmap.yaml", Body: fullKubernetesConfigMapTemplate},
+	{Name: "deploy/kubernetes/secret.example.yaml", Body: fullKubernetesSecretTemplate},
+	{Name: "deploy/kubernetes/migration-job.yaml", Body: fullKubernetesMigrationJobTemplate},
 	{Name: "deploy/kubernetes/deployment.yaml", Body: fullKubernetesDeploymentTemplate},
 	{Name: "deploy/kubernetes/worker-deployment.yaml", Body: fullKubernetesWorkerDeploymentTemplate},
 	{Name: "deploy/kubernetes/service.yaml", Body: fullKubernetesServiceTemplate},
 	{Name: "deploy/kubernetes/admin-service.yaml", Body: fullKubernetesAdminServiceTemplate},
+	{Name: "deploy/kubernetes/pod-disruption-budget.yaml", Body: fullKubernetesPDBTemplate},
+	{Name: "deploy/kubernetes/hpa.yaml", Body: fullKubernetesHPATemplate},
+	{Name: "deploy/kubernetes/network-policy.yaml", Body: fullKubernetesNetworkPolicyTemplate},
 	{Name: "README.md", Body: fullReadmeTemplate},
 }
 
@@ -4352,6 +4360,88 @@ func run(ctx context.Context) error {
 		return err
 	}
 	return asyncRunner.Run(ctx)
+}
+`
+
+const fullCmdMigrateTemplate = `package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+)
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	dir := flags.String("dir", strings.TrimSpace(os.Getenv("MIGRATIONS_DIR")), "migration directory")
+	table := flags.String("table", "schema_migrations", "migration table")
+	lock := flags.Int64("lock", 0, "advisory lock key")
+	timeout := flags.Duration("timeout", 15*time.Minute, "migration timeout")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 {
+		return errors.New("command required: up | status | check")
+	}
+	if strings.TrimSpace(*dir) == "" {
+		*dir = "migrations"
+	}
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+	migrator, err := bootstrap.NewMigrator(databaseURL, *table, *lock, false, logzap.NewProduction(), []string{*dir}, nil)
+	if err != nil {
+		return fmt.Errorf("create migrator: %w", err)
+	}
+	defer migrator.Close()
+
+	switch strings.ToLower(flags.Arg(0)) {
+	case "up":
+		if err := bootstrap.RunUp(ctx, migrator, *dir); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stdout, "migrations applied")
+		return nil
+	case "status":
+		status, err := bootstrap.Status(ctx, migrator, *dir)
+		if err != nil {
+			return err
+		}
+		fmt.Print(status)
+		return nil
+	case "check":
+		status, err := bootstrap.Status(ctx, migrator, *dir)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(status, "*") {
+			fmt.Print(status)
+			return errors.New("pending migrations")
+		}
+		fmt.Fprintln(os.Stdout, "migrations up-to-date")
+		return nil
+	default:
+		return errors.New("unknown command; expected up, status, or check")
+	}
 }
 `
 
@@ -15231,7 +15321,7 @@ OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
 
-.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check integration-check clean finalize
+.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check migrate-up migrate-status migrate-check integration-check clean finalize
 
 deps:
 	$(GO) mod tidy
@@ -15245,6 +15335,7 @@ fmt:
 build: deps
 	$(GO) build -trimpath -o bin/api ./cmd/api
 	$(GO) build -trimpath -o bin/worker ./cmd/worker
+	$(GO) build -trimpath -o bin/migrate ./cmd/migrate
 
 openapi-check: deps
 	$(GO) test ./internal/httpapi -run TestOpenAPIGolden
@@ -15265,6 +15356,15 @@ client-check: deps
 	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient --style typed; \
 	cmp -s "$$tmp/client.go" internal/client/apiclient/client.go || { echo "generated Go client is out of date"; diff -u "$$tmp/client.go" internal/client/apiclient/client.go; exit 1; }
 	$(GO) test ./internal/client/apiclient
+
+migrate-up:
+	$(GO) run ./cmd/migrate up
+
+migrate-status:
+	$(GO) run ./cmd/migrate status
+
+migrate-check:
+	$(GO) run ./cmd/migrate check
 
 integration-check:
 	bash scripts/integration_check.sh
@@ -15483,9 +15583,9 @@ fi
 wait_for_postgres
 wait_for_redis
 
-compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api < migrations/0001_platform.sql
-
 go mod tidy
+go run ./cmd/migrate up
+go run ./cmd/migrate check
 go test ./...
 
 python3 - "${WEBHOOK_RECEIVER_ADDR}" "${webhook_receiver_log}" <<'PY' >"${tmp_dir}/webhook-receiver.log" 2>&1 &
@@ -15993,6 +16093,34 @@ jobs:
         run: make finalize
 `
 
+const fullIntegrationWorkflowTemplate = `name: integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  docker-integration:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+      COMPOSE: docker compose
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Verify Docker Compose
+        run: docker compose version
+      - name: Integration Check
+        run: make integration-check
+`
+
 const fullDockerfileTemplate = `FROM golang:1.25 AS build
 WORKDIR /src
 COPY go.mod ./
@@ -16002,11 +16130,14 @@ RUN go mod tidy
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/worker ./cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/migrate ./cmd/migrate
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /out/api /api
 COPY --from=build /out/worker /worker
+COPY --from=build /out/migrate /migrate
+COPY migrations /migrations
 USER nonroot:nonroot
 EXPOSE 8080 9090
 ENTRYPOINT ["/api"]
@@ -16030,9 +16161,22 @@ const fullComposeTemplate = `services:
       ASYNC_WORKER_ENABLED: "false"
       WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+  migrate:
+    build: .
+    entrypoint: ["/migrate"]
+    command: ["-dir", "/migrations", "up"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://api:api@postgres:5432/api?sslmode=disable
+    depends_on:
+      postgres:
         condition: service_healthy
   worker:
     build: .
@@ -16044,6 +16188,8 @@ const fullComposeTemplate = `services:
       REDIS_ADDR: redis:6379
       WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -16101,12 +16247,101 @@ volumes:
   minio-data:
 `
 
+const fullKubernetesConfigMapTemplate = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  ENV: "production"
+  API_ADDR: ":8080"
+  ADMIN_ADDR: ":9090"
+  REDIS_ADDR: "redis.example.internal:6379"
+  CACHE_STORE: "redis"
+  RATE_LIMIT_STORE: "redis"
+  RATE_LIMIT_KEY_PREFIX: "ratelimit:"
+  IDEMPOTENCY_STORE: "redis"
+  IDEMPOTENCY_KEY_PREFIX: "idempotency:"
+  OPENAPI_REQUEST_VALIDATION: "true"
+  OPENAPI_RESPONSE_VALIDATION: "false"
+  ASYNC_WORKER_ENABLED: "true"
+  OBJECT_STORE: "memory"
+`
+
+// #nosec G101 -- generated Kubernetes Secret values are non-production placeholders that users must replace.
+const fullKubernetesSecretTemplate = `apiVersion: v1
+kind: Secret
+metadata:
+  name: api-secrets
+type: Opaque
+stringData:
+  database-url: "postgres://user:password@postgres.example.internal:5432/api?sslmode=require"
+  redis-addr: "redis.example.internal:6379"
+  api-key: "replace-with-bootstrap-api-key"
+  admin-key: "replace-with-admin-api-key"
+  api-key-pepper: "replace-with-random-32-byte-secret"
+  webhook-secret-key: "replace-with-random-32-byte-secret"
+`
+
+const fullKubernetesMigrationJobTemplate = `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-migrate
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: api-migrate
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: example/api:dev
+          command: ["/migrate"]
+          args: ["-dir", "/migrations", "up"]
+          envFrom:
+            - configMapRef:
+                name: api-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: database-url
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+`
+
 const fullKubernetesDeploymentTemplate = `apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api
+  labels:
+    app: api
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: api
@@ -16115,19 +16350,27 @@ spec:
       labels:
         app: api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: example/api:dev
+          imagePullPolicy: IfNotPresent
           ports:
             - name: public
               containerPort: 8080
             - name: admin
               containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: api-config
           env:
-            - name: API_ADDR
-              value: ":8080"
-            - name: ADMIN_ADDR
-              value: ":9090"
+            - name: ASYNC_WORKER_ENABLED
+              value: "false"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -16138,12 +16381,16 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: redis-addr
-            - name: RATE_LIMIT_STORE
-              value: "redis"
-            - name: IDEMPOTENCY_STORE
-              value: "redis"
-            - name: ASYNC_WORKER_ENABLED
-              value: "false"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: api-key
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: admin-key
             - name: API_KEY_PEPPER
               valueFrom:
                 secretKeyRef:
@@ -16154,20 +16401,42 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: webhook-secret-key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /readyz
               port: public
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /livez
               port: public
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
 `
 
 const fullKubernetesWorkerDeploymentTemplate = `apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-worker
+  labels:
+    app: api-worker
 spec:
   replicas: 1
   selector:
@@ -16178,13 +16447,20 @@ spec:
       labels:
         app: api-worker
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: worker
           image: example/api:dev
           command: ["/worker"]
+          envFrom:
+            - configMapRef:
+                name: api-config
           env:
-            - name: ENV
-              value: "production"
             - name: ASYNC_WORKER_ENABLED
               value: "true"
             - name: DATABASE_URL
@@ -16197,6 +16473,18 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: webhook-secret-key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
 `
 
 const fullKubernetesServiceTemplate = `apiVersion: v1
@@ -16216,13 +16504,93 @@ const fullKubernetesAdminServiceTemplate = `apiVersion: v1
 kind: Service
 metadata:
   name: api-admin
+  annotations:
+    api-toolkit.dev/internal-only: "true"
 spec:
+  type: ClusterIP
   selector:
     app: api
   ports:
     - name: admin
       port: 9090
       targetPort: admin
+`
+
+const fullKubernetesPDBTemplate = `apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api
+`
+
+const fullKubernetesHPATemplate = `apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+spec:
+  minReplicas: 2
+  maxReplicas: 10
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+`
+
+const fullKubernetesNetworkPolicyTemplate = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["api", "api-worker", "api-migrate"]
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: api-admin
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
 `
 
 const fullReadmeTemplate = `# Generated api-toolkit Full SaaS API
@@ -16243,6 +16611,7 @@ Redis is used for shared idempotency, rate limiting, and cache state in producti
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 The generated binary uses ` + "`bootstrap.NewAPIService`" + ` for public/admin listeners, graceful shutdown, background workers, strict middleware order validation, and safe system endpoint mounting.
 ` + "`cmd/worker`" + ` runs background jobs without serving public HTTP traffic. Set ` + "`ASYNC_WORKER_ENABLED=false`" + ` on API deployments when you run dedicated worker replicas.
+` + "`cmd/migrate`" + ` applies and checks contrib migrator-compatible SQL files under ` + "`migrations/`" + `. Docker Compose and Kubernetes assets run it before API/worker startup.
 ` + "`/livez`" + ` is a process liveness probe and never checks Postgres, Redis, or S3; ` + "`/readyz`" + ` reflects configured dependencies.
 Runtime OpenAPI request validation is enabled by default. Response validation is enabled in development/test or when ` + "`OPENAPI_RESPONSE_VALIDATION=true`" + `.
 The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
