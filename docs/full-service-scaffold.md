@@ -235,6 +235,20 @@ The profile generates or is expected to generate:
   typed Go client output path, resource inventory, provider inventory, and
   generator version. Resource generation updates this manifest and runs the
   OpenAPI golden/client regeneration path automatically.
+- Optional provider workflows can be added with repeatable `--with` flags:
+  `stripe-billing`, `resend-email`, and `clerk-webhooks`. These generate
+  starter packages under the generated app's `internal/providers` tree, add
+  only generated-app configuration, and keep provider-specific imports out of
+  the toolkit root module.
+- `stripe-billing` emits a checkout-session boundary, Stripe webhook
+  verification boundary, tenant mismatch failure behavior, tenant-scoped audit
+  writes, provider docs, and generated fake-provider tests.
+- `resend-email` emits an invitation email sender boundary with a no-op local
+  fallback, redaction-safe audit metadata, provider docs, and generated tests
+  proving invitation tokens and full recipient addresses are not audit metadata.
+- `clerk-webhooks` emits a signed callback handler, tenant mismatch failures,
+  provider docs, and generated tests for bad signatures, tenant mismatch, and
+  secret redaction from audit metadata.
 
 ## Support Tier
 

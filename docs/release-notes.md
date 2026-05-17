@@ -44,6 +44,12 @@ source of truth is `docs/release-runbook.md`.
   contract lint/diff/client-check targets, checked-in Go client output, and
   generated HTTP smoke tests for readiness, OpenAPI, auth failure, validation
   failure, idempotent create replay, and ETag conflicts.
+- `api-toolkit new service --profile saas-api-full` now accepts repeatable
+  `--with stripe-billing|resend-email|clerk-webhooks` flags. Selected provider
+  workflows generate app-owned `internal/providers` starter packages, provider
+  docs, env examples, manifest entries, fake-provider tests, tenant-scoped
+  audit behavior, and webhook/signature verification boundaries without adding
+  provider-specific imports to the toolkit root module.
 - Generated `saas-api-full` services now include tenant domain and application
   services for organizations, memberships, invitations, role checks, and
   invitation acceptance. The generated service hashes invitation tokens before
