@@ -132,6 +132,24 @@ func TestRecordUsesTransactionFromContext(t *testing.T) {
 	}
 }
 
+func TestHealthChecker(t *testing.T) {
+	t.Parallel()
+
+	store := New(&fakeDBPool{}, Options{})
+	result := store.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy || result.Message != "postgres audit healthy" {
+		t.Fatalf("healthy result = %#v", result)
+	}
+	failed := New(&fakeDBPool{pingErr: errors.New("down")}, Options{})
+	result = failed.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy || !strings.Contains(result.Message, "postgres audit ping failed") {
+		t.Fatalf("unhealthy result = %#v", result)
+	}
+	if result := (*Store)(nil).HealthChecker().Check(context.Background()); result.Status != ports.HealthStatusUnhealthy {
+		t.Fatalf("nil store result = %#v", result)
+	}
+}
+
 func validEvent() audit.Event {
 	return audit.Event{
 		ID:       "audit_01",
@@ -153,10 +171,11 @@ func validEvent() audit.Event {
 type fakeDBPool struct {
 	conn         ports.DatabaseConnection
 	acquireErr   error
+	pingErr      error
 	acquireCount int
 }
 
-func (p *fakeDBPool) Ping(context.Context) error { return nil }
+func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
 func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 

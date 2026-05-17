@@ -50,6 +50,12 @@ source of truth is `docs/release-runbook.md`.
   docs, env examples, manifest entries, fake-provider tests, tenant-scoped
   audit behavior, and webhook/signature verification boundaries without adding
   provider-specific imports to the toolkit root module.
+- The async, audit, cache, objectstore, webhookdelivery, OIDC middleware, OIDC
+  integration, and their Postgres/Redis/S3 adapters now have supported-adapter
+  classification, package contract rows, drift-gate coverage, and release-note
+  requirements. Postgres audit, operation, outbox, and webhook delivery stores
+  also expose readiness health checkers, and `contrib/async/asynctest` adds a
+  reusable async store contract suite for adapter implementations.
 - Generated `saas-api-full` services now include tenant domain and application
   services for organizations, memberships, invitations, role checks, and
   invitation acceptance. The generated service hashes invitation tokens before
@@ -312,47 +318,47 @@ source of truth is `docs/release-runbook.md`.
   custom server wiring.
 - `github.com/aatuh/api-toolkit/contrib/v2/cache` and
   `github.com/aatuh/api-toolkit/contrib/v2/adapters/cacheredis` add
-  experimental cache contracts and a Redis-backed cache adapter with TTL,
+  supported contrib cache contracts and a Redis-backed cache adapter with TTL,
   delete, health-check, and reusable adapter-contract coverage.
 - `github.com/aatuh/api-toolkit/contrib/v2/audit` and
   `github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres` add
-  experimental audit-event contracts, reusable recorder-contract tests, and a
+  supported contrib audit-event contracts, reusable recorder-contract tests, and a
   transaction-aware Postgres audit recorder that stores actor type, tenant,
   action, resource, result, request ID, and redaction-checked metadata. The
   generated `saas-api-full` audit migration now includes `actor_type`.
 - `github.com/aatuh/api-toolkit/v2/operations` adds additive write-side
   repository contracts plus lifecycle helpers for validating operation states,
   terminal states, and pending/running/succeeded/failed/canceled transitions.
-- `github.com/aatuh/api-toolkit/contrib/v2/async` adds an experimental durable
+- `github.com/aatuh/api-toolkit/contrib/v2/async` adds a supported contrib durable
   async worker runner with lease/complete/fail store contracts, bounded
   concurrency, graceful shutdown, low-cardinality metric hooks, and logs that
   avoid job payloads and raw handler errors.
 - `github.com/aatuh/api-toolkit/contrib/v2/async` now includes an
-  experimental fail-closed handler mux for routing leased jobs by sanitized
+  fail-closed handler mux for routing leased jobs by sanitized
   low-cardinality kind, allowing one durable queue or outbox to back multiple
   worker concerns without inspecting job payloads.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/operationpostgres` adds an
-  experimental Postgres-backed operation repository for pollable async
+  supported Postgres-backed operation repository for pollable async
   operations, including tenant-scoped context helpers, JSON result/problem
   storage, create/update support, and fail-closed tenant validation.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/outboxpostgres` adds an
-  experimental Postgres transactional outbox adapter with enqueue, due-event
+  supported Postgres transactional outbox adapter with enqueue, due-event
   leasing using `FOR UPDATE SKIP LOCKED`, lease-owner completion, retry
   backoff, dead-letter transition, and `contrib/async.Store` compatibility.
 - `github.com/aatuh/api-toolkit/contrib/v2/objectstore` and
   `github.com/aatuh/api-toolkit/contrib/v2/adapters/objectstores3` add
-  experimental object storage contracts, reusable contract-test helpers, and a
+  supported contrib object storage contracts, reusable contract-test helpers, and a
   raw HTTP S3-compatible adapter with SigV4 request signing, presigned URL
   hooks, content-type and object-size policy checks, metadata secret-shape
   rejection, not-found mapping, and a bucket health checker.
 - `github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery` adds
-  experimental outbound webhook delivery contracts with a fail-closed event
+  supported contrib outbound webhook delivery contracts with a fail-closed event
   catalog, tenant-scoped endpoint matching, HMAC-signed HTTP delivery, bounded
   retry backoff helpers, replay commands, sanitized attempt results, and
   `contrib/async` worker integration that keeps endpoint signing secrets out
   of durable job payloads.
 - `github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres`
-  adds an experimental Postgres adapter for outbound webhook endpoint lookup,
+  adds a supported Postgres adapter for outbound webhook endpoint lookup,
   delivery enqueue, outbox job creation, attempt recording, and operator
   replay. Endpoint signing secrets are loaded through an application-owned
   `SecretResolver` instead of raw secret storage in the webhook endpoint table;
@@ -365,7 +371,7 @@ source of truth is `docs/release-runbook.md`.
   payloads, secrets, and raw error strings.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc` and
   `github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/oidc` add
-  experimental provider-neutral OIDC/JWKS bearer-token middleware with optional
+  supported provider-neutral OIDC/JWKS bearer-token middleware with optional
   discovery, issuer/audience and algorithm validation, tenant and scope claim
   mapping, JWKS health checks, env loading, and generated `saas-api-full`
   `--auth oidc` wiring.

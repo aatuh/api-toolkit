@@ -1,2 +1,2 @@
-// Package cacheredis provides a Redis-backed experimental cache adapter.
+// Package cacheredis provides a supported Redis-backed cache adapter.
 package cacheredis

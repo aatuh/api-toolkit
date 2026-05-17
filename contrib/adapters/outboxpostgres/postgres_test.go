@@ -7,8 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	"github.com/aatuh/api-toolkit/contrib/v2/async/asynctest"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
+
+func TestAsyncStoreContract(t *testing.T) {
+	asynctest.AssertStoreContract(t, func(testing.TB) async.Store {
+		return New(&fakeDBPool{conn: &fakeDBConnection{
+			rows: &fakeRows{values: [][]any{
+				{"evt_1", "org_1", "widget.created", []byte(`{"id":"wgt_1"}`), 0},
+			}},
+			rowsAffected: 1,
+		}}, Options{})
+	})
+}
 
 func TestEnqueueInsertsPendingEvent(t *testing.T) {
 	t.Parallel()
@@ -173,11 +186,30 @@ func TestInvalidTableRejected(t *testing.T) {
 	}
 }
 
-type fakeDBPool struct {
-	conn ports.DatabaseConnection
+func TestHealthChecker(t *testing.T) {
+	t.Parallel()
+
+	store := New(&fakeDBPool{}, Options{})
+	result := store.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy || result.Message != "postgres outbox healthy" {
+		t.Fatalf("healthy result = %#v", result)
+	}
+	failed := New(&fakeDBPool{pingErr: errors.New("down")}, Options{})
+	result = failed.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy || !strings.Contains(result.Message, "postgres outbox ping failed") {
+		t.Fatalf("unhealthy result = %#v", result)
+	}
+	if result := (*Store)(nil).HealthChecker().Check(context.Background()); result.Status != ports.HealthStatusUnhealthy {
+		t.Fatalf("nil store result = %#v", result)
+	}
 }
 
-func (p *fakeDBPool) Ping(context.Context) error { return nil }
+type fakeDBPool struct {
+	conn    ports.DatabaseConnection
+	pingErr error
+}
+
+func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
 func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 

@@ -1,2 +1,2 @@
-// Package auditpostgres provides a Postgres-backed experimental audit recorder.
+// Package auditpostgres provides a supported Postgres-backed audit recorder.
 package auditpostgres

@@ -1,2 +1,2 @@
-// Package operationpostgres provides a Postgres-backed experimental operation repository.
+// Package operationpostgres provides a supported Postgres-backed operation repository.
 package operationpostgres
