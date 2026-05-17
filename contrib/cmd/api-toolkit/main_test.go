@@ -417,7 +417,8 @@ func TestClientsTypeScriptGeneratesFetchPackage(t *testing.T) {
 						"name": {"type": "string"},
 						"state": {"type": "string", "enum": ["active", "archived"]},
 						"next_cursor": {"type": ["string", "null"]},
-						"tags": {"type": "array", "items": {"type": "string"}}
+						"tags": {"type": "array", "items": {"type": "string"}},
+						"problem": {"$ref": "#/components/schemas/Problem"}
 					}
 				},
 				"WidgetCreateRequest": {
@@ -485,6 +486,7 @@ func TestClientsTypeScriptGeneratesFetchPackage(t *testing.T) {
 		"id: string;",
 		"state: \"active\" | \"archived\";",
 		"next_cursor?: string | null;",
+		"problem?: ProblemDetails | null;",
 		"export interface WidgetCreateRequest",
 		"export class ProblemDetailsError extends Error",
 		"setAPIKey",
@@ -506,10 +508,15 @@ func TestClientsTypeScriptGeneratesFetchPackage(t *testing.T) {
 	if !strings.Contains(string(pkg), `"name": "@example/my-api-client"`) {
 		t.Fatalf("package.json missing package name:\n%s", pkg)
 	}
-	for _, file := range []string{"tsconfig.json", "README.md"} {
-		if _, err := os.Stat(filepath.Join(clientDir, file)); err != nil {
-			t.Fatalf("expected %s: %v", file, err)
-		}
+	tsconfig, err := os.ReadFile(filepath.Join(clientDir, "tsconfig.json"))
+	if err != nil {
+		t.Fatalf("read tsconfig.json: %v", err)
+	}
+	if !strings.Contains(string(tsconfig), `"DOM.Iterable"`) {
+		t.Fatalf("tsconfig.json should enable DOM iterable fetch types:\n%s", tsconfig)
+	}
+	if _, err := os.Stat(filepath.Join(clientDir, "README.md")); err != nil {
+		t.Fatalf("expected README.md: %v", err)
 	}
 }
 
@@ -779,10 +786,17 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
 	}
-	for _, want := range []string{"client-ts-check", "provider-check", "migrate-plan", "migrate-verify", "migrate-down"} {
+	for _, want := range []string{"client-ts-check", "npm run build --silent", "node_modules", "provider-check", "migrate-plan", "migrate-verify", "migrate-down"} {
 		if !strings.Contains(string(makefile), want) {
 			t.Fatalf("Makefile missing %q:\n%s", want, makefile)
 		}
+	}
+	tsconfig, err := os.ReadFile(filepath.Join(serviceDir, "internal/client/ts/tsconfig.json"))
+	if err != nil {
+		t.Fatalf("read TypeScript tsconfig.json: %v", err)
+	}
+	if !strings.Contains(string(tsconfig), `"DOM.Iterable"`) {
+		t.Fatalf("generated TypeScript tsconfig should enable DOM iterable fetch types:\n%s", tsconfig)
 	}
 	migrateCmd, err := os.ReadFile(filepath.Join(serviceDir, "cmd/migrate/main.go"))
 	if err != nil {
@@ -1876,6 +1890,8 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"internal/providers/clerkwebhooks/webhooks_test.go",
 		"internal/entitlements/entitlements.go",
 		"internal/entitlements/entitlements_test.go",
+		"internal/adapters/postgres/entitlements.go",
+		"internal/adapters/postgres/entitlements_test.go",
 		"cmd/provider-replay/main.go",
 		"cmd/provider-replay/main_test.go",
 		"testdata/providers/stripe-webhook.json",
@@ -1947,9 +1963,42 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 			"tenant mismatch",
 			"raw_payload",
 		},
+		"cmd/api/main.go": {
+			"entitlements.NewService",
+			"postgres.NewEntitlementStore",
+			"Entitlements: entitlementService",
+		},
+		"internal/httpapi/router.go": {
+			"handleGetEntitlements",
+			"handleRecordEntitlementUsage",
+			"/organizations/{organization_id}/entitlements",
+			"entitlements:consume",
+		},
+		"internal/httpapi/openapi.go": {
+			"getOrganizationEntitlements",
+			"recordOrganizationEntitlementUsage",
+			"EntitlementSnapshot",
+			"EntitlementUsageRequest",
+		},
+		"internal/adapters/postgres/postgres.go": {
+			"tenant_entitlements",
+			"billing_mappings",
+		},
+		"internal/adapters/postgres/entitlements.go": {
+			"NewEntitlementStore",
+			"PlanForTenant",
+			"IncrementUsage",
+			"UpsertBillingMapping",
+		},
+		"migrations/20260517000100_platform.up.sql": {
+			"CREATE TABLE tenant_entitlements",
+			"CREATE TABLE billing_mappings",
+		},
 		"internal/providers/stripebilling/billing.go": {
 			"compatbilling.CheckoutSessionRequest",
 			"ParseWebhook",
+			"EntitlementUpdater",
+			"ApplyBillingMapping",
 			"tenant_mismatch",
 			"stripe.checkout_session.create",
 		},
@@ -1974,6 +2023,16 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 			if !strings.Contains(string(generated), want) {
 				t.Fatalf("generated %s missing %q:\n%s", path, want, generated)
 			}
+		}
+	}
+
+	generatedOpenAPI, err := os.ReadFile(filepath.Join(serviceDir, "testdata", "openapi.golden.json"))
+	if err != nil {
+		t.Fatalf("read generated OpenAPI golden: %v", err)
+	}
+	for _, want := range []string{"getOrganizationEntitlements", "recordOrganizationEntitlementUsage", "/organizations/{organization_id}/entitlements"} {
+		if !strings.Contains(string(generatedOpenAPI), want) {
+			t.Fatalf("generated OpenAPI golden missing %q:\n%s", want, generatedOpenAPI)
 		}
 	}
 

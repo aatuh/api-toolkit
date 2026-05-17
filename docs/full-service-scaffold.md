@@ -270,10 +270,12 @@ The profile generates or is expected to generate:
   secret redaction from audit metadata.
 - `entitlements` emits provider-neutral app-owned plan, feature, quota, and
   usage-counter services that can be updated by billing workflows without
-  reintroducing provider-shaped root ports. Reusable service contracts,
-  low-cardinality decisions, and HTTP enforcement middleware live in
-  `contrib/entitlements`; generated apps keep provider mappings and persistence
-  app-owned.
+  reintroducing provider-shaped root ports. When selected, generated full
+  services add Postgres-backed `tenant_entitlements` and `billing_mappings`
+  tables, tenant-scoped entitlement snapshot/usage routes, OpenAPI operations,
+  audit hooks, and Stripe composition hooks that update app-owned billing
+  mappings before plan changes. Public responses and metrics-facing decisions
+  omit provider customer IDs, subscription IDs, and tenant identifiers.
 
 ## Operational Commands
 
@@ -289,7 +291,9 @@ workflow:
 - `make client-check` regenerates the checked-in typed Go client from
   `testdata/openapi.golden.json` using `api-toolkit clients go --style typed`.
 - `make client-ts-check` regenerates the optional checked-in TypeScript fetch
-  client when it exists.
+  client when it exists. If `internal/client/ts/node_modules` is already present,
+  it also runs `npm run build --silent`; the target does not install packages or
+  require network access during normal release gates.
 - `make resource-check` verifies generated OpenAPI, typed client output, and
   generated resource tests after `api-toolkit generate resource`.
 - `make integration-check` is opt-in Docker evidence. It exercises Postgres,

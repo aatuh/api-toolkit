@@ -164,9 +164,11 @@ Goal:
   of Problem Details, OpenAPI examples, metrics labels, and generated audit
   metadata.
 - Optional generated entitlements are provider-neutral app-owned boundaries.
-  Keep billing customer IDs, subscription IDs, quota counters, and usage events
-  out of metric labels and public errors; billing webhooks should update
-  app-owned mappings before changing tenant entitlements.
+  Generated full services persist billing mappings separately from public plan
+  snapshots and expose only plan IDs, enabled features, quota limits, and usage
+  counters. Keep billing customer IDs, subscription IDs, raw quota payloads, and
+  tenant IDs out of metric labels and public errors; billing webhooks should
+  update app-owned mappings before changing tenant entitlements.
 - `contrib/entitlements` decisions intentionally exclude tenant, customer, and
   subscription identifiers. Preserve that property in adapters and observers:
   metric labels should use bounded feature and outcome labels only.
