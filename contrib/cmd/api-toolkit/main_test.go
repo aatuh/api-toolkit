@@ -1040,6 +1040,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		}
 	}
 	assertGeneratedGoldenHasGlobalSecurity(t, serviceDir, "ApiKeyAuth")
+	assertGeneratedGoldenOpenAPIVersion(t, serviceDir, "3.1.0")
 
 	cmd = exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
@@ -2217,6 +2218,23 @@ func assertGeneratedGoldenHasGlobalSecurity(t *testing.T, serviceDir, scheme str
 		}
 	}
 	t.Fatalf("generated OpenAPI golden missing top-level security scheme %q: %s", scheme, golden)
+}
+
+func assertGeneratedGoldenOpenAPIVersion(t *testing.T, serviceDir, version string) {
+	t.Helper()
+	golden, err := os.ReadFile(filepath.Join(serviceDir, "testdata", "openapi.golden.json"))
+	if err != nil {
+		t.Fatalf("read generated OpenAPI golden: %v", err)
+	}
+	var doc struct {
+		OpenAPI string `json:"openapi"`
+	}
+	if err := json.Unmarshal(golden, &doc); err != nil {
+		t.Fatalf("decode generated OpenAPI golden: %v", err)
+	}
+	if doc.OpenAPI != version {
+		t.Fatalf("generated OpenAPI version = %q, want %q", doc.OpenAPI, version)
+	}
 }
 
 func assertGeneratedREADMEListsOperatorRoutes(t *testing.T, readme string) {

@@ -895,10 +895,12 @@ func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 }
 
 func renderSaaSAPIFullOpenAPIGolden(authMode string) ([]byte, error) {
-	registry := specs.NewRegistry(specs.Info{
+	registry := specs.NewRegistryWithOptions(specs.Info{
 		Title:       "Full SaaS API",
 		Description: "Generated api-toolkit full SaaS/API profile.",
 		Version:     "dev",
+	}, specs.RegistryOptions{
+		OpenAPIVersion: specs.OpenAPIVersion31,
 	})
 	authSchemeName := scaffoldAuthSecuritySchemeName(authMode)
 	if isScaffoldBearerAuth(authMode) {
@@ -10195,10 +10197,12 @@ import (
 )
 
 func OpenAPIDocument() ([]byte, error) {
-	registry := specs.NewRegistry(specs.Info{
+	registry := specs.NewRegistryWithOptions(specs.Info{
 		Title:       "Full SaaS API",
 		Description: "Generated api-toolkit full SaaS/API profile.",
 		Version:     "dev",
+	}, specs.RegistryOptions{
+		OpenAPIVersion: specs.OpenAPIVersion31,
 	})
 {{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	registry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"})
 	registry.SetSecurity([]specs.SecurityRequirement{ {Name: "BearerAuth"} })

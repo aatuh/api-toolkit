@@ -80,6 +80,9 @@ source of truth is `docs/release-runbook.md`.
   widget writes enqueue tenant-scoped pending deliveries for subscribed
   endpoints, generated OpenAPI/client output covers those operations, and tests
   prove webhook signing secrets are returned only at endpoint creation.
+- Generated `saas-api-full` OpenAPI documents now opt into OpenAPI 3.1 through
+  `specs.NewRegistryWithOptions(... OpenAPIVersion31)` while the lean
+  `saas-api` scaffold keeps the existing OpenAPI 3.0 default.
 - Generated `saas-api-full` services now include a generated cache service,
   in-memory local cache store, Redis cache adapter, `CACHE_STORE` configuration,
   cache readiness composition, and cached webhook event catalog responses with
