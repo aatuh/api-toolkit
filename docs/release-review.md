@@ -106,10 +106,13 @@ Verification checklist:
   `missing_disposition_count`, and `expired_disposition_count` are the summary
   source of truth.
 - `full_profile_scaffold_evidence.scaffold_validation.status` must be `passed`
-  for publication evidence. `client_generation.status` is covered by that
-  scaffold contract. `integration_check.status` is opt-in and non-blocking
-  unless release reviewers explicitly ran generated Docker integration checks
-  and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
+  for publication evidence. Also review
+  `openapi_31_full_scaffold.status`, `typed_client_generation.status`,
+  `resource_generator_check.status`, `provider_flag_generation.status`,
+  `worker_check.status`, and `integration_workflow.status`; these are covered by
+  the same release-blocking scaffold contract. `integration_check.status` is
+  opt-in and non-blocking unless release reviewers explicitly ran generated
+  Docker integration checks and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
 
 ## Known v2 debt status
 

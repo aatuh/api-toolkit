@@ -814,6 +814,10 @@ full_profile_scaffold_evidence_json() {
   local scaffold_check="full-profile-scaffold-check"
   local scaffold_status
   local client_status
+  local resource_status
+  local provider_status
+  local worker_status
+  local integration_workflow_status
   local integration_status
   local integration_log
 
@@ -824,6 +828,10 @@ full_profile_scaffold_evidence_json() {
     failed) client_status="failed" ;;
     skipped_*) client_status="$scaffold_status" ;;
   esac
+  resource_status="$client_status"
+  provider_status="$client_status"
+  worker_status="$client_status"
+  integration_workflow_status="$client_status"
   integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-not_run_opt_in}"
   integration_log="${FULL_PROFILE_INTEGRATION_CHECK_LOG_PATH:-}"
 
@@ -837,12 +845,57 @@ full_profile_scaffold_evidence_json() {
   printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
   printf '"release_blocking":true'
   printf '},'
+  printf '"openapi_31_full_scaffold":{'
+  printf '"version":"3.1.0",'
+  printf '"source":"specs.NewRegistryWithOptions(... specs.OpenAPIVersion31)",'
+  printf '"golden_path":"testdata/openapi.golden.json",'
+  printf '"status":'; json_string "$scaffold_status"; printf ','
+  printf '"release_blocking":true'
+  printf '},'
   printf '"client_generation":{'
   printf '"make_target":"client-check",'
   printf '"command_line":'; json_string "generated saas-api-full service: make client-check"; printf ','
   printf '"status":'; json_string "$client_status"; printf ','
   printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
-  printf '"checked_in_output":true'
+  printf '"checked_in_output":true,'
+  printf '"style":"typed"'
+  printf '},'
+  printf '"typed_client_generation":{'
+  printf '"make_target":"client-check",'
+  printf '"command_line":'; json_string "generated saas-api-full service: api-toolkit clients go --style typed"; printf ','
+  printf '"status":'; json_string "$client_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"checked_in_output":true,'
+  printf '"raw_style_compatibility":"clients go defaults to --style raw"'
+  printf '},'
+  printf '"resource_generator_check":{'
+  printf '"make_target":"resource-check",'
+  printf '"command_line":'; json_string "generated saas-api-full service: api-toolkit generate resource ... && make resource-check"; printf ','
+  printf '"contract_test":"github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit TestGenerateResourceAddsTenantScopedCRUDToFullProfile",'
+  printf '"status":'; json_string "$resource_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"release_blocking":true'
+  printf '},'
+  printf '"provider_flag_generation":{'
+  printf '"flags":'; json_string_array "--with stripe-billing" "--with resend-email" "--with clerk-webhooks"; printf ','
+  printf '"contract_test":"github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit TestNewServiceGeneratesFullProfileProviderWorkflows",'
+  printf '"status":'; json_string "$provider_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"release_blocking":true'
+  printf '},'
+  printf '"worker_check":{'
+  printf '"binary":"cmd/worker",'
+  printf '"command_line":'; json_string "generated saas-api-full service: go test ./... validates cmd/worker wiring"; printf ','
+  printf '"status":'; json_string "$worker_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"release_blocking":true'
+  printf '},'
+  printf '"integration_workflow":{'
+  printf '"path":".github/workflows/integration.yml",'
+  printf '"trigger_policy":"workflow_dispatch_and_schedule_only",'
+  printf '"status":'; json_string "$integration_workflow_status"; printf ','
+  printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
+  printf '"release_blocking":true'
   printf '},'
   printf '"integration_check":{'
   printf '"command_line":'; json_string "generated saas-api-full service: make integration-check"; printf ','

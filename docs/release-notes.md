@@ -56,6 +56,15 @@ source of truth is `docs/release-runbook.md`.
   requirements. Postgres audit, operation, outbox, and webhook delivery stores
   also expose readiness health checkers, and `contrib/async/asynctest` adds a
   reusable async store contract suite for adapter implementations.
+- `api-toolkit --help`, `api-toolkit -h`, `api-toolkit help`, and equivalent
+  subcommand help forms now return usage with exit code `0`; unknown commands
+  continue to exit `2`.
+- Release evidence now expands `full_profile_scaffold_evidence` with explicit
+  fields for OpenAPI 3.1 full scaffold output, typed client generation, resource
+  generator checks, provider-flag generation, worker wiring, generated
+  integration workflow assets, and opt-in Docker integration status. The focused
+  `full-profile-scaffold-check` target now covers provider workflow generation
+  and resource generation in addition to the full scaffold auth modes.
 - Generated `saas-api-full` services now include tenant domain and application
   services for organizations, memberships, invitations, role checks, and
   invitation acceptance. The generated service hashes invitation tokens before
