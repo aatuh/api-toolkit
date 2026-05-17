@@ -90,7 +90,9 @@ source of truth is `docs/release-runbook.md`.
   parameterized Postgres queries, OpenAPI parameters, generated typed clients,
   and partial Postgres indexes. Relationship flags add `<name>_id` fields, and
   object-backed fields must end in `_key` and expose only object keys, not
-  payloads.
+  payloads. `--admin` now mounts a generated admin-list endpoint under
+  `/admin/<plural>` on the admin router only, protected by `X-Admin-Key` and an
+  explicit tenant selector.
 - Provider workflow scaffolds now include `cmd/provider-replay`, and generated
   provider-check runs package tests plus deterministic replay validation
   for checked-in Stripe, Resend, and Clerk fake fixtures. Live provider checks

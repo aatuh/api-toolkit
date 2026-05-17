@@ -2070,6 +2070,7 @@ type resourceTemplateData struct {
 	Table                     string
 	ScopeRead                 string
 	ScopeWrite                string
+	Admin                     bool
 	Migration                 string
 	Prefix                    string
 	DomainFields              string
@@ -2154,6 +2155,7 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 		Table:      cfg.Plural,
 		ScopeRead:  cfg.Plural + ":read",
 		ScopeWrite: cfg.Plural + ":write",
+		Admin:      cfg.Admin,
 		Migration:  nextResourceMigrationName(rootDir, cfg.Plural),
 		Prefix:     resourceIDPrefix(cfg.Name),
 	}
@@ -2209,6 +2211,13 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-operation-variables", Insert: renderResourceOpenAPIVariables(data)},
 		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t// api-toolkit:openapi-operations", Insert: renderResourceOpenAPIOperations(data)},
 		{Path: "internal/app/webhooks.go", Anchor: "\t// api-toolkit:webhook-event-types", Insert: fmt.Sprintf("\t%q,\n\t%q,\n\t%q,\n", data.Name+".created", data.Name+".updated", data.Name+".deleted")},
+	}
+	if cfg.Admin {
+		patches = append(patches, resourcePatch{
+			Path:   "internal/httpapi/router.go",
+			Anchor: "\t// api-toolkit:admin-router-register-routes",
+			Insert: renderResourceAdminRouteRegistration(data),
+		})
 	}
 	for _, patch := range patches {
 		if err := applyResourcePatch(rootDir, patch); err != nil {
@@ -2906,6 +2915,7 @@ func assertResourceAnchors(rootDir string) error {
 		{Path: "internal/adapters/postgres/postgres.go", Anchor: "\t// api-toolkit:postgres-required-tables"},
 		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-config-fields"},
 		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-register-routes"},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:admin-router-register-routes"},
 		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-default-services"},
 		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-schemas"},
 		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t\t\t// api-toolkit:openapi-webhook-event-types"},
@@ -3037,6 +3047,10 @@ func renderResourceRouteRegistrations(data resourceTemplateData) string {
 		"/"+data.Plural+"/{id}", data.ScopeWrite, data.Type,
 		"/"+data.Plural+"/{id}", data.ScopeWrite, data.Type,
 	)
+}
+
+func renderResourceAdminRouteRegistration(data resourceTemplateData) string {
+	return fmt.Sprintf("\tmux.HandleFunc(%q, cfg.requireAdmin(cfg.handleAdminList%s))\n", "GET /admin/"+data.Plural, data.Field)
 }
 
 func renderResourceOpenAPISchemas(data resourceTemplateData) string {
@@ -3737,6 +3751,36 @@ func (cfg RouterConfig) handleList{{ .Field }}(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "next_cursor": nullable{{ .Type }}String(next)})
 }
 
+func (cfg RouterConfig) handleAdminList{{ .Field }}(w http.ResponseWriter, r *http.Request) {
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		tenantID = strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	}
+	if tenantID == "" {
+		writeAppError(w, app.ErrValidation)
+		return
+	}
+	limit, err := query{{ .Type }}Limit(r, 50)
+	if err != nil {
+		writeAppError(w, app.ErrValidation)
+		return
+	}
+	opts, ok := parse{{ .Type }}ListOptions(w, r, limit)
+	if !ok {
+		return
+	}
+	items, next, err := cfg.{{ .Field }}.List(r.Context(), tenantID, opts)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": out, "next_cursor": nullable{{ .Type }}String(next)})
+}
+
 func (cfg RouterConfig) handleCreate{{ .Type }}(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := cfg.authenticateActor(w, r)
 	if !ok {
@@ -3951,6 +3995,26 @@ func TestGenerated{{ .Type }}ResourceCRUD(t *testing.T) {
 		t.Fatalf("delete {{ .Name }} status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+{{ if .Admin }}func TestGenerated{{ .Type }}AdminRouteRequiresAdminKey(t *testing.T) {
+	adminHandler := NewAdminRouter(RouterConfig{AdminKey: "test-admin-key"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/admin/{{ .Plural }}?tenant_id=org_1", nil)
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("admin list without key status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/admin/{{ .Plural }}", nil)
+	req.Header.Set("X-Admin-Key", "test-admin-key")
+	adminHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("admin list without tenant status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+{{ end }}
 `
 
 const resourceMigrationTemplate = `CREATE TABLE {{ .Table }} (
@@ -19523,6 +19587,7 @@ func NewAdminRouter(cfg RouterConfig) http.Handler {
 		cfg.MetricsHandler.ServeHTTP(w, r)
 	})))
 	_ = corepprof.RegisterAdminRoutes(serveMuxGetRouter{mux: mux}, cfg.requireAdminHandler)
+	// api-toolkit:admin-router-register-routes
 	return mux
 }
 

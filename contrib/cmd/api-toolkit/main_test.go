@@ -2150,7 +2150,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read router after resource: %v", err)
 	}
-	for _, want := range []string{"Projects *app.ProjectService", `r.Get("/projects"`, `r.Post("/projects"`, `registerPatch(r, "/projects/{id}"`, `r.Delete("/projects/{id}"`} {
+	for _, want := range []string{"Projects *app.ProjectService", `r.Get("/projects"`, `r.Post("/projects"`, `registerPatch(r, "/projects/{id}"`, `r.Delete("/projects/{id}"`, `mux.HandleFunc("GET /admin/projects"`} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated router missing resource wiring %q", want)
 		}
@@ -2195,7 +2195,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated http resource: %v", err)
 	}
-	for _, want := range []string{"parseProjectListOptions", "projectFilterQueryParams", `filters["status"]`, `sort := strings.TrimSpace(query.Get("sort"))`, `case "name", "-name"`} {
+	for _, want := range []string{"parseProjectListOptions", "handleAdminListProjects", `tenant_id`, "projectFilterQueryParams", `filters["status"]`, `sort := strings.TrimSpace(query.Get("sort"))`, `case "name", "-name"`} {
 		if !strings.Contains(string(generatedHTTP), want) {
 			t.Fatalf("generated http resource missing list query support %q:\n%s", want, generatedHTTP)
 		}
