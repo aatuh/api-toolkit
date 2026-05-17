@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/routecontracts"
-	"github.com/aatuh/api-toolkit/v2/routepolicy"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/routecontracts"
+	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 // AssertRegistryValid fails the test when a route contract registry has coverage errors.

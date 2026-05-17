@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/cors"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Handler provides CORS functionality.

@@ -1,139 +1,136 @@
-//lint:file-ignore SA1019 tests intentionally assert assignability against the deprecated ports billing surface during v2 migration.
-
 package billing
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"time"
 )
 
-func TestCheckoutSessionRequestAliasMatchesPorts(t *testing.T) {
+func TestHostedBillingContractsRemainInCompatPackage(t *testing.T) {
 	req := CheckoutSessionRequest{
-		Amount:   42,
-		Currency: "eur",
+		Amount:        42,
+		Currency:      "eur",
+		PriceID:       "price_123",
+		SuccessURL:    "https://example.com/success",
+		CancelURL:     "https://example.com/cancel",
+		Metadata:      map[string]string{"tenant": "tenant_123"},
+		Mode:          "subscription",
+		CustomerID:    "cus_123",
+		CustomerEmail: "owner@example.com",
+	}
+	provider := fakePaymentProvider{}
+
+	session, err := provider.CreateCheckoutSession(context.Background(), req)
+	if err != nil {
+		t.Fatalf("create checkout session: %v", err)
+	}
+	if session.ID == "" || session.URL == "" {
+		t.Fatalf("expected hosted checkout session, got %+v", session)
 	}
 
-	var portsReq ports.CheckoutSessionRequest = req //nolint:staticcheck // Intentional v2 compatibility assertion.
-	if portsReq.Amount != req.Amount {
-		t.Fatalf("amount = %d, want %d", portsReq.Amount, req.Amount)
+	event, err := provider.ParseWebhook(context.Background(), []byte(`{"ok":true}`), "sig")
+	if err != nil {
+		t.Fatalf("parse webhook: %v", err)
 	}
-	if portsReq.Currency != req.Currency {
-		t.Fatalf("currency = %q, want %q", portsReq.Currency, req.Currency)
+	if event.Type != "checkout.session.completed" || !json.Valid(event.Payload) {
+		t.Fatalf("unexpected webhook event: %+v", event)
+	}
+}
+
+func TestBillingProviderContractCoversPortalAndInvoices(t *testing.T) {
+	provider := fakeBillingProvider{}
+	portal, err := provider.CreateBillingPortalSession(context.Background(), BillingPortalSessionInput{
+		CustomerID: "cus_123",
+		ReturnURL:  "https://example.com/billing",
+		Flow: &BillingPortalFlowData{
+			Type: BillingPortalFlowTypeSubscriptionUpdateConfirm,
+			AfterCompletion: &BillingPortalFlowAfterCompletion{
+				Type:              BillingPortalFlowAfterCompletionTypeRedirect,
+				RedirectReturnURL: "https://example.com/done",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create billing portal session: %v", err)
+	}
+	if portal.URL == "" {
+		t.Fatalf("expected portal url, got %+v", portal)
 	}
 }
 
-func TestPaymentProviderAliasMatchesPorts(t *testing.T) {
-	var compatProvider PaymentProvider
-	var portsProvider ports.PaymentProvider = compatProvider //nolint:staticcheck // Intentional v2 compatibility assertion.
-	if portsProvider != nil {
-		t.Fatal("expected zero-value payment provider to stay nil across aliases")
-	}
+type fakePaymentProvider struct{}
+
+func (fakePaymentProvider) CreateCheckoutSession(context.Context, CheckoutSessionRequest) (CheckoutSession, error) {
+	return CheckoutSession{ID: "cs_123", URL: "https://checkout.example/cs_123"}, nil
 }
 
-func TestBillingCompatibilityAliasesCoverDeprecatedPortsSurface(t *testing.T) {
-	var checkout CheckoutSessionRequest
-	var portsCheckout ports.CheckoutSessionRequest = checkout //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsCheckout
-
-	var session CheckoutSession
-	var portsSession ports.CheckoutSession = session //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsSession
-
-	var event WebhookEvent
-	var portsEvent ports.WebhookEvent = event //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsEvent
-
-	var price Price
-	var portsPrice ports.Price = price //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsPrice
-
-	var customerInput CustomerInput
-	var portsCustomerInput ports.CustomerInput = customerInput //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsCustomerInput
-
-	var address CustomerAddress
-	var portsAddress ports.CustomerAddress = address //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsAddress
-
-	var customer Customer
-	var portsCustomer ports.Customer = customer //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsCustomer
-
-	var setupInput SetupIntentInput
-	var portsSetupInput ports.SetupIntentInput = setupInput //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsSetupInput
-
-	var setup SetupIntent
-	var portsSetup ports.SetupIntent = setup //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsSetup
-
-	var paymentMethod PaymentMethod
-	var portsPaymentMethod ports.PaymentMethod = paymentMethod //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsPaymentMethod
-
-	var invoiceItemInput InvoiceItemInput
-	var portsInvoiceItemInput ports.InvoiceItemInput = invoiceItemInput //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsInvoiceItemInput
-
-	var invoiceItem InvoiceItem
-	var portsInvoiceItem ports.InvoiceItem = invoiceItem //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsInvoiceItem
-
-	var invoiceItemUpdate InvoiceItemUpdate
-	var portsInvoiceItemUpdate ports.InvoiceItemUpdate = invoiceItemUpdate //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsInvoiceItemUpdate
-
-	var invoiceInput InvoiceInput
-	var portsInvoiceInput ports.InvoiceInput = invoiceInput //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsInvoiceInput
-
-	var invoice Invoice
-	var portsInvoice ports.Invoice = invoice //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsInvoice
-
-	var flowType BillingPortalFlowType
-	var portsFlowType ports.BillingPortalFlowType = flowType //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsFlowType
-
-	var afterType BillingPortalFlowAfterCompletionType
-	var portsAfterType ports.BillingPortalFlowAfterCompletionType = afterType //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsAfterType
-
-	var after BillingPortalFlowAfterCompletion
-	var portsAfter ports.BillingPortalFlowAfterCompletion = after //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsAfter
-
-	var item BillingPortalFlowSubscriptionUpdateConfirmItem
-	var portsItem ports.BillingPortalFlowSubscriptionUpdateConfirmItem = item //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsItem
-
-	var confirm BillingPortalFlowSubscriptionUpdateConfirm
-	var portsConfirm ports.BillingPortalFlowSubscriptionUpdateConfirm = confirm //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsConfirm
-
-	var flow BillingPortalFlowData
-	var portsFlow ports.BillingPortalFlowData = flow //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsFlow
-
-	var portalInput BillingPortalSessionInput
-	var portsPortalInput ports.BillingPortalSessionInput = portalInput //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsPortalInput
-
-	var portal BillingPortalSession
-	var portsPortal ports.BillingPortalSession = portal //nolint:staticcheck // Intentional v2 compatibility assertion.
-	_ = portsPortal
-
-	var compatBillingProvider BillingProvider
-	var portsBillingProvider ports.BillingProvider = compatBillingProvider //nolint:staticcheck // Intentional v2 compatibility assertion.
-	if portsBillingProvider != nil {
-		t.Fatal("expected zero-value billing provider to stay nil across aliases")
-	}
-
-	if BillingPortalFlowTypeSubscriptionUpdateConfirm != ports.BillingPortalFlowTypeSubscriptionUpdateConfirm { //nolint:staticcheck // Intentional v2 compatibility assertion.
-		t.Fatal("subscription update confirm constant drifted from ports alias")
-	}
-	if BillingPortalFlowAfterCompletionTypeRedirect != ports.BillingPortalFlowAfterCompletionTypeRedirect { //nolint:staticcheck // Intentional v2 compatibility assertion.
-		t.Fatal("redirect constant drifted from ports alias")
-	}
+func (fakePaymentProvider) ParseWebhook(_ context.Context, payload []byte, _ string) (WebhookEvent, error) {
+	return WebhookEvent{
+		ID:        "evt_123",
+		Type:      "checkout.session.completed",
+		CreatedAt: time.Unix(1, 0),
+		Payload:   append(json.RawMessage(nil), payload...),
+	}, nil
 }
+
+func (fakePaymentProvider) ListPrices(context.Context) ([]Price, error) {
+	return []Price{{ID: "price_123", Currency: "eur", UnitAmount: 4200, Active: true}}, nil
+}
+
+type fakeBillingProvider struct{}
+
+func (fakeBillingProvider) CreateCustomer(context.Context, CustomerInput) (Customer, error) {
+	return Customer{ID: "cus_123"}, nil
+}
+
+func (fakeBillingProvider) UpdateCustomer(context.Context, string, CustomerInput) error {
+	return nil
+}
+
+func (fakeBillingProvider) CreateSetupIntent(context.Context, SetupIntentInput) (SetupIntent, error) {
+	return SetupIntent{ID: "seti_123", ClientSecret: "secret"}, nil
+}
+
+func (fakeBillingProvider) SetCustomerDefaultPaymentMethod(context.Context, string, string) error {
+	return nil
+}
+
+func (fakeBillingProvider) RetrievePaymentMethod(context.Context, string) (PaymentMethod, error) {
+	return PaymentMethod{ID: "pm_123", Brand: "visa", Last4: "4242"}, nil
+}
+
+func (fakeBillingProvider) CreateInvoiceItem(context.Context, InvoiceItemInput) (InvoiceItem, error) {
+	return InvoiceItem{ID: "ii_123"}, nil
+}
+
+func (fakeBillingProvider) RetrieveInvoiceItem(context.Context, string) (InvoiceItem, error) {
+	return InvoiceItem{ID: "ii_123"}, nil
+}
+
+func (fakeBillingProvider) UpdateInvoiceItem(context.Context, string, InvoiceItemUpdate) (InvoiceItem, error) {
+	return InvoiceItem{ID: "ii_123"}, nil
+}
+
+func (fakeBillingProvider) CreateInvoice(context.Context, InvoiceInput) (Invoice, error) {
+	return Invoice{ID: "in_123", Status: "draft"}, nil
+}
+
+func (fakeBillingProvider) FinalizeInvoice(context.Context, string) (Invoice, error) {
+	return Invoice{ID: "in_123", Status: "open"}, nil
+}
+
+func (fakeBillingProvider) PayInvoice(context.Context, string) (Invoice, error) {
+	return Invoice{ID: "in_123", Status: "paid"}, nil
+}
+
+func (fakeBillingProvider) RetrieveInvoice(context.Context, string) (Invoice, error) {
+	return Invoice{ID: "in_123", Status: "paid"}, nil
+}
+
+func (fakeBillingProvider) CreateBillingPortalSession(context.Context, BillingPortalSessionInput) (BillingPortalSession, error) {
+	return BillingPortalSession{ID: "bps_123", URL: "https://billing.example/session"}, nil
+}
+
+var _ PaymentProvider = fakePaymentProvider{}
+var _ BillingProvider = fakeBillingProvider{}

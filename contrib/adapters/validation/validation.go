@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // ValidationError represents a validation error with field-specific details.

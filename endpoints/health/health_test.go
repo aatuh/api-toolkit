@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestProbeChecksReturnUnhealthyForInvalidConfiguration(t *testing.T) {
@@ -356,50 +356,6 @@ func TestDatabaseCheckerPrefersSnapshotCapability(t *testing.T) {
 	if got := details["total_conns"]; got != int32(5) {
 		t.Fatalf("total_conns = %#v", got)
 	}
-	if pool.statCalls.Load() != 0 {
-		t.Fatalf("expected no legacy Stat calls, got %d", pool.statCalls.Load())
-	}
-}
-
-func TestDatabaseCheckerFallsBackToLegacyStatsWhenSnapshotUnavailable(t *testing.T) {
-	pool := &legacyOnlyDatabasePool{
-		stats: legacyDatabaseStats{
-			acquireCount:  17,
-			acquiredConns: 4,
-			idleConns:     2,
-			maxConns:      12,
-			totalConns:    6,
-		},
-	}
-	checker := NewDatabaseChecker(pool)
-
-	result := checker.Check(context.Background())
-
-	if result.Status != ports.HealthStatusHealthy {
-		t.Fatalf("status = %q, want %q", result.Status, ports.HealthStatusHealthy)
-	}
-	details, ok := result.Details.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected map details, got %T", result.Details)
-	}
-	if got := details["acquire_count"]; got != int64(17) {
-		t.Fatalf("acquire_count = %#v", got)
-	}
-	if got := details["acquired_conns"]; got != int32(4) {
-		t.Fatalf("acquired_conns = %#v", got)
-	}
-	if got := details["idle_conns"]; got != int32(2) {
-		t.Fatalf("idle_conns = %#v", got)
-	}
-	if got := details["max_conns"]; got != int32(12) {
-		t.Fatalf("max_conns = %#v", got)
-	}
-	if got := details["total_conns"]; got != int32(6) {
-		t.Fatalf("total_conns = %#v", got)
-	}
-	if pool.statCalls.Load() != 1 {
-		t.Fatalf("legacy Stat calls = %d, want 1", pool.statCalls.Load())
-	}
 }
 
 func TestHTTPCheckerAcceptsNilContext(t *testing.T) {
@@ -477,7 +433,6 @@ func (c *blockingChecker) Check(ctx context.Context) ports.HealthResult {
 
 type stubDatabasePool struct {
 	pingCalls atomic.Int32
-	statCalls atomic.Int32
 	pingErr   error
 	snapshot  *ports.DatabasePoolSnapshot
 }
@@ -497,66 +452,12 @@ func (*stubDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, err
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubDatabasePool) Stat() ports.DatabaseStats {
-	s.statCalls.Add(1)
-	return nil
-}
-
 func (s *stubDatabasePool) StatSnapshot() ports.DatabasePoolSnapshot {
 	if s.snapshot == nil {
 		return ports.DatabasePoolSnapshot{}
 	}
 	return *s.snapshot
 }
-
-type legacyOnlyDatabasePool struct {
-	pingCalls atomic.Int32
-	statCalls atomic.Int32
-	pingErr   error
-	stats     ports.DatabaseStats
-}
-
-func (s *legacyOnlyDatabasePool) Ping(context.Context) error {
-	s.pingCalls.Add(1)
-	return s.pingErr
-}
-
-func (*legacyOnlyDatabasePool) Close() {}
-
-func (*legacyOnlyDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *legacyOnlyDatabasePool) Stat() ports.DatabaseStats {
-	s.statCalls.Add(1)
-	return s.stats
-}
-
-type legacyDatabaseStats struct {
-	acquireCount         int64
-	acquireDuration      time.Duration
-	acquiredConns        int32
-	canceledAcquireCount int64
-	constructingConns    int32
-	emptyAcquireCount    int64
-	idleConns            int32
-	maxConns             int32
-	newConnsCount        int64
-	totalConns           int32
-}
-
-func (s legacyDatabaseStats) AcquireCount() int64 { return s.acquireCount }
-func (s legacyDatabaseStats) AcquireDuration() time.Duration {
-	return s.acquireDuration
-}
-func (s legacyDatabaseStats) AcquiredConns() int32        { return s.acquiredConns }
-func (s legacyDatabaseStats) CanceledAcquireCount() int64 { return s.canceledAcquireCount }
-func (s legacyDatabaseStats) ConstructingConns() int32    { return s.constructingConns }
-func (s legacyDatabaseStats) EmptyAcquireCount() int64    { return s.emptyAcquireCount }
-func (s legacyDatabaseStats) IdleConns() int32            { return s.idleConns }
-func (s legacyDatabaseStats) MaxConns() int32             { return s.maxConns }
-func (s legacyDatabaseStats) NewConnsCount() int64        { return s.newConnsCount }
-func (s legacyDatabaseStats) TotalConns() int32           { return s.totalConns }
 
 func (*stubPaymentProvider) CreateCheckoutSession(context.Context, compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
 	return compatbilling.CheckoutSession{}, errors.New("not implemented")

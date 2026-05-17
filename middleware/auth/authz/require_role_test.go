@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/authorization"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 func TestRequireRoleReturnsUnauthorizedWithoutAuthenticatedActor(t *testing.T) {
-	mw := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return nil })
+	mw := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return nil })
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
@@ -26,7 +26,7 @@ func TestRequireRoleReturnsUnauthorizedWithoutAuthenticatedActor(t *testing.T) {
 }
 
 func TestRequireRoleReturnsForbiddenForAuthenticatedActorWithoutRole(t *testing.T) {
-	mw := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return nil })
+	mw := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return nil })
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
@@ -41,15 +41,15 @@ func TestRequireRoleReturnsForbiddenForAuthenticatedActorWithoutRole(t *testing.
 }
 
 func TestValidateRequireRoleMiddlewareAcceptsValidConfiguration(t *testing.T) {
-	mw := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return []string{"admin"} })
+	mw := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return []string{"admin"} })
 	if err := ValidateRequireRoleMiddleware("GET", "/admin", mw); err != nil {
 		t.Fatalf("expected validation to pass: %v", err)
 	}
 }
 
 func TestValidateRequireRoleMiddlewareRoutesAcceptsValidConfiguration(t *testing.T) {
-	mwAdmin := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return []string{"admin"} })
-	mwOps := NewRequireRoleMiddleware("ops", func(_ context.Context) []string { return []string{"ops"} })
+	mwAdmin := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return []string{"admin"} })
+	mwOps := mustRequireRoleMiddleware(t, "ops", func(_ context.Context) []string { return []string{"ops"} })
 
 	if err := ValidateRequireRoleMiddlewareRoutes([]RequireRoleRouteSpec{
 		{Method: "GET", Route: "/admin", Middleware: mwAdmin},
@@ -59,27 +59,22 @@ func TestValidateRequireRoleMiddlewareRoutesAcceptsValidConfiguration(t *testing
 	}
 }
 
-func TestNewRequireRoleMiddlewarePreservesOneReturnCompatibility(t *testing.T) {
-	mw := NewRequireRoleMiddleware(" admin ", func(_ context.Context) []string { return []string{"admin"} })
+func TestNewRequireRoleMiddlewareValidatesConfiguration(t *testing.T) {
+	mw, err := NewRequireRoleMiddleware(" admin ", func(_ context.Context) []string { return []string{"admin"} })
+	if err != nil {
+		t.Fatalf("expected valid middleware: %v", err)
+	}
 	if mw == nil {
 		t.Fatal("expected middleware")
 	}
 	if err := ValidateRequireRoleMiddleware("GET", "/admin", mw); err != nil {
-		t.Fatalf("expected valid one-return middleware: %v", err)
+		t.Fatalf("expected valid middleware: %v", err)
 	}
 }
 
-func TestNewRequireRoleMiddlewareKeepsInvalidConfigFailClosed(t *testing.T) {
-	mw := NewRequireRoleMiddleware("   ", nil)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
-	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})).ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected invalid middleware to fail closed with 401, got %d", rec.Code)
+func TestNewRequireRoleMiddlewareRejectsInvalidConfig(t *testing.T) {
+	if _, err := NewRequireRoleMiddleware("   ", nil); err == nil {
+		t.Fatal("expected invalid middleware config error")
 	}
 }
 
@@ -149,7 +144,7 @@ func TestValidateRequireRoleMiddlewareRejectsNilMiddleware(t *testing.T) {
 }
 
 func TestValidateRequireRoleMiddlewareRoutesRejectsInvalidEntry(t *testing.T) {
-	mwAdmin := NewRequireRoleMiddleware("admin", func(_ context.Context) []string { return []string{"admin"} })
+	mwAdmin := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return []string{"admin"} })
 	err := ValidateRequireRoleMiddlewareRoutes([]RequireRoleRouteSpec{
 		{Method: "GET", Route: "/admin", Middleware: mwAdmin},
 		{Method: "POST", Route: "/billing", Middleware: &RequireRoleMiddleware{role: "   ", rolesFromCtx: func(_ context.Context) []string { return []string{"admin"} }}},
@@ -167,4 +162,13 @@ func TestValidateRequireRoleMiddlewareRoutesRejectsInvalidEntry(t *testing.T) {
 	if !strings.Contains(err.Error(), "for route") {
 		t.Fatalf("expected wrapped validation context shape, got %v", err)
 	}
+}
+
+func mustRequireRoleMiddleware(t *testing.T, role string, rolesFromCtx RolesFromContext) *RequireRoleMiddleware {
+	t.Helper()
+	mw, err := NewRequireRoleMiddleware(role, rolesFromCtx)
+	if err != nil {
+		t.Fatalf("new require role middleware: %v", err)
+	}
+	return mw
 }

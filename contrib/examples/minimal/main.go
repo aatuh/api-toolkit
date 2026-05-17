@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/validation"
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	jsonmw "github.com/aatuh/api-toolkit/v2/middleware/json"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/validation"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	jsonmw "github.com/aatuh/api-toolkit/v3/middleware/json"
 )
 
 type createWidgetRequest struct {

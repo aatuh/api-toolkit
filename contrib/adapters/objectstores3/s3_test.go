@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
 )
 
 func TestPutSignsAndSendsObject(t *testing.T) {

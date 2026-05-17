@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/logzap"
-	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
 )
 
 // Config customizes how the migration runner behaves.

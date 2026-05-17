@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // AssertCheckerContract verifies common readiness-check result semantics for a

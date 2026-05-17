@@ -16,7 +16,7 @@ without scanning the root README.
 The contrib CLI can scaffold the fuller reusable service baseline:
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit@latest new service \
+go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service \
   --module example.com/my-api \
   --profile saas-api \
   --auth api-key \

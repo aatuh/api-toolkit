@@ -8,8 +8,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestRunMigrationsReturnsInitError(t *testing.T) {

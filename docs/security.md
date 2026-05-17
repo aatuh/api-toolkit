@@ -26,7 +26,7 @@ Core defaults aim to be safe, deterministic, and explicit:
   validation, content scanning, replay databases, and authorization policy.
 - HTTP health-check URLs are trusted application configuration; do not derive
   them from request parameters or tenant-controlled input. Use an SSRF-guarded
-  outbound client from `github.com/aatuh/api-toolkit/contrib/v2/adapters/httpclient`
+  outbound client from `github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient`
   for any target that can be influenced outside trusted config.
 - Migration reruns fail closed when a previous commit outcome is uncertain, so
   non-idempotent DDL is not retried blindly.

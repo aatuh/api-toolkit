@@ -3,7 +3,7 @@ package noop
 import (
 	"context"
 
-	"github.com/aatuh/api-toolkit/v2/email"
+	"github.com/aatuh/api-toolkit/v3/email"
 )
 
 // Sender is a no-op email sender useful for tests or local development.

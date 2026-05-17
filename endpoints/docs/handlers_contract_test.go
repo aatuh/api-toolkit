@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	docs "github.com/aatuh/api-toolkit/v2/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	docs "github.com/aatuh/api-toolkit/v3/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type externalHTMLModeDocsManager struct {

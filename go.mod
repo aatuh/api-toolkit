@@ -1,4 +1,4 @@
-module github.com/aatuh/api-toolkit/v2
+module github.com/aatuh/api-toolkit/v3
 
 go 1.25.0
 

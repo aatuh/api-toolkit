@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
 )
 
 // LoadConfig reads OIDC configuration from environment.

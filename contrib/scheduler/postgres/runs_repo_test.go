@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestRunsRepoRecordUsesPooledFacade(t *testing.T) {
@@ -158,7 +158,6 @@ type fakeDBPool struct {
 
 func (p *fakeDBPool) Ping(context.Context) error { return nil }
 func (p *fakeDBPool) Close()                     {}
-func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	p.acquireCount++

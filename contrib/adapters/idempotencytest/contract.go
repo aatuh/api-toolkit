@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // StoreFactory builds a fresh store for one contract test run.
@@ -133,23 +133,4 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 		t.Fatal("expired record should not remain visible after release")
 	}
 
-	legacyReleaseKey := "legacy-release"
-	if ok, err := store.TryBegin(ctx, legacyReleaseKey, ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
-		RequestHash:      "hash-legacy-release",
-		ReservationToken: "reservation-legacy-release",
-		CreatedAt:        now,
-	}, time.Minute); err != nil {
-		t.Fatalf("try begin legacy release: %v", err)
-	} else if !ok {
-		t.Fatal("try begin legacy release returned false")
-	}
-	if err := store.Release(ctx, legacyReleaseKey); err != nil {
-		t.Fatalf("legacy release: %v", err)
-	}
-	if _, found, err := store.Get(ctx, legacyReleaseKey); err != nil {
-		t.Fatalf("get legacy release after release: %v", err)
-	} else if found {
-		t.Fatal("legacy Release should delete in-flight record by key")
-	}
 }

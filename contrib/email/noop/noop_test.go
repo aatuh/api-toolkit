@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v2/email"
+	"github.com/aatuh/api-toolkit/v3/email"
 )
 
 func TestSenderSendReturnsConfiguredID(t *testing.T) {

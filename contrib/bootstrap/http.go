@@ -10,17 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/chi"
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/envvar"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
-	"github.com/aatuh/api-toolkit/v2/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v2/endpoints/health"
-	pprofx "github.com/aatuh/api-toolkit/v2/endpoints/pprof"
-	"github.com/aatuh/api-toolkit/v2/endpoints/version"
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
-	rateln "github.com/aatuh/api-toolkit/v2/middleware/ratelimit"
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	"github.com/aatuh/api-toolkit/v3/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	pprofx "github.com/aatuh/api-toolkit/v3/endpoints/pprof"
+	"github.com/aatuh/api-toolkit/v3/endpoints/version"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	rateln "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 // DefaultRouterConfig defines the inputs used by NewDefaultRouterWithConfig.

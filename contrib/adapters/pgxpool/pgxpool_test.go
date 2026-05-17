@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type stubPoolStats struct{}
@@ -99,8 +99,12 @@ func TestNewWithContextExposesAdapterStatsAndAcquireErrors(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	if stats := pool.Stat(); stats == nil {
-		t.Fatal("Stat() = nil, want stats wrapper")
+	snapshotter, ok := pool.(ports.DatabasePoolSnapshotProvider)
+	if !ok {
+		t.Fatal("pool does not expose snapshot stats")
+	}
+	if stats := snapshotter.StatSnapshot(); stats.MaxConns == 0 {
+		t.Fatalf("StatSnapshot().MaxConns = %d, want non-zero stats", stats.MaxConns)
 	}
 	if _, err := pool.Acquire(ctx); err == nil {
 		t.Fatal("Acquire() error = nil, want backend connection error")

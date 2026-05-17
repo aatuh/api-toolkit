@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/cache"
+	"github.com/aatuh/api-toolkit/contrib/v3/cache"
 )
 
 // StoreFactory builds a fresh cache store for one contract test run.

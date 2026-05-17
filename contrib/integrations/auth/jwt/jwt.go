@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	jwtmw "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	jwtmw "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Config aliases the JWT middleware configuration.

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
@@ -59,8 +59,7 @@ type MemoryStore struct {
 	legacyRecoveryRawKey     bool
 }
 
-var _ ports.ReleasableIdempotencyStore = (*MemoryStore)(nil)
-var _ ports.IdempotencyReservationReleaser = (*MemoryStore)(nil)
+var _ ports.ReservationReleasableIdempotencyStore = (*MemoryStore)(nil)
 
 type memoryEntry struct {
 	record    ports.IdempotencyRecord

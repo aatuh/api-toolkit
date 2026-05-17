@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
-	"github.com/aatuh/api-toolkit/contrib/v2/audit/audittest"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit/audittest"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestStoreContract(t *testing.T) {
@@ -177,7 +177,6 @@ type fakeDBPool struct {
 
 func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
-func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	p.acquireCount++

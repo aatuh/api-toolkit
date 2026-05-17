@@ -8,7 +8,7 @@ import (
 
 	cedarcore "github.com/cedar-policy/cedar-go"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Config configures the Cedar adapter.

@@ -51,7 +51,7 @@ Purpose: bind request input into typed structs while preserving the toolkit's Pr
 - Source type: Inline sketch using the stable `binding` package.
 
 - Prerequisites: none.
-- Example source: use `github.com/aatuh/api-toolkit/v2/binding` in any HTTP handler.
+- Example source: use `github.com/aatuh/api-toolkit/v3/binding` in any HTTP handler.
 - Request:
 
 ```sh
@@ -184,7 +184,7 @@ Purpose: keep runtime route registration, OpenAPI operation metadata, schema com
 - Source type: Inline sketch.
 
 - Prerequisites: use a router that supports the common `Get`, `Post`, `Put`, and `Delete` registration methods.
-- Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/specs`, `github.com/aatuh/api-toolkit/v2/negotiation`, and `github.com/aatuh/api-toolkit/v2/httpx`.
+- Packages: `github.com/aatuh/api-toolkit/v3/routecontracts`, `github.com/aatuh/api-toolkit/v3/specs`, `github.com/aatuh/api-toolkit/v3/negotiation`, and `github.com/aatuh/api-toolkit/v3/httpx`.
 - Handler sketch:
 
 ```go
@@ -214,7 +214,7 @@ Purpose: catch drift between route registration, OpenAPI operations, response me
 - Source type: Inline test sketch.
 
 - Prerequisites: register routes through `routecontracts` and operations through `specs.Registry`.
-- Package: `github.com/aatuh/api-toolkit/v2/contracttest`.
+- Package: `github.com/aatuh/api-toolkit/v3/contracttest`.
 - Test sketch:
 
 ```go
@@ -237,7 +237,7 @@ Purpose: signal deprecated or sunsetting routes at runtime without changing resp
 - Source type: Inline sketch.
 
 - Prerequisites: choose the deprecation and sunset dates from your published migration policy.
-- Package: `github.com/aatuh/api-toolkit/v2/middleware/deprecation`.
+- Package: `github.com/aatuh/api-toolkit/v3/middleware/deprecation`.
 - Handler sketch:
 
 ```go
@@ -386,7 +386,7 @@ Purpose: parse list endpoint query parameters for sorting, filtering, sparse fie
 - Source type: Inline sketch.
 
 - Prerequisites: define allowed sort and filter fields for the route.
-- Package: `github.com/aatuh/api-toolkit/v2/queryparams`.
+- Package: `github.com/aatuh/api-toolkit/v3/queryparams`.
 - Request:
 
 ```sh
@@ -421,7 +421,7 @@ Purpose: return `202 Accepted` for long-running work and expose a pollable opera
 - Source type: Inline sketch.
 
 - Prerequisites: provide an application-owned operation store.
-- Package: `github.com/aatuh/api-toolkit/v2/operations`.
+- Package: `github.com/aatuh/api-toolkit/v3/operations`.
 - Handler sketch:
 
 ```go
@@ -449,7 +449,7 @@ Purpose: use ETags and Last-Modified validators for cache-friendly reads and opt
 - Source type: Inline sketch.
 
 - Prerequisites: compute a stable representation validator from your resource version or response body.
-- Package: `github.com/aatuh/api-toolkit/v2/httpcache`.
+- Package: `github.com/aatuh/api-toolkit/v3/httpcache`.
 - Handler sketch:
 
 ```go
@@ -475,7 +475,7 @@ Purpose: return signed cursor metadata for stable forward pagination without exp
 - Source type: Inline sketch.
 
 - Prerequisites: provide an application secret for HMAC signing; rotate it through your normal secret-management process.
-- Example source: combine `github.com/aatuh/api-toolkit/v2/endpoints/list` with your list handler.
+- Example source: combine `github.com/aatuh/api-toolkit/v3/endpoints/list` with your list handler.
 - Request:
 
 ```sh
@@ -537,7 +537,7 @@ Purpose: register reusable schemas, responses, and security schemes for generate
 - Source type: Inline sketch.
 
 - Prerequisites: keep schema names stable once clients consume the generated OpenAPI document.
-- Package: `github.com/aatuh/api-toolkit/v2/specs`.
+- Package: `github.com/aatuh/api-toolkit/v3/specs`.
 - Registry sketch:
 
 ```go
@@ -580,7 +580,7 @@ Purpose: keep runtime middleware aligned with the route contract instead of repe
 - Source type: Inline sketch.
 
 - Prerequisites: register routes through `routecontracts.NewRegistryWithOptions`.
-- Packages: `github.com/aatuh/api-toolkit/v2/routecontracts`, `github.com/aatuh/api-toolkit/v2/routepolicy`, and `github.com/aatuh/api-toolkit/v2/specs`.
+- Packages: `github.com/aatuh/api-toolkit/v3/routecontracts`, `github.com/aatuh/api-toolkit/v3/routepolicy`, and `github.com/aatuh/api-toolkit/v3/specs`.
 - Handler sketch:
 
 ```go
@@ -615,7 +615,7 @@ Purpose: publish the same typed Problem Details catalog in runtime error handlin
 - Source type: Inline sketch.
 
 - Prerequisites: create or use an `httpx.ProblemCatalog`.
-- Packages: `github.com/aatuh/api-toolkit/v2/httpx` and `github.com/aatuh/api-toolkit/v2/specs`.
+- Packages: `github.com/aatuh/api-toolkit/v3/httpx` and `github.com/aatuh/api-toolkit/v3/specs`.
 - Registry sketch:
 
 ```go
@@ -637,7 +637,7 @@ Purpose: expose quota information to API clients without changing limiter storag
 - Source type: Inline sketch.
 
 - Prerequisites: use `middleware/ratelimit`.
-- Package: `github.com/aatuh/api-toolkit/v2/middleware/ratelimit`.
+- Package: `github.com/aatuh/api-toolkit/v3/middleware/ratelimit`.
 - Middleware sketch:
 
 ```go
@@ -662,7 +662,7 @@ Purpose: standardize idempotency-key validation, request hashing, conflict respo
 - Source type: Inline sketch.
 
 - Prerequisites: use application-owned storage or `middleware/idempotency` for reservation/replay ownership.
-- Package: `github.com/aatuh/api-toolkit/v2/idempotent`.
+- Package: `github.com/aatuh/api-toolkit/v3/idempotent`.
 - Handler sketch:
 
 ```go
@@ -689,7 +689,7 @@ Purpose: require event ids, reject timestamps outside a replay window, and docum
 - Source type: Inline sketch.
 
 - Prerequisites: configure a webhook verifier and timestamp-producing sender.
-- Package: `github.com/aatuh/api-toolkit/v2/webhooks`.
+- Package: `github.com/aatuh/api-toolkit/v3/webhooks`.
 - Receiver sketch:
 
 ```go
@@ -716,7 +716,7 @@ Purpose: decode multipart forms with required files, size limits, content-type a
 - Source type: Inline sketch.
 
 - Prerequisites: clients send `multipart/form-data`.
-- Package: `github.com/aatuh/api-toolkit/v2/upload`.
+- Package: `github.com/aatuh/api-toolkit/v3/upload`.
 - Handler sketch:
 
 ```go
@@ -747,7 +747,7 @@ Purpose: keep provider-specific token validation outside core while standardizin
 - Source type: Inline sketch.
 
 - Prerequisites: provide an application-owned `oauth2.Validator` implementation.
-- Package: `github.com/aatuh/api-toolkit/v2/oauth2`.
+- Package: `github.com/aatuh/api-toolkit/v3/oauth2`.
 - Handler sketch:
 
 ```go
@@ -775,7 +775,7 @@ Purpose: make application tests assert API contracts without reimplementing Prob
 - Source type: Inline test sketch.
 
 - Prerequisites: use `httptest.ResponseRecorder`.
-- Package: `github.com/aatuh/api-toolkit/v2/apitest`.
+- Package: `github.com/aatuh/api-toolkit/v3/apitest`.
 - Test sketch:
 
 ```go
@@ -797,7 +797,7 @@ Purpose: consume api-toolkit-shaped APIs without generating a service-specific S
 - Source type: Inline client sketch.
 
 - Prerequisites: use `net/http` clients.
-- Package: `github.com/aatuh/api-toolkit/v2/apiclient`.
+- Package: `github.com/aatuh/api-toolkit/v3/apiclient`.
 - Client sketch:
 
 ```go

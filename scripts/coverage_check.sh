@@ -78,8 +78,8 @@ if [[ "$check" -eq 1 ]]; then
   check_min "root aggregate" "$root_total" "$root_min"
   check_min "contrib aggregate" "$contrib_total" "$contrib_min"
 
-  check_min "github.com/aatuh/api-toolkit/v2/apiclient" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v2/apiclient")" "${APICLIENT_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/v2/apitest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v2/apitest")" "${APITEST_COVERAGE_MIN:-75.0}"
-  check_min "github.com/aatuh/api-toolkit/v2/oauth2" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v2/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
-  check_min "github.com/aatuh/api-toolkit/v2/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v2/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/apiclient" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apiclient")" "${APICLIENT_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/apitest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apitest")" "${APITEST_COVERAGE_MIN:-75.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/oauth2" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
 fi

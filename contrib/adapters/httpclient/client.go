@@ -13,8 +13,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/telemetry"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/telemetry"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Options configures the outbound HTTP client.

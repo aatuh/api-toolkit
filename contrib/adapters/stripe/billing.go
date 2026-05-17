@@ -8,8 +8,8 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v79"
 
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // CreateCustomer creates a Stripe customer.

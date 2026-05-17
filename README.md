@@ -11,14 +11,14 @@ stable surface, and release reviewers looking for the canonical docs path.
 
 | Module | Import path | Use for |
 | --- | --- | --- |
-| Core | `github.com/aatuh/api-toolkit/v2` | Stable ports, middleware, `httpx`, endpoint helpers, scheduler, and compatibility surfaces covered by the v2 API gate. |
-| Contrib | `github.com/aatuh/api-toolkit/contrib/v2` | Third-party adapters, integrations, examples, and tooling outside the stable v2 API promise. |
+| Core | `github.com/aatuh/api-toolkit/v3` | Stable ports, middleware, `httpx`, endpoint helpers, scheduler, and compatibility surfaces covered by the v2 API gate. |
+| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, examples, and tooling outside the stable v2 API promise. |
 
 Install both when following the getting-started guide:
 
 ```sh
-go get github.com/aatuh/api-toolkit/v2
-go get github.com/aatuh/api-toolkit/contrib/v2
+go get github.com/aatuh/api-toolkit/v3
+go get github.com/aatuh/api-toolkit/contrib/v3
 ```
 
 Supported development and CI toolchain policy: root and contrib target Go 1.25.x.

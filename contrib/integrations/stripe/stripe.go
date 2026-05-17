@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"net/netip"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/stripe"
-	"github.com/aatuh/api-toolkit/contrib/v2/config"
-	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe"
+	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Provider aliases the Stripe payment provider type.

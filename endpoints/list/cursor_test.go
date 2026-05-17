@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
 )
 
 func TestHMACCursorCodecRoundTripAndTamperDetection(t *testing.T) {

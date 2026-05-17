@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	"github.com/aatuh/api-toolkit/contrib/v3/async"
 )
 
 func TestAssertStoreContract(t *testing.T) {

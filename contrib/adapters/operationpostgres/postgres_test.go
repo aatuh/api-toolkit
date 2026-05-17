@@ -10,9 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/operations"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type operationResult struct {
@@ -221,7 +221,6 @@ type fakeDBPool struct {
 
 func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
-func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 
 func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	p.acquireCount++

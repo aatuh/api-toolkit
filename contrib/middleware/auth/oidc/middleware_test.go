@@ -15,8 +15,8 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/adapters/healthchecktest"
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestResolveJWKSURLFromDiscoveryValidatesIssuer(t *testing.T) {

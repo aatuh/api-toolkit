@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/httpx/identity"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
 )
 
 func TestNewDefaultsClock(t *testing.T) {

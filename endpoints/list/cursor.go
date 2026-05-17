@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
 )
 
 // CursorCodec encodes and decodes opaque cursor values.

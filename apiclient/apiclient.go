@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v2/httpx"
-	"github.com/aatuh/api-toolkit/v2/webhooks"
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/webhooks"
 )
 
 // ProblemError wraps a Problem Details response as an error.

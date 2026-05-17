@@ -22,8 +22,8 @@ func TestRunVersion(t *testing.T) {
 	for _, want := range []string{
 		"go go",
 		"main ",
-		"core github.com/aatuh/api-toolkit/v2 ",
-		"contrib github.com/aatuh/api-toolkit/contrib/v2 ",
+		"core github.com/aatuh/api-toolkit/v3 ",
+		"contrib github.com/aatuh/api-toolkit/contrib/v3 ",
 		"build_commit ",
 		"build_date ",
 	} {
@@ -167,7 +167,7 @@ func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
 		Dir:            serviceDir,
 		Profile:        scaffoldProfileSaaSAPIFull,
 		AuthMode:       scaffoldAuthAPIKey,
-		ToolkitVersion: "v2.3.4",
+		ToolkitVersion: "v3.0.4",
 	}); err != nil {
 		t.Fatalf("generate service: %v", err)
 	}
@@ -176,14 +176,14 @@ func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
 		t.Fatalf("read generated go.mod: %v", err)
 	}
 	for _, want := range []string{
-		"github.com/aatuh/api-toolkit/v2 v2.3.4",
-		"github.com/aatuh/api-toolkit/contrib/v2 v2.3.4",
+		"github.com/aatuh/api-toolkit/v3 v3.0.4",
+		"github.com/aatuh/api-toolkit/contrib/v3 v3.0.4",
 	} {
 		if !strings.Contains(string(generatedMod), want) {
 			t.Fatalf("generated go.mod missing %q:\n%s", want, generatedMod)
 		}
 	}
-	if strings.Contains(string(generatedMod), "v2.1.0") {
+	if strings.Contains(string(generatedMod), "v3.0.0") {
 		t.Fatalf("generated go.mod kept stale default version:\n%s", generatedMod)
 	}
 }

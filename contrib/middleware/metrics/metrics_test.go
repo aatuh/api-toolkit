@@ -12,13 +12,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
-	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
-	timeoutmw "github.com/aatuh/api-toolkit/v2/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v2/ports"
-	"github.com/aatuh/api-toolkit/v2/routecontracts"
-	"github.com/aatuh/api-toolkit/v2/routepolicy"
-	"github.com/aatuh/api-toolkit/v2/specs"
+	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/routecontracts"
+	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
 type captureRecorder struct {

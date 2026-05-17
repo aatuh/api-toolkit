@@ -13,7 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
@@ -78,8 +78,7 @@ type Store struct {
 	legacyRecoveryRawKey     bool
 }
 
-var _ ports.ReleasableIdempotencyStore = (*Store)(nil)
-var _ ports.IdempotencyReservationReleaser = (*Store)(nil)
+var _ ports.ReservationReleasableIdempotencyStore = (*Store)(nil)
 
 // New constructs a Redis-backed idempotency store.
 func New(client redis.UniversalClient, opts Options) *Store {

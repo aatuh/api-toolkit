@@ -6,7 +6,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/aatuh/api-toolkit/v2/ports"
+	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // ULIDGen generates ULID strings.

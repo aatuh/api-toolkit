@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/audit"
 )
 
 // RecorderFactory constructs a fresh audit recorder for a contract test.

@@ -4,7 +4,7 @@ Audience: API consumers and maintainers who need the stable core surface,
 compatibility-sensitive exceptions, and release-command intent.
 
 This project follows semantic versioning for the core module
-`github.com/aatuh/api-toolkit/v2`. From v1 onward, we treat the packages listed
+`github.com/aatuh/api-toolkit/v3`. From v1 onward, we treat the packages listed
 below as stable: any breaking change requires a major version bump. Stability
 does not imply every exported identifier is perfectly adapter-neutral; some v2
 surfaces are explicitly classified as compatibility-sensitive so the public docs
@@ -16,66 +16,64 @@ explicit API and test-coverage classification.
 
 All exported identifiers in these packages are considered stable:
 
-- `github.com/aatuh/api-toolkit/v2/apiclient`
-- `github.com/aatuh/api-toolkit/v2/apitest`
-- `github.com/aatuh/api-toolkit/v2/authorization`
-- `github.com/aatuh/api-toolkit/v2/binding`
-- `github.com/aatuh/api-toolkit/v2/compat/billing`
-- `github.com/aatuh/api-toolkit/v2/contracttest`
-- `github.com/aatuh/api-toolkit/v2/email`
-- `github.com/aatuh/api-toolkit/v2/endpoints/docs`
-- `github.com/aatuh/api-toolkit/v2/endpoints/health`
-- `github.com/aatuh/api-toolkit/v2/endpoints/list`
-- `github.com/aatuh/api-toolkit/v2/endpoints/pprof`
-- `github.com/aatuh/api-toolkit/v2/endpoints/version`
-- `github.com/aatuh/api-toolkit/v2/fielderrors`
-- `github.com/aatuh/api-toolkit/v2/httpcache`
-- `github.com/aatuh/api-toolkit/v2/httpx`
-- `github.com/aatuh/api-toolkit/v2/httpx/identity`
-- `github.com/aatuh/api-toolkit/v2/httpx/recover`
-- `github.com/aatuh/api-toolkit/v2/idempotent`
-- `github.com/aatuh/api-toolkit/v2/middleware/auth/apikey`
-- `github.com/aatuh/api-toolkit/v2/middleware/auth/authz`
-- `github.com/aatuh/api-toolkit/v2/middleware/auth/jwt`
-- `github.com/aatuh/api-toolkit/v2/middleware/auth/tenant`
-- `github.com/aatuh/api-toolkit/v2/middleware/deprecation`
-- `github.com/aatuh/api-toolkit/v2/middleware/idempotency`
-- `github.com/aatuh/api-toolkit/v2/middleware/json`
-- `github.com/aatuh/api-toolkit/v2/middleware/maxbody`
-- `github.com/aatuh/api-toolkit/v2/middleware/querylimits`
-- `github.com/aatuh/api-toolkit/v2/middleware/ratelimit`
-- `github.com/aatuh/api-toolkit/v2/middleware/secure`
-- `github.com/aatuh/api-toolkit/v2/middleware/timeout`
-- `github.com/aatuh/api-toolkit/v2/middleware/trace`
-- `github.com/aatuh/api-toolkit/v2/negotiation`
-- `github.com/aatuh/api-toolkit/v2/oauth2`
-- `github.com/aatuh/api-toolkit/v2/operations`
-- `github.com/aatuh/api-toolkit/v2/ports`
-- `github.com/aatuh/api-toolkit/v2/queryparams`
-- `github.com/aatuh/api-toolkit/v2/response_writer`
-- `github.com/aatuh/api-toolkit/v2/routecontracts`
-- `github.com/aatuh/api-toolkit/v2/routepolicy`
-- `github.com/aatuh/api-toolkit/v2/scheduler`
-- `github.com/aatuh/api-toolkit/v2/scheduler/migrations`
-- `github.com/aatuh/api-toolkit/v2/securityprofile`
-- `github.com/aatuh/api-toolkit/v2/specs`
-- `github.com/aatuh/api-toolkit/v2/swagstub`
-- `github.com/aatuh/api-toolkit/v2/upload`
-- `github.com/aatuh/api-toolkit/v2/webhooks`
+- `github.com/aatuh/api-toolkit/v3/apiclient`
+- `github.com/aatuh/api-toolkit/v3/apitest`
+- `github.com/aatuh/api-toolkit/v3/authorization`
+- `github.com/aatuh/api-toolkit/v3/binding`
+- `github.com/aatuh/api-toolkit/v3/compat/billing`
+- `github.com/aatuh/api-toolkit/v3/contracttest`
+- `github.com/aatuh/api-toolkit/v3/email`
+- `github.com/aatuh/api-toolkit/v3/endpoints/docs`
+- `github.com/aatuh/api-toolkit/v3/endpoints/health`
+- `github.com/aatuh/api-toolkit/v3/endpoints/list`
+- `github.com/aatuh/api-toolkit/v3/endpoints/pprof`
+- `github.com/aatuh/api-toolkit/v3/endpoints/version`
+- `github.com/aatuh/api-toolkit/v3/fielderrors`
+- `github.com/aatuh/api-toolkit/v3/httpcache`
+- `github.com/aatuh/api-toolkit/v3/httpx`
+- `github.com/aatuh/api-toolkit/v3/httpx/identity`
+- `github.com/aatuh/api-toolkit/v3/httpx/recover`
+- `github.com/aatuh/api-toolkit/v3/idempotent`
+- `github.com/aatuh/api-toolkit/v3/middleware/auth/apikey`
+- `github.com/aatuh/api-toolkit/v3/middleware/auth/authz`
+- `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt`
+- `github.com/aatuh/api-toolkit/v3/middleware/auth/tenant`
+- `github.com/aatuh/api-toolkit/v3/middleware/deprecation`
+- `github.com/aatuh/api-toolkit/v3/middleware/idempotency`
+- `github.com/aatuh/api-toolkit/v3/middleware/json`
+- `github.com/aatuh/api-toolkit/v3/middleware/maxbody`
+- `github.com/aatuh/api-toolkit/v3/middleware/querylimits`
+- `github.com/aatuh/api-toolkit/v3/middleware/ratelimit`
+- `github.com/aatuh/api-toolkit/v3/middleware/secure`
+- `github.com/aatuh/api-toolkit/v3/middleware/timeout`
+- `github.com/aatuh/api-toolkit/v3/middleware/trace`
+- `github.com/aatuh/api-toolkit/v3/negotiation`
+- `github.com/aatuh/api-toolkit/v3/oauth2`
+- `github.com/aatuh/api-toolkit/v3/operations`
+- `github.com/aatuh/api-toolkit/v3/ports`
+- `github.com/aatuh/api-toolkit/v3/queryparams`
+- `github.com/aatuh/api-toolkit/v3/routecontracts`
+- `github.com/aatuh/api-toolkit/v3/routepolicy`
+- `github.com/aatuh/api-toolkit/v3/scheduler`
+- `github.com/aatuh/api-toolkit/v3/scheduler/migrations`
+- `github.com/aatuh/api-toolkit/v3/securityprofile`
+- `github.com/aatuh/api-toolkit/v3/specs`
+- `github.com/aatuh/api-toolkit/v3/swagstub`
+- `github.com/aatuh/api-toolkit/v3/upload`
+- `github.com/aatuh/api-toolkit/v3/webhooks`
 
 ## Compatibility-sensitive stable sub-surfaces
 
 These exports remain part of the v2 compatibility promise, but they are not the
 recommended model for new generic boundary design:
 
-- `github.com/aatuh/api-toolkit/v2/ports` billing contracts in
+- `github.com/aatuh/api-toolkit/v3/ports` billing contracts in
   `ports/billing.go` are stable in v2 but intentionally Stripe-shaped today.
-  They are deprecated in favor of `github.com/aatuh/api-toolkit/v2/compat/billing`,
+  They are deprecated in favor of `github.com/aatuh/api-toolkit/v3/compat/billing`,
   which is the explicit v2 compatibility import path for that model.
-- `github.com/aatuh/api-toolkit/v2/ports` database stats contracts in
+- `github.com/aatuh/api-toolkit/v3/ports` database stats contracts in
   `ports/database.go`, including `DatabasePool.Stat` and `DatabaseStats`, are
   stable in v2 but intentionally mirror pgxpool-style counters today.
-- `github.com/aatuh/api-toolkit/v2/response_writer` is also stable but legacy.
 
 Compatibility-sensitive means:
 
@@ -84,7 +82,7 @@ Compatibility-sensitive means:
 - New design work should prefer narrower, plain-value, or app-owned contracts
   instead of widening these surfaces further.
 - For the existing hosted-checkout and invoicing model, new v2 code should
-  import `github.com/aatuh/api-toolkit/v2/compat/billing` instead of importing
+  import `github.com/aatuh/api-toolkit/v3/compat/billing` instead of importing
   billing contracts from `ports`.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
@@ -94,8 +92,7 @@ Compatibility-sensitive means:
 
 ## Experimental or unstable surfaces
 
-- `github.com/aatuh/api-toolkit/v2/middleware/auth/shared` is an implementation-sharing package for auth middleware and is not part of the stable compatibility promise.
-- `github.com/aatuh/api-toolkit/v2/response_writer` is legacy, but it remains part of the stable compatibility promise until explicitly removed in a major release.
+- `github.com/aatuh/api-toolkit/v3/middleware/auth/shared` is an implementation-sharing package for auth middleware and is not part of the stable compatibility promise.
 - Examples, docs, and tooling are not API commitments.
 - Any package explicitly documented as experimental is unstable.
 
@@ -103,8 +100,8 @@ Compatibility-sensitive means:
 
 The contrib module is outside the stable API compatibility promise for v2.
 `make release-api-check` covers only the core module
-`github.com/aatuh/api-toolkit/v2`; it does not cover
-`github.com/aatuh/api-toolkit/contrib/v2`.
+`github.com/aatuh/api-toolkit/v3`; it does not cover
+`github.com/aatuh/api-toolkit/contrib/v3`.
 
 `docs/package-classification.tsv` classifies contrib packages as
 supported-adapter, experimental, wrapper-only, test-only, example-only,

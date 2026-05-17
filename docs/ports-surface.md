@@ -3,7 +3,7 @@
 Audience: maintainers and advanced API consumers reviewing stable v2 exports
 that remain source-compatible but are not templates for new generic ports.
 
-This note explains which parts of `github.com/aatuh/api-toolkit/v2/ports` are
+This note explains which parts of `github.com/aatuh/api-toolkit/v3/ports` are
 meant to stay broadly reusable and which parts remain in v2 only as
 compatibility-sensitive surfaces.
 
@@ -14,7 +14,7 @@ compatibility-sensitive surfaces.
 
 ## Compatibility-sensitive v2 surfaces
 
-- `ports/billing.go` is stable in v2, but it is currently Stripe-shaped. Hosted checkout, provider customer IDs, billing portal flows, and invoice operations reflect the existing adapter rather than a provider-neutral billing model. The `ports` symbols are now deprecated for new code in favor of `github.com/aatuh/api-toolkit/v2/compat/billing`, which preserves the same v2 contract behind an explicit compatibility import path.
+- `ports/billing.go` is stable in v2, but it is currently Stripe-shaped. Hosted checkout, provider customer IDs, billing portal flows, and invoice operations reflect the existing adapter rather than a provider-neutral billing model. The `ports` symbols are now deprecated for new code in favor of `github.com/aatuh/api-toolkit/v3/compat/billing`, which preserves the same v2 contract behind an explicit compatibility import path.
 - `ports/database.go` query and transaction interfaces stay in core, but `DatabasePool.Stat` and `DatabaseStats` are stable only as a compatibility surface. They currently mirror pgxpool-style counters, and new code should keep that shape inside compatibility adapters rather than using it directly in generic observability code.
 - `response_writer` is another example of a stable but compatibility-sensitive surface: retained for v2 users, not a template for new design.
 
@@ -72,7 +72,7 @@ Database stats compatibility symbols:
 ## Guidance for new code
 
 - If your application needs billing behavior, prefer an app-owned billing port or a dedicated contrib adapter contract unless the existing v2 billing surface is the exact shape you want.
-- If you do want the current hosted-checkout and invoicing model in v2, import `github.com/aatuh/api-toolkit/v2/compat/billing` instead of the deprecated billing exports in `ports`.
+- If you do want the current hosted-checkout and invoicing model in v2, import `github.com/aatuh/api-toolkit/v3/compat/billing` instead of the deprecated billing exports in `ports`.
 - If you only need database observability data, depend on `DatabasePoolSnapshotProvider`, adapter `StatSnapshot()` methods, or `SnapshotDatabasePoolStats` instead of the legacy `DatabaseStats` interface.
 - Do not add more provider-specific billing fields or more driver-specific database counters to core `ports` in v2 unless compatibility requires it.
 - New examples must not introduce deprecated `ports` billing symbols; use
@@ -96,7 +96,7 @@ v3 action, required tests, and removal conditions.
 - [ ] If this compatibility manifest changes, update `VERSIONING.md`,
   `docs/v3-compatibility-roadmap.md`, docscheck coverage, and
   `docs/release-notes.md` in the same change.
-- [ ] Keep `github.com/aatuh/api-toolkit/v2/compat/billing` as the canonical
+- [ ] Keep `github.com/aatuh/api-toolkit/v3/compat/billing` as the canonical
   v2 import path for the existing provider-shaped billing model.
 - [ ] Prefer narrow v2 additions, such as plain-value database snapshot
   capabilities, instead of widening legacy compatibility surfaces.
