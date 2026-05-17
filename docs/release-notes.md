@@ -161,6 +161,11 @@ source of truth is `docs/release-runbook.md`.
   processes, Docker Compose worker service wiring, a Kubernetes worker
   Deployment, and integration-check startup that exercises the worker
   separately from the public API process.
+- Generated `saas-api-full` integration checks now run a local webhook
+  receiver, prove successful outbound delivery and replay reach it, verify
+  failing webhook endpoints record retryable delivery state, force a poison
+  outbox row into `dead_letter`, and check receiver/delivery output does not
+  expose the generated signing secret.
 - Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted

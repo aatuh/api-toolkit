@@ -132,7 +132,10 @@ The full profile standardizes these defaults:
   Problem Details responses do not include raw webhook signing secrets.
 - Webhook delivery signs outbound tenant-scoped events, rejects unsafe endpoint
   headers, retries with bounded backoff, stores sanitized delivery history, and
-  supports operator replay. The reusable Postgres adapter owns
+  supports operator replay. The generated integration check runs a local
+  receiver for success/replay smoke tests, a failing receiver path for retry
+  state, and a poison outbox row for dead-letter coverage. The reusable
+  Postgres adapter owns
   endpoint/delivery/outbox rows while endpoint signing secrets stay behind an
   application-owned resolver. In generated `DATABASE_URL` mode, the scaffold
   persists webhook endpoints and deliveries through a generated Postgres store,

@@ -3991,7 +3991,8 @@ func run(ctx context.Context) error {
 	tenancy := app.NewTenancyService()
 	apiKeys := app.NewAPIKeyService(cfg.APIKeyPepper, tenancy)
 	auditLog := app.NewAuditService()
-	webhooks := app.NewWebhookService(tenancy)
+	webhookEndpointPolicy := webhookdelivery.EndpointPolicy{AllowInsecureHTTP: !strings.EqualFold(os.Getenv("ENV"), "production")}
+	webhooks := app.NewWebhookServiceWithEndpointPolicy(tenancy, webhookEndpointPolicy)
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
 	var rateLimiter ports.RateLimiter
@@ -4026,7 +4027,7 @@ func run(ctx context.Context) error {
 			pool.Close()
 			return err
 		}
-		webhooks = app.NewWebhookServiceWithStore(tenancy, webhookStore)
+		webhooks = app.NewWebhookServiceWithStoreAndEndpointPolicy(tenancy, webhookStore, webhookEndpointPolicy)
 		objectMetadata = postgres.NewObjectStore(pool)
 		objects = app.NewObjectService(tenancy)
 		readiness = postgres.HealthChecker{Pool: pool}
@@ -6080,11 +6081,12 @@ type WebhookService struct {
 	newEndpointID func() (string, error)
 	newEventID    func() (string, error)
 	newSecret    func() (string, error)
-	catalog      webhookdelivery.Catalog
-	endpoints    map[string]endpointRecord
-	deliveries   map[string]webhookdelivery.Delivery
-	jobs         map[string]webhookdelivery.JobPayload
-	store        WebhookStore
+	catalog        webhookdelivery.Catalog
+	endpointPolicy webhookdelivery.EndpointPolicy
+	endpoints      map[string]endpointRecord
+	deliveries     map[string]webhookdelivery.Delivery
+	jobs           map[string]webhookdelivery.JobPayload
+	store          WebhookStore
 }
 
 type endpointRecord struct {
@@ -6110,22 +6112,31 @@ type WebhookStore interface {
 }
 
 func NewWebhookService(tenancy *TenancyService) *WebhookService {
+	return NewWebhookServiceWithEndpointPolicy(tenancy, webhookdelivery.EndpointPolicy{})
+}
+
+func NewWebhookServiceWithEndpointPolicy(tenancy *TenancyService, endpointPolicy webhookdelivery.EndpointPolicy) *WebhookService {
 	catalog, _ := webhookdelivery.NewCatalog(webhookEventTypes...)
 	return &WebhookService{
-		tenancy:       tenancy,
-		now:           time.Now,
-		newEndpointID: func() (string, error) { return randomPrefixedID("whend") },
-		newEventID:    func() (string, error) { return randomPrefixedID("evt") },
-		newSecret:     randomToken,
-		catalog:       catalog,
-		endpoints:     map[string]endpointRecord{},
-		deliveries:    map[string]webhookdelivery.Delivery{},
-		jobs:          map[string]webhookdelivery.JobPayload{},
+		tenancy:        tenancy,
+		now:            time.Now,
+		newEndpointID:  func() (string, error) { return randomPrefixedID("whend") },
+		newEventID:     func() (string, error) { return randomPrefixedID("evt") },
+		newSecret:      randomToken,
+		catalog:        catalog,
+		endpointPolicy: endpointPolicy,
+		endpoints:      map[string]endpointRecord{},
+		deliveries:     map[string]webhookdelivery.Delivery{},
+		jobs:           map[string]webhookdelivery.JobPayload{},
 	}
 }
 
 func NewWebhookServiceWithStore(tenancy *TenancyService, store WebhookStore) *WebhookService {
-	service := NewWebhookService(tenancy)
+	return NewWebhookServiceWithStoreAndEndpointPolicy(tenancy, store, webhookdelivery.EndpointPolicy{})
+}
+
+func NewWebhookServiceWithStoreAndEndpointPolicy(tenancy *TenancyService, store WebhookStore, endpointPolicy webhookdelivery.EndpointPolicy) *WebhookService {
+	service := NewWebhookServiceWithEndpointPolicy(tenancy, endpointPolicy)
 	service.store = store
 	return service
 }
@@ -6187,7 +6198,7 @@ func (s *WebhookService) CreateEndpoint(ctx context.Context, actorID, tenantID, 
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
-	if err := webhookdelivery.ValidateEndpoint(endpoint, webhookdelivery.EndpointPolicy{}); err != nil {
+	if err := webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy); err != nil {
 		return WebhookEndpointCreated{}, ErrValidation
 	}
 	if s.store != nil {
@@ -6376,10 +6387,11 @@ func (s *WebhookService) DispatchEvent(ctx context.Context, tenantID, eventType 
 		return nil, ErrValidation
 	}
 	dispatcher, err := webhookdelivery.NewDispatcher(webhookdelivery.DispatcherConfig{
-		Catalog:   s.catalog,
-		Endpoints: s,
-		Store:     s,
-		Clock:     s.now,
+		Catalog:        s.catalog,
+		Endpoints:      s,
+		Store:          s,
+		Clock:          s.now,
+		EndpointPolicy: s.endpointPolicy,
 	})
 	if err != nil {
 		return nil, err
@@ -6689,6 +6701,20 @@ func TestWebhookServiceRejectsUnsafeEndpointAndReplaysTenantScopedDelivery(t *te
 	}
 	if replayed.ID != deliveries[0].ID || replayed.EndpointID != created.Endpoint.ID || replayed.State != webhookdelivery.StatePending {
 		t.Fatalf("replayed delivery = %#v", replayed)
+	}
+}
+
+func TestWebhookServiceAllowsInsecureEndpointOnlyWhenConfigured(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewWebhookServiceWithEndpointPolicy(tenancy, webhookdelivery.EndpointPolicy{AllowInsecureHTTP: true})
+	service.newSecret = func() (string, error) { return "webhook-secret-value", nil }
+	if _, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "http://127.0.0.1:18081/webhooks", []string{"widget.created"}); err != nil {
+		t.Fatalf("CreateEndpoint() with development HTTP policy error = %v", err)
 	}
 }
 
@@ -15270,6 +15296,7 @@ compose() {
 tmp_dir="$(mktemp -d)"
 api_pid=""
 worker_pid=""
+receiver_pid=""
 
 cleanup() {
   if [ -n "${api_pid}" ] && kill -0 "${api_pid}" 2>/dev/null; then
@@ -15279,6 +15306,10 @@ cleanup() {
   if [ -n "${worker_pid}" ] && kill -0 "${worker_pid}" 2>/dev/null; then
     kill "${worker_pid}" 2>/dev/null || true
     wait "${worker_pid}" 2>/dev/null || true
+  fi
+  if [ -n "${receiver_pid}" ] && kill -0 "${receiver_pid}" 2>/dev/null; then
+    kill "${receiver_pid}" 2>/dev/null || true
+    wait "${receiver_pid}" 2>/dev/null || true
   fi
   # Default cleanup command: docker compose --profile objectstore down -v.
   compose --profile objectstore down -v
@@ -15335,6 +15366,27 @@ wait_for_http() {
   echo "api did not become ready" >&2
   sed -n '1,120p' "${tmp_dir}/api.log" >&2 || true
   return 1
+}
+
+wait_for_receiver() {
+  local url="$1"
+  for _ in $(seq 1 30); do
+    if curl -fsS "${url}/readyz" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "webhook receiver did not become ready" >&2
+  return 1
+}
+
+receiver_count() {
+  local file="$1"
+  if [ ! -f "${file}" ]; then
+    printf '0\n'
+    return 0
+  fi
+  wc -l <"${file}" | tr -d '[:space:]'
 }
 
 json_field() {
@@ -15410,9 +15462,12 @@ export S3_REGION="${S3_REGION:-us-east-1}"
 export S3_BUCKET="${S3_BUCKET:-api-objects}"
 export S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-minio}"
 export S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-minio123}"
+export WEBHOOK_RECEIVER_ADDR="${WEBHOOK_RECEIVER_ADDR:-127.0.0.1:18081}"
 
 api_url="http://${API_ADDR}"
 admin_url="http://${ADMIN_ADDR}"
+webhook_receiver_url="http://${WEBHOOK_RECEIVER_ADDR}"
+webhook_receiver_log="${tmp_dir}/webhook-receiver.ndjson"
 
 if [ ! -f .env ]; then
   cp .env.example .env
@@ -15432,6 +15487,50 @@ compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api < migrations/0001
 
 go mod tidy
 go test ./...
+
+python3 - "${WEBHOOK_RECEIVER_ADDR}" "${webhook_receiver_log}" <<'PY' >"${tmp_dir}/webhook-receiver.log" 2>&1 &
+import json
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+addr = sys.argv[1]
+log_path = sys.argv[2]
+host, port = addr.rsplit(":", 1)
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/readyz":
+            self.send_response(204)
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length).decode("utf-8", "replace")
+        record = {
+            "path": self.path,
+            "headers": {key: value for key, value in self.headers.items()},
+            "body": body,
+        }
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        if self.path.startswith("/fail"):
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(b"retry")
+            return
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *_):
+        return
+
+ThreadingHTTPServer((host, int(port)), Handler).serve_forever()
+PY
+receiver_pid="$!"
+wait_for_receiver "${webhook_receiver_url}"
 
 export ASYNC_WORKER_ENABLED=false
 go run ./cmd/worker >"${tmp_dir}/worker.log" 2>&1 &
@@ -15474,6 +15573,10 @@ poison_outbox_id="integration-poison-outbox"
 psql_exec "insert into outbox_events (id, organization_id, event_type, payload, state, next_at, created_at) values (:'outbox_id', :'organization_id', 'integration.poison', '{}'::jsonb, 'pending', now(), now()) on conflict (id) do update set state='pending', lease_owner=null, lease_expires_at=null, retry_count=0, next_at=now();" \
   -v organization_id="${org_id}" \
   -v outbox_id="${poison_outbox_id}" >/dev/null
+poison_deadletter_outbox_id="integration-poison-outbox-deadletter"
+psql_exec "insert into outbox_events (id, organization_id, event_type, payload, state, retry_count, next_at, created_at) values (:'outbox_id', :'organization_id', 'integration.poison.deadletter', '{}'::jsonb, 'pending', 9, now(), now()) on conflict (id) do update set state='pending', lease_owner=null, lease_expires_at=null, retry_count=9, next_at=now();" \
+  -v organization_id="${org_id}" \
+  -v outbox_id="${poison_deadletter_outbox_id}" >/dev/null
 
 curl -fsS "${api_url}/organizations/${org_id}/members" \
   -H "X-API-Key: ${API_KEY}" \
@@ -15502,7 +15605,7 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/webhook-endpoints" \
   -H "X-Actor-ID: ${API_ACTOR_ID}" \
   -H "X-Tenant-ID: ${org_id}" \
   -H "Idempotency-Key: integration-create-webhook-endpoint" \
-  --data '{"url":"https://example.com/webhooks/widgets","events":["widget.created"]}'
+  --data '{"url":"'"${webhook_receiver_url}"'/webhooks/widgets","events":["widget.created"]}'
 webhook_secret="$(json_field secret "${webhook_endpoint_body}")"
 if [ -z "${webhook_secret}" ]; then
   echo "create webhook endpoint response did not include signing secret" >&2
@@ -15516,6 +15619,21 @@ curl -fsS "${api_url}/organizations/${org_id}/webhook-endpoints" \
   -H "X-Tenant-ID: ${org_id}" >/dev/null
 if grep -F -q -- "${webhook_secret}" "${tmp_dir}/webhook-endpoints.json"; then
   echo "webhook endpoint list leaked signing secret" >&2
+  exit 1
+fi
+
+webhook_failure_endpoint_body="${tmp_dir}/webhook-failure-endpoint.json"
+curl -fsS -X POST "${api_url}/organizations/${org_id}/webhook-endpoints" \
+  -o "${webhook_failure_endpoint_body}" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -H "X-Actor-ID: ${API_ACTOR_ID}" \
+  -H "X-Tenant-ID: ${org_id}" \
+  -H "Idempotency-Key: integration-create-failing-webhook-endpoint" \
+  --data '{"url":"'"${webhook_receiver_url}"'/fail/widgets","events":["widget.updated"]}'
+failure_endpoint_id="$(json_field endpoint.id "${webhook_failure_endpoint_body}")"
+if [ -z "${failure_endpoint_id}" ]; then
+  echo "create failing webhook endpoint response did not include id" >&2
   exit 1
 fi
 
@@ -15551,18 +15669,39 @@ if [ "${replay_status}" != "201" ] || [ "${replay_id}" != "${widget_id}" ] || [ 
   exit 1
 fi
 
-curl -fsS "${api_url}/organizations/${org_id}/webhook-deliveries" \
-  -o "${tmp_dir}/webhook-deliveries.json" \
-  -H "X-API-Key: ${API_KEY}" \
-  -H "X-Actor-ID: ${API_ACTOR_ID}" \
-  -H "X-Tenant-ID: ${org_id}" >/dev/null
-delivery_id="$(json_field items.0.id "${tmp_dir}/webhook-deliveries.json")"
+delivery_id=""
+delivery_state=""
+for _ in $(seq 1 30); do
+  curl -fsS "${api_url}/organizations/${org_id}/webhook-deliveries" \
+    -o "${tmp_dir}/webhook-deliveries.json" \
+    -H "X-API-Key: ${API_KEY}" \
+    -H "X-Actor-ID: ${API_ACTOR_ID}" \
+    -H "X-Tenant-ID: ${org_id}" >/dev/null
+  delivery_id="$(json_field items.0.id "${tmp_dir}/webhook-deliveries.json" 2>/dev/null || true)"
+  delivery_state="$(psql_scalar "select state from webhook_deliveries where organization_id = :'organization_id' and id = :'delivery_id' order by created_at desc limit 1;" \
+    -v organization_id="${org_id}" \
+    -v delivery_id="${delivery_id}")"
+  if [ -n "${delivery_id}" ] && [ "${delivery_state}" = "succeeded" ] && [ "$(receiver_count "${webhook_receiver_log}")" -ge 1 ]; then
+    break
+  fi
+  sleep 1
+done
 if [ -z "${delivery_id}" ]; then
   echo "widget create did not enqueue webhook delivery" >&2
   exit 1
 fi
+if [ "${delivery_state}" != "succeeded" ]; then
+  echo "webhook delivery did not succeed, last state ${delivery_state}" >&2
+  sed -n '1,80p' "${tmp_dir}/webhook-deliveries.json" >&2 || true
+  sed -n '1,80p' "${tmp_dir}/worker.log" >&2 || true
+  exit 1
+fi
 if grep -F -q -- "${webhook_secret}" "${tmp_dir}/webhook-deliveries.json"; then
   echo "webhook delivery list leaked signing secret" >&2
+  exit 1
+fi
+if grep -F -q -- "${webhook_secret}" "${webhook_receiver_log}"; then
+  echo "webhook receiver log leaked signing secret" >&2
   exit 1
 fi
 
@@ -15577,6 +15716,17 @@ curl -fsS -X POST "${api_url}/organizations/${org_id}/webhook-deliveries/${deliv
 replayed_delivery_id="$(json_field id "${tmp_dir}/webhook-replay.json")"
 if [ "${replayed_delivery_id}" != "${delivery_id}" ]; then
   echo "replay webhook delivery returned ${replayed_delivery_id}, want ${delivery_id}" >&2
+  exit 1
+fi
+for _ in $(seq 1 30); do
+  if [ "$(receiver_count "${webhook_receiver_log}")" -ge 2 ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "$(receiver_count "${webhook_receiver_log}")" -lt 2 ]; then
+  echo "replay webhook delivery did not reach local receiver" >&2
+  sed -n '1,80p' "${webhook_receiver_log}" >&2 || true
   exit 1
 fi
 
@@ -15600,6 +15750,26 @@ curl -fsS -X PATCH "${api_url}/widgets/${widget_id}" \
   -H "If-Match: ${widget_etag}" \
   -H "Idempotency-Key: integration-widget-update" \
   --data '{"name":"managed-key-widget-updated"}' >/dev/null
+
+failure_delivery_state=""
+failure_retry_count=""
+for _ in $(seq 1 30); do
+  failure_delivery_state="$(psql_scalar "select state from webhook_deliveries where organization_id = :'organization_id' and endpoint_id = :'endpoint_id' order by created_at desc limit 1;" \
+    -v organization_id="${org_id}" \
+    -v endpoint_id="${failure_endpoint_id}")"
+  failure_retry_count="$(psql_scalar "select retry_count from outbox_events where organization_id = :'organization_id' and event_type = 'webhook.delivery' and payload->>'endpoint_id' = :'endpoint_id' order by created_at desc limit 1;" \
+    -v organization_id="${org_id}" \
+    -v endpoint_id="${failure_endpoint_id}")"
+  if [ "${failure_delivery_state}" = "failed" ] && [ -n "${failure_retry_count}" ] && [ "${failure_retry_count}" -ge 1 ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "${failure_delivery_state}" != "failed" ] || [ -z "${failure_retry_count}" ] || [ "${failure_retry_count}" -lt 1 ]; then
+  echo "failing webhook did not record retryable failure; state=${failure_delivery_state} retry_count=${failure_retry_count}" >&2
+  sed -n '1,120p' "${tmp_dir}/worker.log" >&2 || true
+  exit 1
+fi
 
 import_body="${tmp_dir}/widget-import.json"
 curl -fsS -X POST "${api_url}/widgets/imports" \
@@ -15663,6 +15833,21 @@ case "${poison_retry_count}" in
     exit 1
     ;;
 esac
+
+poison_deadletter_state=""
+for _ in $(seq 1 30); do
+  poison_deadletter_state="$(psql_scalar "select state from outbox_events where organization_id = :'organization_id' and id = :'outbox_id' order by created_at desc limit 1;" \
+    -v organization_id="${org_id}" \
+    -v outbox_id="${poison_deadletter_outbox_id}")"
+  if [ "${poison_deadletter_state}" = "dead_letter" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "${poison_deadletter_state}" != "dead_letter" ]; then
+  echo "outbox dead-letter was not recorded, last state ${poison_deadletter_state}" >&2
+  exit 1
+fi
 
 curl -fsS -X POST "${api_url}/organizations/${org_id}/objects" \
   -H "Content-Type: application/json" \
