@@ -74,7 +74,9 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api-full` migrator commands now include `plan`, `verify`, and
   a guarded `down` command. Down migrations require both
   `--allow-dangerous-down` and `ALLOW_DANGEROUS_MIGRATION_DOWN=true`, and remain
-  documented as local/schema-teardown only.
+  documented as local/schema-teardown only. When both guards are present, the
+  generated command now delegates to `bootstrap.RunDown` and reverts one latest
+  applied migration through the contrib migrator.
 - `api-toolkit generate resource` now accepts the v2 field and route-shaping
   flags `--field`, `--filter`, `--sort`, `--admin`, `--relationship`, and
   `--object-field`, validating the field DSL before mutating generated projects.

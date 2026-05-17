@@ -784,6 +784,19 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 			t.Fatalf("Makefile missing %q:\n%s", want, makefile)
 		}
 	}
+	migrateCmd, err := os.ReadFile(filepath.Join(serviceDir, "cmd/migrate/main.go"))
+	if err != nil {
+		t.Fatalf("read cmd/migrate/main.go: %v", err)
+	}
+	for _, want := range []string{
+		"bootstrap.RunDown(ctx, migrator, *dir)",
+		"ALLOW_DANGEROUS_MIGRATION_DOWN",
+		"one migration reverted",
+	} {
+		if !strings.Contains(string(migrateCmd), want) {
+			t.Fatalf("migrate command missing %q:\n%s", want, migrateCmd)
+		}
+	}
 }
 
 func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
