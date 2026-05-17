@@ -1057,12 +1057,29 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 			t.Fatalf("generated full-profile client missing %q", want)
 		}
 	}
+	for _, want := range []string{
+		"type Widget struct",
+		"type WidgetCreateRequest struct",
+		"type ListWidgetsParams struct",
+		"XTenantID string",
+		"Cursor    *string",
+		"Limit     *int",
+		"func (c *Client) ListWidgets(ctx context.Context, params ListWidgetsParams, opts ...RequestOption) (*WidgetList, *http.Response, error)",
+		"func (c *Client) CreateWidget(ctx context.Context, params CreateWidgetParams, body WidgetCreateRequest, opts ...RequestOption) (*Widget, *http.Response, error)",
+		"func (c *Client) UpdateWidget(ctx context.Context, id string, params UpdateWidgetParams, body WidgetCreateRequest, opts ...RequestOption) (*Widget, *http.Response, error)",
+		"Header(\"X-Tenant-ID\", formatParamValue(params.XTenantID))",
+		"Header(\"Idempotency-Key\", formatParamValue(params.IdempotencyKey))",
+	} {
+		if !strings.Contains(string(generatedClient), want) {
+			t.Fatalf("generated full-profile typed client missing %q", want)
+		}
+	}
 
 	generatedMakefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "--style typed", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}

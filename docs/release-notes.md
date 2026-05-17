@@ -196,6 +196,9 @@ source of truth is `docs/release-runbook.md`.
   structs, typed request/response operation methods, typed Problem Details
   error handling, and raw method escape hatches while preserving the existing
   `raw` client style as the default.
+- `api-toolkit new service --profile saas-api-full` now checks in typed Go
+  client output and its generated `client-check` target regenerates with
+  `api-toolkit clients go --style typed`.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
