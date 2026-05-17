@@ -157,8 +157,13 @@ cookie sessions into API-first scaffolds:
 api-toolkit new service \
   --module example.com/my-web \
   --profile saas-web \
-  --auth session
+  --auth oidc-session
 ```
+
+The web profile generates secure cookies, CSRF middleware, memory and
+Redis-backed session-store boundaries, OIDC callback state validation, guarded
+production startup validation, and browser-safe CORS without changing the
+API-first profiles.
 
 See [full-service-scaffold.md](full-service-scaffold.md) for the full runtime,
 migration, deployment, provider, and resource-generation contract.

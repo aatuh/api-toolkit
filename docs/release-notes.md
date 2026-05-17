@@ -83,8 +83,10 @@ source of truth is `docs/release-runbook.md`.
   client impact for release review.
 - `api-toolkit new service --profile saas-web --auth session|oidc-session` now
   emits a separate browser/session starter so API-first profiles stay unchanged.
-  The generated profile includes cookie security defaults, session rotation, and
-  CSRF validation tests without adding session dependencies to the root module.
+  The generated profile includes cookie security defaults, memory and Redis
+  session-store boundaries, guarded production startup validation, CSRF
+  middleware, OIDC callback state validation, browser-safe CORS, and session
+  fixation tests without adding session dependencies to the root module.
 - `api-toolkit new service --profile saas-api-full --with entitlements` now
   emits provider-neutral generated app code for plans, features, quotas, usage
   counters, and billing-provider composition guidance. The workflow can compose

@@ -173,8 +173,10 @@ Goal:
 - The generated `saas-web` profile is isolated from API-first scaffolds. Cookie
   sessions must use HttpOnly, Secure, and SameSite defaults; CSRF tokens must be
   compared in constant time; login callback state must be validated before
-  session rotation; and raw session IDs or CSRF tokens must not appear in logs,
-  metrics, audit metadata, OpenAPI examples, or Problem Details.
+  session rotation; production startup must require a strong `SESSION_SECRET`;
+  browser CORS must never use wildcard credentials; and raw session IDs or CSRF
+  tokens must not appear in logs, metrics, audit metadata, OpenAPI examples, or
+  Problem Details.
 - Generated migration `down` commands are guarded for local/schema-teardown
   only. Do not enable `ALLOW_DANGEROUS_MIGRATION_DOWN=true` in shared or
   production environments, and review `migrate plan`/`migrate verify` output
