@@ -48,6 +48,14 @@ Prometheus metrics middleware and serve the standard Prometheus handler only
 from the admin router, with route-pattern labels instead of raw paths.
 They also mount the standard Go pprof handlers through the core admin pprof
 helper, so profiling stays behind the generated admin authentication wrapper.
+The generated binary now uses `bootstrap.NewAPIService` as its composition
+root, including strict SaaS middleware order validation, public/admin listener
+splitting, safe system endpoint mounting, graceful shutdown, and background
+worker lifecycle management. It exposes `/livez` separately from `/readyz`:
+liveness is process-only, while readiness reflects configured Postgres/Redis
+dependencies. Runtime OpenAPI request validation is enabled by default, and
+response validation is enabled in development/test or by setting
+`OPENAPI_RESPONSE_VALIDATION=true`.
 
 ## Runtime Contract
 
@@ -59,6 +67,16 @@ The full profile standardizes these defaults:
 - Generated services only connect to Postgres when `DATABASE_URL` is set; in
   production it is mandatory, startup pings the database, and required table
   checks catch unapplied migrations before serving traffic.
+- `bootstrap.NewAPIService` owns the generated HTTP lifecycle. Public routes
+  are registered through `APIServiceConfig.RegisterRoutes`; detailed health,
+  metrics, and pprof are mounted through bootstrap admin system endpoints and
+  move to the separate admin listener when `ADMIN_ADDR` is configured.
+- `/livez` is a public process liveness probe and does not check Postgres,
+  Redis, S3, or outbound dependencies. `/readyz` reports dependency readiness.
+- Runtime OpenAPI request validation is on by default through
+  `contrib/middleware/openapi`. Response validation is enabled for
+  development/test and can be enabled in production with
+  `OPENAPI_RESPONSE_VALIDATION=true`.
 - Redis stores shared idempotency, rate-limit, and cache state in production.
   Generated services use an in-process cache for local development and switch
   to the generated Redis cache adapter when `CACHE_STORE=redis` or production

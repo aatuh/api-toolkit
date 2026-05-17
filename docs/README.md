@@ -46,7 +46,10 @@ dev-header auth when `ENV=production`.
 
 The `saas-api-full` profile keeps the lean `saas-api` default intact and starts
 the heavier Postgres + Redis production foundation described in
-[full-service-scaffold.md](full-service-scaffold.md).
+[full-service-scaffold.md](full-service-scaffold.md). The full profile is wired
+through `bootstrap.NewAPIService`, exposes `/livez` separately from `/readyz`,
+keeps detailed health/metrics/pprof on admin routes, and enables runtime
+OpenAPI request validation by default.
 
 The same CLI can review OpenAPI artifacts before release. `contracts lint`
 checks operation IDs, non-public security requirements, unsafe-write tenant,

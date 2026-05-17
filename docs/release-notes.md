@@ -71,6 +71,14 @@ source of truth is `docs/release-runbook.md`.
   startup checks: when `DATABASE_URL` is set, generated code opens a pgx pool,
   pings it, verifies required platform tables, closes the pool on shutdown, and
   reflects database failures through public readiness and admin detailed health.
+- Generated `saas-api-full` services now use `bootstrap.NewAPIService` as the
+  composition root for public/admin listeners, strict SaaS middleware order
+  validation, safe system endpoint mounting, graceful shutdown, and async
+  worker lifecycle. The full profile now exposes `/livez` separately from
+  `/readyz`, keeps liveness process-only, moves detailed health/metrics/pprof
+  to the admin listener when `ADMIN_ADDR` is set, and enables runtime OpenAPI
+  request validation by default with response validation enabled in
+  development/test or by `OPENAPI_RESPONSE_VALIDATION=true`.
 - Generated `saas-api-full` services now include an in-process audit recorder
   and write-route hooks for organization, invitation, API-key, widget, and
   async import actions, with generated tests proving audit metadata redaction

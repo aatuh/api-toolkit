@@ -981,6 +981,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"RATE_LIMIT_KEY_PREFIX=ratelimit:",
 		"IDEMPOTENCY_STORE=memory",
 		"IDEMPOTENCY_KEY_PREFIX=idempotency:",
+		"OPENAPI_REQUEST_VALIDATION=true",
+		"OPENAPI_RESPONSE_VALIDATION=true",
 		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
 		"WEBHOOK_SECRET_KEY=",
@@ -1023,7 +1025,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile router: %v", err)
 	}
-	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "corepprof.RegisterAdminRoutes", "apiKeyPrincipalFromContext", "required API key scope missing", "NewRateLimitMiddleware", "NewMetricsMiddleware", "rateLimited", "metrics", "MetricsHandler", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness"} {
+	for _, want := range []string{"If-Match", "ETag", "Idempotency-Key", "X-Tenant-ID", "WriteProblem", "corepprof.RegisterAdminRoutes", "apiKeyPrincipalFromContext", "required API key scope missing", "NewRateLimitMiddleware", "NewMetricsMiddleware", "RegisterRoutes", "NewHealthHandler", "NewOpenAPIValidationMiddleware", "OpenAPIValidation", "/livez", "rateLimited", "metrics", "MetricsHandler", "handleCreateOrganization", "handleCreateInvitation", "handleCreateAPIKey", "handleRevokeAPIKey", "handleCreateWidgetImport", "handleGetOperation", "handleCreateWebhookEndpoint", "handleReplayWebhookDelivery", "handlePutObject", "handleGetObject", "recordAudit", "Readiness"} {
 		if !strings.Contains(string(generatedRouter), want) {
 			t.Fatalf("generated full-profile router missing %q", want)
 		}
@@ -1042,7 +1044,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
@@ -1096,6 +1098,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"go test ./...",
 		"go run ./cmd/api",
 		"command -v python3",
+		"/livez",
 		"/docs/openapi.json",
 		"/health/detailed",
 		"/metrics",
@@ -1178,8 +1181,11 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"Generated profile: `saas-api-full`.",
 		"Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.",
+		"The generated binary uses `bootstrap.NewAPIService`",
+		"`/livez` is a process liveness probe",
+		"Runtime OpenAPI request validation is enabled by default.",
 		"The public router emits bounded Prometheus HTTP request metrics, and `/metrics` is served only from the admin router.",
-		"The admin router mounts real Go pprof handlers behind `X-Admin-Key`; the public router does not mount pprof.",
+		"The admin router mounts real Go pprof handlers behind `X-Admin-Key`; the public router does not mount pprof when `ADMIN_ADDR` is set.",
 		"API-key mode keeps `API_KEY` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup.",
 		"`make integration-check`",
 	} {

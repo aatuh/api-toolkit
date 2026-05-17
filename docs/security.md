@@ -247,6 +247,12 @@ operator-only surfaces.
 - Prefer `bootstrap.APIServiceConfig.AdminAddr` for new generated services that
   can run a separate admin listener; public routes keep public probes/docs while
   detailed health, metrics, and pprof stay on the admin handler.
+- Generated `saas-api-full` services expose `/livez` as process-only liveness
+  and `/readyz` as dependency readiness. Do not attach Postgres, Redis, S3, or
+  provider checks to liveness.
+- Generated `saas-api-full` services enable OpenAPI request validation by
+  default. Response validation is intended for tests/development or explicit
+  production opt-in with `OPENAPI_RESPONSE_VALIDATION=true`.
 - To migrate policy-free pprof, replace `pprof.RegisterRoutes(router)` with
   `pprof.RegisterAdminRoutes(router, requireAdmin)` and fail startup if it
   returns an error.
