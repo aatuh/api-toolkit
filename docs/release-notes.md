@@ -86,6 +86,10 @@ source of truth is `docs/release-runbook.md`.
   and partial Postgres indexes. Relationship flags add `<name>_id` fields, and
   object-backed fields must end in `_key` and expose only object keys, not
   payloads.
+- Provider workflow scaffolds now include `cmd/provider-replay`, and generated
+  provider-check runs package tests plus deterministic replay validation
+  for checked-in Stripe, Resend, and Clerk fake fixtures. Live provider checks
+  remain gated by `RUN_PROVIDER_LIVE_CHECKS=true`.
 - `api-toolkit contracts changelog` and `api-toolkit contracts impact` now
   report OpenAPI operation additions/removals and machine-readable breaking
   client impact for release review. Contract lint and impact checks now also
