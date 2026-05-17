@@ -315,6 +315,9 @@ update behavior, soft delete behavior, tests, and typed client regeneration.
 The v2 flags accept field definitions, filters, deterministic sorts, admin
 routes, relationships, and object-backed fields, but still fail closed outside
 intact generated projects. It does not mutate arbitrary Go services.
+When `--admin` is set, generated services mount an admin-list endpoint under
+`/admin/<plural>` on the admin router only; it requires `X-Admin-Key` plus an
+explicit `tenant_id` query parameter or `X-Tenant-ID` header.
 Filters are exact-match query parameters and sorts are allow-listed values such
 as `sort=name` or `sort=-name`; generated code validates them before building
 parameterized SQL. Relationship specs like `owner:organizations` add an
