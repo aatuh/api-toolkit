@@ -3604,6 +3604,7 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
 	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
+	{Name: "cmd/worker/main.go", Body: fullCmdWorkerTemplate},
 	{Name: "internal/domain/api_key.go", Body: fullDomainAPIKeyTemplate},
 	{Name: "internal/domain/tenancy.go", Body: fullDomainTenancyTemplate},
 	{Name: "internal/domain/widget.go", Body: fullDomainWidgetTemplate},
@@ -3653,6 +3654,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "Dockerfile", Body: fullDockerfileTemplate},
 	{Name: "docker-compose.yml", Body: fullComposeTemplate},
 	{Name: "deploy/kubernetes/deployment.yaml", Body: fullKubernetesDeploymentTemplate},
+	{Name: "deploy/kubernetes/worker-deployment.yaml", Body: fullKubernetesWorkerDeploymentTemplate},
 	{Name: "deploy/kubernetes/service.yaml", Body: fullKubernetesServiceTemplate},
 	{Name: "deploy/kubernetes/admin-service.yaml", Body: fullKubernetesAdminServiceTemplate},
 	{Name: "README.md", Body: fullReadmeTemplate},
@@ -4134,6 +4136,13 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	backgroundTasks := []bootstrap.BackgroundTask{}
+	if cfg.AsyncWorkerEnabled {
+		backgroundTasks = append(backgroundTasks, bootstrap.BackgroundTask{
+			Name: "async-worker",
+			Run:  asyncRunner.Run,
+		})
+	}
 {{ if eq .AuthMode "jwt" }}	jwtMiddleware, err := newJWTMiddleware(ctx, cfg)
 	if err != nil {
 		return err
@@ -4177,12 +4186,7 @@ func run(ctx context.Context) error {
 		RegisterRoutes: func(r ports.HTTPRouter) error {
 			return httpapi.RegisterRoutes(r, routerConfig)
 		},
-		BackgroundTasks: []bootstrap.BackgroundTask{
-			{
-				Name: "async-worker",
-				Run:  asyncRunner.Run,
-			},
-		},
+		BackgroundTasks: backgroundTasks,
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  httpapi.NewHealthHandler(readiness),
 			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
@@ -4243,6 +4247,111 @@ func run(ctx context.Context) error {
 }
 
 {{ end }}
+`
+
+const fullCmdWorkerTemplate = `package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v2/ports"
+	"{{ .Module }}/internal/adapters/postgres"
+	"{{ .Module }}/internal/app"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context) error {
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("DATABASE_URL is required for worker")
+	}
+	webhookSecretKey := strings.TrimSpace(os.Getenv("WEBHOOK_SECRET_KEY"))
+	if webhookSecretKey == "" {
+		return errors.New("WEBHOOK_SECRET_KEY is required for worker")
+	}
+	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	pool, err := postgres.Open(dbCtx, databaseURL)
+	cancel()
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	dbCtx, cancel = context.WithTimeout(ctx, 10*time.Second)
+	if err := postgres.CheckRequiredTables(dbCtx, pool, nil); err != nil {
+		cancel()
+		return err
+	}
+	cancel()
+
+	postgresPool := &pgxpooladapter.Adapter{Pool: pool}
+	widgets := app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
+	operationStore := postgres.NewWidgetImportOperationStore(postgresPool)
+	outbox := postgres.NewWidgetImportOutbox(postgresPool, operationStore)
+	asyncJobs := app.NewAsyncServiceWithStores(widgets, operationStore, outbox)
+	metricsRecorder, err := metricsmw.NewPrometheusRecorderChecked(nil, nil)
+	if err != nil {
+		return err
+	}
+	asyncHandler, err := async.NewHandlerMux(async.HandlerRoute{Kind: app.WidgetImportJobKind, Handler: asyncJobs})
+	if err != nil {
+		return err
+	}
+	webhookStore, err := postgres.NewWebhookStore(postgresPool, webhookSecretKey)
+	if err != nil {
+		return err
+	}
+	webhookDeliverer, err := webhookdelivery.NewDeliverer(webhookdelivery.DelivererConfig{
+		EndpointPolicy: webhookdelivery.EndpointPolicy{AllowInsecureHTTP: !strings.EqualFold(os.Getenv("ENV"), "production")},
+		Metrics:        metricsRecorder,
+		UserAgent:      "saas-api-full-webhooks/1",
+	})
+	if err != nil {
+		return err
+	}
+	webhookHandler, err := webhookdelivery.NewHandler(webhookdelivery.HandlerConfig{
+		Endpoints: webhookStore,
+		Deliverer: webhookDeliverer,
+		Attempts:  webhookStore,
+	})
+	if err != nil {
+		return err
+	}
+	if err := asyncHandler.Register(webhookdeliverypostgres.OutboxEventType, webhookHandler); err != nil {
+		return err
+	}
+	asyncRunner, err := async.New(async.Config{
+		Store:        outbox,
+		Handler:      asyncHandler,
+		Logger:       ports.NopLogger{},
+		BatchSize:    5,
+		Concurrency:  2,
+		PollInterval: time.Second,
+	})
+	if err != nil {
+		return err
+	}
+	return asyncRunner.Run(ctx)
+}
 `
 
 const fullDomainAPIKeyTemplate = `package domain
@@ -12077,6 +12186,7 @@ type Config struct {
 	S3SecretAccessKey string
 	OpenAPIRequestValidation  bool
 	OpenAPIResponseValidation bool
+	AsyncWorkerEnabled        bool
 {{ if eq .AuthMode "jwt" }}	JWTJWKSURL   string
 	JWTIssuer    string
 	JWTAudience  string
@@ -12127,6 +12237,7 @@ func ConfigFromEnv() (Config, error) {
 		S3SecretAccessKey: strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY")),
 		OpenAPIRequestValidation: envBoolDefault("OPENAPI_REQUEST_VALIDATION", true),
 		OpenAPIResponseValidation: envBoolDefault("OPENAPI_RESPONSE_VALIDATION", defaultOpenAPIResponseValidation()),
+		AsyncWorkerEnabled:        envBoolDefault("ASYNC_WORKER_ENABLED", true),
 {{ if eq .AuthMode "jwt" }}		JWTJWKSURL:   strings.TrimSpace(os.Getenv("JWT_JWKS_URL")),
 		JWTIssuer:    strings.TrimSpace(os.Getenv("JWT_ISSUER")),
 		JWTAudience:  envDefault("JWT_AUDIENCE", "saas-api-full"),
@@ -15107,6 +15218,7 @@ fmt:
 
 build: deps
 	$(GO) build -trimpath -o bin/api ./cmd/api
+	$(GO) build -trimpath -o bin/worker ./cmd/worker
 
 openapi-check: deps
 	$(GO) test ./internal/httpapi -run TestOpenAPIGolden
@@ -15157,11 +15269,16 @@ compose() {
 
 tmp_dir="$(mktemp -d)"
 api_pid=""
+worker_pid=""
 
 cleanup() {
   if [ -n "${api_pid}" ] && kill -0 "${api_pid}" 2>/dev/null; then
     kill "${api_pid}" 2>/dev/null || true
     wait "${api_pid}" 2>/dev/null || true
+  fi
+  if [ -n "${worker_pid}" ] && kill -0 "${worker_pid}" 2>/dev/null; then
+    kill "${worker_pid}" 2>/dev/null || true
+    wait "${worker_pid}" 2>/dev/null || true
   fi
   # Default cleanup command: docker compose --profile objectstore down -v.
   compose --profile objectstore down -v
@@ -15315,6 +15432,16 @@ compose exec -T postgres psql -v ON_ERROR_STOP=1 -U api -d api < migrations/0001
 
 go mod tidy
 go test ./...
+
+export ASYNC_WORKER_ENABLED=false
+go run ./cmd/worker >"${tmp_dir}/worker.log" 2>&1 &
+worker_pid="$!"
+sleep 1
+if ! kill -0 "${worker_pid}" 2>/dev/null; then
+  echo "worker process exited before smoke checks" >&2
+  sed -n '1,120p' "${tmp_dir}/worker.log" >&2 || true
+  exit 1
+fi
 
 go run ./cmd/api >"${tmp_dir}/api.log" 2>&1 &
 api_pid="$!"
@@ -15605,6 +15732,7 @@ IDEMPOTENCY_STORE=memory
 IDEMPOTENCY_KEY_PREFIX=idempotency:
 OPENAPI_REQUEST_VALIDATION=true
 OPENAPI_RESPONSE_VALIDATION=true
+ASYNC_WORKER_ENABLED=true
 OBJECT_STORE=memory
 S3_ENDPOINT=http://localhost:9000
 S3_REGION=us-east-1
@@ -15688,10 +15816,12 @@ COPY . .
 RUN go mod tidy
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/worker ./cmd/worker
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /out/api /api
+COPY --from=build /out/worker /worker
 USER nonroot:nonroot
 EXPOSE 8080 9090
 ENTRYPOINT ["/api"]
@@ -15712,6 +15842,21 @@ const fullComposeTemplate = `services:
       RATE_LIMIT_STORE: redis
       IDEMPOTENCY_STORE: redis
       ADMIN_ADDR: :9090
+      ASYNC_WORKER_ENABLED: "false"
+      WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  worker:
+    build: .
+    entrypoint: ["/worker"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://api:api@postgres:5432/api?sslmode=disable
+      REDIS_ADDR: redis:6379
       WEBHOOK_SECRET_KEY: local-webhook-secret-key-1234567
     depends_on:
       postgres:
@@ -15812,6 +15957,8 @@ spec:
               value: "redis"
             - name: IDEMPOTENCY_STORE
               value: "redis"
+            - name: ASYNC_WORKER_ENABLED
+              value: "false"
             - name: API_KEY_PEPPER
               valueFrom:
                 secretKeyRef:
@@ -15830,6 +15977,41 @@ spec:
             httpGet:
               path: /livez
               port: public
+`
+
+const fullKubernetesWorkerDeploymentTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-worker
+  template:
+    metadata:
+      labels:
+        app: api-worker
+    spec:
+      containers:
+        - name: worker
+          image: example/api:dev
+          command: ["/worker"]
+          env:
+            - name: ENV
+              value: "production"
+            - name: ASYNC_WORKER_ENABLED
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: database-url
+            - name: WEBHOOK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: webhook-secret-key
 `
 
 const fullKubernetesServiceTemplate = `apiVersion: v1
@@ -15875,6 +16057,7 @@ When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 3
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
 The generated binary uses ` + "`bootstrap.NewAPIService`" + ` for public/admin listeners, graceful shutdown, background workers, strict middleware order validation, and safe system endpoint mounting.
+` + "`cmd/worker`" + ` runs background jobs without serving public HTTP traffic. Set ` + "`ASYNC_WORKER_ENABLED=false`" + ` on API deployments when you run dedicated worker replicas.
 ` + "`/livez`" + ` is a process liveness probe and never checks Postgres, Redis, or S3; ` + "`/readyz`" + ` reflects configured dependencies.
 Runtime OpenAPI request validation is enabled by default. Response validation is enabled in development/test or when ` + "`OPENAPI_RESPONSE_VALIDATION=true`" + `.
 The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
@@ -15893,7 +16076,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for liveness, readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the worker and API on localhost, and performs HTTP smoke checks for liveness, readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `

@@ -156,6 +156,11 @@ source of truth is `docs/release-runbook.md`.
   widget importer and `webhook.delivery` to the outbound webhook deliverer.
   Webhook attempts are recorded through the generated app/Postgres store
   boundary with sanitized errors and low-cardinality delivery metrics.
+- Generated `saas-api-full` services now include a dedicated `cmd/worker`
+  binary for background jobs, an `ASYNC_WORKER_ENABLED` switch for API
+  processes, Docker Compose worker service wiring, a Kubernetes worker
+  Deployment, and integration-check startup that exercises the worker
+  separately from the public API process.
 - Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted

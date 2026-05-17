@@ -119,6 +119,10 @@ The full profile standardizes these defaults:
   adapter through generated app-level ports. The Postgres runtime routes the
   shared outbox through `contrib/async`'s handler mux so widget import jobs and
   outbound webhook delivery jobs can run behind one bounded worker loop.
+- The full profile generates `cmd/worker`, which runs only background jobs and
+  no public HTTP listener. Set `ASYNC_WORKER_ENABLED=false` on API processes
+  when worker replicas run separately; Docker Compose, Kubernetes, and
+  the generated integration check use that split-worker shape.
 - Generated audit events record actor type, actor ID, tenant, action, resource,
   result, request ID, and redaction-safe metadata for organization, invitation,
   API-key, widget, and async import writes.
