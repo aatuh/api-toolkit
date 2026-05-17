@@ -102,7 +102,7 @@ github.com/aatuh/api-toolkit/contrib/v2/audit/audittest	test-only	test-support	R
 github.com/aatuh/api-toolkit/contrib/v2/bootstrap	supported-adapter	direct-tests	Contrib bootstrap composition helpers.
 github.com/aatuh/api-toolkit/contrib/v2/cache	supported-adapter	direct-tests	Cache contracts.
 github.com/aatuh/api-toolkit/contrib/v2/cache/cachetest	test-only	test-support	Reusable cache adapter contract tests.
-github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding and route contract checks.
+github.com/aatuh/api-toolkit/contrib/v2/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding, generated clients, contract checks, observability bundles, and deployment starters.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/migrate	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v2/cmd/tester	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v2/config	experimental	direct-tests	Contrib configuration loader; not promoted until loader contract and drift evidence are added.

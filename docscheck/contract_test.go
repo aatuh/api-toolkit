@@ -1050,6 +1050,14 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				CheckedInOutput       bool   `json:"checked_in_output"`
 				RawStyleCompatibility string `json:"raw_style_compatibility"`
 			} `json:"typed_client_generation"`
+			TypeScriptClientGeneration struct {
+				MakeTarget      string `json:"make_target"`
+				CommandLine     string `json:"command_line"`
+				ContractTest    string `json:"contract_test"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				CheckedInOutput string `json:"checked_in_output"`
+			} `json:"typescript_client_generation"`
 			ResourceGeneratorCheck struct {
 				MakeTarget      string `json:"make_target"`
 				CommandLine     string `json:"command_line"`
@@ -1065,6 +1073,37 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				LogPath         string   `json:"log_path"`
 				ReleaseBlocking bool     `json:"release_blocking"`
 			} `json:"provider_flag_generation"`
+			ObservabilityBundle struct {
+				CommandLine     string `json:"command_line"`
+				ContractTest    string `json:"contract_test"`
+				Status          string `json:"status"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"observability_bundle"`
+			DeploymentPackaging struct {
+				Helm struct {
+					CommandLine     string `json:"command_line"`
+					Status          string `json:"status"`
+					ReleaseBlocking bool   `json:"release_blocking"`
+				} `json:"helm"`
+				TerraformAWS struct {
+					CommandLine     string `json:"command_line"`
+					Status          string `json:"status"`
+					ReleaseBlocking bool   `json:"release_blocking"`
+				} `json:"terraform_aws"`
+			} `json:"deployment_packaging"`
+			MigrationLifecycle struct {
+				Commands        []string `json:"commands"`
+				Guard           string   `json:"guard"`
+				Status          string   `json:"status"`
+				ReleaseBlocking bool     `json:"release_blocking"`
+			} `json:"migration_lifecycle"`
+			SessionProfile struct {
+				Profile         string   `json:"profile"`
+				AuthModes       []string `json:"auth_modes"`
+				ContractTest    string   `json:"contract_test"`
+				Status          string   `json:"status"`
+				ReleaseBlocking bool     `json:"release_blocking"`
+			} `json:"session_profile"`
 			WorkerCheck struct {
 				Binary          string `json:"binary"`
 				CommandLine     string `json:"command_line"`
@@ -1242,12 +1281,17 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 		!strings.Contains(summary.FullProfileScaffoldEvidence.TypedClientGeneration.RawStyleCompatibility, "--style raw") {
 		t.Fatalf("full profile typed client evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.TypedClientGeneration)
 	}
+	if summary.FullProfileScaffoldEvidence.TypeScriptClientGeneration.MakeTarget != "client-ts-check" ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.TypeScriptClientGeneration.CommandLine, "clients typescript") ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.TypeScriptClientGeneration.ContractTest, "TestClientsTypeScriptGeneratesFetchPackage") {
+		t.Fatalf("full profile TypeScript client evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.TypeScriptClientGeneration)
+	}
 	if summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.MakeTarget != "resource-check" ||
 		!strings.Contains(summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.ContractTest, "TestGenerateResourceAddsTenantScopedCRUDToFullProfile") ||
 		!summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.ReleaseBlocking {
 		t.Fatalf("full profile resource generator evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck)
 	}
-	for _, want := range []string{"--with stripe-billing", "--with resend-email", "--with clerk-webhooks"} {
+	for _, want := range []string{"--with stripe-billing", "--with resend-email", "--with clerk-webhooks", "--with entitlements"} {
 		if !containsString(summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.Flags, want) {
 			t.Fatalf("full profile provider flag evidence missing %q: %+v", want, summary.FullProfileScaffoldEvidence.ProviderFlagGeneration)
 		}
@@ -1255,6 +1299,33 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	if !strings.Contains(summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.ContractTest, "TestNewServiceGeneratesFullProfileProviderWorkflows") ||
 		!summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.ReleaseBlocking {
 		t.Fatalf("full profile provider flag evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ProviderFlagGeneration)
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.ObservabilityBundle.CommandLine, "ops observability") ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.ObservabilityBundle.ContractTest, "TestOpsObservabilityGeneratesBundle") ||
+		!summary.FullProfileScaffoldEvidence.ObservabilityBundle.ReleaseBlocking {
+		t.Fatalf("full profile observability evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ObservabilityBundle)
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.DeploymentPackaging.Helm.CommandLine, "deploy helm") ||
+		!summary.FullProfileScaffoldEvidence.DeploymentPackaging.Helm.ReleaseBlocking ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.DeploymentPackaging.TerraformAWS.CommandLine, "deploy terraform --cloud aws") ||
+		!summary.FullProfileScaffoldEvidence.DeploymentPackaging.TerraformAWS.ReleaseBlocking {
+		t.Fatalf("full profile deployment evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.DeploymentPackaging)
+	}
+	for _, want := range []string{"plan", "up", "status", "check", "verify", "down_guarded"} {
+		if !containsString(summary.FullProfileScaffoldEvidence.MigrationLifecycle.Commands, want) {
+			t.Fatalf("full profile migration lifecycle evidence missing %q: %+v", want, summary.FullProfileScaffoldEvidence.MigrationLifecycle)
+		}
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.MigrationLifecycle.Guard, "ALLOW_DANGEROUS_MIGRATION_DOWN=true") ||
+		!summary.FullProfileScaffoldEvidence.MigrationLifecycle.ReleaseBlocking {
+		t.Fatalf("full profile migration lifecycle evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.MigrationLifecycle)
+	}
+	if summary.FullProfileScaffoldEvidence.SessionProfile.Profile != "saas-web" ||
+		!containsString(summary.FullProfileScaffoldEvidence.SessionProfile.AuthModes, "session") ||
+		!containsString(summary.FullProfileScaffoldEvidence.SessionProfile.AuthModes, "oidc-session") ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.SessionProfile.ContractTest, "TestNewServiceGeneratesSaaSWebSessionProfile") ||
+		!summary.FullProfileScaffoldEvidence.SessionProfile.ReleaseBlocking {
+		t.Fatalf("full profile session evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.SessionProfile)
 	}
 	if summary.FullProfileScaffoldEvidence.WorkerCheck.Binary != "cmd/worker" ||
 		!summary.FullProfileScaffoldEvidence.WorkerCheck.ReleaseBlocking {
@@ -2799,12 +2870,12 @@ func generatedScaffoldMakeTarget(rel, target string) bool {
 	switch rel {
 	case "docs/getting-started.md":
 		switch target {
-		case "openapi-check", "contracts-lint", "contracts-diff", "client-check", "resource-check", "migrate-check":
+		case "openapi-check", "contracts-lint", "contracts-diff", "client-check", "client-ts-check", "resource-check", "migrate-plan", "migrate-check":
 			return true
 		}
 	case "docs/full-service-scaffold.md":
 		switch target {
-		case "migrate-up", "migrate-status", "migrate-check", "client-check", "resource-check", "integration-check":
+		case "migrate-plan", "migrate-up", "migrate-status", "migrate-check", "migrate-verify", "migrate-down", "client-check", "client-ts-check", "resource-check", "integration-check":
 			return true
 		}
 	}

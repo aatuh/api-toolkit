@@ -104,7 +104,9 @@ Useful full-profile follow-up commands:
 
 ```sh
 make client-check
+make client-ts-check
 make resource-check
+make migrate-plan
 make migrate-check
 ```
 
@@ -114,6 +116,10 @@ Add app-specific tenant resources from inside a generated full-profile project:
 api-toolkit generate resource \
   --name project \
   --plural projects \
+  --field name:string:required \
+  --field status:string:required:enum=active\|archived \
+  --filter status \
+  --sort name \
   --tenant-scoped \
   --crud \
   --postgres \
@@ -129,9 +135,29 @@ Provider starters stay opt-in:
 api-toolkit new service \
   --module example.com/my-api \
   --profile saas-api-full \
+  --client typescript \
   --with stripe-billing \
   --with resend-email \
-  --with clerk-webhooks
+  --with clerk-webhooks \
+  --with entitlements
+```
+
+Generate deployment and observability starters when you need them:
+
+```sh
+api-toolkit ops observability --profile saas-api-full --out observability
+api-toolkit deploy helm --dir . --out deploy/helm
+api-toolkit deploy terraform --cloud aws --dir . --out deploy/terraform/aws
+```
+
+For browser/session services, use the separate web profile instead of mixing
+cookie sessions into API-first scaffolds:
+
+```sh
+api-toolkit new service \
+  --module example.com/my-web \
+  --profile saas-web \
+  --auth session
 ```
 
 See [full-service-scaffold.md](full-service-scaffold.md) for the full runtime,

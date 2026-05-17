@@ -59,6 +59,36 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit --help`, `api-toolkit -h`, `api-toolkit help`, and equivalent
   subcommand help forms now return usage with exit code `0`; unknown commands
   continue to exit `2`.
+- `api-toolkit clients typescript --style fetch` now generates a browser/stdlib
+  `fetch` TypeScript package for the same supported OpenAPI subset as the typed
+  Go client: JSON bodies, path/query/header params, API-key and bearer auth,
+  Problem Details errors, nullable fields, enums, and raw response access.
+  `api-toolkit new service --profile saas-api-full --client typescript` adds the
+  checked-in TypeScript client package and `client-ts-check` target while keeping
+  the existing generated Go client path source-compatible.
+- `api-toolkit ops observability --profile saas-api-full` now emits a bounded
+  label Grafana/Prometheus/runbook bundle for the full scaffold, and
+  `api-toolkit deploy helm` plus `api-toolkit deploy terraform --cloud aws`
+  generate deployment starters for API, worker, migration, admin service,
+  dependency references, and AWS Postgres/Redis/S3 primitives.
+- Generated `saas-api-full` migrator commands now include `plan`, `verify`, and
+  a guarded `down` command. Down migrations require both
+  `--allow-dangerous-down` and `ALLOW_DANGEROUS_MIGRATION_DOWN=true`, and remain
+  documented as local/schema-teardown only.
+- `api-toolkit generate resource` now accepts the v2 field and route-shaping
+  flags `--field`, `--filter`, `--sort`, `--admin`, `--relationship`, and
+  `--object-field`, validating the field DSL before mutating generated projects.
+- `api-toolkit contracts changelog` and `api-toolkit contracts impact` now
+  report OpenAPI operation additions/removals and machine-readable breaking
+  client impact for release review.
+- `api-toolkit new service --profile saas-web --auth session|oidc-session` now
+  emits a separate browser/session starter so API-first profiles stay unchanged.
+  The generated profile includes cookie security defaults, session rotation, and
+  CSRF validation tests without adding session dependencies to the root module.
+- `api-toolkit new service --profile saas-api-full --with entitlements` now
+  emits provider-neutral generated app code for plans, features, quotas, usage
+  counters, and billing-provider composition guidance. The workflow can compose
+  with `--with stripe-billing` without adding Stripe-shaped ports to core.
 - Release evidence now expands `full_profile_scaffold_evidence` with explicit
   fields for OpenAPI 3.1 full scaffold output, typed client generation, resource
   generator checks, provider-flag generation, worker wiring, generated
