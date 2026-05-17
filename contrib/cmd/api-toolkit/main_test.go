@@ -192,6 +192,132 @@ func TestClientsGoGeneratesBuildableClient(t *testing.T) {
 	}
 }
 
+func TestClientsGoGeneratesTypedClient(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "openapi.json")
+	spec := `{
+		"openapi": "3.1.0",
+		"info": {"title": "test", "version": "1"},
+		"components": {
+			"securitySchemes": {
+				"ApiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+			},
+			"schemas": {
+				"Problem": {
+					"type": "object",
+					"properties": {
+						"type": {"type": "string"},
+						"title": {"type": "string"},
+						"status": {"type": "integer"},
+						"detail": {"type": "string"}
+					}
+				},
+				"Widget": {
+					"type": "object",
+					"required": ["id", "name", "version"],
+					"properties": {
+						"id": {"type": "string"},
+						"name": {"type": "string"},
+						"version": {"type": "integer", "format": "int64"},
+						"next_cursor": {"type": "string", "nullable": true},
+						"tags": {"type": "array", "items": {"type": "string"}}
+					}
+				},
+				"WidgetCreateRequest": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"}
+					}
+				}
+			}
+		},
+		"paths": {
+			"/widgets": {
+				"post": {
+					"operationId": "createWidget",
+					"requestBody": {
+						"required": true,
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/WidgetCreateRequest"}}}
+					},
+					"responses": {
+						"201": {"description": "created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}},
+						"400": {"description": "bad request", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:write"]}]
+				}
+			},
+			"/widgets/{id}": {
+				"get": {
+					"operationId": "getWidget",
+					"parameters": [
+						{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
+						{"name": "X-Tenant-ID", "in": "header", "required": true, "schema": {"type": "string"}},
+						{"name": "include_deleted", "in": "query", "required": false, "schema": {"type": "boolean"}}
+					],
+					"responses": {
+						"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Widget"}}}},
+						"404": {"description": "not found", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+					},
+					"security": [{"ApiKeyAuth": ["widgets:read"]}]
+				}
+			}
+		}
+	}`
+	if err := os.WriteFile(specPath, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+	clientDir := filepath.Join(tmp, "client")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"clients", "go",
+		"--openapi", specPath,
+		"--out", clientDir,
+		"--package", "apiclient",
+		"--style", "typed",
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("clients go --style typed failed: %s", out.String())
+	}
+	generated, err := os.ReadFile(filepath.Join(clientDir, "client.go"))
+	if err != nil {
+		t.Fatalf("read generated client.go: %v", err)
+	}
+	for _, want := range []string{
+		"type Widget struct",
+		"ID         string   `json:\"id\"`",
+		"Version    int64    `json:\"version\"`",
+		"NextCursor *string  `json:\"next_cursor,omitempty\"`",
+		"Tags       []string `json:\"tags,omitempty\"`",
+		"type WidgetCreateRequest struct",
+		"func (c *Client) CreateWidget(ctx context.Context, body WidgetCreateRequest, opts ...RequestOption) (*Widget, *http.Response, error)",
+		"func (c *Client) CreateWidgetRaw(ctx context.Context, body any, opts ...RequestOption) (*http.Response, error)",
+		"type GetWidgetParams struct",
+		"XTenantID      string",
+		"IncludeDeleted *bool",
+		"Header(\"X-Tenant-ID\", formatParamValue(params.XTenantID))",
+		"QueryParam(\"include_deleted\", formatParamValue(*params.IncludeDeleted))",
+		"func (c *Client) GetWidget(ctx context.Context, id string, params GetWidgetParams, opts ...RequestOption) (*Widget, *http.Response, error)",
+		"func (c *Client) GetWidgetRaw(ctx context.Context, id string, params GetWidgetParams, opts ...RequestOption) (*http.Response, error)",
+		"func DecodeJSONResponse[T any]",
+		"func QueryParam",
+		"func Header",
+	} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatalf("generated typed client.go missing %q:\n%s", want, generated)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte("module example.com/clienttest\n\ngo 1.25.0\n"), 0o600); err != nil {
+		t.Fatalf("write temp go.mod: %v", err)
+	}
+	cmd := exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = tmp
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated typed client package should build:\n%s\nerror: %v", output, err)
+	}
+}
+
 func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")
@@ -210,6 +336,11 @@ func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
 			name: "invalid package",
 			args: []string{"clients", "go", "--openapi", specPath, "--out", filepath.Join(tmp, "client"), "--package", "api-client"},
 			want: "invalid Go package name",
+		},
+		{
+			name: "invalid style",
+			args: []string{"clients", "go", "--openapi", specPath, "--out", filepath.Join(tmp, "client"), "--package", "apiclient", "--style", "custom"},
+			want: "unsupported Go client style",
 		},
 	}
 	for _, tt := range tests {

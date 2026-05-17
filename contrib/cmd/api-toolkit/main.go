@@ -389,7 +389,7 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 
 func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "go" {
-		fmt.Fprintln(stderr, "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name>")
+		fmt.Fprintln(stderr, "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name> [--style raw|typed]")
 		return 2
 	}
 	fs := flag.NewFlagSet("clients go", flag.ContinueOnError)
@@ -397,6 +397,7 @@ func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
 	outDir := fs.String("out", "", "output directory")
 	packageName := fs.String("package", "apiclient", "Go package name")
+	style := fs.String("style", goClientStyleRaw, "Go client style: raw or typed")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -408,6 +409,7 @@ func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		OpenAPIPath: strings.TrimSpace(*openAPIPath),
 		OutDir:      strings.TrimSpace(*outDir),
 		Package:     strings.TrimSpace(*packageName),
+		Style:       strings.ToLower(strings.TrimSpace(*style)),
 	}
 	if err := generateGoClient(cfg); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -473,7 +475,13 @@ type goClientConfig struct {
 	OpenAPIPath string
 	OutDir      string
 	Package     string
+	Style       string
 }
+
+const (
+	goClientStyleRaw   = "raw"
+	goClientStyleTyped = "typed"
+)
 
 func generateGoClient(cfg goClientConfig) error {
 	if cfg.OpenAPIPath == "" {
@@ -485,6 +493,12 @@ func generateGoClient(cfg goClientConfig) error {
 	if !validGoPackageName(cfg.Package) {
 		return fmt.Errorf("invalid Go package name %q", cfg.Package)
 	}
+	if cfg.Style == "" {
+		cfg.Style = goClientStyleRaw
+	}
+	if cfg.Style != goClientStyleRaw && cfg.Style != goClientStyleTyped {
+		return fmt.Errorf("unsupported Go client style %q", cfg.Style)
+	}
 	loaded, err := loadOpenAPI(cfg.OpenAPIPath)
 	if err != nil {
 		return err
@@ -492,8 +506,13 @@ func generateGoClient(cfg goClientConfig) error {
 	if err := loaded.validate(); err != nil {
 		return err
 	}
-	operations := operationsFromOpenAPIDocument(loaded.doc)
-	rendered := renderGoClient(cfg.Package, operations)
+	var rendered []byte
+	if cfg.Style == goClientStyleTyped {
+		rendered = renderTypedGoClient(cfg.Package, loaded.doc)
+	} else {
+		operations := operationsFromOpenAPIDocument(loaded.doc)
+		rendered = renderGoClient(cfg.Package, operations)
+	}
 	formatted, err := format.Source(rendered)
 	if err != nil {
 		return fmt.Errorf("format generated client: %w", err)
@@ -601,6 +620,413 @@ func renderGoClientOperation(out *strings.Builder, methodName string, operation 
 	out.WriteString("}\n\n")
 }
 
+type typedClientOperation struct {
+	Method      string
+	Path        string
+	OperationID string
+	Parameters  []typedClientParameter
+	Operation   *openapi3.Operation
+}
+
+type typedClientParameter struct {
+	Name     string
+	In       string
+	Required bool
+	Schema   *openapi3.SchemaRef
+}
+
+func renderTypedGoClient(packageName string, doc *openapi3.T) []byte {
+	operations := typedClientOperationsFromOpenAPI(doc)
+	seenMethods := map[string]int{}
+	var methods strings.Builder
+	for _, operation := range operations {
+		operationID := strings.TrimSpace(operation.OperationID)
+		if operationID == "" {
+			continue
+		}
+		methodName := exportedGoIdentifier(operationID)
+		seenMethods[methodName]++
+		if seenMethods[methodName] > 1 {
+			methodName = fmt.Sprintf("%s%d", methodName, seenMethods[methodName])
+		}
+		renderTypedGoClientOperation(&methods, methodName, operation)
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "package %s\n\n", packageName)
+	out.WriteString(goClientRuntimeTemplate)
+	renderTypedGoClientSchemas(&out, doc)
+	out.WriteString(methods.String())
+	return []byte(out.String())
+}
+
+func typedClientOperationsFromOpenAPI(doc *openapi3.T) []typedClientOperation {
+	if doc == nil || doc.Paths == nil {
+		return nil
+	}
+	var operations []typedClientOperation
+	for routePath, item := range doc.Paths.Map() {
+		if item == nil {
+			continue
+		}
+		itemParams := typedParametersFromOpenAPI(item.Parameters)
+		for method, op := range item.Operations() {
+			if op == nil {
+				continue
+			}
+			operations = append(operations, typedClientOperation{
+				Method:      strings.ToUpper(method),
+				Path:        routePath,
+				OperationID: op.OperationID,
+				Parameters:  mergeTypedParameters(itemParams, typedParametersFromOpenAPI(op.Parameters)),
+				Operation:   op,
+			})
+		}
+	}
+	sort.SliceStable(operations, func(i, j int) bool {
+		if operations[i].Path != operations[j].Path {
+			return operations[i].Path < operations[j].Path
+		}
+		if operations[i].Method != operations[j].Method {
+			return operations[i].Method < operations[j].Method
+		}
+		return operations[i].OperationID < operations[j].OperationID
+	})
+	return operations
+}
+
+func renderTypedGoClientSchemas(out *strings.Builder, doc *openapi3.T) {
+	if doc == nil || doc.Components == nil || len(doc.Components.Schemas) == 0 {
+		return
+	}
+	names := make([]string, 0, len(doc.Components.Schemas))
+	for name := range doc.Components.Schemas {
+		if strings.TrimSpace(name) != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if strings.EqualFold(name, "Problem") {
+			continue
+		}
+		goName := exportedGoIdentifier(name)
+		ref := doc.Components.Schemas[name]
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		schema := ref.Value
+		if schema.Type != nil && !schema.Type.Is("object") && len(schema.Properties) == 0 {
+			fmt.Fprintf(out, "type %s %s\n\n", goName, goTypeForSchemaRef(ref, true))
+			continue
+		}
+		required := stringSet(schema.Required)
+		propertyNames := make([]string, 0, len(schema.Properties))
+		for property := range schema.Properties {
+			if strings.TrimSpace(property) != "" {
+				propertyNames = append(propertyNames, property)
+			}
+		}
+		sort.Strings(propertyNames)
+		fmt.Fprintf(out, "type %s struct {\n", goName)
+		for _, property := range propertyNames {
+			propertyRef := schema.Properties[property]
+			if propertyRef == nil {
+				continue
+			}
+			fieldName := exportedGoIdentifier(property)
+			requiredField := false
+			if _, ok := required[property]; ok {
+				requiredField = true
+			}
+			fieldType := goTypeForSchemaRef(propertyRef, requiredField)
+			tag := property
+			if !requiredField {
+				tag += ",omitempty"
+			}
+			fmt.Fprintf(out, "\t%s %s `json:%q`\n", fieldName, fieldType, tag)
+		}
+		out.WriteString("}\n\n")
+	}
+}
+
+func renderTypedGoClientOperation(out *strings.Builder, methodName string, operation typedClientOperation) {
+	pathParams := typedOperationPathParameters(operation)
+	optionParams := typedOperationOptionParameters(operation)
+	paramsType := methodName + "Params"
+	if len(optionParams) > 0 {
+		renderTypedGoClientParams(out, paramsType, optionParams)
+	}
+	args := []string{"ctx context.Context"}
+	for _, param := range pathParams {
+		args = append(args, goParamName(param.Name)+" "+goTypeForParameter(param))
+	}
+	if len(optionParams) > 0 {
+		args = append(args, "params "+paramsType)
+	}
+	requestType, hasRequestBody := typedOperationRequestBodyType(operation.Operation)
+	if hasRequestBody {
+		args = append(args, "body "+requestType)
+	}
+	args = append(args, "opts ...RequestOption")
+
+	responseType := typedOperationResponseType(operation.Operation)
+	rawArgs := append([]string(nil), args...)
+	if hasRequestBody {
+		for i, arg := range rawArgs {
+			if strings.HasPrefix(arg, "body ") {
+				rawArgs[i] = "body any"
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(out, "// %s calls %s %s and decodes the primary JSON response.\n", methodName, operation.Method, operation.Path)
+	if responseType != "" {
+		fmt.Fprintf(out, "func (c *Client) %s(%s) (*%s, *http.Response, error) {\n", methodName, strings.Join(args, ", "), responseType)
+		rawCallArgs := typedRawCallArgs(pathParams, len(optionParams) > 0, hasRequestBody)
+		fmt.Fprintf(out, "\tresp, err := c.%sRaw(%s)\n", methodName, strings.Join(rawCallArgs, ", "))
+		out.WriteString("\tif err != nil {\n")
+		fmt.Fprintf(out, "\t\treturn nil, resp, err\n")
+		out.WriteString("\t}\n")
+		fmt.Fprintf(out, "\tdecoded, err := DecodeJSONResponse[%s](resp)\n", responseType)
+		out.WriteString("\tif err != nil {\n")
+		fmt.Fprintf(out, "\t\treturn nil, resp, err\n")
+		out.WriteString("\t}\n")
+		out.WriteString("\treturn decoded, resp, nil\n")
+		out.WriteString("}\n\n")
+	} else {
+		fmt.Fprintf(out, "// %s calls %s %s.\n", methodName, operation.Method, operation.Path)
+		fmt.Fprintf(out, "func (c *Client) %s(%s) (*http.Response, error) {\n", methodName, strings.Join(args, ", "))
+		rawCallArgs := typedRawCallArgs(pathParams, len(optionParams) > 0, hasRequestBody)
+		fmt.Fprintf(out, "\treturn c.%sRaw(%s)\n", methodName, strings.Join(rawCallArgs, ", "))
+		out.WriteString("}\n\n")
+	}
+
+	fmt.Fprintf(out, "// %sRaw calls %s %s and returns the raw HTTP response.\n", methodName, operation.Method, operation.Path)
+	fmt.Fprintf(out, "func (c *Client) %sRaw(%s) (*http.Response, error) {\n", methodName, strings.Join(rawArgs, ", "))
+	if len(pathParams) > 0 || len(optionParams) > 0 {
+		out.WriteString("\trequestOpts := []RequestOption{\n")
+		for _, param := range pathParams {
+			fmt.Fprintf(out, "\t\tPathParam(%q, formatParamValue(%s)),\n", param.Name, goParamName(param.Name))
+		}
+		out.WriteString("\t}\n")
+		if len(optionParams) > 0 {
+			out.WriteString("\trequestOpts = append(requestOpts, params.requestOptions()...)\n")
+		}
+		out.WriteString("\topts = append(requestOpts, opts...)\n")
+	}
+	bodyArg := "nil"
+	if hasRequestBody {
+		bodyArg = "body"
+	}
+	fmt.Fprintf(out, "\treturn c.do(ctx, %q, %q, %s, opts...)\n", operation.Method, operation.Path, bodyArg)
+	out.WriteString("}\n\n")
+}
+
+func renderTypedGoClientParams(out *strings.Builder, typeName string, params []typedClientParameter) {
+	fmt.Fprintf(out, "type %s struct {\n", typeName)
+	for _, param := range params {
+		fmt.Fprintf(out, "\t%s %s\n", exportedGoIdentifier(param.Name), goTypeForParameter(param))
+	}
+	out.WriteString("}\n\n")
+	fmt.Fprintf(out, "func (params %s) requestOptions() []RequestOption {\n", typeName)
+	out.WriteString("\tvar opts []RequestOption\n")
+	for _, param := range params {
+		field := "params." + exportedGoIdentifier(param.Name)
+		optionFunc := "QueryParam"
+		if strings.EqualFold(param.In, "header") {
+			optionFunc = "Header"
+		}
+		fieldType := goTypeForParameter(param)
+		switch {
+		case param.Required:
+			fmt.Fprintf(out, "\topts = append(opts, %s(%q, formatParamValue(%s)))\n", optionFunc, param.Name, field)
+		case strings.HasPrefix(fieldType, "*"):
+			fmt.Fprintf(out, "\tif %s != nil {\n", field)
+			fmt.Fprintf(out, "\t\topts = append(opts, %s(%q, formatParamValue(*%s)))\n", optionFunc, param.Name, field)
+			out.WriteString("\t}\n")
+		default:
+			fmt.Fprintf(out, "\tif %s != nil {\n", field)
+			fmt.Fprintf(out, "\t\topts = append(opts, %s(%q, formatParamValue(%s)))\n", optionFunc, param.Name, field)
+			out.WriteString("\t}\n")
+		}
+	}
+	out.WriteString("\treturn opts\n")
+	out.WriteString("}\n\n")
+}
+
+func typedRawCallArgs(pathParams []typedClientParameter, hasOptionParams bool, hasRequestBody bool) []string {
+	args := []string{"ctx"}
+	for _, param := range pathParams {
+		args = append(args, goParamName(param.Name))
+	}
+	if hasOptionParams {
+		args = append(args, "params")
+	}
+	if hasRequestBody {
+		args = append(args, "body")
+	}
+	args = append(args, "opts...")
+	return args
+}
+
+func typedOperationPathParameters(operation typedClientOperation) []typedClientParameter {
+	var out []typedClientParameter
+	for _, parameter := range operation.Parameters {
+		if strings.EqualFold(parameter.In, "path") && strings.TrimSpace(parameter.Name) != "" {
+			out = append(out, parameter)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func typedOperationOptionParameters(operation typedClientOperation) []typedClientParameter {
+	var out []typedClientParameter
+	for _, parameter := range operation.Parameters {
+		if (strings.EqualFold(parameter.In, "query") || strings.EqualFold(parameter.In, "header")) && strings.TrimSpace(parameter.Name) != "" {
+			out = append(out, parameter)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].In != out[j].In {
+			return out[i].In < out[j].In
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func typedOperationRequestBodyType(operation *openapi3.Operation) (string, bool) {
+	if operation == nil || operation.RequestBody == nil || operation.RequestBody.Value == nil {
+		return "", false
+	}
+	schema := jsonMediaSchema(operation.RequestBody.Value.Content)
+	if schema == nil {
+		return "any", true
+	}
+	return goTypeForSchemaRef(schema, true), true
+}
+
+func typedOperationResponseType(operation *openapi3.Operation) string {
+	if operation == nil || operation.Responses == nil {
+		return ""
+	}
+	statuses := make([]int, 0, len(operation.Responses.Map()))
+	byStatus := map[int]*openapi3.ResponseRef{}
+	for status, response := range operation.Responses.Map() {
+		var code int
+		if _, err := fmt.Sscanf(status, "%d", &code); err != nil {
+			continue
+		}
+		if code >= 200 && code < 300 {
+			statuses = append(statuses, code)
+			byStatus[code] = response
+		}
+	}
+	sort.Ints(statuses)
+	for _, status := range statuses {
+		response := byStatus[status]
+		if response == nil || response.Value == nil {
+			continue
+		}
+		schema := jsonMediaSchema(response.Value.Content)
+		if schema == nil {
+			continue
+		}
+		return strings.TrimPrefix(goTypeForSchemaRef(schema, true), "*")
+	}
+	return ""
+}
+
+func jsonMediaSchema(content openapi3.Content) *openapi3.SchemaRef {
+	if len(content) == 0 {
+		return nil
+	}
+	if media := content.Get("application/json"); media != nil {
+		return media.Schema
+	}
+	return nil
+}
+
+func goTypeForParameter(param typedClientParameter) string {
+	if param.Schema == nil {
+		if param.Required {
+			return "string"
+		}
+		return "*string"
+	}
+	return goTypeForSchemaRef(param.Schema, param.Required)
+}
+
+func goTypeForSchemaRef(ref *openapi3.SchemaRef, required bool) string {
+	if ref == nil {
+		return "any"
+	}
+	if name := schemaNameFromRef(ref.Ref); name != "" {
+		typeName := exportedGoIdentifier(name)
+		if required && !schemaRefNullable(ref) {
+			return typeName
+		}
+		return "*" + typeName
+	}
+	if ref.Value == nil {
+		return "any"
+	}
+	schema := ref.Value
+	var goType string
+	switch {
+	case schema.Type != nil && schema.Type.Includes("array"):
+		goType = "[]" + strings.TrimPrefix(goTypeForSchemaRef(schema.Items, true), "*")
+	case schema.Type != nil && schema.Type.Includes("integer"):
+		if schema.Format == "int64" {
+			goType = "int64"
+		} else {
+			goType = "int"
+		}
+	case schema.Type != nil && schema.Type.Includes("number"):
+		goType = "float64"
+	case schema.Type != nil && schema.Type.Includes("boolean"):
+		goType = "bool"
+	case schema.Type != nil && schema.Type.Includes("string"):
+		goType = "string"
+	case schema.Type != nil && schema.Type.Includes("object"):
+		goType = "map[string]any"
+	default:
+		goType = "any"
+	}
+	if required && !schemaRefNullable(ref) {
+		return goType
+	}
+	if strings.HasPrefix(goType, "[]") || strings.HasPrefix(goType, "map[") || goType == "any" {
+		return goType
+	}
+	return "*" + goType
+}
+
+func schemaNameFromRef(ref string) string {
+	const prefix = "#/components/schemas/"
+	ref = strings.TrimSpace(ref)
+	if !strings.HasPrefix(ref, prefix) {
+		return ""
+	}
+	name := strings.TrimPrefix(ref, prefix)
+	if strings.Contains(name, "/") || name == "" {
+		return ""
+	}
+	return name
+}
+
+func schemaRefNullable(ref *openapi3.SchemaRef) bool {
+	if ref == nil || ref.Value == nil {
+		return false
+	}
+	schema := ref.Value
+	return schema.Nullable || (schema.Type != nil && schema.Type.Includes("null"))
+}
+
 func operationPathParameters(operation specs.Operation) []specs.Parameter {
 	var out []specs.Parameter
 	for _, parameter := range operation.Parameters {
@@ -620,7 +1046,7 @@ func exportedGoIdentifier(value string) string {
 		return "Operation"
 	}
 	for i := range parts {
-		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		parts[i] = exportedIdentifierPart(parts[i])
 	}
 	out := strings.Join(parts, "")
 	if out == "" || !isASCIILetter(out[0]) {
@@ -639,7 +1065,7 @@ func goParamName(value string) string {
 			parts[i] = strings.ToLower(parts[i][:1]) + parts[i][1:]
 			continue
 		}
-		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		parts[i] = exportedIdentifierPart(parts[i])
 	}
 	out := strings.Join(parts, "")
 	if out == "" || !isASCIILetter(out[0]) {
@@ -651,12 +1077,31 @@ func goParamName(value string) string {
 	return out
 }
 
+func exportedIdentifierPart(value string) string {
+	switch strings.ToLower(value) {
+	case "api":
+		return "API"
+	case "id":
+		return "ID"
+	case "json":
+		return "JSON"
+	case "jwt":
+		return "JWT"
+	case "oidc":
+		return "OIDC"
+	case "url":
+		return "URL"
+	default:
+		return strings.ToUpper(value[:1]) + value[1:]
+	}
+}
+
 func identifierParts(value string) []string {
 	var parts []string
 	var current strings.Builder
 	for i := 0; i < len(value); i++ {
 		ch := value[i]
-		if isASCIILetter(ch) || isASCIIDigit(ch) {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || isASCIIDigit(ch) {
 			current.WriteByte(ch)
 			continue
 		}
@@ -2652,6 +3097,28 @@ func parametersFromOpenAPI(parameters openapi3.Parameters) []specs.Parameter {
 	return out
 }
 
+func typedParametersFromOpenAPI(parameters openapi3.Parameters) []typedClientParameter {
+	out := make([]typedClientParameter, 0, len(parameters))
+	for _, parameterRef := range parameters {
+		if parameterRef == nil || parameterRef.Value == nil {
+			continue
+		}
+		parameter := parameterRef.Value
+		name := strings.TrimSpace(parameter.Name)
+		in := strings.ToLower(strings.TrimSpace(parameter.In))
+		if name == "" || in == "" {
+			continue
+		}
+		out = append(out, typedClientParameter{
+			Name:     name,
+			In:       in,
+			Required: parameter.Required,
+			Schema:   parameter.Schema,
+		})
+	}
+	return out
+}
+
 func mergeParameters(groups ...[]specs.Parameter) []specs.Parameter {
 	indexByKey := map[string]int{}
 	var out []specs.Parameter
@@ -2672,7 +3139,36 @@ func mergeParameters(groups ...[]specs.Parameter) []specs.Parameter {
 	return out
 }
 
+func mergeTypedParameters(groups ...[]typedClientParameter) []typedClientParameter {
+	indexByKey := map[string]int{}
+	var out []typedClientParameter
+	for _, group := range groups {
+		for _, parameter := range group {
+			key := typedParameterKey(parameter)
+			if key == "" {
+				continue
+			}
+			if index, ok := indexByKey[key]; ok {
+				out[index] = parameter
+				continue
+			}
+			indexByKey[key] = len(out)
+			out = append(out, parameter)
+		}
+	}
+	return out
+}
+
 func parameterKey(parameter specs.Parameter) string {
+	name := strings.TrimSpace(parameter.Name)
+	in := strings.ToLower(strings.TrimSpace(parameter.In))
+	if name == "" || in == "" {
+		return ""
+	}
+	return in + ":" + name
+}
+
+func typedParameterKey(parameter typedClientParameter) string {
 	name := strings.TrimSpace(parameter.Name)
 	in := strings.ToLower(strings.TrimSpace(parameter.In))
 	if name == "" || in == "" {
@@ -2991,6 +3487,19 @@ func Header(name, value string) RequestOption {
 	}
 }
 
+func formatParamValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case []string:
+		return strings.Join(typed, ",")
+	case fmt.Stringer:
+		return typed.String()
+	default:
+		return fmt.Sprint(value)
+	}
+}
+
 type Problem struct {
 	Type     string         ` + "`json:\"type,omitempty\"`" + `
 	Title    string         ` + "`json:\"title,omitempty\"`" + `
@@ -3105,6 +3614,18 @@ func decodeError(resp *http.Response) error {
 		apiErr.Problem = &problem
 	}
 	return apiErr
+}
+
+func DecodeJSONResponse[T any](resp *http.Response) (*T, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, errors.New("response body is required")
+	}
+	defer resp.Body.Close()
+	var out T
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode response body: %w", err)
+	}
+	return &out, nil
 }
 
 func copyHeaders(dst, src http.Header) {
