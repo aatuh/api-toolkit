@@ -1859,6 +1859,13 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 	}
 	return []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getLiveness",
+			Method:      http.MethodGet,
+			Path:        "/livez",
+			Summary:     "Liveness",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Live"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getReadiness",
 			Method:      http.MethodGet,
 			Path:        "/readyz",
@@ -3927,7 +3934,6 @@ const fullCmdMainTemplate = `package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -3936,15 +3942,19 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/contrib/v2/async"
+	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
+	"github.com/aatuh/api-toolkit/v2/endpoints/version"
 	"github.com/aatuh/api-toolkit/v2/ports"
 	objectstorage "{{ .Module }}/internal/adapters/objectstore"
 	"{{ .Module }}/internal/adapters/postgres"
@@ -4112,51 +4122,54 @@ func run(ctx context.Context) error {
 	}
 	defer oidcMiddleware.Close()
 {{ end }}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Metrics: metricsMiddleware, MetricsHandler: metricsmw.PrometheusHandler(), RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
-	publicServer := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           httpapi.NewRouter(routerConfig),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	servers := []*http.Server{publicServer}
-	errCh := make(chan error, 3)
-	go func() {
-		if err := asyncRunner.Run(ctx); err != nil {
-			errCh <- err
-		}
-	}()
-	for _, srv := range servers {
-		server := srv
-		go func() {
-			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errCh <- err
-			}
-		}()
-	}
-	if cfg.AdminAddr != "" {
-		adminServer := &http.Server{
-			Addr:              cfg.AdminAddr,
-			Handler:           httpapi.NewAdminRouter(routerConfig),
-			ReadHeaderTimeout: 5 * time.Second,
-		}
-		servers = append(servers, adminServer)
-		go func() {
-			if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errCh <- err
-			}
-		}()
-	}
-	select {
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		for _, srv := range servers {
-			_ = srv.Shutdown(shutdownCtx)
-		}
-		return nil
-	case err := <-errCh:
+	openAPIValidation, err := httpapi.NewOpenAPIValidationMiddleware(cfg)
+	if err != nil {
 		return err
 	}
+	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Metrics: metricsMiddleware, MetricsHandler: metricsmw.PrometheusHandler(), OpenAPIValidation: openAPIValidation, RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	bootstrapRouterConfig, err := bootstrap.DefaultRouterConfigFromEnv(nil)
+	if err != nil {
+		return err
+	}
+	bootstrapRouterConfig.Metrics = metricsRecorder
+	if rateLimiter != nil {
+		bootstrapRouterConfig.RateLimit.Limiter = rateLimiter
+	}
+	router, err := bootstrap.NewDefaultRouterWithConfig(ports.NopLogger{}, bootstrapRouterConfig)
+	if err != nil {
+		return err
+	}
+	service, err := bootstrap.NewAPIService(bootstrap.APIServiceConfig{
+		Addr:                    cfg.Addr,
+		AdminAddr:               cfg.AdminAddr,
+		Log:                     ports.NopLogger{},
+		Router:                  router,
+		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
+		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
+		RegisterRoutes: func(r ports.HTTPRouter) error {
+			return httpapi.RegisterRoutes(r, routerConfig)
+		},
+		BackgroundTasks: []bootstrap.BackgroundTask{
+			{
+				Name: "async-worker",
+				Run:  asyncRunner.Run,
+			},
+		},
+		SystemEndpoints: bootstrap.SystemEndpoints{
+			Health:  httpapi.NewHealthHandler(readiness),
+			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
+			Metrics: metricsmw.PrometheusHandler(),
+			Pprof:   http.DefaultServeMux,
+		},
+		Admin: bootstrap.SystemEndpointAdminOptions{
+			RequireAdmin: httpapi.RequireAdmin(cfg.AdminKey),
+			EnablePprof:  true,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return service.Start(ctx)
 }
 
 {{ if eq .AuthMode "jwt" }}func newJWTMiddleware(ctx context.Context, cfg httpapi.Config) (*jwtauth.Middleware, error) {
@@ -11472,6 +11485,13 @@ func operations() []specs.Operation {
 	}
 	return []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getLiveness",
+			Method:      http.MethodGet,
+			Path:        "/livez",
+			Summary:     "Liveness",
+			Responses:   map[int]specs.Response{http.StatusOK: {Description: "Live"}},
+		}),
+		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getReadiness",
 			Method:      http.MethodGet,
 			Path:        "/readyz",
@@ -11856,10 +11876,14 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	"github.com/aatuh/api-toolkit/contrib/v2/audit"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	openapimw "github.com/aatuh/api-toolkit/contrib/v2/middleware/openapi"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
 {{ end }}
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/httpx"
 	corepprof "github.com/aatuh/api-toolkit/v2/endpoints/pprof"
 	idempotencymw "github.com/aatuh/api-toolkit/v2/middleware/idempotency"
@@ -11891,6 +11915,8 @@ type Config struct {
 	S3Bucket          string
 	S3AccessKeyID     string
 	S3SecretAccessKey string
+	OpenAPIRequestValidation  bool
+	OpenAPIResponseValidation bool
 {{ if eq .AuthMode "jwt" }}	JWTJWKSURL   string
 	JWTIssuer    string
 	JWTAudience  string
@@ -11939,6 +11965,8 @@ func ConfigFromEnv() (Config, error) {
 		S3Bucket:          strings.TrimSpace(os.Getenv("S3_BUCKET")),
 		S3AccessKeyID:     strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
 		S3SecretAccessKey: strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY")),
+		OpenAPIRequestValidation: envBoolDefault("OPENAPI_REQUEST_VALIDATION", true),
+		OpenAPIResponseValidation: envBoolDefault("OPENAPI_RESPONSE_VALIDATION", defaultOpenAPIResponseValidation()),
 {{ if eq .AuthMode "jwt" }}		JWTJWKSURL:   strings.TrimSpace(os.Getenv("JWT_JWKS_URL")),
 		JWTIssuer:    strings.TrimSpace(os.Getenv("JWT_ISSUER")),
 		JWTAudience:  envDefault("JWT_AUDIENCE", "saas-api-full"),
@@ -12039,6 +12067,29 @@ func envDefault(name, fallback string) string {
 	return fallback
 }
 
+func envBoolDefault(name string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	switch value {
+	case "":
+		return fallback
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	case "0", "false", "f", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func defaultOpenAPIResponseValidation() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ENV"))) {
+	case "development", "dev", "local", "test":
+		return true
+	default:
+		return false
+	}
+}
+
 type RouterConfig struct {
 	Widgets  *app.WidgetService
 	Tenancy  *app.TenancyService
@@ -12050,6 +12101,7 @@ type RouterConfig struct {
 	Cache    *app.CacheService
 	Metrics  *metricsmw.Middleware
 	MetricsHandler http.Handler
+	OpenAPIValidation *openapimw.Middleware
 	RateLimit *ratelimitmw.Middleware
 	Idempotency *idempotencymw.Middleware
 	Readiness HealthChecker
@@ -12133,33 +12185,50 @@ func (p apiKeyPrincipal) HasScope(required string) bool {
 
 func NewRouter(cfg RouterConfig) http.Handler {
 	cfg = cfg.withDefaults()
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /readyz", cfg.handleReady)
-	mux.HandleFunc("GET /docs/openapi.json", handleOpenAPI)
-	mux.Handle("GET /organizations", cfg.protect("organizations:read", http.HandlerFunc(cfg.handleListOrganizations)))
-	mux.Handle("POST /organizations", cfg.protect("organizations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateOrganization))))
-	mux.Handle("GET /organizations/{organization_id}/members", cfg.protect("members:read", http.HandlerFunc(cfg.handleListMembers)))
-	mux.Handle("POST /organizations/{organization_id}/invitations", cfg.protect("invitations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateInvitation))))
-	mux.Handle("GET /organizations/{organization_id}/api-keys", cfg.protect("api-keys:read", http.HandlerFunc(cfg.handleListAPIKeys)))
-	mux.Handle("POST /organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateAPIKey))))
-	mux.Handle("DELETE /organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleRevokeAPIKey))))
-	mux.Handle("GET /webhook-events", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEvents)))
-	mux.Handle("GET /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEndpoints)))
-	mux.Handle("POST /organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWebhookEndpoint))))
-	mux.Handle("GET /organizations/{organization_id}/webhook-deliveries", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookDeliveries)))
-	mux.Handle("POST /organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleReplayWebhookDelivery))))
-	mux.Handle("GET /organizations/{organization_id}/objects", cfg.protect("objects:read", http.HandlerFunc(cfg.handleListObjects)))
-	mux.Handle("POST /organizations/{organization_id}/objects", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handlePutObject))))
-	mux.Handle("GET /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:read", http.HandlerFunc(cfg.handleGetObject)))
-	mux.Handle("DELETE /organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteObject))))
-	mux.Handle("POST /invitations/{id}/accept", cfg.protect("invitations:accept", cfg.idempotent(http.HandlerFunc(cfg.handleAcceptInvitation))))
-	mux.Handle("GET /operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)))
-	mux.Handle("GET /widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)))
-	mux.Handle("POST /widgets", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidget))))
-	mux.Handle("POST /widgets/imports", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidgetImport))))
-	mux.Handle("PATCH /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleUpdateWidget))))
-	mux.Handle("DELETE /widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteWidget))))
-	return cfg.metrics(mux)
+	router := &serveMuxRouter{mux: http.NewServeMux()}
+	router.Get("/livez", handleLive)
+	router.Get("/readyz", cfg.handleReady)
+	if err := RegisterRoutes(router, cfg); err != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "router registration failed"})
+		})
+	}
+	return cfg.metrics(router)
+}
+
+func RegisterRoutes(r ports.HTTPRouter, cfg RouterConfig) error {
+	if r == nil {
+		return errors.New("router is required")
+	}
+	cfg = cfg.withDefaults()
+	if cfg.OpenAPIValidation != nil {
+		r.Use(cfg.OpenAPIValidation.Middleware())
+	}
+	r.Get("/docs/openapi.json", handleOpenAPI)
+	r.Get("/organizations", cfg.protect("organizations:read", http.HandlerFunc(cfg.handleListOrganizations)).ServeHTTP)
+	r.Post("/organizations", cfg.protect("organizations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateOrganization))).ServeHTTP)
+	r.Get("/organizations/{organization_id}/members", cfg.protect("members:read", http.HandlerFunc(cfg.handleListMembers)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/invitations", cfg.protect("invitations:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateInvitation))).ServeHTTP)
+	r.Get("/organizations/{organization_id}/api-keys", cfg.protect("api-keys:read", http.HandlerFunc(cfg.handleListAPIKeys)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/api-keys", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateAPIKey))).ServeHTTP)
+	r.Delete("/organizations/{organization_id}/api-keys/{api_key_id}", cfg.protect("api-keys:write", cfg.idempotent(http.HandlerFunc(cfg.handleRevokeAPIKey))).ServeHTTP)
+	r.Get("/webhook-events", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEvents)).ServeHTTP)
+	r.Get("/organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookEndpoints)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/webhook-endpoints", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWebhookEndpoint))).ServeHTTP)
+	r.Get("/organizations/{organization_id}/webhook-deliveries", cfg.protect("webhooks:read", http.HandlerFunc(cfg.handleListWebhookDeliveries)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/webhook-deliveries/{delivery_id}/replay", cfg.protect("webhooks:write", cfg.idempotent(http.HandlerFunc(cfg.handleReplayWebhookDelivery))).ServeHTTP)
+	r.Get("/organizations/{organization_id}/objects", cfg.protect("objects:read", http.HandlerFunc(cfg.handleListObjects)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/objects", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handlePutObject))).ServeHTTP)
+	r.Get("/organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:read", http.HandlerFunc(cfg.handleGetObject)).ServeHTTP)
+	r.Delete("/organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteObject))).ServeHTTP)
+	r.Post("/invitations/{id}/accept", cfg.protect("invitations:accept", cfg.idempotent(http.HandlerFunc(cfg.handleAcceptInvitation))).ServeHTTP)
+	r.Get("/operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)).ServeHTTP)
+	r.Get("/widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)).ServeHTTP)
+	r.Post("/widgets", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidget))).ServeHTTP)
+	r.Post("/widgets/imports", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidgetImport))).ServeHTTP)
+	registerPatch(r, "/widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleUpdateWidget))).ServeHTTP)
+	r.Delete("/widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteWidget))).ServeHTTP)
+	return nil
 }
 
 func NewAdminRouter(cfg RouterConfig) http.Handler {
@@ -12188,6 +12257,81 @@ func (r serveMuxGetRouter) Get(pattern string, h http.HandlerFunc) {
 		return
 	}
 	r.mux.HandleFunc("GET "+pattern, h)
+}
+
+type serveMuxRouter struct {
+	mux         *http.ServeMux
+	middlewares []func(http.Handler) http.Handler
+}
+
+func (r *serveMuxRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if r == nil || r.mux == nil {
+		http.NotFound(w, req)
+		return
+	}
+	var handler http.Handler = r.mux
+	for i := len(r.middlewares) - 1; i >= 0; i-- {
+		if r.middlewares[i] != nil {
+			handler = r.middlewares[i](handler)
+		}
+	}
+	handler.ServeHTTP(w, req)
+}
+
+func (r *serveMuxRouter) Use(middlewares ...func(http.Handler) http.Handler) {
+	r.middlewares = append(r.middlewares, middlewares...)
+}
+
+func (r *serveMuxRouter) Get(pattern string, h http.HandlerFunc) {
+	r.handle(http.MethodGet, pattern, h)
+}
+
+func (r *serveMuxRouter) Post(pattern string, h http.HandlerFunc) {
+	r.handle(http.MethodPost, pattern, h)
+}
+
+func (r *serveMuxRouter) Put(pattern string, h http.HandlerFunc) {
+	r.handle(http.MethodPut, pattern, h)
+}
+
+func (r *serveMuxRouter) Patch(pattern string, h http.HandlerFunc) {
+	r.handle(http.MethodPatch, pattern, h)
+}
+
+func (r *serveMuxRouter) Delete(pattern string, h http.HandlerFunc) {
+	r.handle(http.MethodDelete, pattern, h)
+}
+
+func (r *serveMuxRouter) Mount(pattern string, h http.Handler) {
+	if r == nil || r.mux == nil || h == nil {
+		return
+	}
+	r.mux.Handle(pattern, h)
+}
+
+func (r *serveMuxRouter) handle(method, pattern string, h http.HandlerFunc) {
+	if r == nil || r.mux == nil || h == nil {
+		return
+	}
+	r.mux.HandleFunc(method+" "+pattern, h)
+}
+
+type patchRouter interface {
+	Patch(pattern string, h http.HandlerFunc)
+}
+
+func registerPatch(r ports.HTTPRouter, pattern string, h http.HandlerFunc) {
+	if pr, ok := r.(patchRouter); ok {
+		pr.Patch(pattern, h)
+		return
+	}
+	r.Mount(pattern, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPatch {
+			http.NotFound(w, req)
+			return
+		}
+		h(w, req)
+	}))
 }
 
 func (cfg RouterConfig) withDefaults() RouterConfig {
@@ -12397,6 +12541,73 @@ func idempotencyScope(r *http.Request) (string, string) {
 	}
 {{ end }}
 	return actorID, tenantID
+}
+
+func NewHealthHandler(readiness HealthChecker) *health.Handler {
+	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         5 * time.Second,
+		CacheDuration:   5 * time.Second,
+		EnableCaching:   true,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"basic", "dependencies"},
+	})
+	manager.RegisterChecker(health.NewBasicChecker())
+	manager.RegisterChecker(health.NewCustomChecker("dependencies", func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		if readiness == nil {
+			return ports.HealthStatusHealthy, "dependencies ready", nil
+		}
+		if err := readiness.Check(ctx); err != nil {
+			return ports.HealthStatusUnhealthy, "dependencies unavailable", nil
+		}
+		return ports.HealthStatusHealthy, "dependencies ready", nil
+	}))
+	return health.NewHandler(manager)
+}
+
+func NewOpenAPIValidationMiddleware(cfg Config) (*openapimw.Middleware, error) {
+	if !cfg.OpenAPIRequestValidation {
+		return nil, nil
+	}
+	doc, err := OpenAPIDocument()
+	if err != nil {
+		return nil, err
+	}
+	spec, err := openapi3.NewLoader().LoadFromData(doc)
+	if err != nil {
+		return nil, err
+	}
+	opts := []openapimw.Option{
+		openapimw.WithIgnoreNotFound(true),
+		openapimw.WithFilterOptions(openapi3filter.Options{
+			AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+		}),
+	}
+	if cfg.OpenAPIResponseValidation {
+		opts = append(opts, openapimw.WithResponseValidation(openapimw.ResponseValidationOptions{
+			Enabled:      true,
+			MaxBodyBytes: 1 << 20,
+			ShouldValidate: func(r *http.Request) bool {
+				if r == nil || r.URL == nil {
+					return false
+				}
+				path := r.URL.Path
+				return !strings.HasPrefix(path, "/docs") &&
+					path != "/livez" &&
+					path != "/readyz" &&
+					path != "/health" &&
+					path != "/healthz" &&
+					path != "/health/detailed" &&
+					path != "/metrics" &&
+					!strings.HasPrefix(path, "/debug/pprof/")
+			},
+		}))
+	}
+	return openapimw.New(spec, opts...)
+}
+
+func handleLive(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }
 
 func (cfg RouterConfig) handleReady(w http.ResponseWriter, r *http.Request) {
@@ -13598,6 +13809,11 @@ func (cfg RouterConfig) requireAdminHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(cfg.requireAdmin(next.ServeHTTP))
 }
 
+func RequireAdmin(adminKey string) func(http.Handler) http.Handler {
+	cfg := RouterConfig{AdminKey: adminKey}.withDefaults()
+	return cfg.requireAdminHandler
+}
+
 func requireHeader(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
 	value := strings.TrimSpace(r.Header.Get(name))
 	if value == "" {
@@ -13673,7 +13889,13 @@ import (
 func TestReadinessAndOpenAPI(t *testing.T) {
 	handler := newTestRouter(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("live status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("ready status = %d body=%s", rec.Code, rec.Body.String())
@@ -13701,6 +13923,28 @@ func TestReadinessReportsDependencyFailure(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "postgres unavailable") {
 		t.Fatalf("ready failure leaked dependency error: %s", rec.Body.String())
+	}
+}
+
+func TestOpenAPIValidationRejectsInvalidRequests(t *testing.T) {
+	configureTestAuthEnv(t)
+	validator, err := NewOpenAPIValidationMiddleware(Config{OpenAPIRequestValidation: true})
+	if err != nil {
+		t.Fatalf("new openapi validator: %v", err)
+	}
+	tenancy := app.NewTenancyService()
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy), OpenAPIValidation: validator{{ if eq .AuthMode "jwt" }}, JWT: newTestJWT(t){{ else if eq .AuthMode "clerk" }}, Clerk: newTestClerk(t){{ else if eq .AuthMode "oidc" }}, OIDC: newTestOIDC(t){{ else }}, APIKey: "test-key"{{ end }}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(` + "`" + `{"name":"validated"}` + "`" + `))
+	req.Header.Set("Content-Type", "text/plain")
+	authorizeTestRequest(t, req, "org_validation")
+	req.Header.Set("Idempotency-Key", "openapi-validation")
+	handler.ServeHTTP(rec, req)
+	if rec.Code == http.StatusCreated {
+		t.Fatalf("expected OpenAPI request validation failure, got status %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "unsupported content type") {
+		t.Fatalf("validation response body = %s", rec.Body.String())
 	}
 }
 
@@ -14916,6 +15160,7 @@ go run ./cmd/api >"${tmp_dir}/api.log" 2>&1 &
 api_pid="$!"
 wait_for_http "${api_url}"
 
+curl -fsS "${api_url}/livez" >/dev/null
 curl -fsS "${api_url}/docs/openapi.json" >/dev/null
 
 auth_status="$(curl -sS -o "${tmp_dir}/auth.json" -w '%{http_code}' "${api_url}/organizations")"
@@ -15198,6 +15443,8 @@ RATE_LIMIT_STORE=memory
 RATE_LIMIT_KEY_PREFIX=ratelimit:
 IDEMPOTENCY_STORE=memory
 IDEMPOTENCY_KEY_PREFIX=idempotency:
+OPENAPI_REQUEST_VALIDATION=true
+OPENAPI_RESPONSE_VALIDATION=true
 OBJECT_STORE=memory
 S3_ENDPOINT=http://localhost:9000
 S3_REGION=us-east-1
@@ -15421,7 +15668,7 @@ spec:
               port: public
           livenessProbe:
             httpGet:
-              path: /readyz
+              path: /livez
               port: public
 `
 
@@ -15467,8 +15714,11 @@ Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook d
 When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
 Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
 When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
+The generated binary uses ` + "`bootstrap.NewAPIService`" + ` for public/admin listeners, graceful shutdown, background workers, strict middleware order validation, and safe system endpoint mounting.
+` + "`/livez`" + ` is a process liveness probe and never checks Postgres, Redis, or S3; ` + "`/readyz`" + ` reflects configured dependencies.
+Runtime OpenAPI request validation is enabled by default. Response validation is enabled in development/test or when ` + "`OPENAPI_RESPONSE_VALIDATION=true`" + `.
 The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
-The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; the public router does not mount pprof.
+The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; the public router does not mount pprof when ` + "`ADMIN_ADDR`" + ` is set.
 Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
@@ -15483,7 +15733,7 @@ make contracts-diff
 make integration-check
 ` + "```" + `
 
-` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
+` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the API on localhost, and performs HTTP smoke checks for liveness, readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
 `
