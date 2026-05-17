@@ -2079,7 +2079,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read openapi after resource: %v", err)
 	}
-	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject", `"status": map[string]any{"type": "string", "enum": []string{"active", "archived"}}`, `"rank":`, `"type": "integer"`} {
+	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject", `"status":`, `map[string]any{"type": "string", "enum": []string{"active", "archived"}}`, `"rank":`, `"type": "integer"`, `"owner_id":`, `map[string]any{"type": "string"}`, `"attachment_key":`, `map[string]any{"type": "string", "description": "Object key stored by object service"}`, `Name: "status", In: "query"`, `Name: "sort", In: "query"`} {
 		if !strings.Contains(string(generatedOpenAPI), want) {
 			t.Fatalf("generated openapi missing resource wiring %q", want)
 		}
@@ -2088,16 +2088,43 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated domain resource: %v", err)
 	}
-	for _, want := range []string{"Status", "string", "Rank", "int", `"status":`, `r.Status`, `"rank":`, `r.Rank`} {
+	for _, want := range []string{"Status", "string", "Rank", "int", "OwnerID", "AttachmentKey", `"status":`, `r.Status`, `"rank":`, `r.Rank`, `"owner_id":`, `r.OwnerID`, `"attachment_key":`, `r.AttachmentKey`} {
 		if !strings.Contains(string(generatedDomain), want) {
 			t.Fatalf("generated domain missing resource field %q:\n%s", want, generatedDomain)
+		}
+	}
+	generatedApp, err := os.ReadFile(filepath.Join(serviceDir, "internal", "app", "projects.go"))
+	if err != nil {
+		t.Fatalf("read generated app resource: %v", err)
+	}
+	for _, want := range []string{"type ProjectListOptions struct", "Filters map[string]string", "Sort", "matchProjectFilters", `case "status":`, `case "-name":`} {
+		if !strings.Contains(string(generatedApp), want) {
+			t.Fatalf("generated app missing resource list support %q:\n%s", want, generatedApp)
+		}
+	}
+	generatedHTTP, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "projects.go"))
+	if err != nil {
+		t.Fatalf("read generated http resource: %v", err)
+	}
+	for _, want := range []string{"parseProjectListOptions", "projectFilterQueryParams", `filters["status"]`, `sort := strings.TrimSpace(query.Get("sort"))`, `case "name", "-name"`} {
+		if !strings.Contains(string(generatedHTTP), want) {
+			t.Fatalf("generated http resource missing list query support %q:\n%s", want, generatedHTTP)
+		}
+	}
+	generatedPostgres, err := os.ReadFile(filepath.Join(serviceDir, "internal", "adapters", "postgres", "projects.go"))
+	if err != nil {
+		t.Fatalf("read generated postgres resource: %v", err)
+	}
+	for _, want := range []string{"type projectListQuery struct", "buildProjectListQuery", `case "status":`, `case "name":`, `case "-name":`, "status=$", "name asc, id asc"} {
+		if !strings.Contains(string(generatedPostgres), want) {
+			t.Fatalf("generated postgres resource missing list query support %q:\n%s", want, generatedPostgres)
 		}
 	}
 	generatedMigration, err := os.ReadFile(filepath.Join(serviceDir, "migrations", "20260517000200_projects.up.sql"))
 	if err != nil {
 		t.Fatalf("read generated resource migration: %v", err)
 	}
-	for _, want := range []string{"status TEXT", "rank INTEGER"} {
+	for _, want := range []string{"status TEXT", "rank INTEGER", "owner_id TEXT", "attachment_key TEXT", "CHECK (status IN ('active', 'archived'))", "CREATE INDEX projects_organization_status_idx", "CREATE INDEX projects_organization_owner_id_idx", "CREATE INDEX projects_organization_attachment_key_idx"} {
 		if !strings.Contains(string(generatedMigration), want) {
 			t.Fatalf("generated migration missing resource field %q:\n%s", want, generatedMigration)
 		}

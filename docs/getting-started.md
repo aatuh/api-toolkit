@@ -120,6 +120,8 @@ api-toolkit generate resource \
   --field status:string:required:enum=active\|archived \
   --filter status \
   --sort name \
+  --relationship owner:organizations \
+  --object-field attachment_key \
   --tenant-scoped \
   --crud \
   --postgres \
