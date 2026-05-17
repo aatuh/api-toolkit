@@ -18,7 +18,8 @@ delete.
 
 Current implementation status: the generator emits the initial full-profile
 foundation with API-key auth, tenant-scoped widget writes, idempotent create
-replay, optimistic-update ETags, Postgres migrations, Docker Compose with
+replay, optimistic-update ETags, contrib migrator-compatible Postgres
+`*.up.sql` migrations, Docker Compose with a dedicated migration service,
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, generated HTTP smoke tests, and a generated
 widget import operation that returns `202 Accepted` and can be polled. The
@@ -67,6 +68,10 @@ The full profile standardizes these defaults:
 - Generated services only connect to Postgres when `DATABASE_URL` is set; in
   production it is mandatory, startup pings the database, and required table
   checks catch unapplied migrations before serving traffic.
+- Generated services include `cmd/migrate up|status|check`, backed by the
+  contrib migrator. Docker Compose and Kubernetes starter assets run this
+  command before API/worker startup, while `migrate-check` fails closed if any
+  migration is still pending.
 - `bootstrap.NewAPIService` owns the generated HTTP lifecycle. Public routes
   are registered through `APIServiceConfig.RegisterRoutes`; detailed health,
   metrics, and pprof are mounted through bootstrap admin system endpoints and
@@ -183,15 +188,19 @@ The profile generates or is expected to generate:
   delegates to the Postgres audit store after local redaction and event ID
   generation. Generated S3 object routes use a Postgres object metadata store
   for tenant-scoped list/get/delete state when `DATABASE_URL` is configured.
-- Postgres migrations for organizations, memberships, invitations, API keys,
+- Contrib migrator-compatible Postgres migrations for organizations,
+  memberships, invitations, API keys,
   widgets, operations, outbox events, audit events, object metadata, webhook
   endpoints, and webhook deliveries.
 - Docker Compose with Postgres and Redis by default, plus optional MinIO under
   an explicit profile for object storage checks. The compose file includes a
-  PostgreSQL 18-compatible data volume and a bucket-initializer service for the
+  PostgreSQL 18-compatible data volume, a dedicated `migrate` service that runs
+  `/migrate -dir /migrations up`, and a bucket-initializer service for the
   generated `api-objects` bucket.
 - opt-in Docker integration tests through a generated `integration-check`
-  target; the generated script starts Postgres and Redis, applies migrations,
+  target; the generated script starts Postgres and Redis, applies migrations
+  through `go run ./cmd/migrate up`, checks them with
+  `go run ./cmd/migrate check`,
   hydrates module sums with `go mod tidy`, runs `go test ./...`, starts the API
   on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth
   failure, tenant routes, managed API-key auth, idempotent widget writes, ETag
@@ -205,8 +214,10 @@ The profile generates or is expected to generate:
   with the objectstore profile enabled so optional MinIO resources are removed.
   These checks are intentionally outside default `make finalize` so local and
   CI release gates stay reliable without Docker.
-- Base Kubernetes manifests for deployment, public service, admin service,
-  configuration, secret placeholders, and liveness/readiness probes.
+- Base Kubernetes manifests for ConfigMap, Secret placeholder, migration Job,
+  API Deployment, worker Deployment, public Service, internal-only admin
+  Service, PodDisruptionBudget, HPA, NetworkPolicy, resource requests/limits,
+  non-root security contexts, and `/livez`/`/readyz` probes.
 - A checked-in typed Go client plus a generated `client-check` target that
   regenerates with `api-toolkit clients go --style typed`.
 

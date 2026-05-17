@@ -166,6 +166,18 @@ source of truth is `docs/release-runbook.md`.
   failing webhook endpoints record retryable delivery state, force a poison
   outbox row into `dead_letter`, and check receiver/delivery output does not
   expose the generated signing secret.
+- Generated `saas-api-full` services now emit contrib migrator-compatible
+  `*.up.sql` migrations plus a generated `cmd/migrate up|status|check`
+  binary. Docker Compose runs a dedicated `/migrate -dir /migrations up`
+  service before API/worker startup, the integration script applies and checks
+  migrations through `cmd/migrate`, and the Docker image now includes
+  `/migrate` plus `/migrations`.
+- Generated `saas-api-full` Kubernetes assets now include ConfigMap, Secret
+  placeholder, migration Job, worker Deployment, internal-only admin Service,
+  PodDisruptionBudget, HPA, NetworkPolicy, resource requests/limits, non-root
+  security contexts, and `/livez`/`/readyz` probes. The generated integration
+  workflow is opt-in through `workflow_dispatch` and scheduled runs instead of
+  default PR CI.
 - Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted
