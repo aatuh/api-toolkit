@@ -10,6 +10,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
 	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -279,6 +280,26 @@ func (s *Store) ReplayDelivery(ctx context.Context, tenantID, deliveryID string,
 		return ErrDeliveryNotFound
 	}
 	return nil
+}
+
+// HealthChecker returns a Postgres webhook delivery dependency health checker.
+func (s *Store) HealthChecker() ports.HealthChecker {
+	var pool ports.DatabasePool
+	if s != nil {
+		pool = s.Pool
+	}
+	return health.NewCustomChecker(
+		"postgres-webhook-delivery",
+		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+			if pool == nil {
+				return ports.HealthStatusUnhealthy, "postgres webhook delivery pool not configured", nil
+			}
+			if err := pool.Ping(ctx); err != nil {
+				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres webhook delivery ping failed: %v", err), nil
+			}
+			return ports.HealthStatusHealthy, "postgres webhook delivery healthy", nil
+		},
+	)
 }
 
 func (s *Store) scanEndpointRow(ctx context.Context, rows ports.DatabaseRows) (webhookdelivery.Endpoint, error) {

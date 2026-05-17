@@ -1,2 +1,2 @@
-// Package outboxpostgres provides a Postgres-backed experimental transactional outbox.
+// Package outboxpostgres provides a supported Postgres-backed transactional outbox.
 package outboxpostgres

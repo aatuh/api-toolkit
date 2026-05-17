@@ -267,6 +267,24 @@ func TestStoreUsesTransactionFromContextForRecordAttempt(t *testing.T) {
 	}
 }
 
+func TestHealthChecker(t *testing.T) {
+	t.Parallel()
+
+	store := New(&fakeDBPool{}, Options{})
+	result := store.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy || result.Message != "postgres webhook delivery healthy" {
+		t.Fatalf("healthy result = %#v", result)
+	}
+	failed := New(&fakeDBPool{pingErr: errors.New("down")}, Options{})
+	result = failed.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy || !strings.Contains(result.Message, "postgres webhook delivery ping failed") {
+		t.Fatalf("unhealthy result = %#v", result)
+	}
+	if result := (*Store)(nil).HealthChecker().Check(context.Background()); result.Status != ports.HealthStatusUnhealthy {
+		t.Fatalf("nil store result = %#v", result)
+	}
+}
+
 func endpointRow(id, tenantID, url string, events []string, disabled bool, createdAt time.Time) ports.DatabaseRow {
 	return scanFuncRow(func(dest ...any) error {
 		*(dest[0].(*string)) = id
@@ -286,10 +304,11 @@ func staticSecret(secret string) SecretResolver {
 }
 
 type fakeDBPool struct {
-	conn ports.DatabaseConnection
+	conn    ports.DatabaseConnection
+	pingErr error
 }
 
-func (p *fakeDBPool) Ping(context.Context) error { return nil }
+func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
 func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 

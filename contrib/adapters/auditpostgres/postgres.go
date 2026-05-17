@@ -11,6 +11,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
 	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
 
@@ -105,6 +106,26 @@ func (s *Store) Record(ctx context.Context, event audit.Event) error {
 		event.OccurredAt,
 	)
 	return err
+}
+
+// HealthChecker returns a Postgres audit dependency health checker.
+func (s *Store) HealthChecker() ports.HealthChecker {
+	var pool ports.DatabasePool
+	if s != nil {
+		pool = s.Pool
+	}
+	return health.NewCustomChecker(
+		"postgres-audit",
+		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+			if pool == nil {
+				return ports.HealthStatusUnhealthy, "postgres audit pool not configured", nil
+			}
+			if err := pool.Ping(ctx); err != nil {
+				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres audit ping failed: %v", err), nil
+			}
+			return ports.HealthStatusHealthy, "postgres audit healthy", nil
+		},
+	)
 }
 
 func quoteTable(name string) (string, error) {

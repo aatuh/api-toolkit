@@ -1,2 +1,2 @@
-// Package audit defines experimental audit-event contracts for contrib services.
+// Package audit defines supported contrib audit-event contracts for services.
 package audit

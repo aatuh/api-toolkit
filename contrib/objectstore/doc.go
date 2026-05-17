@@ -1,2 +1,2 @@
-// Package objectstore defines experimental object storage contracts for contrib adapters.
+// Package objectstore defines supported contrib object storage contracts for adapters.
 package objectstore

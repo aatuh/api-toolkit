@@ -195,12 +195,31 @@ func TestInvalidTableRejected(t *testing.T) {
 	}
 }
 
+func TestHealthChecker(t *testing.T) {
+	t.Parallel()
+
+	store := New[operationResult](&fakeDBPool{}, Options{})
+	result := store.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy || result.Message != "postgres operations healthy" {
+		t.Fatalf("healthy result = %#v", result)
+	}
+	failed := New[operationResult](&fakeDBPool{pingErr: errors.New("down")}, Options{})
+	result = failed.HealthChecker().Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy || !strings.Contains(result.Message, "postgres operations ping failed") {
+		t.Fatalf("unhealthy result = %#v", result)
+	}
+	if result := (*Store[operationResult])(nil).HealthChecker().Check(context.Background()); result.Status != ports.HealthStatusUnhealthy {
+		t.Fatalf("nil store result = %#v", result)
+	}
+}
+
 type fakeDBPool struct {
 	conn         ports.DatabaseConnection
+	pingErr      error
 	acquireCount int
 }
 
-func (p *fakeDBPool) Ping(context.Context) error { return nil }
+func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
 func (p *fakeDBPool) Stat() ports.DatabaseStats  { return nil }
 

@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/v2/endpoints/health"
 	"github.com/aatuh/api-toolkit/v2/operations"
 	"github.com/aatuh/api-toolkit/v2/ports"
 )
@@ -196,6 +197,26 @@ func (s *Store[T]) UpdateOperation(ctx context.Context, operation operations.Ope
 		return ErrOperationNotFound
 	}
 	return nil
+}
+
+// HealthChecker returns a Postgres operation dependency health checker.
+func (s *Store[T]) HealthChecker() ports.HealthChecker {
+	var pool ports.DatabasePool
+	if s != nil {
+		pool = s.Pool
+	}
+	return health.NewCustomChecker(
+		"postgres-operations",
+		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+			if pool == nil {
+				return ports.HealthStatusUnhealthy, "postgres operations pool not configured", nil
+			}
+			if err := pool.Ping(ctx); err != nil {
+				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres operations ping failed: %v", err), nil
+			}
+			return ports.HealthStatusHealthy, "postgres operations healthy", nil
+		},
+	)
 }
 
 func marshalPayloads[T any](operation operations.Operation[T]) ([]byte, []byte, error) {

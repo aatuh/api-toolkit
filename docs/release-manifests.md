@@ -32,6 +32,7 @@ machine-readable manifests that support release and documentation checks.
 ## Maintenance notes
 
 - Keep package-classification notes short but specific enough for future reviewers to understand why smoke, generated, tooling, test-support, or excluded status is acceptable.
+- Keep experimental package notes explicit about the missing promotion evidence, such as absent shared contract suites, health checks, drift coverage, or supported-tier scope.
 - Keep supported adapter contracts specific to reusable behavior, not provider marketing claims. Promotion to `supported-adapter` requires direct tests, package docs, release drift coverage, and a row in `docs/supported-adapter-contracts.tsv`.
 - Keep contrib drift package selection focused on high-use adapters and integrations; supported-adapter incompatible drift is gate-enforced, and supported package-owned runtime assets plus production generator CLI behavior remain release-note reviewed, but neither rule implies a stable contrib API promise.
 - Keep `saas-api-full` full-profile runtime assets release-note reviewed because changes alter the generated production foundation. The opt-in integration checks must stay documented separately from default release gates so Docker-backed Postgres, Redis, and MinIO checks do not become accidental publication prerequisites.
