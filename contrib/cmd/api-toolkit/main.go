@@ -7547,6 +7547,9 @@ func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
 	if cfg.Profile != scaffoldProfileSaaSAPIFull {
 		return files
 	}
+	if len(cfg.Providers) > 0 {
+		files = append(files, providerReplayScaffoldFiles...)
+	}
 	if hasScaffoldProvider(cfg.Providers, scaffoldProviderStripe) {
 		files = append(files, stripeBillingScaffoldFiles...)
 	}
@@ -7651,6 +7654,11 @@ var fullTypeScriptClientScaffoldFiles = []scaffoldFile{
 	{Name: "internal/client/ts/README.md", Body: fullTypeScriptReadmeTemplate},
 }
 
+var providerReplayScaffoldFiles = []scaffoldFile{
+	{Name: "cmd/provider-replay/main.go", Body: providerReplayCommandTemplate},
+	{Name: "cmd/provider-replay/main_test.go", Body: providerReplayCommandTestTemplate},
+}
+
 var saasWebScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: saasWebGoModTemplate},
 	{Name: "cmd/web/main.go", Body: saasWebMainTemplate},
@@ -7724,6 +7732,391 @@ const fullTypeScriptReadmeTemplate = `# TypeScript Client
 Generated fetch client for this service's OpenAPI contract. Regenerate it with:
 
 ` + "`" + `api-toolkit clients typescript --openapi ../../testdata/openapi.golden.json --out . --package-name @example/api-client --style fetch` + "`" + `
+`
+
+const providerReplayCommandTemplate = `package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+const maxProviderFixtureBytes = 1 << 20
+
+func main() {
+	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if err := ctx.Err(); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fs := flag.NewFlagSet("provider-replay", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fixtureDir := fs.String("fixture-dir", filepath.Join("testdata", "providers"), "provider fixture directory")
+	fixture := fs.String("fixture", "", "single provider fixture file")
+	provider := fs.String("provider", "", "provider workflow name")
+	tenantID := fs.String("tenant", "", "expected tenant id")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	summaries, err := replayProviderFixtures(*fixtureDir, *fixture, *provider, *tenantID)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	encoder := json.NewEncoder(stdout)
+	for _, summary := range summaries {
+		if err := encoder.Encode(summary); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+	}
+	return 0
+}
+
+func replayProviderFixtures(fixtureDir, fixture, provider, tenantID string) ([]map[string]string, error) {
+	paths, err := fixturePaths(fixtureDir, fixture)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]map[string]string, 0, len(paths))
+	for _, path := range paths {
+		payload, err := readFixture(path)
+		if err != nil {
+			return nil, err
+		}
+		workflow := strings.TrimSpace(provider)
+		if workflow == "" {
+			workflow = inferProviderFromFixture(path)
+		}
+		summary, err := summarizeProviderFixture(workflow, payload, tenantID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+		}
+		summary["fixture"] = filepath.ToSlash(path)
+		summaries = append(summaries, summary)
+	}
+	return summaries, nil
+}
+
+func fixturePaths(fixtureDir, fixture string) ([]string, error) {
+	root, err := cleanProviderFixtureRoot(fixtureDir)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(fixture) != "" {
+		clean, err := cleanProviderFixturePath(root, fixture)
+		if err != nil {
+			return nil, err
+		}
+		return []string{clean}, nil
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		paths = append(paths, filepath.Join(root, entry.Name()))
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func cleanProviderFixtureRoot(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("fixture path is required")
+	}
+	clean := filepath.Clean(path)
+	if filepath.IsAbs(clean) {
+		return "", fmt.Errorf("fixture path must be relative")
+	}
+	if clean != filepath.Join("testdata", "providers") {
+		return "", fmt.Errorf("provider fixture path must stay under testdata/providers")
+	}
+	return clean, nil
+}
+
+func cleanProviderFixturePath(root, path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("fixture path is required")
+	}
+	if !strings.Contains(path, string(filepath.Separator)) && !strings.Contains(path, "/") {
+		path = filepath.Join(root, path)
+	}
+	clean := filepath.Clean(path)
+	if filepath.IsAbs(clean) {
+		return "", fmt.Errorf("fixture path must be relative")
+	}
+	if !strings.HasSuffix(clean, ".json") {
+		return "", fmt.Errorf("fixture must be a JSON file")
+	}
+	rel, err := filepath.Rel(root, clean)
+	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return "", fmt.Errorf("provider fixture path must stay under testdata/providers")
+	}
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		if part == ".." || part == "." || part == "" {
+			return "", fmt.Errorf("provider fixture path must stay under testdata/providers")
+		}
+	}
+	return clean, nil
+}
+
+func readFixture(path string) (map[string]any, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxProviderFixtureBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxProviderFixtureBytes {
+		return nil, fmt.Errorf("%s is too large", path)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("%s is not valid JSON: %w", path, err)
+	}
+	if containsSensitiveFixtureKey(payload) {
+		return nil, fmt.Errorf("%s contains a live-secret shaped key", path)
+	}
+	return payload, nil
+}
+
+func inferProviderFromFixture(path string) string {
+	switch filepath.Base(path) {
+	case "stripe-webhook.json":
+		return "stripe-billing"
+	case "resend-invitation.json":
+		return "resend-email"
+	case "clerk-webhook.json":
+		return "clerk-webhooks"
+	default:
+		return ""
+	}
+}
+
+func summarizeProviderFixture(provider string, payload map[string]any, expectedTenant string) (map[string]string, error) {
+	provider = strings.TrimSpace(provider)
+	expectedTenant = strings.TrimSpace(expectedTenant)
+	summary := map[string]string{
+		"provider":    provider,
+		"replay_mode": "fixture",
+		"raw_payload": "omitted",
+	}
+	var tenantID string
+	switch provider {
+	case "stripe-billing":
+		eventID := stringValue(payload, "id")
+		eventType := stringValue(payload, "type")
+		tenantID = firstNonEmpty(
+			nestedString(payload, "data", "object", "metadata", "tenant_id"),
+			nestedString(payload, "object", "metadata", "tenant_id"),
+			nestedString(payload, "metadata", "tenant_id"),
+			nestedString(payload, "data", "object", "client_reference_id"),
+		)
+		if eventID == "" || eventType == "" || tenantID == "" {
+			return nil, fmt.Errorf("stripe fixture requires id, type, and tenant metadata")
+		}
+		summary["event_id"] = eventID
+		summary["event_type"] = eventType
+	case "resend-email":
+		tenantID = stringValue(payload, "tenant_id")
+		if tenantID == "" || stringValue(payload, "template") != "invitation" || stringValue(payload, "redacted_token_prefix") == "" || stringValue(payload, "token") != "" {
+			return nil, fmt.Errorf("resend fixture requires tenant_id, invitation template, and only a redacted token prefix")
+		}
+		summary["event_id"] = "resend-invitation-fixture"
+		summary["event_type"] = "invitation.email.preview"
+		summary["recipient_domain"] = recipientDomain(stringValue(payload, "to"))
+	case "clerk-webhooks":
+		eventType := stringValue(payload, "type")
+		eventID := nestedString(payload, "data", "id")
+		tenantID = firstNonEmpty(nestedString(payload, "data", "organization", "id"), nestedString(payload, "data", "org_id"))
+		if eventID == "" || eventType == "" || tenantID == "" {
+			return nil, fmt.Errorf("clerk fixture requires type, data.id, and organization id")
+		}
+		summary["event_id"] = eventID
+		summary["event_type"] = eventType
+	default:
+		return nil, fmt.Errorf("unknown provider workflow %q", provider)
+	}
+	if expectedTenant != "" && tenantID != expectedTenant {
+		return nil, fmt.Errorf("tenant mismatch: fixture tenant %q does not match expected tenant", tenantID)
+	}
+	summary["tenant_id"] = tenantID
+	return summary, nil
+}
+
+func recipientDomain(value string) string {
+	at := strings.LastIndex(value, "@")
+	if at < 0 || at == len(value)-1 {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(value[at+1:]))
+}
+
+func containsSensitiveFixtureKey(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			lower := strings.ToLower(strings.TrimSpace(key))
+			if lower == "secret" || lower == "api_key" || lower == "webhook_secret" || lower == "signature_secret" || lower == "raw_payload" || lower == "authorization" || lower == "bearer_token" {
+				return true
+			}
+			if containsSensitiveFixtureKey(nested) {
+				return true
+			}
+		}
+	case []any:
+		for _, nested := range typed {
+			if containsSensitiveFixtureKey(nested) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func stringValue(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func nestedString(payload map[string]any, path ...string) string {
+	var current any = payload
+	for _, key := range path {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = object[key]
+	}
+	value, _ := current.(string)
+	return strings.TrimSpace(value)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+`
+
+const providerReplayCommandTestTemplate = `package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestProviderReplaySummariesAreSanitized(t *testing.T) {
+	payload := map[string]any{
+		"id": "evt_fixture",
+		"type": "checkout.session.completed",
+		"data": map[string]any{
+			"object": map[string]any{
+				"metadata": map[string]any{"tenant_id": "org_fixture"},
+			},
+		},
+	}
+	summary, err := summarizeProviderFixture("stripe-billing", payload, "org_fixture")
+	if err != nil {
+		t.Fatalf("summarizeProviderFixture() error = %v", err)
+	}
+	encoded, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("marshal summary: %v", err)
+	}
+	text := string(encoded)
+	for _, notWant := range []string{"Stripe-Signature", "webhook_secret", "raw_payload\":\"{", "sig_"} {
+		if strings.Contains(text, notWant) {
+			t.Fatalf("summary leaked sensitive value %q: %s", notWant, text)
+		}
+	}
+	if summary["raw_payload"] != "omitted" || summary["tenant_id"] != "org_fixture" {
+		t.Fatalf("summary = %#v", summary)
+	}
+}
+
+func TestProviderReplayRejectsTenantMismatch(t *testing.T) {
+	_, err := summarizeProviderFixture("clerk-webhooks", map[string]any{
+		"type": "organizationMembership.created",
+		"data": map[string]any{
+			"id": "mem_fixture",
+			"organization": map[string]any{"id": "org_fixture"},
+		},
+	}, "org_other")
+	if err == nil || !strings.Contains(err.Error(), "tenant mismatch") {
+		t.Fatalf("tenant mismatch error = %v", err)
+	}
+}
+
+func TestProviderReplayRejectsSensitiveFixtureKeys(t *testing.T) {
+	if !containsSensitiveFixtureKey(map[string]any{"raw_payload": "{}"}) {
+		t.Fatal("expected raw provider payloads to be rejected")
+	}
+	if !containsSensitiveFixtureKey(map[string]any{"headers": map[string]any{"authorization": "Bearer secret"}}) {
+		t.Fatal("expected authorization headers to be rejected")
+	}
+}
+
+func TestProviderReplayPathMustStayUnderFixtures(t *testing.T) {
+	root := filepath.Join("testdata", "providers")
+	if _, err := cleanProviderFixturePath(root, "../secret.json"); err == nil {
+		t.Fatal("expected traversal fixture path to fail")
+	}
+	if _, err := cleanProviderFixtureRoot("fixtures"); err == nil {
+		t.Fatal("expected non-provider fixture root to fail")
+	}
+}
+
+func TestProviderReplayRunReadsCheckedInFixture(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	if err := os.MkdirAll(filepath.Join("testdata", "providers"), 0o750); err != nil {
+		t.Fatalf("mkdir fixtures: %v", err)
+	}
+	fixture := []byte("{\"id\":\"evt_fixture\",\"type\":\"checkout.session.completed\",\"data\":{\"object\":{\"metadata\":{\"tenant_id\":\"org_fixture\"}}}}")
+	if err := os.WriteFile(filepath.Join("testdata", "providers", "stripe-webhook.json"), fixture, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := run(context.Background(), []string{"--fixture", "stripe-webhook.json", "--tenant", "org_fixture"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run() code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"event_id\":\"evt_fixture\"") || strings.Contains(stdout.String(), "Stripe-Signature") {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
 `
 
 const saasWebGoModTemplate = `module {{ .Module }}
@@ -8513,6 +8906,7 @@ Provider workflows are app-owned starter code. Local tests use fake providers an
 ## Replay
 
 - Keep signed webhook fixtures under ` + "`testdata/providers`" + `.
+- Run ` + "`go run ./cmd/provider-replay --fixture-dir testdata/providers`" + ` or ` + "`make provider-check`" + ` before touching live sandbox credentials.
 - Reproduce provider callback failures with deterministic fixture payloads before using sandbox credentials.
 - Never paste live API keys, webhook secrets, customer IDs, invitation tokens, or callback bodies into issue trackers or logs.
 
@@ -21051,6 +21445,10 @@ provider-check:
 	if [ -d internal/providers ]; then packages="$$packages ./internal/providers/..."; fi; \
 	if [ -d internal/entitlements ]; then packages="$$packages ./internal/entitlements/..."; fi; \
 	if [ -z "$$packages" ]; then echo "no provider workflows generated"; else $(GO) test $$packages; fi
+	@if [ -d cmd/provider-replay ]; then \
+		$(GO) test ./cmd/provider-replay; \
+		$(GO) run ./cmd/provider-replay --fixture-dir testdata/providers; \
+	fi
 
 provider-live-check:
 	@if [ "$${RUN_PROVIDER_LIVE_CHECKS:-}" != "true" ]; then echo "set RUN_PROVIDER_LIVE_CHECKS=true to run live provider checks"; exit 2; fi
@@ -22344,7 +22742,8 @@ Optional provider workflows generated: {{ .ProviderWorkflows }}.
 {{ end }}{{ if eq .HasResendEmail "true" }}` + "`internal/providers/resendemail`" + ` sends invitation emails through a sender boundary with a no-op local fallback.
 {{ end }}{{ if eq .HasClerkWebhooks "true" }}` + "`internal/providers/clerkwebhooks`" + ` verifies signed Clerk callbacks before user or organization sync hooks run.
 {{ end }}{{ if eq .HasEntitlements "true" }}` + "`internal/entitlements`" + ` provides provider-neutral plan, feature, quota, and usage checks for app-owned billing composition.
-{{ end }}Provider SDKs and provider-specific imports stay in the generated app module; the toolkit root module remains provider-neutral.
+{{ end }}` + "`cmd/provider-replay`" + ` validates checked-in provider fixtures locally and emits sanitized replay summaries.
+Provider SDKs and provider-specific imports stay in the generated app module; the toolkit root module remains provider-neutral.
 {{ end }}
 
 Useful checks:

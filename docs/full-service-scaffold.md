@@ -322,6 +322,11 @@ adding Stripe, Resend, Clerk, or billing-domain SDK dependencies to the toolkit
 root module. Provider secrets belong in generated app configuration or secret
 stores, never in OpenAPI examples, metrics labels, audit metadata, or Problem
 Details.
+When provider workflows are selected, the scaffold also emits
+`cmd/provider-replay`; the generated provider-check target runs provider package
+tests and replays checked-in fake fixtures without live credentials. The
+provider-live-check target remains opt-in and gated by
+`RUN_PROVIDER_LIVE_CHECKS=true`.
 
 ## Deployment Assets
 

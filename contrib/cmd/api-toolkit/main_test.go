@@ -1876,6 +1876,8 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"internal/providers/clerkwebhooks/webhooks_test.go",
 		"internal/entitlements/entitlements.go",
 		"internal/entitlements/entitlements_test.go",
+		"cmd/provider-replay/main.go",
+		"cmd/provider-replay/main_test.go",
 		"testdata/providers/stripe-webhook.json",
 		"testdata/providers/resend-invitation.json",
 		"testdata/providers/clerk-webhook.json",
@@ -1930,6 +1932,7 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"`internal/providers/resendemail` sends invitation emails through a sender boundary with a no-op local fallback.",
 		"`internal/providers/clerkwebhooks` verifies signed Clerk callbacks before user or organization sync hooks run.",
 		"`internal/entitlements` provides provider-neutral plan, feature, quota, and usage checks for app-owned billing composition.",
+		"`cmd/provider-replay` validates checked-in provider fixtures locally and emits sanitized replay summaries.",
 	} {
 		if !strings.Contains(string(generatedREADME), want) {
 			t.Fatalf("generated README missing provider docs %q:\n%s", want, generatedREADME)
@@ -1937,6 +1940,13 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	}
 
 	for path, wants := range map[string][]string{
+		"cmd/provider-replay/main.go": {
+			"maxProviderFixtureBytes",
+			"provider fixture path must stay under testdata/providers",
+			"summarizeProviderFixture",
+			"tenant mismatch",
+			"raw_payload",
+		},
 		"internal/providers/stripebilling/billing.go": {
 			"compatbilling.CheckoutSessionRequest",
 			"ParseWebhook",
@@ -1987,6 +1997,12 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated provider service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "provider-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated provider-check failed:\n%s\nerror: %v", output, err)
 	}
 }
 
