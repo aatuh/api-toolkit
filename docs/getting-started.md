@@ -150,6 +150,7 @@ Generate deployment and observability starters when you need them:
 api-toolkit ops observability --profile saas-api-full --out observability
 api-toolkit deploy helm --dir . --out deploy/helm
 api-toolkit deploy terraform --cloud aws --dir . --out deploy/terraform/aws
+make observability-check deploy-check
 ```
 
 For browser/session services, use the separate web profile instead of mixing

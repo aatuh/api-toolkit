@@ -72,7 +72,10 @@ source of truth is `docs/release-runbook.md`.
   label Grafana/Prometheus/runbook bundle for the full scaffold, and
   `api-toolkit deploy helm` plus `api-toolkit deploy terraform --cloud aws`
   generate deployment starters for API, worker, migration, admin service,
-  dependency references, and AWS Postgres/Redis/S3 primitives.
+  dependency references, and AWS Postgres/Redis/S3 primitives. Generated full
+  services now include `cmd/assetcheck` plus `make observability-check`,
+  `make deploy-check`, and `make asset-check` so those starter assets are
+  validated offline without Helm, Terraform, jq, or network access.
 - Generated `saas-api-full` migrator commands now include `plan`, `verify`, and
   a guarded `down` command. Down migrations require both
   `--allow-dangerous-down` and `ALLOW_DANGEROUS_MIGRATION_DOWN=true`, and remain

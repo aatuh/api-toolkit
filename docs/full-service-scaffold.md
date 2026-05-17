@@ -294,6 +294,11 @@ workflow:
   client when it exists. If `internal/client/ts/node_modules` is already present,
   it also runs `npm run build --silent`; the target does not install packages or
   require network access during normal release gates.
+- `make observability-check`, `make deploy-check`, and `make asset-check` run the
+  generated stdlib-only `cmd/assetcheck` verifier. It parses the Grafana
+  dashboard JSON, checks Prometheus alert starters for bounded labels, and
+  verifies Helm, Kubernetes, and Terraform starter assets contain the expected
+  probes, admin isolation, worker, migration, and dependency primitives.
 - `make resource-check` verifies generated OpenAPI, typed client output, and
   generated resource tests after `api-toolkit generate resource`.
 - `make integration-check` is opt-in Docker evidence. It exercises Postgres,
