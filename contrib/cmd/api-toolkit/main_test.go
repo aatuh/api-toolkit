@@ -917,6 +917,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, name := range []string{
 		"go.mod",
 		"cmd/api/main.go",
+		"cmd/worker/main.go",
 		"internal/domain/api_key.go",
 		"internal/domain/tenancy.go",
 		"internal/domain/widget.go",
@@ -960,6 +961,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Dockerfile",
 		"docker-compose.yml",
 		"deploy/kubernetes/deployment.yaml",
+		"deploy/kubernetes/worker-deployment.yaml",
 		"deploy/kubernetes/service.yaml",
 		"deploy/kubernetes/admin-service.yaml",
 		"README.md",
@@ -983,6 +985,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"IDEMPOTENCY_KEY_PREFIX=idempotency:",
 		"OPENAPI_REQUEST_VALIDATION=true",
 		"OPENAPI_RESPONSE_VALIDATION=true",
+		"ASYNC_WORKER_ENABLED=true",
 		"API_ACTOR_ID=",
 		"API_KEY_PEPPER=",
 		"WEBHOOK_SECRET_KEY=",
@@ -1044,9 +1047,19 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "backgroundTasks", "cfg.AsyncWorkerEnabled", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
+		}
+	}
+
+	generatedWorker, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "worker", "main.go"))
+	if err != nil {
+		t.Fatalf("read generated worker main.go: %v", err)
+	}
+	for _, want := range []string{"DATABASE_URL is required for worker", "postgres.NewWidgetImportOutbox", "webhookdelivery.NewHandler", "async.NewHandlerMux", "asyncRunner.Run(ctx)"} {
+		if !strings.Contains(string(generatedWorker), want) {
+			t.Fatalf("generated worker main.go missing %q", want)
 		}
 	}
 
@@ -1101,7 +1114,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "--style typed", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "--style typed", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
@@ -1117,6 +1130,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"go mod tidy",
 		"go test ./...",
 		"go run ./cmd/api",
+		"go run ./cmd/worker",
+		"ASYNC_WORKER_ENABLED=false",
 		"command -v python3",
 		"/livez",
 		"/docs/openapi.json",
@@ -1168,6 +1183,8 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	for _, want := range []string{
 		"postgres:",
 		"image: postgres:18-alpine",
+		"worker:",
+		"entrypoint: [\"/worker\"]",
 		"/var/lib/postgresql",
 		"redis:",
 		"image: redis:7-alpine",
@@ -1188,9 +1205,19 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Dockerfile: %v", err)
 	}
-	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath"} {
+	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath -o /out/api ./cmd/api", "go build -trimpath -o /out/worker ./cmd/worker", "COPY --from=build /out/worker /worker"} {
 		if !strings.Contains(string(generatedDockerfile), want) {
 			t.Fatalf("generated full-profile Dockerfile missing %q:\n%s", want, generatedDockerfile)
+		}
+	}
+
+	generatedWorkerDeployment, err := os.ReadFile(filepath.Join(serviceDir, "deploy", "kubernetes", "worker-deployment.yaml"))
+	if err != nil {
+		t.Fatalf("read generated worker deployment: %v", err)
+	}
+	for _, want := range []string{"name: api-worker", "command: [\"/worker\"]", "ASYNC_WORKER_ENABLED", "DATABASE_URL", "WEBHOOK_SECRET_KEY"} {
+		if !strings.Contains(string(generatedWorkerDeployment), want) {
+			t.Fatalf("generated worker deployment missing %q:\n%s", want, generatedWorkerDeployment)
 		}
 	}
 
@@ -1202,6 +1229,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Generated profile: `saas-api-full`.",
 		"Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.",
 		"The generated binary uses `bootstrap.NewAPIService`",
+		"`cmd/worker` runs background jobs without serving public HTTP traffic.",
 		"`/livez` is a process liveness probe",
 		"Runtime OpenAPI request validation is enabled by default.",
 		"The public router emits bounded Prometheus HTTP request metrics, and `/metrics` is served only from the admin router.",
