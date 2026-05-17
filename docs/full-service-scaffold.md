@@ -179,7 +179,8 @@ The profile generates or is expected to generate:
   CI release gates stay reliable without Docker.
 - Base Kubernetes manifests for deployment, public service, admin service,
   configuration, secret placeholders, and liveness/readiness probes.
-- A checked-in typed Go client plus a generated `client-check` target.
+- A checked-in typed Go client plus a generated `client-check` target that
+  regenerates with `api-toolkit clients go --style typed`.
 
 ## Support Tier
 

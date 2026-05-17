@@ -1340,6 +1340,26 @@ func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 }
 
 func renderSaaSAPIFullOpenAPIGolden(authMode string) ([]byte, error) {
+	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeJSON(doc)
+}
+
+func renderSaaSAPIFullOpenAPIDoc(authMode string) (*openapi3.T, error) {
+	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := openapi3.NewLoader().LoadFromData(doc)
+	if err != nil {
+		return nil, fmt.Errorf("load full scaffold openapi: %w", err)
+	}
+	return loaded, nil
+}
+
+func renderSaaSAPIFullOpenAPIBytes(authMode string) ([]byte, error) {
 	registry := specs.NewRegistryWithOptions(specs.Info{
 		Title:       "Full SaaS API",
 		Description: "Generated api-toolkit full SaaS/API profile.",
@@ -1363,11 +1383,15 @@ func renderSaaSAPIFullOpenAPIGolden(authMode string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("render full scaffold openapi: %w", err)
 	}
-	return normalizeJSON(doc)
+	return doc, nil
 }
 
 func renderSaaSAPIFullGoClient() ([]byte, error) {
-	client := renderGoClient("apiclient", fullScaffoldOperations("ApiKeyAuth"))
+	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey)
+	if err != nil {
+		return nil, err
+	}
+	client := renderTypedGoClient("apiclient", doc)
 	formatted, err := format.Source(client)
 	if err != nil {
 		return nil, fmt.Errorf("format full scaffold Go client: %w", err)
@@ -14446,7 +14470,7 @@ client-check: deps
 	@tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp"' EXIT; \
 	cp internal/client/apiclient/client.go "$$tmp/client.go"; \
-	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient; \
+	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient --style typed; \
 	cmp -s "$$tmp/client.go" internal/client/apiclient/client.go || { echo "generated Go client is out of date"; diff -u "$$tmp/client.go" internal/client/apiclient/client.go; exit 1; }
 	$(GO) test ./internal/client/apiclient
 
