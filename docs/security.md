@@ -167,6 +167,9 @@ Goal:
   Keep billing customer IDs, subscription IDs, quota counters, and usage events
   out of metric labels and public errors; billing webhooks should update
   app-owned mappings before changing tenant entitlements.
+- `contrib/entitlements` decisions intentionally exclude tenant, customer, and
+  subscription identifiers. Preserve that property in adapters and observers:
+  metric labels should use bounded feature and outcome labels only.
 - The generated `saas-web` profile is isolated from API-first scaffolds. Cookie
   sessions must use HttpOnly, Secure, and SameSite defaults; CSRF tokens must be
   compared in constant time; login callback state must be validated before

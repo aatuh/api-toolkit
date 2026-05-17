@@ -263,7 +263,10 @@ The profile generates or is expected to generate:
   secret redaction from audit metadata.
 - `entitlements` emits provider-neutral app-owned plan, feature, quota, and
   usage-counter services that can be updated by billing workflows without
-  reintroducing provider-shaped root ports.
+  reintroducing provider-shaped root ports. Reusable service contracts,
+  low-cardinality decisions, and HTTP enforcement middleware live in
+  `contrib/entitlements`; generated apps keep provider mappings and persistence
+  app-owned.
 
 ## Operational Commands
 

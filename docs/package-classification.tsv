@@ -109,6 +109,8 @@ github.com/aatuh/api-toolkit/contrib/v2/config	experimental	direct-tests	Contrib
 github.com/aatuh/api-toolkit/contrib/v2/countrycodes	experimental	direct-tests	Country code helpers; low-level helper not yet in supported adapter scope.
 github.com/aatuh/api-toolkit/contrib/v2/email/markdown	experimental	direct-tests	Markdown email rendering adapter; not promoted until renderer contract and drift evidence are added.
 github.com/aatuh/api-toolkit/contrib/v2/email/noop	wrapper-only	wrapper-smoke-tested	No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.
+github.com/aatuh/api-toolkit/contrib/v2/entitlements	supported-adapter	direct-tests	Provider-neutral entitlements contracts, quota service, and HTTP enforcement middleware.
+github.com/aatuh/api-toolkit/contrib/v2/entitlements/entitlementstest	test-only	test-support	Reusable entitlements store contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/objectstore	supported-adapter	direct-tests	Object storage contracts.
 github.com/aatuh/api-toolkit/contrib/v2/objectstore/objectstoretest	test-only	test-support	Reusable object storage adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery	supported-adapter	direct-tests	Outbound webhook delivery contracts, signing, dispatch, retry, and async worker helpers.
