@@ -89,6 +89,10 @@ source of truth is `docs/release-runbook.md`.
   emits provider-neutral generated app code for plans, features, quotas, usage
   counters, and billing-provider composition guidance. The workflow can compose
   with `--with stripe-billing` without adding Stripe-shaped ports to core.
+- `github.com/aatuh/api-toolkit/contrib/v2/entitlements` now provides
+  provider-neutral feature and quota contracts, low-cardinality decisions,
+  reusable store contract tests, and HTTP enforcement middleware that avoids
+  exposing tenant or billing identifiers in Problem Details responses.
 - Release evidence now expands `full_profile_scaffold_evidence` with explicit
   fields for OpenAPI 3.1 full scaffold output, typed client generation, resource
   generator checks, provider-flag generation, worker wiring, generated

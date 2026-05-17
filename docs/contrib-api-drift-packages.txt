@@ -19,6 +19,7 @@ github.com/aatuh/api-toolkit/contrib/v2/async
 github.com/aatuh/api-toolkit/contrib/v2/audit
 github.com/aatuh/api-toolkit/contrib/v2/bootstrap
 github.com/aatuh/api-toolkit/contrib/v2/cache
+github.com/aatuh/api-toolkit/contrib/v2/entitlements
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/clerk
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/devheaders
 github.com/aatuh/api-toolkit/contrib/v2/integrations/auth/jwt
