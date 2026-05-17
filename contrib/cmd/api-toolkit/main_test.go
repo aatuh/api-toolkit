@@ -757,6 +757,8 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 	for _, file := range []string{
 		"internal/client/apiclient/client.go",
 		"internal/client/ts/src/index.ts",
+		"cmd/assetcheck/main.go",
+		"cmd/assetcheck/main_test.go",
 		"internal/entitlements/entitlements.go",
 		"internal/entitlements/entitlements_test.go",
 		"docs/providers/entitlements.md",
@@ -786,7 +788,7 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
 	}
-	for _, want := range []string{"client-ts-check", "npm run build --silent", "node_modules", "provider-check", "migrate-plan", "migrate-verify", "migrate-down"} {
+	for _, want := range []string{"client-ts-check", "npm run build --silent", "node_modules", "asset-check", "observability-check", "deploy-check", "provider-check", "migrate-plan", "migrate-verify", "migrate-down"} {
 		if !strings.Contains(string(makefile), want) {
 			t.Fatalf("Makefile missing %q:\n%s", want, makefile)
 		}
@@ -2062,6 +2064,18 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated provider-check failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "observability-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated observability-check failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "deploy-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated deploy-check failed:\n%s\nerror: %v", output, err)
 	}
 }
 

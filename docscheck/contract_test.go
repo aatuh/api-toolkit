@@ -2870,12 +2870,17 @@ func generatedScaffoldMakeTarget(rel, target string) bool {
 	switch rel {
 	case "docs/getting-started.md":
 		switch target {
-		case "openapi-check", "contracts-lint", "contracts-diff", "client-check", "client-ts-check", "resource-check", "migrate-plan", "migrate-check":
+		case "openapi-check", "contracts-lint", "contracts-diff", "client-check", "client-ts-check", "observability-check", "deploy-check", "resource-check", "migrate-plan", "migrate-check":
 			return true
 		}
 	case "docs/full-service-scaffold.md":
 		switch target {
-		case "migrate-plan", "migrate-up", "migrate-status", "migrate-check", "migrate-verify", "migrate-down", "client-check", "client-ts-check", "resource-check", "integration-check":
+		case "migrate-plan", "migrate-up", "migrate-status", "migrate-check", "migrate-verify", "migrate-down", "client-check", "client-ts-check", "asset-check", "observability-check", "deploy-check", "resource-check", "integration-check":
+			return true
+		}
+	case "docs/release-notes.md":
+		switch target {
+		case "asset-check", "observability-check", "deploy-check":
 			return true
 		}
 	}
