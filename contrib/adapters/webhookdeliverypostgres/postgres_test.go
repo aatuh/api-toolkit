@@ -86,6 +86,24 @@ func TestGetEndpointRequiresSecretResolver(t *testing.T) {
 	}
 }
 
+func TestGetEndpointUsesConfiguredEndpointPolicy(t *testing.T) {
+	t.Parallel()
+
+	conn := &fakeDBConnection{row: endpointRow("we_1", "org_1", "http://127.0.0.1:18081/hooks", []string{"widget.created"}, false, time.Now())}
+	store := New(&fakeDBPool{conn: conn}, Options{
+		EndpointPolicy: webhookdelivery.EndpointPolicy{AllowInsecureHTTP: true},
+		SecretResolver: staticSecret("secret"),
+	})
+
+	endpoint, ok, err := store.GetEndpoint(context.Background(), "org_1", "we_1")
+	if err != nil {
+		t.Fatalf("GetEndpoint() error = %v", err)
+	}
+	if !ok || endpoint.URL != "http://127.0.0.1:18081/hooks" {
+		t.Fatalf("GetEndpoint() = endpoint=%#v ok=%v", endpoint, ok)
+	}
+}
+
 func TestEnqueueDeliveryInsertsDeliveryAndOutboxInTransaction(t *testing.T) {
 	t.Parallel()
 

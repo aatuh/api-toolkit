@@ -372,7 +372,10 @@ source of truth is `docs/release-runbook.md`.
   replay. Endpoint signing secrets are loaded through an application-owned
   `SecretResolver` instead of raw secret storage in the webhook endpoint table;
   generated `saas-api-full` migrations now include `event_id` and
-  `last_status_code` on webhook delivery rows.
+  `last_status_code` on webhook delivery rows. The adapter also accepts the
+  shared `webhookdelivery.EndpointPolicy` so generated development and
+  integration services can allow localhost HTTP webhook targets without
+  weakening production HTTPS defaults.
 - `github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics` and
   `github.com/aatuh/api-toolkit/contrib/v2/middleware/requestlog` now expose
   outbound webhook delivery observation hooks with bounded event type, outcome,

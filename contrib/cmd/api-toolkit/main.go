@@ -6127,7 +6127,7 @@ func run(ctx context.Context) error {
 		// api-toolkit:main-postgres-stores
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(postgresPool, auditpostgres.Options{}))
-		webhookStore, err = postgres.NewWebhookStore(postgresPool, cfg.WebhookSecretKey)
+		webhookStore, err = postgres.NewWebhookStore(postgresPool, cfg.WebhookSecretKey, webhookEndpointPolicy)
 		if err != nil {
 			pool.Close()
 			return err
@@ -6443,12 +6443,13 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	webhookStore, err := postgres.NewWebhookStore(postgresPool, webhookSecretKey)
+	webhookEndpointPolicy := webhookdelivery.EndpointPolicy{AllowInsecureHTTP: !strings.EqualFold(os.Getenv("ENV"), "production")}
+	webhookStore, err := postgres.NewWebhookStore(postgresPool, webhookSecretKey, webhookEndpointPolicy)
 	if err != nil {
 		return err
 	}
 	webhookDeliverer, err := webhookdelivery.NewDeliverer(webhookdelivery.DelivererConfig{
-		EndpointPolicy: webhookdelivery.EndpointPolicy{AllowInsecureHTTP: !strings.EqualFold(os.Getenv("ENV"), "production")},
+		EndpointPolicy: webhookEndpointPolicy,
 		Metrics:        metricsRecorder,
 		UserAgent:      "saas-api-full-webhooks/1",
 	})
@@ -12517,26 +12518,29 @@ var (
 )
 
 type WebhookStore struct {
-	pool      ports.DatabasePool
-	base      *webhookdeliverypostgres.Store
-	secretKey []byte
-	now       func() time.Time
-	tx        ports.TxManager
+	pool           ports.DatabasePool
+	base           *webhookdeliverypostgres.Store
+	secretKey      []byte
+	now            func() time.Time
+	tx             ports.TxManager
+	endpointPolicy webhookdelivery.EndpointPolicy
 }
 
-func NewWebhookStore(pool ports.DatabasePool, secretKey string) (*WebhookStore, error) {
+func NewWebhookStore(pool ports.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy) (*WebhookStore, error) {
 	key, err := decodeWebhookSecretKey(secretKey)
 	if err != nil {
 		return nil, err
 	}
 	store := &WebhookStore{
-		pool:      pool,
-		secretKey: key,
-		now:       time.Now,
-		tx:        txpostgres.New(pool),
+		pool:           pool,
+		secretKey:      key,
+		now:            time.Now,
+		tx:             txpostgres.New(pool),
+		endpointPolicy: endpointPolicy,
 	}
 	store.base = webhookdeliverypostgres.New(pool, webhookdeliverypostgres.Options{
 		SecretResolver: webhookdeliverypostgres.SecretResolverFunc(store.resolveSigningSecret),
+		EndpointPolicy: endpointPolicy,
 	})
 	return store, nil
 }
@@ -12554,7 +12558,7 @@ func (s *WebhookStore) CreateEndpoint(ctx context.Context, endpoint webhookdeliv
 	if endpoint.UpdatedAt.IsZero() {
 		endpoint.UpdatedAt = endpoint.CreatedAt
 	}
-	if err := webhookdelivery.ValidateEndpoint(endpoint, webhookdelivery.EndpointPolicy{}); err != nil {
+	if err := webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy); err != nil {
 		return ErrWebhookInvalid
 	}
 	ciphertext, nonce, err := s.encryptWebhookSecret(endpoint.SigningSecret)
@@ -12910,14 +12914,14 @@ import (
 )
 
 func TestNewWebhookStoreRequiresSecretKey(t *testing.T) {
-	if _, err := NewWebhookStore(&fakeWebhookPool{}, "short"); !errors.Is(err, ErrWebhookSecretKeyInvalid) {
+	if _, err := NewWebhookStore(&fakeWebhookPool{}, "short", webhookdelivery.EndpointPolicy{}); !errors.Is(err, ErrWebhookSecretKeyInvalid) {
 		t.Fatalf("NewWebhookStore() error = %v, want %v", err, ErrWebhookSecretKeyInvalid)
 	}
 }
 
 func TestWebhookStoreCreateEndpointEncryptsSecret(t *testing.T) {
 	conn := &fakeWebhookConn{}
-	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32))
+	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32), webhookdelivery.EndpointPolicy{})
 	if err != nil {
 		t.Fatalf("NewWebhookStore() error = %v", err)
 	}
@@ -12946,12 +12950,30 @@ func TestWebhookStoreCreateEndpointEncryptsSecret(t *testing.T) {
 	}
 }
 
+func TestWebhookStoreCreateEndpointUsesConfiguredEndpointPolicy(t *testing.T) {
+	conn := &fakeWebhookConn{}
+	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32), webhookdelivery.EndpointPolicy{AllowInsecureHTTP: true})
+	if err != nil {
+		t.Fatalf("NewWebhookStore() error = %v", err)
+	}
+	err = store.CreateEndpoint(context.Background(), webhookdelivery.Endpoint{
+		ID:            "whend_1",
+		TenantID:      "org_1",
+		URL:           "http://127.0.0.1:18081/webhooks",
+		SigningSecret: []byte("webhook-secret-value"),
+		Events:        []string{"widget.created"},
+	})
+	if err != nil {
+		t.Fatalf("CreateEndpoint() error = %v", err)
+	}
+}
+
 func TestWebhookStoreListDeliveriesScansTenantRows(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0).UTC()
 	conn := &fakeWebhookConn{rows: &fakeWebhookRows{values: [][]any{[]any{
 		"whdel_1", "org_1", "whend_1", "evt_1", "widget.created", "https://example.com/webhooks", "pending", 0, now, 0, "", now, now,
 	}}}}
-	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32))
+	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32), webhookdelivery.EndpointPolicy{})
 	if err != nil {
 		t.Fatalf("NewWebhookStore() error = %v", err)
 	}
@@ -12975,7 +12997,7 @@ func TestWebhookStoreReplayRequeuesOutbox(t *testing.T) {
 	})}
 	tx := &fakeWebhookTx{rowsAffected: 1}
 	conn.tx = tx
-	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32))
+	store, err := NewWebhookStore(&fakeWebhookPool{conn: conn}, strings.Repeat("a", 32), webhookdelivery.EndpointPolicy{})
 	if err != nil {
 		t.Fatalf("NewWebhookStore() error = %v", err)
 	}

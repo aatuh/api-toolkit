@@ -60,6 +60,7 @@ type Options struct {
 	Clock          func() time.Time
 	SecretResolver SecretResolver
 	TxManager      ports.TxManager
+	EndpointPolicy webhookdelivery.EndpointPolicy
 }
 
 // Store implements tenant-scoped webhook endpoint lookup, delivery enqueue,
@@ -72,6 +73,7 @@ type Store struct {
 	clock          func() time.Time
 	secretResolver SecretResolver
 	tx             ports.TxManager
+	endpointPolicy webhookdelivery.EndpointPolicy
 }
 
 // New creates a Postgres-backed webhook delivery store.
@@ -104,6 +106,7 @@ func New(pool ports.DatabasePool, opts Options) *Store {
 		clock:          clock,
 		secretResolver: opts.SecretResolver,
 		tx:             tx,
+		endpointPolicy: opts.EndpointPolicy,
 	}
 }
 
@@ -312,7 +315,7 @@ func (s *Store) scanEndpointRow(ctx context.Context, rows ports.DatabaseRows) (w
 		return webhookdelivery.Endpoint{}, err
 	}
 	endpoint.SigningSecret = secret
-	if err := webhookdelivery.ValidateEndpoint(endpoint, webhookdelivery.EndpointPolicy{}); err != nil {
+	if err := webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy); err != nil {
 		return webhookdelivery.Endpoint{}, err
 	}
 	return endpoint, nil
@@ -328,7 +331,7 @@ func (s *Store) scanEndpoint(ctx context.Context, row ports.DatabaseRow) (webhoo
 		return webhookdelivery.Endpoint{}, err
 	}
 	endpoint.SigningSecret = secret
-	if err := webhookdelivery.ValidateEndpoint(endpoint, webhookdelivery.EndpointPolicy{}); err != nil {
+	if err := webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy); err != nil {
 		return webhookdelivery.Endpoint{}, err
 	}
 	return endpoint, nil
