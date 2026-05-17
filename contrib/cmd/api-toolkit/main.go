@@ -216,7 +216,7 @@ func isNonEmptyDigits(value string) bool {
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers]")
+		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers] [--with stripe-billing|resend-email|clerk-webhooks]")
 		return 2
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
@@ -227,6 +227,8 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	dir := fs.String("dir", ".", "output directory")
 	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v2")
 	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v2")
+	var providerWorkflows providerWorkflowFlag
+	fs.Var(&providerWorkflows, "with", "optional provider workflow for saas-api-full; repeatable: stripe-billing, resend-email, clerk-webhooks")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -244,11 +246,17 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	providers, err := validateScaffoldProviderWorkflows(profileName, providerWorkflows.Values())
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	cfg := scaffoldConfig{
 		Module:         strings.TrimSpace(*module),
 		Dir:            strings.TrimSpace(*dir),
 		Profile:        profileName,
 		AuthMode:       authName,
+		Providers:      providers,
 		CoreReplace:    strings.TrimSpace(*coreReplace),
 		ContribReplace: strings.TrimSpace(*contribReplace),
 		ToolkitVersion: scaffoldDependencyVersion(collectVersionMetadata()),
@@ -314,6 +322,9 @@ const (
 	scaffoldAuthClerk          = "clerk"
 	scaffoldAuthOIDC           = "oidc"
 	scaffoldAuthDevHeaders     = "dev-headers"
+	scaffoldProviderStripe     = "stripe-billing"
+	scaffoldProviderResend     = "resend-email"
+	scaffoldProviderClerkHooks = "clerk-webhooks"
 )
 
 func isSupportedScaffoldProfile(profile string) bool {
@@ -354,6 +365,57 @@ func validateScaffoldAuthMode(profile, authMode string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported auth mode %q", authMode)
 	}
+}
+
+type providerWorkflowFlag struct {
+	values []string
+}
+
+func (f *providerWorkflowFlag) String() string {
+	if f == nil {
+		return ""
+	}
+	return strings.Join(f.values, ",")
+}
+
+func (f *providerWorkflowFlag) Set(value string) error {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return errors.New("provider workflow must not be empty")
+	}
+	f.values = append(f.values, value)
+	return nil
+}
+
+func (f providerWorkflowFlag) Values() []string {
+	return append([]string(nil), f.values...)
+}
+
+func validateScaffoldProviderWorkflows(profile string, workflows []string) ([]string, error) {
+	if len(workflows) == 0 {
+		return nil, nil
+	}
+	profile = strings.TrimSpace(profile)
+	if profile != scaffoldProfileSaaSAPIFull {
+		return nil, fmt.Errorf("provider workflows require profile %q", scaffoldProfileSaaSAPIFull)
+	}
+	seen := map[string]bool{}
+	for _, workflow := range workflows {
+		workflow = strings.ToLower(strings.TrimSpace(workflow))
+		switch workflow {
+		case scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks:
+			seen[workflow] = true
+		default:
+			return nil, fmt.Errorf("unsupported provider workflow %q", workflow)
+		}
+	}
+	ordered := make([]string, 0, len(seen))
+	for _, workflow := range []string{scaffoldProviderStripe, scaffoldProviderResend, scaffoldProviderClerkHooks} {
+		if seen[workflow] {
+			ordered = append(ordered, workflow)
+		}
+	}
+	return ordered, nil
 }
 
 func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -2343,6 +2405,7 @@ type scaffoldConfig struct {
 	Dir            string
 	Profile        string
 	AuthMode       string
+	Providers      []string
 	CoreReplace    string
 	ContribReplace string
 	ToolkitVersion string
@@ -2388,16 +2451,21 @@ func generateService(cfg scaffoldConfig) error {
 	}
 	defer root.Close()
 	data := map[string]string{
-		"Module":         cfg.Module,
-		"Profile":        cfg.Profile,
-		"AuthMode":       cfg.AuthMode,
-		"AuthSchemeName": scaffoldAuthSecuritySchemeName(cfg.AuthMode),
-		"CoreVersion":    cfg.ToolkitVersion,
-		"ContribVersion": cfg.ToolkitVersion,
-		"CoreReplace":    replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
-		"ContribReplace": replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
+		"Module":               cfg.Module,
+		"Profile":              cfg.Profile,
+		"AuthMode":             cfg.AuthMode,
+		"AuthSchemeName":       scaffoldAuthSecuritySchemeName(cfg.AuthMode),
+		"CoreVersion":          cfg.ToolkitVersion,
+		"ContribVersion":       cfg.ToolkitVersion,
+		"CoreReplace":          replaceLine("github.com/aatuh/api-toolkit/v2", cfg.CoreReplace),
+		"ContribReplace":       replaceLine("github.com/aatuh/api-toolkit/contrib/v2", cfg.ContribReplace),
+		"HasProviderWorkflows": boolTemplateValue(len(cfg.Providers) > 0),
+		"ProviderWorkflows":    providerWorkflowInlineList(cfg.Providers),
+		"HasStripeBilling":     boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderStripe)),
+		"HasResendEmail":       boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderResend)),
+		"HasClerkWebhooks":     boolTemplateValue(hasScaffoldProvider(cfg.Providers, scaffoldProviderClerkHooks)),
 	}
-	files := scaffoldFilesForProfile(cfg.Profile)
+	files := scaffoldFilesForConfig(cfg)
 	for _, file := range files {
 		rendered, err := renderTemplate(file.Name, file.Body, data)
 		if err != nil {
@@ -2503,6 +2571,33 @@ func renderTemplate(name, body string, data map[string]string) ([]byte, error) {
 		return nil, fmt.Errorf("render template %s: %w", name, err)
 	}
 	return buf.Bytes(), nil
+}
+
+func boolTemplateValue(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func hasScaffoldProvider(providers []string, provider string) bool {
+	for _, current := range providers {
+		if current == provider {
+			return true
+		}
+	}
+	return false
+}
+
+func providerWorkflowInlineList(providers []string) string {
+	if len(providers) == 0 {
+		return "none"
+	}
+	quoted := make([]string, 0, len(providers))
+	for _, provider := range providers {
+		quoted = append(quoted, "`"+provider+"`")
+	}
+	return strings.Join(quoted, ", ")
 }
 
 type scaffoldWidgetResponse struct {
@@ -4820,6 +4915,23 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 	return scaffoldFiles
 }
 
+func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
+	files := append([]scaffoldFile(nil), scaffoldFilesForProfile(cfg.Profile)...)
+	if cfg.Profile != scaffoldProfileSaaSAPIFull {
+		return files
+	}
+	if hasScaffoldProvider(cfg.Providers, scaffoldProviderStripe) {
+		files = append(files, stripeBillingScaffoldFiles...)
+	}
+	if hasScaffoldProvider(cfg.Providers, scaffoldProviderResend) {
+		files = append(files, resendEmailScaffoldFiles...)
+	}
+	if hasScaffoldProvider(cfg.Providers, scaffoldProviderClerkHooks) {
+		files = append(files, clerkWebhooksScaffoldFiles...)
+	}
+	return files
+}
+
 var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
 	{Name: "api-toolkit.yaml", Body: fullManifestTemplate},
@@ -4887,6 +4999,671 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "deploy/kubernetes/network-policy.yaml", Body: fullKubernetesNetworkPolicyTemplate},
 	{Name: "README.md", Body: fullReadmeTemplate},
 }
+
+var stripeBillingScaffoldFiles = []scaffoldFile{
+	{Name: "internal/providers/stripebilling/billing.go", Body: providerStripeBillingTemplate},
+	{Name: "internal/providers/stripebilling/billing_test.go", Body: providerStripeBillingTestTemplate},
+	{Name: "docs/providers/stripe-billing.md", Body: providerStripeBillingDocTemplate},
+}
+
+var resendEmailScaffoldFiles = []scaffoldFile{
+	{Name: "internal/providers/resendemail/invitations.go", Body: providerResendEmailTemplate},
+	{Name: "internal/providers/resendemail/invitations_test.go", Body: providerResendEmailTestTemplate},
+	{Name: "docs/providers/resend-email.md", Body: providerResendEmailDocTemplate},
+}
+
+var clerkWebhooksScaffoldFiles = []scaffoldFile{
+	{Name: "internal/providers/clerkwebhooks/webhooks.go", Body: providerClerkWebhooksTemplate},
+	{Name: "internal/providers/clerkwebhooks/webhooks_test.go", Body: providerClerkWebhooksTestTemplate},
+	{Name: "docs/providers/clerk-webhooks.md", Body: providerClerkWebhooksDocTemplate},
+}
+
+const providerStripeBillingTemplate = `package stripebilling
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
+	"{{ .Module }}/internal/app"
+)
+
+type Provider interface {
+	CreateCheckoutSession(context.Context, compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error)
+	ParseWebhook(context.Context, []byte, string) (compatbilling.WebhookEvent, error)
+}
+
+type Service struct {
+	Provider   Provider
+	Audit      *app.AuditService
+	SuccessURL string
+	CancelURL  string
+	PriceID    string
+}
+
+func NewService(provider Provider, auditLog *app.AuditService) *Service {
+	return &Service{Provider: provider, Audit: auditLog}
+}
+
+func (s *Service) CreateCheckoutSession(ctx context.Context, actorID, tenantID string) (compatbilling.CheckoutSession, error) {
+	if err := ctx.Err(); err != nil {
+		return compatbilling.CheckoutSession{}, err
+	}
+	if s == nil || s.Provider == nil {
+		return compatbilling.CheckoutSession{}, app.ErrValidation
+	}
+	actorID = strings.TrimSpace(actorID)
+	tenantID = strings.TrimSpace(tenantID)
+	priceID := strings.TrimSpace(s.PriceID)
+	if actorID == "" || tenantID == "" || priceID == "" || strings.TrimSpace(s.SuccessURL) == "" || strings.TrimSpace(s.CancelURL) == "" {
+		return compatbilling.CheckoutSession{}, app.ErrValidation
+	}
+	session, err := s.Provider.CreateCheckoutSession(ctx, compatbilling.CheckoutSessionRequest{
+		Mode:              "subscription",
+		PriceID:           priceID,
+		SuccessURL:        strings.TrimSpace(s.SuccessURL),
+		CancelURL:         strings.TrimSpace(s.CancelURL),
+		ClientReferenceID: tenantID,
+		Metadata: map[string]string{
+			"tenant_id": tenantID,
+			"actor_id":  actorID,
+		},
+		SubscriptionMetadata: map[string]string{
+			"tenant_id": tenantID,
+		},
+	})
+	if err != nil {
+		return compatbilling.CheckoutSession{}, err
+	}
+	s.record(ctx, tenantID, actorID, "stripe.checkout_session.create", "billing_checkout_session", session.ID, audit.ResultSuccess, map[string]string{"price_id": priceID})
+	return session, nil
+}
+
+func (s *Service) HandleWebhook(ctx context.Context, tenantID string, payload []byte, signature string) (compatbilling.WebhookEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return compatbilling.WebhookEvent{}, err
+	}
+	if s == nil || s.Provider == nil {
+		return compatbilling.WebhookEvent{}, app.ErrValidation
+	}
+	event, err := s.Provider.ParseWebhook(ctx, payload, strings.TrimSpace(signature))
+	if err != nil {
+		return compatbilling.WebhookEvent{}, err
+	}
+	event.ID = strings.TrimSpace(event.ID)
+	event.Type = strings.TrimSpace(event.Type)
+	if event.ID == "" || event.Type == "" {
+		return compatbilling.WebhookEvent{}, app.ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	payloadTenant := tenantIDFromStripePayload(event.Payload)
+	if tenantID != "" && payloadTenant != "" && tenantID != payloadTenant {
+		s.record(ctx, tenantID, "stripe", "stripe.webhook.tenant_mismatch", "billing_webhook", event.ID, audit.ResultFailure, map[string]string{"event_type": event.Type})
+		return compatbilling.WebhookEvent{}, app.ErrForbidden
+	}
+	if tenantID == "" {
+		tenantID = payloadTenant
+	}
+	if tenantID == "" {
+		return compatbilling.WebhookEvent{}, app.ErrValidation
+	}
+	s.record(ctx, tenantID, "stripe", "stripe.webhook."+event.Type, "billing_webhook", event.ID, audit.ResultSuccess, map[string]string{"event_type": event.Type})
+	return event, nil
+}
+
+func (s *Service) ServeWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "invalid webhook body", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.HandleWebhook(r.Context(), r.Header.Get("X-Tenant-ID"), body, r.Header.Get("Stripe-Signature")); err != nil {
+		if errors.Is(err, app.ErrForbidden) {
+			http.Error(w, "webhook rejected", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "webhook rejected", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func tenantIDFromStripePayload(payload []byte) string {
+	var event struct {
+		Metadata map[string]string ` + "`json:\"metadata\"`" + `
+		Object   struct {
+			Metadata map[string]string ` + "`json:\"metadata\"`" + `
+		} ` + "`json:\"object\"`" + `
+		Data struct {
+			Object struct {
+				Metadata map[string]string ` + "`json:\"metadata\"`" + `
+			} ` + "`json:\"object\"`" + `
+		} ` + "`json:\"data\"`" + `
+	}
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return ""
+	}
+	for _, metadata := range []map[string]string{event.Metadata, event.Object.Metadata, event.Data.Object.Metadata} {
+		if tenantID := strings.TrimSpace(metadata["tenant_id"]); tenantID != "" {
+			return tenantID
+		}
+	}
+	return ""
+}
+
+func (s *Service) record(ctx context.Context, tenantID, actorID, action, resourceType, resourceID string, result audit.Result, metadata map[string]string) {
+	if s == nil || s.Audit == nil {
+		return
+	}
+	_ = s.Audit.Record(ctx, audit.Event{
+		TenantID: strings.TrimSpace(tenantID),
+		Actor: audit.Actor{Type: "provider", ID: strings.TrimSpace(actorID)},
+		Action: action,
+		Resource: audit.Resource{Type: resourceType, ID: strings.TrimSpace(resourceID)},
+		Result: result,
+		Metadata: metadata,
+	})
+}
+`
+
+const providerStripeBillingTestTemplate = `package stripebilling
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
+	"{{ .Module }}/internal/app"
+)
+
+func TestCreateCheckoutSessionRecordsTenantScopedAudit(t *testing.T) {
+	auditLog := app.NewAuditService()
+	provider := &fakeBillingProvider{session: compatbilling.CheckoutSession{ID: "cs_test_123", URL: "https://checkout.example.test/session"}}
+	service := NewService(provider, auditLog)
+	service.PriceID = "price_test"
+	service.SuccessURL = "https://app.example.test/success"
+	service.CancelURL = "https://app.example.test/cancel"
+
+	session, err := service.CreateCheckoutSession(context.Background(), "user_1", "org_1")
+	if err != nil {
+		t.Fatalf("CreateCheckoutSession() error = %v", err)
+	}
+	if session.ID != "cs_test_123" || provider.request.ClientReferenceID != "org_1" || provider.request.Metadata["tenant_id"] != "org_1" {
+		t.Fatalf("session=%#v request=%#v", session, provider.request)
+	}
+	events, err := auditLog.Events(context.Background())
+	if err != nil || len(events) != 1 {
+		t.Fatalf("audit events=%#v err=%v", events, err)
+	}
+	if events[0].TenantID != "org_1" || events[0].Action != "stripe.checkout_session.create" {
+		t.Fatalf("audit event = %#v", events[0])
+	}
+}
+
+func TestHandleWebhookRequiresVerifiedTenant(t *testing.T) {
+	auditLog := app.NewAuditService()
+	provider := &fakeBillingProvider{event: compatbilling.WebhookEvent{
+		ID:      "evt_1",
+		Type:    "checkout.session.completed",
+		Payload: []byte(` + "`" + `{"data":{"object":{"metadata":{"tenant_id":"org_2"}}}}` + "`" + `),
+	}}
+	service := NewService(provider, auditLog)
+
+	_, err := service.HandleWebhook(context.Background(), "org_1", []byte(` + "`" + `{"id":"evt_1"}` + "`" + `), "sig_test")
+	if !errors.Is(err, app.ErrForbidden) {
+		t.Fatalf("HandleWebhook() error = %v, want forbidden", err)
+	}
+	events, err := auditLog.Events(context.Background())
+	if err != nil || len(events) != 1 {
+		t.Fatalf("audit events=%#v err=%v", events, err)
+	}
+	if events[0].Action != "stripe.webhook.tenant_mismatch" || strings.Contains(strings.Join(metadataValues(events[0].Metadata), " "), "sig_test") {
+		t.Fatalf("unsafe audit event = %#v", events[0])
+	}
+}
+
+type fakeBillingProvider struct {
+	request compatbilling.CheckoutSessionRequest
+	session compatbilling.CheckoutSession
+	event   compatbilling.WebhookEvent
+}
+
+func (p *fakeBillingProvider) CreateCheckoutSession(_ context.Context, req compatbilling.CheckoutSessionRequest) (compatbilling.CheckoutSession, error) {
+	p.request = req
+	return p.session, nil
+}
+
+func (p *fakeBillingProvider) ParseWebhook(_ context.Context, _ []byte, _ string) (compatbilling.WebhookEvent, error) {
+	return p.event, nil
+}
+
+func metadataValues(metadata map[string]string) []string {
+	values := make([]string, 0, len(metadata))
+	for _, value := range metadata {
+		values = append(values, value)
+	}
+	return values
+}
+`
+
+const providerStripeBillingDocTemplate = `# Stripe Billing Starter
+
+This optional scaffold is generated only with ` + "`--with stripe-billing`" + `.
+
+- ` + "`internal/providers/stripebilling`" + ` keeps Stripe-specific checkout and webhook behavior outside core app services.
+- Checkout sessions include tenant and actor metadata so billing callbacks can be reconciled without trusting client-supplied state.
+- Webhooks must be verified by the configured provider before audit writes or entitlement changes are trusted.
+- Audit metadata intentionally excludes raw webhook signatures and provider secrets.
+
+Configure ` + "`STRIPE_SECRET_KEY`" + `, ` + "`STRIPE_WEBHOOK_SECRET`" + `, ` + "`STRIPE_PRICE_ID`" + `, ` + "`STRIPE_SUCCESS_URL`" + `, and ` + "`STRIPE_CANCEL_URL`" + ` before wiring the real adapter.
+`
+
+const providerResendEmailTemplate = `package resendemail
+
+import (
+	"context"
+	"fmt"
+	"net/mail"
+	"net/url"
+	"strings"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"github.com/aatuh/api-toolkit/v2/email"
+	"{{ .Module }}/internal/app"
+)
+
+type Sender interface {
+	Send(context.Context, email.Message) (string, error)
+}
+
+type NoopSender struct{}
+
+func (NoopSender) Send(context.Context, email.Message) (string, error) {
+	return "noop-email", nil
+}
+
+type InvitationMailer struct {
+	Sender  Sender
+	Audit   *app.AuditService
+	From    string
+	BaseURL string
+}
+
+func NewInvitationMailer(sender Sender, auditLog *app.AuditService) *InvitationMailer {
+	if sender == nil {
+		sender = NoopSender{}
+	}
+	return &InvitationMailer{Sender: sender, Audit: auditLog}
+}
+
+func (m *InvitationMailer) SendInvitation(ctx context.Context, actorID, tenantID, recipient, invitationID, token string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if m == nil {
+		return "", app.ErrValidation
+	}
+	if m.Sender == nil {
+		m.Sender = NoopSender{}
+	}
+	actorID = strings.TrimSpace(actorID)
+	tenantID = strings.TrimSpace(tenantID)
+	recipient = strings.TrimSpace(recipient)
+	invitationID = strings.TrimSpace(invitationID)
+	token = strings.TrimSpace(token)
+	if actorID == "" || tenantID == "" || invitationID == "" || token == "" || !validEmail(recipient) {
+		return "", app.ErrValidation
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(m.BaseURL), "/")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	from := strings.TrimSpace(m.From)
+	if from == "" {
+		from = "no-reply@example.com"
+	}
+	acceptURL := baseURL + "/invitations/" + url.PathEscape(invitationID) + "/accept?token=" + url.QueryEscape(token)
+	message := email.Message{
+		From:    from,
+		To:      []string{recipient},
+		Subject: "You have been invited",
+		Text:    fmt.Sprintf("Accept your invitation: %s", acceptURL),
+	}
+	emailID, err := m.Sender.Send(ctx, message)
+	if err != nil {
+		return "", err
+	}
+	m.record(ctx, tenantID, actorID, "invitation.email.send", invitationID, map[string]string{
+		"email_id":         strings.TrimSpace(emailID),
+		"recipient_domain": recipientDomain(recipient),
+	})
+	return emailID, nil
+}
+
+func validEmail(value string) bool {
+	_, err := mail.ParseAddress(value)
+	return err == nil
+}
+
+func recipientDomain(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), "@")
+	if len(parts) != 2 {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(parts[1]))
+}
+
+func (m *InvitationMailer) record(ctx context.Context, tenantID, actorID, action, invitationID string, metadata map[string]string) {
+	if m == nil || m.Audit == nil {
+		return
+	}
+	_ = m.Audit.Record(ctx, audit.Event{
+		TenantID: strings.TrimSpace(tenantID),
+		Actor: audit.Actor{Type: "user", ID: strings.TrimSpace(actorID)},
+		Action: action,
+		Resource: audit.Resource{Type: "invitation", ID: strings.TrimSpace(invitationID)},
+		Result: audit.ResultSuccess,
+		Metadata: metadata,
+	})
+}
+`
+
+const providerResendEmailTestTemplate = `package resendemail
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/aatuh/api-toolkit/v2/email"
+	"{{ .Module }}/internal/app"
+)
+
+func TestSendInvitationUsesNoopFallbackAndRedactsTokenFromAudit(t *testing.T) {
+	auditLog := app.NewAuditService()
+	mailer := NewInvitationMailer(nil, auditLog)
+	mailer.BaseURL = "https://app.example.test"
+	mailer.From = "invites@example.test"
+
+	emailID, err := mailer.SendInvitation(context.Background(), "user_1", "org_1", "member@example.test", "inv_1", "secret-token")
+	if err != nil {
+		t.Fatalf("SendInvitation() error = %v", err)
+	}
+	if emailID != "noop-email" {
+		t.Fatalf("emailID = %q", emailID)
+	}
+	events, err := auditLog.Events(context.Background())
+	if err != nil || len(events) != 1 {
+		t.Fatalf("audit events=%#v err=%v", events, err)
+	}
+	if events[0].Action != "invitation.email.send" || events[0].Metadata["recipient_domain"] != "example.test" {
+		t.Fatalf("audit event = %#v", events[0])
+	}
+	if strings.Contains(strings.Join(metadataValues(events[0].Metadata), " "), "secret-token") || strings.Contains(strings.Join(metadataValues(events[0].Metadata), " "), "member@example.test") {
+		t.Fatalf("audit metadata leaked invite details: %#v", events[0].Metadata)
+	}
+}
+
+func TestSendInvitationSendsExpectedEmailBodyThroughBoundary(t *testing.T) {
+	sender := &recordingSender{id: "email_123"}
+	mailer := NewInvitationMailer(sender, app.NewAuditService())
+	mailer.BaseURL = "https://app.example.test"
+	mailer.From = "invites@example.test"
+
+	if _, err := mailer.SendInvitation(context.Background(), "user_1", "org_1", "member@example.test", "inv_1", "secret-token"); err != nil {
+		t.Fatalf("SendInvitation() error = %v", err)
+	}
+	if sender.message.From != "invites@example.test" || sender.message.To[0] != "member@example.test" || !strings.Contains(sender.message.Text, "secret-token") {
+		t.Fatalf("message = %#v", sender.message)
+	}
+}
+
+type recordingSender struct {
+	id      string
+	message email.Message
+}
+
+func (s *recordingSender) Send(_ context.Context, msg email.Message) (string, error) {
+	s.message = msg
+	return s.id, nil
+}
+
+func metadataValues(metadata map[string]string) []string {
+	values := make([]string, 0, len(metadata))
+	for _, value := range metadata {
+		values = append(values, value)
+	}
+	return values
+}
+`
+
+const providerResendEmailDocTemplate = `# Resend Email Starter
+
+This optional scaffold is generated only with ` + "`--with resend-email`" + `.
+
+- ` + "`internal/providers/resendemail`" + ` exposes an invitation mailer behind a small sender interface.
+- Local development uses a no-op sender fallback, so tests and setup do not require a provider account.
+- Audit metadata records the email provider ID and recipient domain only. Invitation tokens and full recipient addresses are not audit metadata.
+
+Configure ` + "`RESEND_API_KEY`" + `, ` + "`RESEND_FROM`" + `, and ` + "`APP_BASE_URL`" + ` before wiring the real Resend adapter.
+`
+
+const providerClerkWebhooksTemplate = `package clerkwebhooks
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/aatuh/api-toolkit/contrib/v2/audit"
+	"{{ .Module }}/internal/app"
+)
+
+type Verifier interface {
+	Verify(payload []byte, signature string) bool
+}
+
+type HMACVerifier struct {
+	Secret string
+}
+
+func (v HMACVerifier) Verify(payload []byte, signature string) bool {
+	secret := strings.TrimSpace(v.Secret)
+	signature = strings.TrimSpace(signature)
+	if secret == "" || signature == "" {
+		return false
+	}
+	signature = strings.TrimPrefix(signature, "sha256=")
+	got, err := hex.DecodeString(signature)
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	return hmac.Equal(got, mac.Sum(nil))
+}
+
+type Handler struct {
+	Verifier Verifier
+	Audit    *app.AuditService
+}
+
+func NewHandler(verifier Verifier, auditLog *app.AuditService) *Handler {
+	return &Handler{Verifier: verifier, Audit: auditLog}
+}
+
+type Event struct {
+	ID     string ` + "`json:\"id\"`" + `
+	Type   string ` + "`json:\"type\"`" + `
+	Data   struct {
+		ID     string ` + "`json:\"id\"`" + `
+		OrgID  string ` + "`json:\"org_id\"`" + `
+		UserID string ` + "`json:\"user_id\"`" + `
+	} ` + "`json:\"data\"`" + `
+}
+
+func (h *Handler) Handle(ctx context.Context, tenantID string, payload []byte, signature string) (Event, error) {
+	if err := ctx.Err(); err != nil {
+		return Event{}, err
+	}
+	if h == nil || h.Verifier == nil {
+		return Event{}, app.ErrValidation
+	}
+	if !h.Verifier.Verify(payload, signature) {
+		return Event{}, app.ErrForbidden
+	}
+	var event Event
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return Event{}, app.ErrValidation
+	}
+	event.ID = strings.TrimSpace(event.ID)
+	event.Type = strings.TrimSpace(event.Type)
+	event.Data.ID = strings.TrimSpace(event.Data.ID)
+	event.Data.OrgID = strings.TrimSpace(event.Data.OrgID)
+	event.Data.UserID = strings.TrimSpace(event.Data.UserID)
+	if event.ID == "" || event.Type == "" {
+		return Event{}, app.ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID != "" && event.Data.OrgID != "" && tenantID != event.Data.OrgID {
+		h.record(ctx, tenantID, "clerk", "clerk_webhook.tenant_mismatch", event.ID, audit.ResultFailure, map[string]string{"event_type": event.Type})
+		return Event{}, app.ErrForbidden
+	}
+	if tenantID == "" {
+		tenantID = event.Data.OrgID
+	}
+	if tenantID == "" {
+		return Event{}, app.ErrValidation
+	}
+	h.record(ctx, tenantID, "clerk", "clerk_webhook."+event.Type, event.ID, audit.ResultSuccess, map[string]string{"event_type": event.Type})
+	return event, nil
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "invalid webhook body", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.Handle(r.Context(), r.Header.Get("X-Tenant-ID"), body, r.Header.Get("X-Clerk-Signature")); err != nil {
+		if errors.Is(err, app.ErrForbidden) {
+			http.Error(w, "webhook rejected", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "webhook rejected", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) record(ctx context.Context, tenantID, actorID, action, eventID string, result audit.Result, metadata map[string]string) {
+	if h == nil || h.Audit == nil {
+		return
+	}
+	_ = h.Audit.Record(ctx, audit.Event{
+		TenantID: strings.TrimSpace(tenantID),
+		Actor: audit.Actor{Type: "provider", ID: strings.TrimSpace(actorID)},
+		Action: action,
+		Resource: audit.Resource{Type: "clerk_event", ID: strings.TrimSpace(eventID)},
+		Result: result,
+		Metadata: metadata,
+	})
+}
+`
+
+const providerClerkWebhooksTestTemplate = `package clerkwebhooks
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"strings"
+	"testing"
+
+	"{{ .Module }}/internal/app"
+)
+
+func TestHandleVerifiesSignatureAndRecordsAudit(t *testing.T) {
+	payload := []byte(` + "`" + `{"id":"evt_1","type":"organization.created","data":{"id":"org_1","org_id":"org_1","user_id":"user_1"}}` + "`" + `)
+	auditLog := app.NewAuditService()
+	handler := NewHandler(HMACVerifier{Secret: "clerk-secret"}, auditLog)
+
+	event, err := handler.Handle(context.Background(), "org_1", payload, signPayload("clerk-secret", payload))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if event.ID != "evt_1" || event.Data.OrgID != "org_1" {
+		t.Fatalf("event = %#v", event)
+	}
+	events, err := auditLog.Events(context.Background())
+	if err != nil || len(events) != 1 {
+		t.Fatalf("audit events=%#v err=%v", events, err)
+	}
+	if events[0].Action != "clerk_webhook.organization.created" || strings.Contains(strings.Join(metadataValues(events[0].Metadata), " "), "clerk-secret") {
+		t.Fatalf("unsafe audit event = %#v", events[0])
+	}
+}
+
+func TestHandleRejectsBadSignatureAndTenantMismatch(t *testing.T) {
+	payload := []byte(` + "`" + `{"id":"evt_1","type":"organization.updated","data":{"id":"org_2","org_id":"org_2","user_id":"user_1"}}` + "`" + `)
+	handler := NewHandler(HMACVerifier{Secret: "clerk-secret"}, app.NewAuditService())
+
+	if _, err := handler.Handle(context.Background(), "org_2", payload, "bad-signature"); !errors.Is(err, app.ErrForbidden) {
+		t.Fatalf("bad signature error = %v, want forbidden", err)
+	}
+	if _, err := handler.Handle(context.Background(), "org_1", payload, signPayload("clerk-secret", payload)); !errors.Is(err, app.ErrForbidden) {
+		t.Fatalf("tenant mismatch error = %v, want forbidden", err)
+	}
+}
+
+func signPayload(secret string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func metadataValues(metadata map[string]string) []string {
+	values := make([]string, 0, len(metadata))
+	for _, value := range metadata {
+		values = append(values, value)
+	}
+	return values
+}
+`
+
+const providerClerkWebhooksDocTemplate = `# Clerk Webhooks Starter
+
+This optional scaffold is generated only with ` + "`--with clerk-webhooks`" + `.
+
+- ` + "`internal/providers/clerkwebhooks`" + ` verifies signed callbacks before sync hooks trust provider payloads.
+- Tenant mismatches between the request tenant and provider organization are rejected and audited as failures.
+- Audit metadata includes event type only; webhook secrets and signatures are not recorded.
+
+Configure ` + "`CLERK_WEBHOOK_SECRET`" + ` before mounting the handler.
+`
 
 const goClientRuntimeTemplate = `import (
 	"bytes"
@@ -5160,6 +5937,11 @@ client:
 resources:
   # api-toolkit:manifest-resources
 providers:
+{{ if eq .HasStripeBilling "true" }}  - stripe-billing
+{{ end }}{{ if eq .HasResendEmail "true" }}  - resend-email
+{{ end }}{{ if eq .HasClerkWebhooks "true" }}  - clerk-webhooks
+{{ end }}{{ if eq .HasProviderWorkflows "true" }}
+{{ end }}
   # api-toolkit:manifest-providers
 `
 
@@ -17302,6 +18084,16 @@ API_ACTOR_ID=
 API_KEY_PEPPER=
 WEBHOOK_SECRET_KEY=
 ADMIN_KEY=local-admin-key
+{{ if eq .HasStripeBilling "true" }}STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_ID=
+STRIPE_SUCCESS_URL=http://localhost:8080/billing/success
+STRIPE_CANCEL_URL=http://localhost:8080/billing/cancel
+{{ end }}{{ if eq .HasResendEmail "true" }}RESEND_API_KEY=
+RESEND_FROM=
+APP_BASE_URL=http://localhost:8080
+{{ end }}{{ if eq .HasClerkWebhooks "true" }}CLERK_WEBHOOK_SECRET=
+{{ end }}
 {{ if eq .AuthMode "jwt" }}JWT_JWKS_URL=
 JWT_ISSUER=
 JWT_AUDIENCE=saas-api-full
@@ -17893,6 +18685,13 @@ Write routes record audit events with redaction-safe metadata; raw API-key secre
 The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
 Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
 API-key mode keeps ` + "`API_KEY`" + ` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup. Bootstrap requests use ` + "`API_ACTOR_ID`" + ` for production actor identity; in non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` before a generated API key exists.
+{{ if eq .HasProviderWorkflows "true" }}
+Optional provider workflows generated: {{ .ProviderWorkflows }}.
+{{ if eq .HasStripeBilling "true" }}` + "`internal/providers/stripebilling`" + ` creates tenant-scoped checkout sessions and verifies Stripe webhooks before audit writes.
+{{ end }}{{ if eq .HasResendEmail "true" }}` + "`internal/providers/resendemail`" + ` sends invitation emails through a sender boundary with a no-op local fallback.
+{{ end }}{{ if eq .HasClerkWebhooks "true" }}` + "`internal/providers/clerkwebhooks`" + ` verifies signed Clerk callbacks before user or organization sync hooks run.
+{{ end }}Provider SDKs and provider-specific imports stay in the generated app module; the toolkit root module remains provider-neutral.
+{{ end }}
 
 Useful checks:
 

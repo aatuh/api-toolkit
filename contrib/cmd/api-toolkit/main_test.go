@@ -400,6 +400,39 @@ func TestNewServiceRejectsUnsupportedAuthModes(t *testing.T) {
 	}
 }
 
+func TestNewServiceRejectsUnsupportedProviderWorkflows(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile string
+		with    string
+		want    string
+	}{
+		{name: "provider workflows require full profile", profile: "saas-api", with: "stripe-billing", want: "provider workflows require profile \"saas-api-full\""},
+		{name: "unknown provider workflow", profile: "saas-api-full", with: "mailchimp", want: "unsupported provider workflow \"mailchimp\""},
+		{name: "empty provider workflow", profile: "saas-api-full", with: " ", want: "provider workflow must not be empty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var errOut strings.Builder
+			code := run(context.Background(), []string{
+				"new", "service",
+				"--module", "example.com/my-api",
+				"--profile", tt.profile,
+				"--auth", "api-key",
+				"--with", tt.with,
+				"--dir", filepath.Join(t.TempDir(), "service"),
+			}, &strings.Builder{}, &errOut)
+			if code == 0 {
+				t.Fatal("expected unsupported provider workflow to fail")
+			}
+			if !strings.Contains(errOut.String(), tt.want) {
+				t.Fatalf("stderr = %q, want %q", errOut.String(), tt.want)
+			}
+		})
+	}
+}
+
 func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
@@ -1360,6 +1393,142 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service client check failed:\n%s\nerror: %v", output, err)
+	}
+}
+
+func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--auth", "api-key",
+		"--with", "stripe-billing",
+		"--with", "resend-email",
+		"--with", "clerk-webhooks",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new full service with providers failed: %s", out.String())
+	}
+
+	for _, name := range []string{
+		"internal/providers/stripebilling/billing.go",
+		"internal/providers/stripebilling/billing_test.go",
+		"internal/providers/resendemail/invitations.go",
+		"internal/providers/resendemail/invitations_test.go",
+		"internal/providers/clerkwebhooks/webhooks.go",
+		"internal/providers/clerkwebhooks/webhooks_test.go",
+		"docs/providers/stripe-billing.md",
+		"docs/providers/resend-email.md",
+		"docs/providers/clerk-webhooks.md",
+	} {
+		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
+			t.Fatalf("expected generated provider workflow %s: %v", name, err)
+		}
+	}
+
+	generatedManifest, err := os.ReadFile(filepath.Join(serviceDir, "api-toolkit.yaml"))
+	if err != nil {
+		t.Fatalf("read generated manifest: %v", err)
+	}
+	for _, want := range []string{"- stripe-billing", "- resend-email", "- clerk-webhooks"} {
+		if !strings.Contains(string(generatedManifest), want) {
+			t.Fatalf("generated manifest missing %q:\n%s", want, generatedManifest)
+		}
+	}
+
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated env: %v", err)
+	}
+	for _, want := range []string{
+		"STRIPE_SECRET_KEY=",
+		"STRIPE_WEBHOOK_SECRET=",
+		"STRIPE_PRICE_ID=",
+		"STRIPE_SUCCESS_URL=http://localhost:8080/billing/success",
+		"STRIPE_CANCEL_URL=http://localhost:8080/billing/cancel",
+		"RESEND_API_KEY=",
+		"RESEND_FROM=",
+		"APP_BASE_URL=http://localhost:8080",
+		"CLERK_WEBHOOK_SECRET=",
+	} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated env missing provider value %q:\n%s", want, generatedEnv)
+		}
+	}
+
+	generatedREADME, err := os.ReadFile(filepath.Join(serviceDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read generated README: %v", err)
+	}
+	for _, want := range []string{
+		"Optional provider workflows generated: `stripe-billing`, `resend-email`, `clerk-webhooks`.",
+		"`internal/providers/stripebilling` creates tenant-scoped checkout sessions and verifies Stripe webhooks before audit writes.",
+		"`internal/providers/resendemail` sends invitation emails through a sender boundary with a no-op local fallback.",
+		"`internal/providers/clerkwebhooks` verifies signed Clerk callbacks before user or organization sync hooks run.",
+	} {
+		if !strings.Contains(string(generatedREADME), want) {
+			t.Fatalf("generated README missing provider docs %q:\n%s", want, generatedREADME)
+		}
+	}
+
+	for path, wants := range map[string][]string{
+		"internal/providers/stripebilling/billing.go": {
+			"compatbilling.CheckoutSessionRequest",
+			"ParseWebhook",
+			"tenant_mismatch",
+			"stripe.checkout_session.create",
+		},
+		"internal/providers/resendemail/invitations.go": {
+			"type NoopSender struct{}",
+			"SendInvitation",
+			"invitation.email.send",
+			"recipient_domain",
+		},
+		"internal/providers/clerkwebhooks/webhooks.go": {
+			"HMACVerifier",
+			"X-Clerk-Signature",
+			"tenant_mismatch",
+			"clerk_webhook.",
+		},
+	} {
+		generated, err := os.ReadFile(filepath.Join(serviceDir, path))
+		if err != nil {
+			t.Fatalf("read generated provider file %s: %v", path, err)
+		}
+		for _, want := range wants {
+			if !strings.Contains(string(generated), want) {
+				t.Fatalf("generated %s missing %q:\n%s", path, want, generated)
+			}
+		}
+	}
+
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated provider service tidy failed:\n%s\nerror: %v", output, err)
+	}
+	generatedMod, err := os.ReadFile(filepath.Join(serviceDir, "go.mod"))
+	if err != nil {
+		t.Fatalf("read generated go.mod: %v", err)
+	}
+	for _, notWant := range []string{"github.com/stripe/stripe-go", "github.com/resend/resend-go", "github.com/clerk/clerk-sdk-go"} {
+		if strings.Contains(string(generatedMod), notWant) {
+			t.Fatalf("generated app should not add provider SDK directly %q:\n%s", notWant, generatedMod)
+		}
+	}
+	cmd = exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated provider service tests failed:\n%s\nerror: %v", output, err)
 	}
 }
 
