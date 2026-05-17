@@ -23,7 +23,10 @@ replay, optimistic-update ETags, contrib migrator-compatible Postgres
 Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
 checks, contract lint/diff targets, generated HTTP smoke tests, and a generated
 widget import operation that returns `202 Accepted` and can be polled. The
-generated application layer now includes organizations, memberships,
+scaffold now also emits `api-toolkit.yaml`, which lets
+`api-toolkit generate resource` add tenant-scoped CRUD resources through
+generated anchors rather than arbitrary source rewriting. The generated
+application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
 invitation acceptance. It also includes generated API-key lifecycle services
 and routes for create/list/revoke, scoped permissions, last-used tracking, and
@@ -169,6 +172,14 @@ The full profile standardizes these defaults:
   reachable on the public handler and requires `X-Admin-Key` on the admin
   handler.
 - OpenAPI 3.1 and a typed Go client are generated from route contracts.
+- `api-toolkit generate resource --tenant-scoped --crud --postgres
+  --soft-delete --etag --audit --webhooks` is supported inside generated
+  `saas-api-full` projects. It adds domain/app/Postgres/httpapi files,
+  a new `*.up.sql` migration, OpenAPI route contracts, audit and webhook hooks,
+  checked-in typed client regeneration, and a `resource-check` Makefile target.
+  The generator fails closed when `api-toolkit.yaml` is missing, the profile is
+  not `saas-api-full`, the resource already exists, or expected generated
+  anchors were removed.
 - Detailed health, metrics, and pprof remain operator-only; a separate admin
   listener is preferred when configured.
 
@@ -220,6 +231,10 @@ The profile generates or is expected to generate:
   non-root security contexts, and `/livez`/`/readyz` probes.
 - A checked-in typed Go client plus a generated `client-check` target that
   regenerates with `api-toolkit clients go --style typed`.
+- A generated `api-toolkit.yaml` manifest with profile, module, OpenAPI path,
+  typed Go client output path, resource inventory, provider inventory, and
+  generator version. Resource generation updates this manifest and runs the
+  OpenAPI golden/client regeneration path automatically.
 
 ## Support Tier
 

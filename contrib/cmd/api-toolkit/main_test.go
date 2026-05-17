@@ -950,6 +950,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"internal/httpapi/router_test.go",
 		"internal/httpapi/openapi.go",
 		"internal/client/apiclient/client.go",
+		"api-toolkit.yaml",
 		"cmd/migrate/main.go",
 		"migrations/20260517000100_platform.up.sql",
 		"scripts/integration_check.sh",
@@ -982,6 +983,16 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
 	if err != nil {
 		t.Fatalf("read generated full-profile .env.example: %v", err)
+	}
+
+	generatedManifest, err := os.ReadFile(filepath.Join(serviceDir, "api-toolkit.yaml"))
+	if err != nil {
+		t.Fatalf("read generated api-toolkit.yaml: %v", err)
+	}
+	for _, want := range []string{"profile: saas-api-full", "module: example.com/my-api", "openapi: testdata/openapi.golden.json", "generator_version:", "resources:", "providers:"} {
+		if !strings.Contains(string(generatedManifest), want) {
+			t.Fatalf("generated api-toolkit.yaml missing %q:\n%s", want, generatedManifest)
+		}
 	}
 	for _, want := range []string{
 		"DATABASE_URL=",
@@ -1065,7 +1076,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStoreAndEndpointPolicy", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.EndpointPolicy", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "backgroundTasks", "cfg.AsyncWorkerEnabled", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookServiceWithEndpointPolicy", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStoreAndEndpointPolicy", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.EndpointPolicy", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "backgroundTasks", "cfg.AsyncWorkerEnabled", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookServiceWithEndpointPolicy", "app.NewObjectService", "app.NewCacheService", "Audit:", "Webhooks:", "Objects:", "Cache:", "Metrics:", "MetricsHandler:", "OpenAPIValidation:", "RateLimit:", "Idempotency:", "Readiness:"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
@@ -1132,7 +1143,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "migrate-up:", "migrate-status:", "migrate-check:", "--style typed", "$(GO) build -trimpath -o bin/migrate ./cmd/migrate", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "resource-check:", "migrate-up:", "migrate-status:", "migrate-check:", "--style typed", "$(GO) build -trimpath -o bin/migrate ./cmd/migrate", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
@@ -1349,6 +1360,168 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service client check failed:\n%s\nerror: %v", output, err)
+	}
+}
+
+func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new full service failed: %s", out.String())
+	}
+	out.Reset()
+	code = run(context.Background(), []string{
+		"generate", "resource",
+		"--dir", serviceDir,
+		"--name", "project",
+		"--plural", "projects",
+		"--tenant-scoped",
+		"--crud",
+		"--postgres",
+		"--soft-delete",
+		"--etag",
+		"--audit",
+		"--webhooks",
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("generate resource failed: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "generated resource projects") {
+		t.Fatalf("generate resource output = %q", out.String())
+	}
+	for _, name := range []string{
+		"internal/domain/project.go",
+		"internal/app/projects.go",
+		"internal/app/projects_test.go",
+		"internal/adapters/postgres/projects.go",
+		"internal/adapters/postgres/projects_test.go",
+		"internal/httpapi/projects.go",
+		"internal/httpapi/projects_test.go",
+		"migrations/20260517000200_projects.up.sql",
+	} {
+		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {
+			t.Fatalf("expected generated resource file %s: %v", name, err)
+		}
+	}
+	generatedManifest, err := os.ReadFile(filepath.Join(serviceDir, "api-toolkit.yaml"))
+	if err != nil {
+		t.Fatalf("read generated manifest after resource: %v", err)
+	}
+	for _, want := range []string{"name: project", "plural: projects", "tenant_scoped: true", "postgres: true", "soft_delete: true", "etag: true", "audit: true", "webhooks: true"} {
+		if !strings.Contains(string(generatedManifest), want) {
+			t.Fatalf("generated manifest missing resource %q:\n%s", want, generatedManifest)
+		}
+	}
+	generatedRouter, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "router.go"))
+	if err != nil {
+		t.Fatalf("read router after resource: %v", err)
+	}
+	for _, want := range []string{"Projects *app.ProjectService", `r.Get("/projects"`, `r.Post("/projects"`, `registerPatch(r, "/projects/{id}"`, `r.Delete("/projects/{id}"`} {
+		if !strings.Contains(string(generatedRouter), want) {
+			t.Fatalf("generated router missing resource wiring %q", want)
+		}
+	}
+	generatedMain, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "api", "main.go"))
+	if err != nil {
+		t.Fatalf("read main after resource: %v", err)
+	}
+	for _, want := range []string{"projects := app.NewProjectService()", "projects = app.NewProjectServiceWithStore(postgres.NewProjectStore(pool))", "Projects:"} {
+		if !strings.Contains(string(generatedMain), want) {
+			t.Fatalf("generated main missing resource wiring %q", want)
+		}
+	}
+	generatedOpenAPI, err := os.ReadFile(filepath.Join(serviceDir, "internal", "httpapi", "openapi.go"))
+	if err != nil {
+		t.Fatalf("read openapi after resource: %v", err)
+	}
+	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject"} {
+		if !strings.Contains(string(generatedOpenAPI), want) {
+			t.Fatalf("generated openapi missing resource wiring %q", want)
+		}
+	}
+	cmd := exec.CommandContext(context.Background(), "go", "test", "./...")
+	cmd.Dir = serviceDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated resource service tests failed:\n%s\nerror: %v", output, err)
+	}
+	cmd = exec.CommandContext(context.Background(), "make", "resource-check")
+	cmd.Dir = serviceDir
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated resource-check failed:\n%s\nerror: %v", output, err)
+	}
+}
+
+func TestGenerateResourceFailsOutsideFullProfile(t *testing.T) {
+	tmp := t.TempDir()
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"generate", "resource",
+		"--dir", tmp,
+		"--name", "project",
+		"--plural", "projects",
+		"--tenant-scoped",
+		"--crud",
+	}, &out, &out)
+	if code == 0 {
+		t.Fatalf("generate resource unexpectedly succeeded: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "api-toolkit.yaml") {
+		t.Fatalf("generate resource error should mention manifest, got: %s", out.String())
+	}
+}
+
+func TestGenerateResourceFailsClosedWhenAnchorsMissing(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmp := t.TempDir()
+	serviceDir := filepath.Join(tmp, "service")
+	var out strings.Builder
+	code := run(context.Background(), []string{
+		"new", "service",
+		"--module", "example.com/my-api",
+		"--profile", "saas-api-full",
+		"--dir", serviceDir,
+		"--core-replace", repoRoot,
+		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
+	}, &out, &out)
+	if code != 0 {
+		t.Fatalf("new full service failed: %s", out.String())
+	}
+	routerPath := filepath.Join(serviceDir, "internal", "httpapi", "router.go")
+	router, err := os.ReadFile(routerPath)
+	if err != nil {
+		t.Fatalf("read router: %v", err)
+	}
+	router = []byte(strings.ReplaceAll(string(router), "// api-toolkit:router-register-routes", "// removed"))
+	// #nosec G703 -- test path is inside t.TempDir and is intentionally mutated to simulate a dirty generated anchor.
+	if err := os.WriteFile(routerPath, router, 0o600); err != nil {
+		t.Fatalf("dirty router: %v", err)
+	}
+	out.Reset()
+	code = run(context.Background(), []string{
+		"generate", "resource",
+		"--dir", serviceDir,
+		"--name", "project",
+		"--plural", "projects",
+		"--tenant-scoped",
+		"--crud",
+	}, &out, &out)
+	if code == 0 {
+		t.Fatalf("generate resource unexpectedly succeeded: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "generated anchors missing") {
+		t.Fatalf("generate resource error should mention missing anchors, got: %s", out.String())
 	}
 }
 

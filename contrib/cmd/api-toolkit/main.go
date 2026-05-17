@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -51,7 +52,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		stderr = io.Discard
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: api-toolkit <new|contracts|clients|version>")
+		fmt.Fprintln(stderr, "usage: api-toolkit <new|generate|contracts|clients|version>")
 		return 2
 	}
 	switch args[0] {
@@ -59,6 +60,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runVersion(args[1:], stdout, stderr)
 	case "new":
 		return runNew(ctx, args[1:], stdout, stderr)
+	case "generate":
+		return runGenerate(ctx, args[1:], stdout, stderr)
 	case "contracts":
 		return runContracts(ctx, args[1:], stdout, stderr)
 	case "clients":
@@ -255,6 +258,50 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "created %s\n", cfg.Dir)
+	return 0
+}
+
+func runGenerate(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 || args[0] != "resource" {
+		fmt.Fprintln(stderr, "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--dir <path>]")
+		return 2
+	}
+	fs := flag.NewFlagSet("generate resource", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("dir", ".", "generated service directory")
+	name := fs.String("name", "", "singular resource name")
+	plural := fs.String("plural", "", "plural resource name")
+	tenantScoped := fs.Bool("tenant-scoped", false, "generate tenant-scoped resource")
+	crud := fs.Bool("crud", false, "generate CRUD endpoints")
+	postgres := fs.Bool("postgres", false, "generate Postgres adapter and migration")
+	softDelete := fs.Bool("soft-delete", false, "generate soft delete semantics")
+	etag := fs.Bool("etag", false, "generate optimistic concurrency with ETags")
+	audit := fs.Bool("audit", false, "record audit hooks")
+	webhooks := fs.Bool("webhooks", false, "emit webhook hooks")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if err := ctx.Err(); err != nil {
+		fmt.Fprintf(stderr, "context canceled: %v\n", err)
+		return 1
+	}
+	cfg := resourceConfig{
+		Dir:          strings.TrimSpace(*dir),
+		Name:         strings.TrimSpace(*name),
+		Plural:       strings.TrimSpace(*plural),
+		TenantScoped: *tenantScoped,
+		CRUD:         *crud,
+		Postgres:     *postgres,
+		SoftDelete:   *softDelete,
+		ETag:         *etag,
+		Audit:        *audit,
+		Webhooks:     *webhooks,
+	}
+	if err := generateResource(ctx, cfg); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "generated resource %s\n", cfg.Plural)
 	return 0
 }
 
@@ -566,6 +613,1169 @@ func writeGeneratedFileReplace(root *os.Root, name string, data []byte) error {
 	}
 	return nil
 }
+
+type resourceConfig struct {
+	Dir          string
+	Name         string
+	Plural       string
+	TenantScoped bool
+	CRUD         bool
+	Postgres     bool
+	SoftDelete   bool
+	ETag         bool
+	Audit        bool
+	Webhooks     bool
+}
+
+type resourceManifest struct {
+	Profile       string
+	Module        string
+	OpenAPI       string
+	ClientPath    string
+	ClientPackage string
+	Resources     map[string]bool
+}
+
+type resourceTemplateData struct {
+	Module     string
+	Name       string
+	Plural     string
+	Type       string
+	Field      string
+	Var        string
+	Table      string
+	ScopeRead  string
+	ScopeWrite string
+	Migration  string
+	Prefix     string
+}
+
+func generateResource(ctx context.Context, cfg resourceConfig) error {
+	if err := validateResourceConfig(cfg); err != nil {
+		return err
+	}
+	rootDir, err := safeOutputDir(cfg.Dir)
+	if err != nil {
+		return err
+	}
+	manifestPath := filepath.Join(rootDir, "api-toolkit.yaml")
+	// #nosec G304 -- rootDir is validated and the manifest filename is fixed.
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errors.New("api-toolkit.yaml is required; run this inside a generated saas-api-full project")
+		}
+		return fmt.Errorf("read api-toolkit.yaml: %w", err)
+	}
+	manifest := parseResourceManifest(manifestBytes)
+	if manifest.Profile != scaffoldProfileSaaSAPIFull {
+		return fmt.Errorf("api-toolkit.yaml profile must be %q", scaffoldProfileSaaSAPIFull)
+	}
+	if manifest.Module == "" {
+		return errors.New("api-toolkit.yaml module is required")
+	}
+	if manifest.Resources[cfg.Name] || manifest.Resources[cfg.Plural] {
+		return fmt.Errorf("resource %q already exists", cfg.Name)
+	}
+	data := resourceTemplateData{
+		Module:     manifest.Module,
+		Name:       cfg.Name,
+		Plural:     cfg.Plural,
+		Type:       exportedGoIdentifier(cfg.Name),
+		Field:      exportedGoIdentifier(cfg.Plural),
+		Var:        goParamName(cfg.Name),
+		Table:      cfg.Plural,
+		ScopeRead:  cfg.Plural + ":read",
+		ScopeWrite: cfg.Plural + ":write",
+		Migration:  nextResourceMigrationName(rootDir, cfg.Plural),
+		Prefix:     resourceIDPrefix(cfg.Name),
+	}
+	if err := assertResourceAnchors(rootDir); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(rootDir)
+	if err != nil {
+		return fmt.Errorf("open project root: %w", err)
+	}
+	defer root.Close()
+	files := []struct {
+		name string
+		body string
+	}{
+		{fmt.Sprintf("internal/domain/%s.go", cfg.Name), resourceDomainTemplate},
+		{fmt.Sprintf("internal/app/%s.go", cfg.Plural), resourceAppTemplate},
+		{fmt.Sprintf("internal/app/%s_test.go", cfg.Plural), resourceAppTestTemplate},
+		{fmt.Sprintf("internal/adapters/postgres/%s.go", cfg.Plural), resourcePostgresTemplate},
+		{fmt.Sprintf("internal/adapters/postgres/%s_test.go", cfg.Plural), resourcePostgresTestTemplate},
+		{fmt.Sprintf("internal/httpapi/%s.go", cfg.Plural), resourceHTTPTemplate},
+		{fmt.Sprintf("internal/httpapi/%s_test.go", cfg.Plural), resourceHTTPTestTemplate},
+		{filepath.Join("migrations", data.Migration), resourceMigrationTemplate},
+	}
+	for _, file := range files {
+		rendered, err := renderResourceTemplate(file.name, file.body, data)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(file.name, ".go") {
+			rendered, err = format.Source(rendered)
+			if err != nil {
+				return fmt.Errorf("format %s: %w", file.name, err)
+			}
+		}
+		if err := writeGeneratedFile(root, file.name, rendered); err != nil {
+			return err
+		}
+	}
+	patches := []resourcePatch{
+		{Path: "api-toolkit.yaml", Anchor: "  # api-toolkit:manifest-resources", Insert: renderResourceManifestEntry(cfg)},
+		{Path: "cmd/api/main.go", Anchor: "\t// api-toolkit:main-service-defaults", Insert: fmt.Sprintf("\t%s := app.New%sService()\n", data.Plural, data.Type)},
+		{Path: "cmd/api/main.go", Anchor: "\t\t// api-toolkit:main-postgres-stores", Insert: fmt.Sprintf("\t\t%s = app.New%sServiceWithStore(postgres.New%sStore(pool))\n", data.Plural, data.Type, data.Type)},
+		{Path: "cmd/api/main.go", Anchor: "\t\t// api-toolkit:main-router-config", Insert: fmt.Sprintf("\t\t%s: %s,\n", data.Field, data.Plural)},
+		{Path: "internal/adapters/postgres/postgres.go", Anchor: "\t// api-toolkit:postgres-required-tables", Insert: fmt.Sprintf("\t%q,\n", data.Table)},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-config-fields", Insert: fmt.Sprintf("\t%s *app.%sService\n", data.Field, data.Type)},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-register-routes", Insert: renderResourceRouteRegistrations(data)},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-default-services", Insert: fmt.Sprintf("\tif cfg.%s == nil {\n\t\tcfg.%s = app.New%sService()\n\t}\n", data.Field, data.Field, data.Type)},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-schemas", Insert: renderResourceOpenAPISchemas(data)},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t\t\t// api-toolkit:openapi-webhook-event-types", Insert: fmt.Sprintf("\t\t\t\t%q,\n\t\t\t\t%q,\n\t\t\t\t%q,\n", data.Name+".created", data.Name+".updated", data.Name+".deleted")},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-operation-variables", Insert: renderResourceOpenAPIVariables(data)},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t// api-toolkit:openapi-operations", Insert: renderResourceOpenAPIOperations(data)},
+		{Path: "internal/app/webhooks.go", Anchor: "\t// api-toolkit:webhook-event-types", Insert: fmt.Sprintf("\t%q,\n\t%q,\n\t%q,\n", data.Name+".created", data.Name+".updated", data.Name+".deleted")},
+	}
+	for _, patch := range patches {
+		if err := applyResourcePatch(rootDir, patch); err != nil {
+			return err
+		}
+	}
+	for _, name := range []string{
+		"cmd/api/main.go",
+		"internal/adapters/postgres/postgres.go",
+		"internal/httpapi/router.go",
+		"internal/httpapi/openapi.go",
+		"internal/app/webhooks.go",
+	} {
+		if err := formatGoFile(filepath.Join(rootDir, name)); err != nil {
+			return err
+		}
+	}
+	if err := runResourceCommand(ctx, rootDir, []string{"go", "mod", "tidy"}, nil); err != nil {
+		return err
+	}
+	if err := runResourceCommand(ctx, rootDir, []string{"go", "test", "./internal/httpapi", "-run", "TestOpenAPIGolden"}, []string{"UPDATE_OPENAPI=1"}); err != nil {
+		return err
+	}
+	openAPIPath := manifest.OpenAPI
+	if openAPIPath == "" {
+		openAPIPath = "testdata/openapi.golden.json"
+	}
+	clientPath := manifest.ClientPath
+	if clientPath == "" {
+		clientPath = "internal/client/apiclient"
+	}
+	clientPackage := manifest.ClientPackage
+	if clientPackage == "" {
+		clientPackage = "apiclient"
+	}
+	return generateGoClient(goClientConfig{
+		OpenAPIPath: filepath.Join(rootDir, openAPIPath),
+		OutDir:      filepath.Join(rootDir, clientPath),
+		Package:     clientPackage,
+		Style:       goClientStyleTyped,
+	})
+}
+
+func validateResourceConfig(cfg resourceConfig) error {
+	if !validResourceName(cfg.Name) {
+		return fmt.Errorf("invalid resource name %q", cfg.Name)
+	}
+	if !validResourceName(cfg.Plural) {
+		return fmt.Errorf("invalid resource plural %q", cfg.Plural)
+	}
+	if cfg.Name == cfg.Plural {
+		return errors.New("--plural must differ from --name")
+	}
+	if !cfg.TenantScoped {
+		return errors.New("--tenant-scoped is required")
+	}
+	if !cfg.CRUD {
+		return errors.New("--crud is required")
+	}
+	return nil
+}
+
+func validResourceName(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || value != strings.ToLower(value) {
+		return false
+	}
+	if !isASCIILetter(value[0]) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if isASCIILetter(value[i]) || isASCIIDigit(value[i]) || value[i] == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func parseResourceManifest(data []byte) resourceManifest {
+	manifest := resourceManifest{Resources: map[string]bool{}}
+	lines := strings.Split(string(data), "\n")
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		switch {
+		case strings.HasPrefix(line, "profile:"):
+			manifest.Profile = strings.TrimSpace(strings.TrimPrefix(line, "profile:"))
+		case strings.HasPrefix(line, "module:"):
+			manifest.Module = strings.TrimSpace(strings.TrimPrefix(line, "module:"))
+		case strings.HasPrefix(line, "openapi:"):
+			manifest.OpenAPI = strings.TrimSpace(strings.TrimPrefix(line, "openapi:"))
+		case strings.HasPrefix(line, "path:") && manifest.ClientPath == "":
+			manifest.ClientPath = strings.TrimSpace(strings.TrimPrefix(line, "path:"))
+		case strings.HasPrefix(line, "package:") && manifest.ClientPackage == "":
+			manifest.ClientPackage = strings.TrimSpace(strings.TrimPrefix(line, "package:"))
+		case strings.HasPrefix(line, "- name:"):
+			name := strings.TrimSpace(strings.TrimPrefix(line, "- name:"))
+			if name != "" {
+				manifest.Resources[name] = true
+			}
+		}
+	}
+	return manifest
+}
+
+func assertResourceAnchors(rootDir string) error {
+	anchors := []resourcePatch{
+		{Path: "api-toolkit.yaml", Anchor: "  # api-toolkit:manifest-resources"},
+		{Path: "cmd/api/main.go", Anchor: "\t// api-toolkit:main-service-defaults"},
+		{Path: "cmd/api/main.go", Anchor: "\t\t// api-toolkit:main-postgres-stores"},
+		{Path: "cmd/api/main.go", Anchor: "\t\t// api-toolkit:main-router-config"},
+		{Path: "internal/adapters/postgres/postgres.go", Anchor: "\t// api-toolkit:postgres-required-tables"},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-config-fields"},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-register-routes"},
+		{Path: "internal/httpapi/router.go", Anchor: "\t// api-toolkit:router-default-services"},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-schemas"},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t\t\t// api-toolkit:openapi-webhook-event-types"},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t// api-toolkit:openapi-operation-variables"},
+		{Path: "internal/httpapi/openapi.go", Anchor: "\t\t// api-toolkit:openapi-operations"},
+		{Path: "internal/app/webhooks.go", Anchor: "\t// api-toolkit:webhook-event-types"},
+	}
+	for _, anchor := range anchors {
+		// #nosec G304 -- rootDir is validated and anchor paths are fixed generator-owned relative paths.
+		data, err := os.ReadFile(filepath.Join(rootDir, anchor.Path))
+		if err != nil {
+			return fmt.Errorf("read %s: %w", anchor.Path, err)
+		}
+		if strings.Count(string(data), anchor.Anchor) != 1 {
+			return fmt.Errorf("generated anchors missing or dirty in %s", anchor.Path)
+		}
+	}
+	return nil
+}
+
+type resourcePatch struct {
+	Path   string
+	Anchor string
+	Insert string
+}
+
+func applyResourcePatch(rootDir string, patch resourcePatch) error {
+	path := filepath.Join(rootDir, patch.Path)
+	// #nosec G304 -- rootDir is validated and patch paths are fixed generator-owned relative paths.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", patch.Path, err)
+	}
+	content := string(data)
+	if strings.Count(content, patch.Anchor) != 1 {
+		return fmt.Errorf("generated anchors missing or dirty in %s", patch.Path)
+	}
+	content = strings.Replace(content, patch.Anchor, patch.Insert+patch.Anchor, 1)
+	// #nosec G703 -- rootDir is validated and patch paths are fixed generator-owned relative paths.
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", patch.Path, err)
+	}
+	return nil
+}
+
+func renderResourceTemplate(name, body string, data resourceTemplateData) ([]byte, error) {
+	tmpl, err := template.New(name).Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", name, err)
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, data); err != nil {
+		return nil, fmt.Errorf("render %s: %w", name, err)
+	}
+	return out.Bytes(), nil
+}
+
+func formatGoFile(path string) error {
+	// #nosec G304 -- caller passes fixed generator-owned Go files under the validated scaffold root.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	formatted, err := format.Source(data)
+	if err != nil {
+		return fmt.Errorf("format %s: %w", path, err)
+	}
+	// #nosec G703 -- path is a fixed generator-owned Go file under the validated scaffold root.
+	return os.WriteFile(path, formatted, 0o600)
+}
+
+func runResourceCommand(ctx context.Context, dir string, args []string, env []string) error {
+	if len(args) == 0 {
+		return errors.New("resource command is required")
+	}
+	// #nosec G204 -- callers pass fixed go command vectors, not user-controlled shell input.
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s failed: %w\n%s", strings.Join(args, " "), err, output)
+	}
+	return nil
+}
+
+func nextResourceMigrationName(rootDir, plural string) string {
+	matches, _ := filepath.Glob(filepath.Join(rootDir, "migrations", "*.up.sql"))
+	version := 20260517000100 + len(matches)*100
+	return fmt.Sprintf("%014d_%s.up.sql", version, plural)
+}
+
+func resourceIDPrefix(name string) string {
+	parts := identifierParts(name)
+	if len(parts) == 0 {
+		return "res"
+	}
+	value := strings.ToLower(parts[0])
+	if len(value) >= 3 {
+		return value[:3]
+	}
+	return value
+}
+
+func renderResourceManifestEntry(cfg resourceConfig) string {
+	return fmt.Sprintf("  - name: %s\n    plural: %s\n    tenant_scoped: %t\n    crud: %t\n    postgres: %t\n    soft_delete: %t\n    etag: %t\n    audit: %t\n    webhooks: %t\n", cfg.Name, cfg.Plural, cfg.TenantScoped, cfg.CRUD, cfg.Postgres, cfg.SoftDelete, cfg.ETag, cfg.Audit, cfg.Webhooks)
+}
+
+func renderResourceRouteRegistrations(data resourceTemplateData) string {
+	return fmt.Sprintf("\tr.Get(%q, cfg.protect(%q, http.HandlerFunc(cfg.handleList%s)).ServeHTTP)\n\tr.Post(%q, cfg.protect(%q, cfg.idempotent(http.HandlerFunc(cfg.handleCreate%s))).ServeHTTP)\n\tregisterPatch(r, %q, cfg.protect(%q, cfg.idempotent(http.HandlerFunc(cfg.handleUpdate%s))).ServeHTTP)\n\tr.Delete(%q, cfg.protect(%q, cfg.idempotent(http.HandlerFunc(cfg.handleDelete%s))).ServeHTTP)\n",
+		"/"+data.Plural, data.ScopeRead, data.Field,
+		"/"+data.Plural, data.ScopeWrite, data.Type,
+		"/"+data.Plural+"/{id}", data.ScopeWrite, data.Type,
+		"/"+data.Plural+"/{id}", data.ScopeWrite, data.Type,
+	)
+}
+
+func renderResourceOpenAPISchemas(data resourceTemplateData) string {
+	return fmt.Sprintf(`	registry.RegisterSchema("%s", map[string]any{
+		"type":     "object",
+		"required": []string{"id", "tenant_id", "name", "version"},
+		"properties": map[string]any{
+			"id":         map[string]any{"type": "string"},
+			"tenant_id":  map[string]any{"type": "string"},
+			"name":       map[string]any{"type": "string"},
+			"version":    map[string]any{"type": "integer", "format": "int64"},
+			"created_at": map[string]any{"type": "string", "format": "date-time"},
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+	})
+	registry.RegisterSchema("%sCreateRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"name"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
+		},
+	})
+	registry.RegisterSchema("%sList", map[string]any{
+		"type":     "object",
+		"required": []string{"items"},
+		"properties": map[string]any{
+			"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/%s"}},
+			"next_cursor": map[string]any{"type": "string", "nullable": true},
+		},
+	})
+`, data.Type, data.Type, data.Type, data.Type)
+}
+
+func renderResourceOpenAPIVariables(data resourceTemplateData) string {
+	varName := goParamName(data.Name)
+	return fmt.Sprintf(`	%sBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/%sCreateRequest"},
+		},
+	}
+	%sResponse := specs.Response{
+		Description: "%s",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/%s"},
+		},
+	}
+	%sListResponse := specs.Response{
+		Description: "%s list",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/%sList"},
+		},
+	}
+`, varName, data.Type, varName, data.Type, data.Type, varName, data.Type, data.Type)
+}
+
+func renderResourceOpenAPIOperations(data resourceTemplateData) string {
+	varName := goParamName(data.Name)
+	return fmt.Sprintf(`		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "list%s",
+			Method:      http.MethodGet,
+			Path:        "/%s",
+			Summary:     "List %s",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "cursor", In: "query", Required: false, Schema: map[string]any{"type": "string"}},
+				{Name: "limit", In: "query", Required: false, Schema: map[string]any{"type": "integer", "minimum": 1, "maximum": 100}},
+			},
+			Security: auth("%s"),
+			Responses: map[int]specs.Response{http.StatusOK: %sListResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "create%s",
+			Method:      http.MethodPost,
+			Path:        "/%s",
+			Summary:     "Create %s",
+			Parameters: []specs.Parameter{
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("%s"),
+			RequestBody: %sBody,
+			Responses:   map[int]specs.Response{http.StatusCreated: %sResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "update%s",
+			Method:      http.MethodPatch,
+			Path:        "/%s/{id}",
+			Summary:     "Update %s",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "If-Match", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("%s"),
+			RequestBody: %sBody,
+			Responses:   map[int]specs.Response{http.StatusOK: %sResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "delete%s",
+			Method:      http.MethodDelete,
+			Path:        "/%s/{id}",
+			Summary:     "Delete %s",
+			Parameters: []specs.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("%s"),
+			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+`, data.Field, data.Plural, data.Plural, data.ScopeRead, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite)
+}
+
+const resourceDomainTemplate = `package domain
+
+import (
+	"fmt"
+	"time"
+)
+
+type {{ .Type }} struct {
+	ID        string
+	TenantID  string
+	Name      string
+	Version   int64
+	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (r {{ .Type }}) ETag() string {
+	return fmt.Sprintf("%q", r.Version)
+}
+
+func (r {{ .Type }}) Public() map[string]any {
+	return map[string]any{
+		"id":         r.ID,
+		"tenant_id":  r.TenantID,
+		"name":       r.Name,
+		"version":    r.Version,
+		"created_at": r.CreatedAt,
+		"updated_at": r.UpdatedAt,
+	}
+}
+`
+
+const resourceAppTemplate = `package app
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"{{ .Module }}/internal/domain"
+)
+
+type {{ .Type }}Store interface {
+	Create(context.Context, domain.{{ .Type }}) error
+	Save(context.Context, domain.{{ .Type }}) error
+	Get(context.Context, string, string) (domain.{{ .Type }}, bool, error)
+	List(context.Context, string, string, int) ([]domain.{{ .Type }}, string, error)
+}
+
+type {{ .Type }}Service struct {
+	mu     sync.Mutex
+	next   int
+	now    func() time.Time
+	store  {{ .Type }}Store
+	items  map[string]domain.{{ .Type }}
+}
+
+func New{{ .Type }}Service() *{{ .Type }}Service {
+	return &{{ .Type }}Service{
+		now:   time.Now,
+		items: map[string]domain.{{ .Type }}{},
+	}
+}
+
+func New{{ .Type }}ServiceWithStore(store {{ .Type }}Store) *{{ .Type }}Service {
+	service := New{{ .Type }}Service()
+	service.store = store
+	return service
+}
+
+func (s *{{ .Type }}Service) List(ctx context.Context, tenantID, cursor string, limit int) ([]domain.{{ .Type }}, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
+	if s == nil {
+		return nil, "", ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	cursor = strings.TrimSpace(cursor)
+	if tenantID == "" {
+		return nil, "", ErrValidation
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if s.store != nil {
+		return s.store.List(ctx, tenantID, cursor, limit)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items := make([]domain.{{ .Type }}, 0, len(s.items))
+	for _, item := range s.items {
+		if item.TenantID != tenantID || item.DeletedAt != nil {
+			continue
+		}
+		if cursor != "" && item.ID <= cursor {
+			continue
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	next := ""
+	if len(items) > limit {
+		next = items[limit-1].ID
+		items = items[:limit]
+	}
+	return items, next, nil
+}
+
+func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string) (domain.{{ .Type }}, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.{{ .Type }}{}, err
+	}
+	if s == nil {
+		return domain.{{ .Type }}{}, ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	name = strings.TrimSpace(name)
+	if tenantID == "" || name == "" {
+		return domain.{{ .Type }}{}, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.next++
+	now := s.now().UTC()
+	item := domain.{{ .Type }}{
+		ID:        fmt.Sprintf("{{ .Prefix }}_%06d", s.next),
+		TenantID:  tenantID,
+		Name:      name,
+		Version:   1,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if s.store != nil {
+		if err := s.store.Create(ctx, item); err != nil {
+			return domain.{{ .Type }}{}, err
+		}
+	} else {
+		s.items[item.ID] = item
+	}
+	return item, nil
+}
+
+func (s *{{ .Type }}Service) Update(ctx context.Context, tenantID, id, name, ifMatch string) (domain.{{ .Type }}, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.{{ .Type }}{}, err
+	}
+	if s == nil {
+		return domain.{{ .Type }}{}, ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	ifMatch = strings.TrimSpace(ifMatch)
+	if tenantID == "" || id == "" || name == "" || ifMatch == "" {
+		return domain.{{ .Type }}{}, ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, found, err := s.getLocked(ctx, tenantID, id)
+	if err != nil {
+		return domain.{{ .Type }}{}, err
+	}
+	if !found {
+		return domain.{{ .Type }}{}, ErrNotFound
+	}
+	if item.ETag() != ifMatch {
+		return domain.{{ .Type }}{}, ErrPreconditionFailed
+	}
+	item.Name = name
+	item.Version++
+	item.UpdatedAt = s.now().UTC()
+	if s.store != nil {
+		if err := s.store.Save(ctx, item); err != nil {
+			return domain.{{ .Type }}{}, err
+		}
+	} else {
+		s.items[item.ID] = item
+	}
+	return item, nil
+}
+
+func (s *{{ .Type }}Service) Delete(ctx context.Context, tenantID, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	id = strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return ErrValidation
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, found, err := s.getLocked(ctx, tenantID, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ErrNotFound
+	}
+	now := s.now().UTC()
+	item.DeletedAt = &now
+	item.Version++
+	item.UpdatedAt = now
+	if s.store != nil {
+		return s.store.Save(ctx, item)
+	}
+	s.items[item.ID] = item
+	return nil
+}
+
+func (s *{{ .Type }}Service) getLocked(ctx context.Context, tenantID, id string) (domain.{{ .Type }}, bool, error) {
+	if s.store != nil {
+		item, found, err := s.store.Get(ctx, tenantID, id)
+		if err != nil || !found || item.DeletedAt != nil {
+			return domain.{{ .Type }}{}, false, err
+		}
+		return item, true, nil
+	}
+	item, found := s.items[id]
+	if !found || item.TenantID != tenantID || item.DeletedAt != nil {
+		return domain.{{ .Type }}{}, false, nil
+	}
+	return item, true, nil
+}
+`
+
+const resourceAppTestTemplate = `package app
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func Test{{ .Type }}ServiceCRUDIsTenantScoped(t *testing.T) {
+	service := New{{ .Type }}Service()
+	ctx := context.Background()
+	created, err := service.Create(ctx, "org_1", "Alpha")
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created.TenantID != "org_1" || created.Version != 1 {
+		t.Fatalf("created {{ .Name }} = %#v", created)
+	}
+	items, _, err := service.List(ctx, "org_1", "", 50)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("List() items=%#v err=%v", items, err)
+	}
+	other, _, err := service.List(ctx, "org_2", "", 50)
+	if err != nil || len(other) != 0 {
+		t.Fatalf("cross tenant List() items=%#v err=%v", other, err)
+	}
+	updated, err := service.Update(ctx, "org_1", created.ID, "Beta", created.ETag())
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if updated.Name != "Beta" || updated.Version != 2 {
+		t.Fatalf("updated {{ .Name }} = %#v", updated)
+	}
+	if _, err := service.Update(ctx, "org_1", created.ID, "Gamma", created.ETag()); !errors.Is(err, ErrPreconditionFailed) {
+		t.Fatalf("stale Update() error = %v, want %v", err, ErrPreconditionFailed)
+	}
+	if err := service.Delete(ctx, "org_1", created.ID); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	items, _, err = service.List(ctx, "org_1", "", 50)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("List() after delete items=%#v err=%v", items, err)
+	}
+}
+`
+
+const resourcePostgresTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"{{ .Module }}/internal/domain"
+)
+
+var (
+	Err{{ .Type }}StoreRequired = errors.New("postgres {{ .Name }} store db is required")
+	Err{{ .Type }}Invalid       = errors.New("postgres {{ .Name }} record is invalid")
+)
+
+type {{ .Type }}DB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+type {{ .Type }}Store struct {
+	db {{ .Type }}DB
+}
+
+func New{{ .Type }}Store(db {{ .Type }}DB) *{{ .Type }}Store {
+	return &{{ .Type }}Store{db: db}
+}
+
+func (s *{{ .Type }}Store) Create(ctx context.Context, item domain.{{ .Type }}) error {
+	return s.Save(ctx, item)
+}
+
+func (s *{{ .Type }}Store) Save(ctx context.Context, item domain.{{ .Type }}) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return Err{{ .Type }}StoreRequired
+	}
+	item.ID = strings.TrimSpace(item.ID)
+	item.TenantID = strings.TrimSpace(item.TenantID)
+	item.Name = strings.TrimSpace(item.Name)
+	if item.ID == "" || item.TenantID == "" || item.Name == "" || item.Version < 1 || item.CreatedAt.IsZero() || item.UpdatedAt.IsZero() {
+		return Err{{ .Type }}Invalid
+	}
+	_, err := s.db.Exec(ctx,
+		"insert into {{ .Table }} (id, organization_id, name, version, deleted_at, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7) "+
+			"on conflict (id) do update set name=excluded.name, version=excluded.version, deleted_at=excluded.deleted_at, updated_at=excluded.updated_at",
+		item.ID, item.TenantID, item.Name, item.Version, item.DeletedAt, item.CreatedAt.UTC(), item.UpdatedAt.UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("save {{ .Name }}: %w", err)
+	}
+	return nil
+}
+
+func (s *{{ .Type }}Store) Get(ctx context.Context, tenantID, id string) (domain.{{ .Type }}, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.{{ .Type }}{}, false, err
+	}
+	if s == nil || s.db == nil {
+		return domain.{{ .Type }}{}, false, Err{{ .Type }}StoreRequired
+	}
+	row := s.db.QueryRow(ctx, "select id, organization_id, name, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and id=$2", strings.TrimSpace(tenantID), strings.TrimSpace(id))
+	item, err := scan{{ .Type }}(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.{{ .Type }}{}, false, nil
+	}
+	if err != nil {
+		return domain.{{ .Type }}{}, false, fmt.Errorf("get {{ .Name }}: %w", err)
+	}
+	return item, true, nil
+}
+
+func (s *{{ .Type }}Store) List(ctx context.Context, tenantID, cursor string, limit int) ([]domain.{{ .Type }}, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
+	if s == nil || s.db == nil {
+		return nil, "", Err{{ .Type }}StoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	cursor = strings.TrimSpace(cursor)
+	if tenantID == "" {
+		return nil, "", Err{{ .Type }}Invalid
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := s.db.Query(ctx,
+		"select id, organization_id, name, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and deleted_at is null and ($2 = '' or id > $2) order by id limit $3",
+		tenantID, cursor, limit+1,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("list {{ .Plural }}: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.{{ .Type }}
+	for rows.Next() {
+		item, err := scan{{ .Type }}(rows)
+		if err != nil {
+			return nil, "", err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("list {{ .Plural }} rows: %w", err)
+	}
+	next := ""
+	if len(out) > limit {
+		next = out[limit-1].ID
+		out = out[:limit]
+	}
+	return out, next, nil
+}
+
+type {{ .Var }}Scanner interface {
+	Scan(dest ...any) error
+}
+
+func scan{{ .Type }}(row {{ .Var }}Scanner) (domain.{{ .Type }}, error) {
+	var item domain.{{ .Type }}
+	var deleted pgtype.Timestamptz
+	if err := row.Scan(&item.ID, &item.TenantID, &item.Name, &item.Version, &deleted, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		return domain.{{ .Type }}{}, err
+	}
+	if deleted.Valid {
+		value := deleted.Time.UTC()
+		item.DeletedAt = &value
+	}
+	item.CreatedAt = item.CreatedAt.UTC()
+	item.UpdatedAt = item.UpdatedAt.UTC()
+	return item, nil
+}
+
+var _ = time.Time{}
+`
+
+const resourcePostgresTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"{{ .Module }}/internal/domain"
+)
+
+func Test{{ .Type }}StoreRequiresDatabase(t *testing.T) {
+	store := New{{ .Type }}Store(nil)
+	if err := store.Save(context.Background(), domain.{{ .Type }}{}); !errors.Is(err, Err{{ .Type }}StoreRequired) {
+		t.Fatalf("Save() error = %v, want %v", err, Err{{ .Type }}StoreRequired)
+	}
+	if _, _, err := store.Get(context.Background(), "org_1", "{{ .Prefix }}_1"); !errors.Is(err, Err{{ .Type }}StoreRequired) {
+		t.Fatalf("Get() error = %v, want %v", err, Err{{ .Type }}StoreRequired)
+	}
+	if _, _, err := store.List(context.Background(), "org_1", "", 50); !errors.Is(err, Err{{ .Type }}StoreRequired) {
+		t.Fatalf("List() error = %v, want %v", err, Err{{ .Type }}StoreRequired)
+	}
+}
+`
+
+const resourceHTTPTemplate = `package httpapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"{{ .Module }}/internal/app"
+)
+
+type {{ .Var }}Request struct {
+	Name string ` + "`json:\"name\"`" + `
+}
+
+func (cfg RouterConfig) handleList{{ .Field }}(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	limit, err := query{{ .Type }}Limit(r, 50)
+	if err != nil {
+		writeAppError(w, app.ErrValidation)
+		return
+	}
+	items, next, err := cfg.{{ .Field }}.List(r.Context(), tenantID, r.URL.Query().Get("cursor"), limit)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Public())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": out, "next_cursor": nullable{{ .Type }}String(next)})
+}
+
+func (cfg RouterConfig) handleCreate{{ .Type }}(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	req, ok := decode{{ .Type }}Request(w, r)
+	if !ok {
+		return
+	}
+	item, err := cfg.{{ .Field }}.Create(r.Context(), tenantID, req.Name)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.Header().Set("ETag", item.ETag())
+	if cfg.Webhooks != nil {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "{{ .Name }}.created", map[string]any{"id": item.ID, "tenant_id": tenantID, "version": item.Version}); err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
+	cfg.recordAudit(r, tenantID, actorID, "{{ .Name }}.create", "{{ .Name }}", item.ID, nil)
+	writeJSON(w, http.StatusCreated, item.Public())
+}
+
+func (cfg RouterConfig) handleUpdate{{ .Type }}(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	ifMatch, ok := requireHeader(w, r, "If-Match")
+	if !ok {
+		return
+	}
+	req, ok := decode{{ .Type }}Request(w, r)
+	if !ok {
+		return
+	}
+	item, err := cfg.{{ .Field }}.Update(r.Context(), tenantID, r.PathValue("id"), req.Name, ifMatch)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	w.Header().Set("ETag", item.ETag())
+	if cfg.Webhooks != nil {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "{{ .Name }}.updated", map[string]any{"id": item.ID, "tenant_id": tenantID, "version": item.Version}); err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
+	cfg.recordAudit(r, tenantID, actorID, "{{ .Name }}.update", "{{ .Name }}", item.ID, nil)
+	writeJSON(w, http.StatusOK, item.Public())
+}
+
+func (cfg RouterConfig) handleDelete{{ .Type }}(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := cfg.authenticateTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("id"))
+	if err := cfg.{{ .Field }}.Delete(r.Context(), tenantID, id); err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if cfg.Webhooks != nil {
+		if _, err := cfg.Webhooks.DispatchEvent(r.Context(), tenantID, "{{ .Name }}.deleted", map[string]any{"id": id, "tenant_id": tenantID}); err != nil {
+			writeAppError(w, err)
+			return
+		}
+	}
+	cfg.recordAudit(r, tenantID, actorID, "{{ .Name }}.delete", "{{ .Name }}", id, nil)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func decode{{ .Type }}Request(w http.ResponseWriter, r *http.Request) ({{ .Var }}Request, bool) {
+	var req {{ .Var }}Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAppError(w, app.ErrValidation)
+		return req, false
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeAppError(w, app.ErrValidation)
+		return req, false
+	}
+	return req, true
+}
+
+func query{{ .Type }}Limit(r *http.Request, fallback int) (int, error) {
+	value := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if value == "" {
+		return fallback, nil
+	}
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit < 1 || limit > 100 {
+		return 0, app.ErrValidation
+	}
+	return limit, nil
+}
+
+func nullable{{ .Type }}String(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
+}
+`
+
+const resourceHTTPTestTemplate = `package httpapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func TestGenerated{{ .Type }}ResourceCRUD(t *testing.T) {
+	handler := newTestRouter(t)
+	orgID := createOrganization(t, handler, "owner_{{ .Name }}", "Resource Org")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/{{ .Plural }}", strings.NewReader("{\"name\":\"Alpha\"}"))
+	authorizeTestRequestAs(t, req, orgID, "owner_{{ .Name }}", "{{ .ScopeWrite }}")
+	req.Header.Set("Idempotency-Key", "create-{{ .Name }}")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create {{ .Name }} status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatalf("create {{ .Name }} missing ETag")
+	}
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create body: %v", err)
+	}
+	id, _ := created["id"].(string)
+	if id == "" {
+		t.Fatalf("create body missing id: %#v", created)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/{{ .Plural }}", nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_{{ .Name }}", "{{ .ScopeRead }}")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), id) {
+		t.Fatalf("list {{ .Plural }} status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/{{ .Plural }}/"+id, strings.NewReader("{\"name\":\"Beta\"}"))
+	authorizeTestRequestAs(t, req, orgID, "owner_{{ .Name }}", "{{ .ScopeWrite }}")
+	req.Header.Set("If-Match", etag)
+	req.Header.Set("Idempotency-Key", "update-{{ .Name }}")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Beta") {
+		t.Fatalf("update {{ .Name }} status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/{{ .Plural }}/"+id, nil)
+	authorizeTestRequestAs(t, req, orgID, "owner_{{ .Name }}", "{{ .ScopeWrite }}")
+	req.Header.Set("Idempotency-Key", "delete-{{ .Name }}")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete {{ .Name }} status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+`
+
+const resourceMigrationTemplate = `CREATE TABLE {{ .Table }} (
+	id TEXT PRIMARY KEY,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	version BIGINT NOT NULL DEFAULT 1,
+	deleted_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX {{ .Table }}_organization_id_idx ON {{ .Table }}(organization_id, id) WHERE deleted_at IS NULL;
+`
 
 func renderGoClient(packageName string, operations []specs.Operation) []byte {
 	operations = append([]specs.Operation(nil), operations...)
@@ -1598,7 +2808,13 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 		"type":     "object",
 		"required": []string{"event_types"},
 		"properties": map[string]any{
-			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
+			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{
+				"widget.created",
+				"widget.updated",
+				"widget.deleted",
+				"widget.import.completed",
+				// api-toolkit:openapi-webhook-event-types
+			}}},
 		},
 	})
 	registry.RegisterSchema("Object", map[string]any{
@@ -1706,6 +2922,7 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 		"additionalProperties": false,
 		"properties":           map[string]any{},
 	})
+	// api-toolkit:openapi-schemas
 }
 
 func fullScaffoldOperations(authSchemeName string) []specs.Operation {
@@ -1857,6 +3074,7 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
+	// api-toolkit:openapi-operation-variables
 	return []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getLiveness",
@@ -2215,6 +3433,7 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			Security:  auth("widgets:write"),
 			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		// api-toolkit:openapi-operations
 	}
 }
 
@@ -3603,6 +4822,7 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 
 var fullScaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: fullGoModTemplate},
+	{Name: "api-toolkit.yaml", Body: fullManifestTemplate},
 	{Name: "cmd/api/main.go", Body: fullCmdMainTemplate},
 	{Name: "cmd/worker/main.go", Body: fullCmdWorkerTemplate},
 	{Name: "cmd/migrate/main.go", Body: fullCmdMigrateTemplate},
@@ -3929,6 +5149,20 @@ func copyHeaders(dst, src http.Header) {
 
 `
 
+const fullManifestTemplate = `profile: {{ .Profile }}
+module: {{ .Module }}
+generator_version: {{ .CoreVersion }}
+openapi: testdata/openapi.golden.json
+client:
+  go:
+    path: internal/client/apiclient
+    package: apiclient
+resources:
+  # api-toolkit:manifest-resources
+providers:
+  # api-toolkit:manifest-providers
+`
+
 const fullGoModTemplate = `module {{ .Module }}
 
 go 1.25.0
@@ -4003,6 +5237,7 @@ func run(ctx context.Context) error {
 	webhooks := app.NewWebhookServiceWithEndpointPolicy(tenancy, webhookEndpointPolicy)
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
+	// api-toolkit:main-service-defaults
 	var rateLimiter ports.RateLimiter
 	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
@@ -4028,6 +5263,7 @@ func run(ctx context.Context) error {
 		postgresPool = &pgxpooladapter.Adapter{Pool: pool}
 		tenancy = app.NewTenancyServiceWithStore(postgres.NewTenancyStore(pool))
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
+		// api-toolkit:main-postgres-stores
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(postgresPool, auditpostgres.Options{}))
 		webhookStore, err = postgres.NewWebhookStore(postgresPool, cfg.WebhookSecretKey)
@@ -4172,7 +5408,28 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	routerConfig := httpapi.RouterConfig{Widgets: widgets, Tenancy: tenancy, APIKeys: apiKeys, Async: asyncJobs, Audit: auditLog, Webhooks: webhooks, Objects: objects, Cache: cacheService, Metrics: metricsMiddleware, MetricsHandler: metricsmw.PrometheusHandler(), OpenAPIValidation: openAPIValidation, RateLimit: rateLimitMiddleware, Idempotency: idempotencyMiddleware, Readiness: readiness, AdminKey: cfg.AdminKey{{ if eq .AuthMode "jwt" }}, JWT: jwtMiddleware{{ else if eq .AuthMode "clerk" }}, Clerk: clerkMiddleware{{ else if eq .AuthMode "oidc" }}, OIDC: oidcMiddleware{{ else }}, APIKey: cfg.APIKey{{ end }}}
+	routerConfig := httpapi.RouterConfig{
+		Widgets:           widgets,
+		Tenancy:           tenancy,
+		APIKeys:           apiKeys,
+		Async:             asyncJobs,
+		Audit:             auditLog,
+		Webhooks:          webhooks,
+		Objects:           objects,
+		Cache:             cacheService,
+		Metrics:           metricsMiddleware,
+		MetricsHandler:    metricsmw.PrometheusHandler(),
+		OpenAPIValidation: openAPIValidation,
+		RateLimit:         rateLimitMiddleware,
+		Idempotency:       idempotencyMiddleware,
+		Readiness:         readiness,
+		AdminKey:          cfg.AdminKey,
+		// api-toolkit:main-router-config
+{{ if eq .AuthMode "jwt" }}		JWT: jwtMiddleware,
+{{ else if eq .AuthMode "clerk" }}		Clerk: clerkMiddleware,
+{{ else if eq .AuthMode "oidc" }}		OIDC: oidcMiddleware,
+{{ else }}		APIKey: cfg.APIKey,
+{{ end }}	}
 	bootstrapRouterConfig, err := bootstrap.DefaultRouterConfigFromEnv(nil)
 	if err != nil {
 		return err
@@ -6160,6 +7417,7 @@ var webhookEventTypes = []string{
 	"widget.updated",
 	"widget.deleted",
 	"widget.import.completed",
+	// api-toolkit:webhook-event-types
 }
 
 type WebhookService struct {
@@ -8384,6 +9642,7 @@ var RequiredTables = []string{
 	"objects",
 	"webhook_endpoints",
 	"webhook_deliveries",
+	// api-toolkit:postgres-required-tables
 }
 
 type Pinger interface {
@@ -11609,7 +12868,13 @@ func registerSchemas(registry *specs.Registry) {
 		"type":     "object",
 		"required": []string{"event_types"},
 		"properties": map[string]any{
-			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widget.created", "widget.updated", "widget.deleted", "widget.import.completed"}}},
+			"event_types": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{
+				"widget.created",
+				"widget.updated",
+				"widget.deleted",
+				"widget.import.completed",
+				// api-toolkit:openapi-webhook-event-types
+			}}},
 		},
 	})
 	registry.RegisterSchema("Object", map[string]any{
@@ -11717,6 +12982,7 @@ func registerSchemas(registry *specs.Registry) {
 		"additionalProperties": false,
 		"properties":           map[string]any{},
 	})
+	// api-toolkit:openapi-schemas
 }
 
 func operations() []specs.Operation {
@@ -11868,6 +13134,7 @@ func operations() []specs.Operation {
 			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
+	// api-toolkit:openapi-operation-variables
 	return []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getLiveness",
@@ -12226,6 +13493,7 @@ func operations() []specs.Operation {
 			Security:  auth("widgets:write"),
 			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		// api-toolkit:openapi-operations
 	}
 }
 
@@ -12486,6 +13754,7 @@ type RouterConfig struct {
 	Webhooks *app.WebhookService
 	Objects  *app.ObjectService
 	Cache    *app.CacheService
+	// api-toolkit:router-config-fields
 	Metrics  *metricsmw.Middleware
 	MetricsHandler http.Handler
 	OpenAPIValidation *openapimw.Middleware
@@ -12615,6 +13884,7 @@ func RegisterRoutes(r ports.HTTPRouter, cfg RouterConfig) error {
 	r.Post("/widgets/imports", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleCreateWidgetImport))).ServeHTTP)
 	registerPatch(r, "/widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleUpdateWidget))).ServeHTTP)
 	r.Delete("/widgets/{id}", cfg.protect("widgets:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteWidget))).ServeHTTP)
+	// api-toolkit:router-register-routes
 	return nil
 }
 
@@ -12746,6 +14016,7 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
 	}
+	// api-toolkit:router-default-services
 	if cfg.MetricsHandler == nil {
 		cfg.MetricsHandler = metricsmw.PrometheusHandler()
 	}
@@ -15321,7 +16592,7 @@ OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
 
-.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check migrate-up migrate-status migrate-check integration-check clean finalize
+.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff client-check resource-check migrate-up migrate-status migrate-check integration-check clean finalize
 
 deps:
 	$(GO) mod tidy
@@ -15356,6 +16627,8 @@ client-check: deps
 	$(API_TOOLKIT) clients go --openapi $(OPENAPI) --out internal/client/apiclient --package apiclient --style typed; \
 	cmp -s "$$tmp/client.go" internal/client/apiclient/client.go || { echo "generated Go client is out of date"; diff -u "$$tmp/client.go" internal/client/apiclient/client.go; exit 1; }
 	$(GO) test ./internal/client/apiclient
+
+resource-check: test openapi-check contracts-lint contracts-diff client-check
 
 migrate-up:
 	$(GO) run ./cmd/migrate up

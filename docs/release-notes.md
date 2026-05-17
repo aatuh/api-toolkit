@@ -178,6 +178,13 @@ source of truth is `docs/release-runbook.md`.
   security contexts, and `/livez`/`/readyz` probes. The generated integration
   workflow is opt-in through `workflow_dispatch` and scheduled runs instead of
   default PR CI.
+- Generated `saas-api-full` services now include an `api-toolkit.yaml`
+  manifest and `resource-check` target, and `api-toolkit generate resource`
+  now supports manifest-gated tenant-scoped CRUD generation inside full-profile
+  projects. The generator adds domain/app/Postgres/httpapi files, a
+  contrib-migrator `*.up.sql` migration, route/OpenAPI contracts, audit hooks,
+  webhook event hooks, OpenAPI golden regeneration, typed Go client
+  regeneration, and fails closed when expected generated anchors are missing.
 - Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted
