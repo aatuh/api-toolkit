@@ -636,7 +636,8 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		})
 		securityFindings := lintUndefinedSecuritySchemes(loaded.doc, operations)
 		clientFindings := lintGoClientCompatibility(loaded.doc, operations)
-		if len(findings) > 0 || len(securityFindings) > 0 || len(clientFindings) > 0 {
+		openAPIFindings := lintOpenAPI31FeatureCompatibility(loaded)
+		if len(findings) > 0 || len(securityFindings) > 0 || len(clientFindings) > 0 || len(openAPIFindings) > 0 {
 			for _, finding := range findings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
@@ -644,6 +645,9 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 				fmt.Fprintln(stderr, finding.Error())
 			}
 			for _, finding := range clientFindings {
+				fmt.Fprintln(stderr, finding.Error())
+			}
+			for _, finding := range openAPIFindings {
 				fmt.Fprintln(stderr, finding.Error())
 			}
 			return 1
@@ -5327,6 +5331,7 @@ func replaceLine(module, path string) string {
 type loadedOpenAPI struct {
 	doc    *openapi3.T
 	loader *openapi3.Loader
+	raw    map[string]any
 }
 
 func loadOpenAPI(path string) (loadedOpenAPI, error) {
@@ -5342,12 +5347,16 @@ func loadOpenAPI(path string) (loadedOpenAPI, error) {
 	if err != nil {
 		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
 	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
+	}
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromData(data)
 	if err != nil {
 		return loadedOpenAPI{}, fmt.Errorf("load openapi: %w", err)
 	}
-	return loadedOpenAPI{doc: doc, loader: loader}, nil
+	return loadedOpenAPI{doc: doc, loader: loader, raw: raw}, nil
 }
 
 func readOpenAPIFile(path string) ([]byte, error) {
@@ -5652,6 +5661,239 @@ func lintGoClientParameterIdentifiers(operation typedClientOperation, parameters
 		owners[goName] = key
 	}
 	return findings
+}
+
+func lintOpenAPI31FeatureCompatibility(loaded loadedOpenAPI) []openAPILintFinding {
+	var findings []openAPILintFinding
+	findings = append(findings, lintSchemaCompositionReview(loaded.doc)...)
+	findings = append(findings, lintOperationFeatureMetadata(loaded.doc)...)
+	findings = append(findings, lintRawWebhookMetadata(loaded.raw)...)
+	return findings
+}
+
+func lintSchemaCompositionReview(doc *openapi3.T) []openAPILintFinding {
+	var findings []openAPILintFinding
+	for _, schemaName := range sortedSchemaNames(componentSchemas(doc)) {
+		findings = append(findings, lintSchemaCompositionRef("components.schemas."+schemaName, componentSchemas(doc)[schemaName])...)
+	}
+	return findings
+}
+
+func lintSchemaCompositionRef(path string, ref *openapi3.SchemaRef) []openAPILintFinding {
+	if ref == nil || ref.Value == nil {
+		return nil
+	}
+	schema := ref.Value
+	var findings []openAPILintFinding
+	if (len(schema.OneOf) > 0 || len(schema.AnyOf) > 0 || len(schema.AllOf) > 0) && !truthyExtension(schema.Extensions, "x-api-toolkit-client-compatible") {
+		findings = append(findings, openAPILintFinding{
+			Code:    "client_schema_composition_review_required",
+			Method:  "GLOBAL",
+			Message: path + " uses oneOf/anyOf/allOf without x-api-toolkit-client-compatible",
+		})
+	}
+	for _, child := range schema.OneOf {
+		findings = append(findings, lintSchemaCompositionRef(path+".oneOf", child)...)
+	}
+	for _, child := range schema.AnyOf {
+		findings = append(findings, lintSchemaCompositionRef(path+".anyOf", child)...)
+	}
+	for _, child := range schema.AllOf {
+		findings = append(findings, lintSchemaCompositionRef(path+".allOf", child)...)
+	}
+	for _, property := range sortedSchemaNames(schema.Properties) {
+		findings = append(findings, lintSchemaCompositionRef(path+"."+property, schema.Properties[property])...)
+	}
+	if schema.Items != nil {
+		findings = append(findings, lintSchemaCompositionRef(path+"[]", schema.Items)...)
+	}
+	return findings
+}
+
+func lintOperationFeatureMetadata(doc *openapi3.T) []openAPILintFinding {
+	if doc == nil || doc.Paths == nil {
+		return nil
+	}
+	var findings []openAPILintFinding
+	for routePath, item := range doc.Paths.Map() {
+		if item == nil {
+			continue
+		}
+		for method, op := range item.Operations() {
+			if op == nil {
+				continue
+			}
+			method = strings.ToUpper(method)
+			if operationUsesMultipart(op) && !truthyExtension(op.Extensions, "x-api-toolkit-multipart") {
+				findings = append(findings, openAPILintFinding{
+					Code:    "multipart_metadata_required",
+					Method:  method,
+					Path:    routePath,
+					Message: "multipart request bodies must declare x-api-toolkit-multipart",
+				})
+			}
+			if operationUsesStreaming(op) && !truthyExtension(op.Extensions, "x-api-toolkit-streaming") {
+				findings = append(findings, openAPILintFinding{
+					Code:    "streaming_metadata_required",
+					Method:  method,
+					Path:    routePath,
+					Message: "streaming responses must declare x-api-toolkit-streaming",
+				})
+			}
+			if operationUsesBinaryResponse(op) && !truthyExtension(op.Extensions, "x-api-toolkit-binary-response") {
+				findings = append(findings, openAPILintFinding{
+					Code:    "binary_response_metadata_required",
+					Method:  method,
+					Path:    routePath,
+					Message: "binary/object responses must declare x-api-toolkit-binary-response",
+				})
+			}
+			for name := range op.Callbacks {
+				if !truthyExtension(op.Extensions, "x-api-toolkit-callback-event") {
+					findings = append(findings, openAPILintFinding{
+						Code:    "callback_metadata_required",
+						Method:  method,
+						Path:    routePath,
+						Message: "callback " + name + " must declare x-api-toolkit-callback-event",
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
+func lintRawWebhookMetadata(raw map[string]any) []openAPILintFinding {
+	webhooks, ok := raw["webhooks"].(map[string]any)
+	if !ok || len(webhooks) == 0 {
+		return nil
+	}
+	var findings []openAPILintFinding
+	for name, rawItem := range webhooks {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		for method, rawOperation := range item {
+			if !isHTTPMethod(method) {
+				continue
+			}
+			operation, ok := rawOperation.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, ok := operation["x-api-toolkit-webhook-event"]; !ok {
+				findings = append(findings, openAPILintFinding{
+					Code:    "webhook_metadata_required",
+					Method:  strings.ToUpper(method),
+					Path:    "webhooks." + name,
+					Message: "webhook operations must declare x-api-toolkit-webhook-event",
+				})
+			}
+		}
+	}
+	return findings
+}
+
+func operationUsesMultipart(operation *openapi3.Operation) bool {
+	body := requestBodyValue(operation.RequestBody)
+	return body != nil && body.Content.Get("multipart/form-data") != nil
+}
+
+func operationUsesStreaming(operation *openapi3.Operation) bool {
+	if truthyExtension(operation.Extensions, "x-api-toolkit-streaming") {
+		return true
+	}
+	if operation.Responses == nil {
+		return false
+	}
+	for _, responseRef := range operation.Responses.Map() {
+		response := responseValue(responseRef)
+		if response != nil && response.Content.Get("text/event-stream") != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func operationUsesBinaryResponse(operation *openapi3.Operation) bool {
+	if operation.Responses == nil {
+		return false
+	}
+	for _, responseRef := range operation.Responses.Map() {
+		response := responseValue(responseRef)
+		if response == nil {
+			continue
+		}
+		if response.Content.Get("application/octet-stream") != nil {
+			return true
+		}
+		for _, contentType := range sortedOpenAPIContentTypes(response.Content) {
+			media := response.Content[contentType]
+			if media != nil && schemaRefHasBinary(media.Schema) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func schemaRefHasBinary(ref *openapi3.SchemaRef) bool {
+	if ref == nil || ref.Value == nil {
+		return false
+	}
+	schema := ref.Value
+	if schema.Type != nil && schema.Type.Includes("string") && strings.EqualFold(strings.TrimSpace(schema.Format), "binary") {
+		return true
+	}
+	for _, child := range schema.OneOf {
+		if schemaRefHasBinary(child) {
+			return true
+		}
+	}
+	for _, child := range schema.AnyOf {
+		if schemaRefHasBinary(child) {
+			return true
+		}
+	}
+	for _, child := range schema.AllOf {
+		if schemaRefHasBinary(child) {
+			return true
+		}
+	}
+	if schema.Items != nil && schemaRefHasBinary(schema.Items) {
+		return true
+	}
+	for _, property := range schema.Properties {
+		if schemaRefHasBinary(property) {
+			return true
+		}
+	}
+	return false
+}
+
+func truthyExtension(extensions map[string]any, name string) bool {
+	value, ok := extensions[name]
+	if !ok {
+		return false
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
+	}
+}
+
+func isHTTPMethod(method string) bool {
+	switch strings.ToLower(strings.TrimSpace(method)) {
+	case "get", "put", "post", "delete", "options", "head", "patch", "trace":
+		return true
+	default:
+		return false
+	}
 }
 
 func definedSecuritySchemes(doc *openapi3.T) map[string]struct{} {
@@ -6450,10 +6692,32 @@ func diffSchemaValue(path string, baseSchema, headSchema *openapi3.Schema) []ope
 			Detail: fmt.Sprintf("%s %q -> %q", path, baseType, headType),
 		})
 	}
+	baseDefault := jsonFingerprint(baseSchema.Default)
+	headDefault := jsonFingerprint(headSchema.Default)
+	if baseDefault != headDefault {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_default_changed",
+			Detail: fmt.Sprintf("%s %s -> %s", path, emptyFingerprint(baseDefault), emptyFingerprint(headDefault)),
+		})
+	}
+	baseComposition := schemaCompositionFingerprint(baseSchema)
+	headComposition := schemaCompositionFingerprint(headSchema)
+	if baseComposition != headComposition {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_composition_changed",
+			Detail: fmt.Sprintf("%s %q -> %q", path, baseComposition, headComposition),
+		})
+	}
 	for _, required := range sortedStringSetDiff(schemaRequiredSet(headSchema), schemaRequiredSet(baseSchema)) {
 		findings = append(findings, openAPIDiffFinding{
 			Code:   "schema_required_property_added",
 			Detail: path + " " + required,
+		})
+	}
+	for _, enumValue := range sortedStringSetDiff(schemaEnumSet(headSchema), schemaEnumSet(baseSchema)) {
+		findings = append(findings, openAPIDiffFinding{
+			Code:   "schema_enum_value_added",
+			Detail: path + " " + enumValue,
 		})
 	}
 	for _, enumValue := range sortedStringSetDiff(schemaEnumSet(baseSchema), schemaEnumSet(headSchema)) {
@@ -6475,6 +6739,24 @@ func diffSchemaValue(path string, baseSchema, headSchema *openapi3.Schema) []ope
 			continue
 		}
 		findings = append(findings, diffSchemaRef(propertyPath, baseProperty, headProperty)...)
+	}
+	findings = append(findings, diffSchemaRefs(path+".oneOf", baseSchema.OneOf, headSchema.OneOf)...)
+	findings = append(findings, diffSchemaRefs(path+".anyOf", baseSchema.AnyOf, headSchema.AnyOf)...)
+	findings = append(findings, diffSchemaRefs(path+".allOf", baseSchema.AllOf, headSchema.AllOf)...)
+	if baseSchema.Items != nil {
+		findings = append(findings, diffSchemaRef(path+"[]", baseSchema.Items, headSchema.Items)...)
+	}
+	return findings
+}
+
+func diffSchemaRefs(path string, baseRefs, headRefs openapi3.SchemaRefs) []openAPIDiffFinding {
+	var findings []openAPIDiffFinding
+	limit := len(baseRefs)
+	if len(headRefs) < limit {
+		limit = len(headRefs)
+	}
+	for i := 0; i < limit; i++ {
+		findings = append(findings, diffSchemaRef(fmt.Sprintf("%s[%d]", path, i), baseRefs[i], headRefs[i])...)
 	}
 	return findings
 }
@@ -6521,6 +6803,60 @@ func schemaEnumSet(schema *openapi3.Schema) map[string]struct{} {
 		out[string(encoded)] = struct{}{}
 	}
 	return out
+}
+
+func schemaCompositionFingerprint(schema *openapi3.Schema) string {
+	if schema == nil {
+		return ""
+	}
+	parts := []string{
+		"oneOf=" + schemaRefsFingerprint(schema.OneOf),
+		"anyOf=" + schemaRefsFingerprint(schema.AnyOf),
+		"allOf=" + schemaRefsFingerprint(schema.AllOf),
+	}
+	return strings.Join(parts, ";")
+}
+
+func schemaRefsFingerprint(refs openapi3.SchemaRefs) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	values := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		values = append(values, schemaRefFingerprint(ref))
+	}
+	return strings.Join(values, ",")
+}
+
+func schemaRefFingerprint(ref *openapi3.SchemaRef) string {
+	if ref == nil {
+		return ""
+	}
+	if strings.TrimSpace(ref.Ref) != "" {
+		return "ref=" + strings.TrimSpace(ref.Ref)
+	}
+	if ref.Value == nil {
+		return ""
+	}
+	return "type=" + schemaTypeFingerprint(ref.Value)
+}
+
+func jsonFingerprint(value any) string {
+	if value == nil {
+		return ""
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	return string(encoded)
+}
+
+func emptyFingerprint(value string) string {
+	if value == "" {
+		return "<none>"
+	}
+	return value
 }
 
 func sortedStringSetDiff(left, right map[string]struct{}) []string {

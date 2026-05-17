@@ -82,7 +82,10 @@ source of truth is `docs/release-runbook.md`.
   `--object-field`, validating the field DSL before mutating generated projects.
 - `api-toolkit contracts changelog` and `api-toolkit contracts impact` now
   report OpenAPI operation additions/removals and machine-readable breaking
-  client impact for release review.
+  client impact for release review. Contract lint and impact checks now also
+  cover OpenAPI 3.1 composition review metadata, streaming and binary response
+  metadata, callback/webhook metadata, schema default changes, enum widening
+  and narrowing, and oneOf/anyOf/allOf composition changes.
 - `api-toolkit new service --profile saas-web --auth session|oidc-session` now
   emits a separate browser/session starter so API-first profiles stay unchanged.
   The generated profile includes cookie security defaults, memory and Redis

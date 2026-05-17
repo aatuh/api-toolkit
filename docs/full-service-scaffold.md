@@ -66,6 +66,10 @@ and a separate `saas-web` session profile so browser-session concerns stay out
 of API-first scaffolds. `saas-web` emits secure cookie sessions, CSRF
 middleware, memory and Redis-backed session-store boundaries, OIDC callback
 state validation, safe browser CORS, and production startup checks.
+Contract lint/diff tooling covers OpenAPI 3.1 nullable/examples, schema
+composition review metadata, callbacks/webhooks, multipart request bodies,
+binary and streaming responses, schema default changes, enum widening/narrowing,
+and generated-client compatibility assumptions.
 
 ## Runtime Contract
 
