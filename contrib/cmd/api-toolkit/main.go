@@ -2094,10 +2094,20 @@ type resourceTemplateData struct {
 	SQLSelectColumns          string
 	SQLScanDestinations       string
 	MigrationColumns          string
+	MigrationIndexes          string
 	OpenAPIResourceRequired   string
 	OpenAPIResourceProperties string
 	OpenAPICreateRequired     string
 	OpenAPICreateProperties   string
+	FilterQueryParams         string
+	ListSortCases             string
+	ServiceFilterNameCases    string
+	ServiceFilterCases        string
+	ServiceSortCases          string
+	ServiceSortCompareCases   string
+	PostgresFilterCases       string
+	PostgresSortCases         string
+	OpenAPIListParameters     string
 }
 
 func generateResource(ctx context.Context, cfg resourceConfig) error {
@@ -2127,7 +2137,7 @@ func generateResource(ctx context.Context, cfg resourceConfig) error {
 	if manifest.Resources[cfg.Name] || manifest.Resources[cfg.Plural] {
 		return fmt.Errorf("resource %q already exists", cfg.Name)
 	}
-	fieldRendering, err := renderResourceFieldSupport(cfg.Fields)
+	fieldRendering, err := renderResourceFieldSupport(cfg)
 	if err != nil {
 		return err
 	}
@@ -2255,31 +2265,47 @@ func validateResourceConfig(cfg resourceConfig) error {
 	if !cfg.CRUD {
 		return errors.New("--crud is required")
 	}
-	for _, field := range cfg.Fields {
-		if _, err := parseResourceField(field); err != nil {
-			return err
-		}
+	fields, err := resourceFieldsForConfig(cfg)
+	if err != nil {
+		return err
 	}
-	for _, name := range append(append(append([]string{}, cfg.Filters...), cfg.Sorts...), cfg.ObjectFields...) {
+	allowedFilters := map[string]struct{}{"name": {}}
+	allowedSorts := map[string]struct{}{"id": {}, "name": {}, "created_at": {}, "updated_at": {}}
+	for _, field := range fields {
+		allowedFilters[field.Name] = struct{}{}
+		allowedSorts[field.Name] = struct{}{}
+	}
+	for _, name := range cfg.Filters {
+		name = strings.TrimSpace(name)
 		if !validResourceName(strings.TrimSpace(name)) {
 			return fmt.Errorf("invalid resource field reference %q", name)
 		}
+		if _, ok := allowedFilters[name]; !ok {
+			return fmt.Errorf("unknown resource filter field %q", name)
+		}
 	}
-	for _, relationship := range cfg.Relationships {
-		if strings.TrimSpace(relationship) == "" || strings.ContainsAny(relationship, "\r\n\t") {
-			return fmt.Errorf("invalid relationship %q", relationship)
+	for _, name := range cfg.Sorts {
+		name = strings.TrimSpace(name)
+		if !validResourceName(name) {
+			return fmt.Errorf("invalid resource field reference %q", name)
+		}
+		if _, ok := allowedSorts[name]; !ok {
+			return fmt.Errorf("unknown resource sort field %q", name)
 		}
 	}
 	return nil
 }
 
 type resourceField struct {
-	Name     string
-	Type     string
-	Required bool
-	Unique   bool
-	Default  string
-	Enum     []string
+	Name         string
+	Type         string
+	Required     bool
+	Unique       bool
+	Default      string
+	Enum         []string
+	Description  string
+	ObjectBacked bool
+	Relationship string
 }
 
 type resourceFieldRendering struct {
@@ -2308,10 +2334,20 @@ type resourceFieldRendering struct {
 	SQLSelectColumns          string
 	SQLScanDestinations       string
 	MigrationColumns          string
+	MigrationIndexes          string
 	OpenAPIResourceRequired   string
 	OpenAPIResourceProperties string
 	OpenAPICreateRequired     string
 	OpenAPICreateProperties   string
+	FilterQueryParams         string
+	ListSortCases             string
+	ServiceFilterNameCases    string
+	ServiceFilterCases        string
+	ServiceSortCases          string
+	ServiceSortCompareCases   string
+	PostgresFilterCases       string
+	PostgresSortCases         string
+	OpenAPIListParameters     string
 }
 
 func parseResourceField(raw string) (resourceField, error) {
@@ -2356,30 +2392,116 @@ func parseResourceField(raw string) (resourceField, error) {
 	return field, nil
 }
 
-func renderResourceFieldSupport(rawFields []string) (resourceFieldRendering, error) {
+func resourceFieldsForConfig(cfg resourceConfig) ([]resourceField, error) {
 	var fields []resourceField
-	for _, raw := range rawFields {
+	byName := map[string]int{}
+	addField := func(field resourceField) error {
+		field.Name = strings.TrimSpace(field.Name)
+		field.Type = strings.TrimSpace(field.Type)
+		if !validResourceName(field.Name) {
+			return fmt.Errorf("invalid resource field reference %q", field.Name)
+		}
+		if existing, ok := byName[field.Name]; ok {
+			current := &fields[existing]
+			if current.Type != field.Type {
+				return fmt.Errorf("resource field %q has conflicting types %q and %q", field.Name, current.Type, field.Type)
+			}
+			current.Required = current.Required || field.Required
+			current.Unique = current.Unique || field.Unique
+			if current.Default == "" {
+				current.Default = field.Default
+			}
+			if current.Description == "" {
+				current.Description = field.Description
+			}
+			current.ObjectBacked = current.ObjectBacked || field.ObjectBacked
+			if current.Relationship == "" {
+				current.Relationship = field.Relationship
+			}
+			if len(current.Enum) == 0 {
+				current.Enum = append([]string(nil), field.Enum...)
+			}
+			return nil
+		}
+		byName[field.Name] = len(fields)
+		fields = append(fields, field)
+		return nil
+	}
+	for _, raw := range cfg.Fields {
 		field, err := parseResourceField(raw)
 		if err != nil {
-			return resourceFieldRendering{}, err
+			return nil, err
 		}
-		fields = append(fields, field)
+		if err := addField(field); err != nil {
+			return nil, err
+		}
 	}
-	if len(fields) == 0 {
-		return resourceFieldRendering{
-			SQLInsertColumns:      "",
-			SQLInsertPlaceholders: "",
-			SQLUpdateAssignments:  "",
-			SQLSaveArgs:           "",
-			SQLVersionPlaceholder: "$4",
-			SQLDeletedPlaceholder: "$5",
-			SQLCreatedPlaceholder: "$6",
-			SQLUpdatedPlaceholder: "$7",
-			SQLSelectColumns:      "",
-			SQLScanDestinations:   "",
-		}, nil
+	for _, raw := range cfg.Relationships {
+		relationship, target, err := parseResourceRelationship(raw)
+		if err != nil {
+			return nil, err
+		}
+		if err := addField(resourceField{Name: relationshipFieldName(relationship), Type: "string", Relationship: target}); err != nil {
+			return nil, err
+		}
+	}
+	for _, raw := range cfg.ObjectFields {
+		name := strings.TrimSpace(raw)
+		if !validResourceName(name) {
+			return nil, fmt.Errorf("invalid resource field reference %q", raw)
+		}
+		if !strings.HasSuffix(name, "_key") {
+			return nil, fmt.Errorf("object field %q must end with _key", name)
+		}
+		if err := addField(resourceField{Name: name, Type: "string", Description: "Object key stored by object service", ObjectBacked: true}); err != nil {
+			return nil, err
+		}
+	}
+	return fields, nil
+}
+
+func parseResourceRelationship(raw string) (string, string, error) {
+	raw = strings.TrimSpace(raw)
+	parts := strings.Split(raw, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid relationship %q", raw)
+	}
+	name := strings.TrimSpace(parts[0])
+	target := strings.TrimSpace(parts[1])
+	if !validResourceName(name) || !validResourceName(target) {
+		return "", "", fmt.Errorf("invalid relationship %q", raw)
+	}
+	return name, target, nil
+}
+
+func relationshipFieldName(name string) string {
+	if strings.HasSuffix(name, "_id") {
+		return name
+	}
+	return name + "_id"
+}
+
+func renderResourceFieldSupport(cfg resourceConfig) (resourceFieldRendering, error) {
+	fields, err := resourceFieldsForConfig(cfg)
+	if err != nil {
+		return resourceFieldRendering{}, err
 	}
 	var out resourceFieldRendering
+	out.FilterQueryParams = ""
+	out.ListSortCases = "\tcase \"\", \"id\", \"-id\":\n"
+	out.ServiceSortCases = "\tcase \"id\", \"-id\":\n"
+	out.PostgresSortCases = "\tcase \"\", \"id\":\n\t\treturn \"id asc\"\n\tcase \"-id\":\n\t\treturn \"id desc\"\n"
+	out.OpenAPIListParameters = ""
+	if len(fields) == 0 {
+		out.SQLVersionPlaceholder = "$4"
+		out.SQLDeletedPlaceholder = "$5"
+		out.SQLCreatedPlaceholder = "$6"
+		out.SQLUpdatedPlaceholder = "$7"
+		if err := renderResourceListSupport(&out, cfg, fields); err != nil {
+			return resourceFieldRendering{}, err
+		}
+		return out, nil
+	}
 	insertColumns := make([]string, 0, len(fields))
 	insertPlaceholders := make([]string, 0, len(fields))
 	updateAssignments := make([]string, 0, len(fields))
@@ -2424,7 +2546,17 @@ func renderResourceFieldSupport(rawFields []string) (resourceFieldRendering, err
 		saveArgs = append(saveArgs, "item."+goName)
 		selectColumns = append(selectColumns, column)
 		scanDestinations = append(scanDestinations, "&item."+goName)
-		out.MigrationColumns += fmt.Sprintf("\t%s %s%s,\n", column, resourceFieldSQLType(field), resourceFieldSQLNullability(field))
+		columnDefinition, err := resourceFieldSQLColumnDefinition(field)
+		if err != nil {
+			return resourceFieldRendering{}, err
+		}
+		out.MigrationColumns += "\t" + columnDefinition + ",\n"
+		if field.Unique {
+			out.MigrationIndexes += fmt.Sprintf("CREATE UNIQUE INDEX %s_organization_%s_unique_idx ON %s(organization_id, %s) WHERE deleted_at IS NULL;\n", cfg.Plural, column, cfg.Plural, column)
+		}
+		if field.Relationship != "" || field.ObjectBacked {
+			out.MigrationIndexes += fmt.Sprintf("CREATE INDEX %s_organization_%s_idx ON %s(organization_id, %s, id) WHERE deleted_at IS NULL;\n", cfg.Plural, column, cfg.Plural, column)
+		}
 		out.OpenAPIResourceProperties += fmt.Sprintf("\t\t\t%q: %s,\n", jsonName, resourceFieldOpenAPISchema(field))
 		out.OpenAPICreateProperties += fmt.Sprintf("\t\t\t%q: %s,\n", jsonName, resourceFieldOpenAPISchema(field))
 	}
@@ -2445,7 +2577,100 @@ func renderResourceFieldSupport(rawFields []string) (resourceFieldRendering, err
 		out.OpenAPIResourceRequired = ", " + quotedStringList(resourceRequired)
 		out.OpenAPICreateRequired = ", " + quotedStringList(createRequired)
 	}
+	if err := renderResourceListSupport(&out, cfg, fields); err != nil {
+		return resourceFieldRendering{}, err
+	}
 	return out, nil
+}
+
+func renderResourceListSupport(out *resourceFieldRendering, cfg resourceConfig, fields []resourceField) error {
+	fieldByName := map[string]resourceField{}
+	for _, field := range fields {
+		fieldByName[field.Name] = field
+	}
+	indexed := map[string]bool{}
+	addFilterIndex := func(name string) {
+		if indexed[name] {
+			return
+		}
+		indexed[name] = true
+		out.MigrationIndexes += fmt.Sprintf("CREATE INDEX %s_organization_%s_idx ON %s(organization_id, %s, id) WHERE deleted_at IS NULL;\n", cfg.Plural, name, cfg.Plural, name)
+	}
+	for _, name := range cfg.Filters {
+		name = strings.TrimSpace(name)
+		field, ok := fieldByName[name]
+		if !ok && name != "name" {
+			return fmt.Errorf("unknown resource filter field %q", name)
+		}
+		out.FilterQueryParams += fmt.Sprintf("\tif value := strings.TrimSpace(query.Get(%q)); value != \"\" {\n\t\tfilters[%q] = value\n\t}\n", name, name)
+		out.ServiceFilterNameCases += fmt.Sprintf("\t\tcase %q:\n", name)
+		out.ServiceFilterCases += resourceServiceFilterCase(name, field)
+		out.PostgresFilterCases += fmt.Sprintf("\tcase %q:\n\t\twhere = append(where, fmt.Sprintf(\"%s=$%%d\", nextArg))\n\t\targs = append(args, value)\n\t\tnextArg++\n", name, name)
+		out.OpenAPIListParameters += fmt.Sprintf("\n\t\t\t\t{Name: %q, In: \"query\", Required: false, Schema: %s},", name, resourceFieldOpenAPISchema(fieldOrName(field, name)))
+		addFilterIndex(name)
+	}
+	sortValues := []string{"id", "-id"}
+	for _, name := range cfg.Sorts {
+		name = strings.TrimSpace(name)
+		field, ok := fieldByName[name]
+		if !ok && name != "name" && name != "created_at" && name != "updated_at" && name != "id" {
+			return fmt.Errorf("unknown resource sort field %q", name)
+		}
+		if name == "id" {
+			continue
+		}
+		sortValues = append(sortValues, name, "-"+name)
+		out.ListSortCases += fmt.Sprintf("\tcase %q, %q:\n", name, "-"+name)
+		out.ServiceSortCases += fmt.Sprintf("\tcase %q, %q:\n", name, "-"+name)
+		out.ServiceSortCompareCases += resourceServiceSortCompareCases(name, field)
+		out.PostgresSortCases += fmt.Sprintf("\tcase %q:\n\t\treturn %q\n\tcase %q:\n\t\treturn %q\n", name, resourcePostgresSortExpression(name, false), "-"+name, resourcePostgresSortExpression(name, true))
+		if name != "created_at" && name != "updated_at" {
+			addFilterIndex(name)
+		}
+	}
+	if len(cfg.Sorts) > 0 {
+		out.OpenAPIListParameters += fmt.Sprintf("\n\t\t\t\t{Name: \"sort\", In: \"query\", Required: false, Schema: map[string]any{\"type\": \"string\", \"enum\": []string{%s}}},", quotedStringList(sortValues))
+	}
+	return nil
+}
+
+func fieldOrName(field resourceField, name string) resourceField {
+	if field.Name != "" {
+		return field
+	}
+	return resourceField{Name: name, Type: "string"}
+}
+
+func resourceServiceFilterCase(name string, field resourceField) string {
+	expr := "item." + exportedGoIdentifier(name)
+	if name == "name" {
+		expr = "item.Name"
+	}
+	if field.Type == "int" || field.Type == "bool" {
+		expr = "fmt.Sprint(" + expr + ")"
+	}
+	return fmt.Sprintf("\t\tcase %q:\n\t\t\tif %s != want {\n\t\t\t\treturn false\n\t\t\t}\n", name, expr)
+}
+
+func resourceServiceSortCompareCases(name string, field resourceField) string {
+	left := "a." + exportedGoIdentifier(name)
+	right := "b." + exportedGoIdentifier(name)
+	if name == "name" {
+		left = "a.Name"
+		right = "b.Name"
+	}
+	if field.Type == "bool" {
+		return fmt.Sprintf("\tcase %q:\n\t\tif %s != %s {\n\t\t\treturn !%s && %s\n\t\t}\n\tcase %q:\n\t\tif %s != %s {\n\t\t\treturn %s && !%s\n\t\t}\n", name, left, right, left, right, "-"+name, left, right, left, right)
+	}
+	return fmt.Sprintf("\tcase %q:\n\t\tif %s != %s {\n\t\t\treturn %s < %s\n\t\t}\n\tcase %q:\n\t\tif %s != %s {\n\t\t\treturn %s > %s\n\t\t}\n", name, left, right, left, right, "-"+name, left, right, left, right)
+}
+
+func resourcePostgresSortExpression(name string, desc bool) string {
+	direction := "asc"
+	if desc {
+		direction = "desc"
+	}
+	return fmt.Sprintf("%s %s, id asc", name, direction)
 }
 
 func applyResourceFieldRendering(data *resourceTemplateData, rendering resourceFieldRendering) {
@@ -2474,10 +2699,20 @@ func applyResourceFieldRendering(data *resourceTemplateData, rendering resourceF
 	data.SQLSelectColumns = rendering.SQLSelectColumns
 	data.SQLScanDestinations = rendering.SQLScanDestinations
 	data.MigrationColumns = rendering.MigrationColumns
+	data.MigrationIndexes = rendering.MigrationIndexes
 	data.OpenAPIResourceRequired = rendering.OpenAPIResourceRequired
 	data.OpenAPIResourceProperties = rendering.OpenAPIResourceProperties
 	data.OpenAPICreateRequired = rendering.OpenAPICreateRequired
 	data.OpenAPICreateProperties = rendering.OpenAPICreateProperties
+	data.FilterQueryParams = rendering.FilterQueryParams
+	data.ListSortCases = rendering.ListSortCases
+	data.ServiceFilterNameCases = rendering.ServiceFilterNameCases
+	data.ServiceFilterCases = rendering.ServiceFilterCases
+	data.ServiceSortCases = rendering.ServiceSortCases
+	data.ServiceSortCompareCases = rendering.ServiceSortCompareCases
+	data.PostgresFilterCases = rendering.PostgresFilterCases
+	data.PostgresSortCases = rendering.PostgresSortCases
+	data.OpenAPIListParameters = rendering.OpenAPIListParameters
 }
 
 func resourceFieldGoType(field resourceField) string {
@@ -2531,24 +2766,69 @@ func resourceFieldSQLNullability(field resourceField) string {
 	return ""
 }
 
-func resourceFieldOpenAPISchema(field resourceField) string {
-	if len(field.Enum) > 0 {
-		return fmt.Sprintf("map[string]any{\"type\": \"string\", \"enum\": []string{%s}}", quotedStringList(field.Enum))
+func resourceFieldSQLColumnDefinition(field resourceField) (string, error) {
+	definition := fmt.Sprintf("%s %s", field.Name, resourceFieldSQLType(field))
+	if field.Default != "" {
+		defaultValue, err := resourceFieldSQLDefault(field)
+		if err != nil {
+			return "", err
+		}
+		definition += " DEFAULT " + defaultValue
 	}
+	definition += resourceFieldSQLNullability(field)
+	if len(field.Enum) > 0 {
+		definition += fmt.Sprintf(" CHECK (%s IN (%s))", field.Name, quotedSQLStringList(field.Enum))
+	}
+	return definition, nil
+}
+
+func resourceFieldSQLDefault(field resourceField) (string, error) {
 	switch field.Type {
 	case "int":
-		return `map[string]any{"type": "integer"}`
+		if _, err := strconv.Atoi(field.Default); err != nil {
+			return "", fmt.Errorf("invalid integer default for --field %q", field.Name)
+		}
+		return field.Default, nil
 	case "bool":
-		return `map[string]any{"type": "boolean"}`
-	case "timestamp":
-		return `map[string]any{"type": "string", "format": "date-time"}`
-	case "uuid":
-		return `map[string]any{"type": "string", "format": "uuid"}`
-	case "json":
-		return `map[string]any{"type": "string", "description": "JSON-encoded field"}`
+		value, err := strconv.ParseBool(field.Default)
+		if err != nil {
+			return "", fmt.Errorf("invalid boolean default for --field %q", field.Name)
+		}
+		if value {
+			return "true", nil
+		}
+		return "false", nil
 	default:
-		return `map[string]any{"type": "string"}`
+		return quoteSQLString(field.Default), nil
 	}
+}
+
+func resourceFieldOpenAPISchema(field resourceField) string {
+	entries := []string{}
+	switch field.Type {
+	case "int":
+		entries = append(entries, `"type": "integer"`)
+	case "bool":
+		entries = append(entries, `"type": "boolean"`)
+	case "timestamp":
+		entries = append(entries, `"type": "string"`, `"format": "date-time"`)
+	case "uuid":
+		entries = append(entries, `"type": "string"`, `"format": "uuid"`)
+	case "json":
+		entries = append(entries, `"type": "string"`, `"description": "JSON-encoded field"`)
+	default:
+		entries = append(entries, `"type": "string"`)
+	}
+	if len(field.Enum) > 0 {
+		entries = append(entries, fmt.Sprintf(`"enum": []string{%s}`, quotedStringList(field.Enum)))
+	}
+	if field.Description != "" && field.Type != "json" {
+		entries = append(entries, fmt.Sprintf(`"description": %q`, field.Description))
+	}
+	if field.Default != "" {
+		entries = append(entries, fmt.Sprintf(`"default": %q`, field.Default))
+	}
+	return "map[string]any{" + strings.Join(entries, ", ") + "}"
 }
 
 func quotedStringList(values []string) string {
@@ -2557,6 +2837,18 @@ func quotedStringList(values []string) string {
 		quoted = append(quoted, strconv.Quote(value))
 	}
 	return strings.Join(quoted, ", ")
+}
+
+func quotedSQLStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, quoteSQLString(value))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func quoteSQLString(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func validResourceName(value string) bool {
@@ -2811,6 +3103,7 @@ func renderResourceOpenAPIOperations(data resourceTemplateData) string {
 				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
 				{Name: "cursor", In: "query", Required: false, Schema: map[string]any{"type": "string"}},
 				{Name: "limit", In: "query", Required: false, Schema: map[string]any{"type": "integer", "minimum": 1, "maximum": 100}},
+%s
 			},
 			Security: auth("%s"),
 			Responses: map[int]specs.Response{http.StatusOK: %sListResponse},
@@ -2856,7 +3149,7 @@ func renderResourceOpenAPIOperations(data resourceTemplateData) string {
 			Security:  auth("%s"),
 			Responses: map[int]specs.Response{http.StatusNoContent: {Description: "Deleted"}},
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
-`, data.Field, data.Plural, data.Plural, data.ScopeRead, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite)
+`, data.Field, data.Plural, data.Plural, data.OpenAPIListParameters, data.ScopeRead, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite, varName, varName, data.Type, data.Plural, data.Name, data.ScopeWrite)
 }
 
 const resourceDomainTemplate = `package domain
@@ -2909,7 +3202,14 @@ type {{ .Type }}Store interface {
 	Create(context.Context, domain.{{ .Type }}) error
 	Save(context.Context, domain.{{ .Type }}) error
 	Get(context.Context, string, string) (domain.{{ .Type }}, bool, error)
-	List(context.Context, string, string, int) ([]domain.{{ .Type }}, string, error)
+	List(context.Context, string, {{ .Type }}ListOptions) ([]domain.{{ .Type }}, string, error)
+}
+
+type {{ .Type }}ListOptions struct {
+	Cursor  string
+	Limit   int
+	Filters map[string]string
+	Sort    string
 }
 
 type {{ .Type }}Service struct {
@@ -2933,7 +3233,7 @@ func New{{ .Type }}ServiceWithStore(store {{ .Type }}Store) *{{ .Type }}Service 
 	return service
 }
 
-func (s *{{ .Type }}Service) List(ctx context.Context, tenantID, cursor string, limit int) ([]domain.{{ .Type }}, string, error) {
+func (s *{{ .Type }}Service) List(ctx context.Context, tenantID string, opts {{ .Type }}ListOptions) ([]domain.{{ .Type }}, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
@@ -2941,15 +3241,16 @@ func (s *{{ .Type }}Service) List(ctx context.Context, tenantID, cursor string, 
 		return nil, "", ErrValidation
 	}
 	tenantID = strings.TrimSpace(tenantID)
-	cursor = strings.TrimSpace(cursor)
 	if tenantID == "" {
 		return nil, "", ErrValidation
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	var err error
+	opts, err = Normalize{{ .Type }}ListOptions(opts)
+	if err != nil {
+		return nil, "", err
 	}
 	if s.store != nil {
-		return s.store.List(ctx, tenantID, cursor, limit)
+		return s.store.List(ctx, tenantID, opts)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2958,18 +3259,70 @@ func (s *{{ .Type }}Service) List(ctx context.Context, tenantID, cursor string, 
 		if item.TenantID != tenantID || item.DeletedAt != nil {
 			continue
 		}
-		if cursor != "" && item.ID <= cursor {
+		if opts.Cursor != "" && item.ID <= opts.Cursor {
+			continue
+		}
+		if !match{{ .Type }}Filters(item, opts.Filters) {
 			continue
 		}
 		items = append(items, item)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	sort.Slice(items, func(i, j int) bool { return less{{ .Type }}BySort(items[i], items[j], opts.Sort) })
 	next := ""
-	if len(items) > limit {
-		next = items[limit-1].ID
-		items = items[:limit]
+	if len(items) > opts.Limit {
+		next = items[opts.Limit-1].ID
+		items = items[:opts.Limit]
 	}
 	return items, next, nil
+}
+
+func Normalize{{ .Type }}ListOptions(opts {{ .Type }}ListOptions) ({{ .Type }}ListOptions, error) {
+	opts.Cursor = strings.TrimSpace(opts.Cursor)
+	opts.Sort = strings.TrimSpace(opts.Sort)
+	if opts.Limit <= 0 || opts.Limit > 100 {
+		opts.Limit = 50
+	}
+	switch opts.Sort {
+	case "":
+		opts.Sort = "id"
+{{ .ServiceSortCases }}	default:
+		return {{ .Type }}ListOptions{}, ErrValidation
+	}
+	cleanFilters := map[string]string{}
+	for name, value := range opts.Filters {
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		switch name {
+{{ .ServiceFilterNameCases }}		default:
+			return {{ .Type }}ListOptions{}, ErrValidation
+		}
+		cleanFilters[name] = value
+	}
+	opts.Filters = cleanFilters
+	return opts, nil
+}
+
+func match{{ .Type }}Filters(item domain.{{ .Type }}, filters map[string]string) bool {
+	for name, want := range filters {
+		switch name {
+{{ .ServiceFilterCases }}		default:
+			return false
+		}
+	}
+	return true
+}
+
+func less{{ .Type }}BySort(a, b domain.{{ .Type }}, sortValue string) bool {
+	switch sortValue {
+	case "-id":
+		return a.ID > b.ID
+{{ .ServiceSortCompareCases }}	default:
+		return a.ID < b.ID
+	}
+	return a.ID < b.ID
 }
 
 func (s *{{ .Type }}Service) Create(ctx context.Context, tenantID, name string{{ .ServiceCreateParams }}) (domain.{{ .Type }}, error) {
@@ -3111,11 +3464,11 @@ func Test{{ .Type }}ServiceCRUDIsTenantScoped(t *testing.T) {
 	if created.TenantID != "org_1" || created.Version != 1 {
 		t.Fatalf("created {{ .Name }} = %#v", created)
 	}
-	items, _, err := service.List(ctx, "org_1", "", 50)
+	items, _, err := service.List(ctx, "org_1", {{ .Type }}ListOptions{Limit: 50})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("List() items=%#v err=%v", items, err)
 	}
-	other, _, err := service.List(ctx, "org_2", "", 50)
+	other, _, err := service.List(ctx, "org_2", {{ .Type }}ListOptions{Limit: 50})
 	if err != nil || len(other) != 0 {
 		t.Fatalf("cross tenant List() items=%#v err=%v", other, err)
 	}
@@ -3132,7 +3485,7 @@ func Test{{ .Type }}ServiceCRUDIsTenantScoped(t *testing.T) {
 	if err := service.Delete(ctx, "org_1", created.ID); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
-	items, _, err = service.List(ctx, "org_1", "", 50)
+	items, _, err = service.List(ctx, "org_1", {{ .Type }}ListOptions{Limit: 50})
 	if err != nil || len(items) != 0 {
 		t.Fatalf("List() after delete items=%#v err=%v", items, err)
 	}
@@ -3152,6 +3505,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
 )
 
@@ -3220,7 +3574,7 @@ func (s *{{ .Type }}Store) Get(ctx context.Context, tenantID, id string) (domain
 	return item, true, nil
 }
 
-func (s *{{ .Type }}Store) List(ctx context.Context, tenantID, cursor string, limit int) ([]domain.{{ .Type }}, string, error) {
+func (s *{{ .Type }}Store) List(ctx context.Context, tenantID string, opts app.{{ .Type }}ListOptions) ([]domain.{{ .Type }}, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
@@ -3228,17 +3582,16 @@ func (s *{{ .Type }}Store) List(ctx context.Context, tenantID, cursor string, li
 		return nil, "", Err{{ .Type }}StoreRequired
 	}
 	tenantID = strings.TrimSpace(tenantID)
-	cursor = strings.TrimSpace(cursor)
 	if tenantID == "" {
 		return nil, "", Err{{ .Type }}Invalid
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	var err error
+	opts, err = app.Normalize{{ .Type }}ListOptions(opts)
+	if err != nil {
+		return nil, "", err
 	}
-	rows, err := s.db.Query(ctx,
-		"select id, organization_id, name{{ .SQLSelectColumns }}, version, deleted_at, created_at, updated_at from {{ .Table }} where organization_id=$1 and deleted_at is null and ($2 = '' or id > $2) order by id limit $3",
-		tenantID, cursor, limit+1,
-	)
+	query := build{{ .Type }}ListQuery(tenantID, opts)
+	rows, err := s.db.Query(ctx, query.SQL, query.Args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("list {{ .Plural }}: %w", err)
 	}
@@ -3255,11 +3608,40 @@ func (s *{{ .Type }}Store) List(ctx context.Context, tenantID, cursor string, li
 		return nil, "", fmt.Errorf("list {{ .Plural }} rows: %w", err)
 	}
 	next := ""
-	if len(out) > limit {
-		next = out[limit-1].ID
-		out = out[:limit]
+	if len(out) > opts.Limit {
+		next = out[opts.Limit-1].ID
+		out = out[:opts.Limit]
 	}
 	return out, next, nil
+}
+
+type {{ .Var }}ListQuery struct {
+	SQL  string
+	Args []any
+}
+
+func build{{ .Type }}ListQuery(tenantID string, opts app.{{ .Type }}ListOptions) {{ .Var }}ListQuery {
+	where := []string{"organization_id=$1", "deleted_at is null", "($2 = '' or id > $2)"}
+	args := []any{tenantID, opts.Cursor}
+	nextArg := 3
+	for name, value := range opts.Filters {
+		switch name {
+{{ .PostgresFilterCases }}		default:
+			continue
+		}
+	}
+	args = append(args, opts.Limit+1)
+	return {{ .Var }}ListQuery{
+		SQL: fmt.Sprintf("select id, organization_id, name{{ .SQLSelectColumns }}, version, deleted_at, created_at, updated_at from {{ .Table }} where %s order by %s limit $%d", strings.Join(where, " and "), {{ .Var }}SortExpression(opts.Sort), nextArg),
+		Args: args,
+	}
+}
+
+func {{ .Var }}SortExpression(sortValue string) string {
+	switch sortValue {
+{{ .PostgresSortCases }}	default:
+		return "id asc"
+	}
 }
 
 type {{ .Var }}Scanner interface {
@@ -3291,6 +3673,7 @@ import (
 	"errors"
 	"testing"
 
+	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
 )
 
@@ -3302,7 +3685,7 @@ func Test{{ .Type }}StoreRequiresDatabase(t *testing.T) {
 	if _, _, err := store.Get(context.Background(), "org_1", "{{ .Prefix }}_1"); !errors.Is(err, Err{{ .Type }}StoreRequired) {
 		t.Fatalf("Get() error = %v, want %v", err, Err{{ .Type }}StoreRequired)
 	}
-	if _, _, err := store.List(context.Background(), "org_1", "", 50); !errors.Is(err, Err{{ .Type }}StoreRequired) {
+	if _, _, err := store.List(context.Background(), "org_1", app.{{ .Type }}ListOptions{Limit: 50}); !errors.Is(err, Err{{ .Type }}StoreRequired) {
 		t.Fatalf("List() error = %v, want %v", err, Err{{ .Type }}StoreRequired)
 	}
 }
@@ -3313,6 +3696,7 @@ const resourceHTTPTemplate = `package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -3334,7 +3718,11 @@ func (cfg RouterConfig) handleList{{ .Field }}(w http.ResponseWriter, r *http.Re
 		writeAppError(w, app.ErrValidation)
 		return
 	}
-	items, next, err := cfg.{{ .Field }}.List(r.Context(), tenantID, r.URL.Query().Get("cursor"), limit)
+	opts, ok := parse{{ .Type }}ListOptions(w, r, limit)
+	if !ok {
+		return
+	}
+	items, next, err := cfg.{{ .Field }}.List(r.Context(), tenantID, opts)
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -3468,6 +3856,28 @@ func query{{ .Type }}Limit(r *http.Request, fallback int) (int, error) {
 	return limit, nil
 }
 
+func parse{{ .Type }}ListOptions(w http.ResponseWriter, r *http.Request, limit int) (app.{{ .Type }}ListOptions, bool) {
+	query := r.URL.Query()
+	filters := {{ .Var }}FilterQueryParams(query)
+	sort := strings.TrimSpace(query.Get("sort"))
+	switch sort {
+{{ .ListSortCases }}	default:
+		writeAppError(w, app.ErrValidation)
+		return app.{{ .Type }}ListOptions{}, false
+	}
+	return app.{{ .Type }}ListOptions{
+		Cursor:  strings.TrimSpace(query.Get("cursor")),
+		Limit:   limit,
+		Filters: filters,
+		Sort:    sort,
+	}, true
+}
+
+func {{ .Var }}FilterQueryParams(query url.Values) map[string]string {
+	filters := map[string]string{}
+{{ .FilterQueryParams }}	return filters
+}
+
 func nullable{{ .Type }}String(value string) any {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -3551,6 +3961,7 @@ const resourceMigrationTemplate = `CREATE TABLE {{ .Table }} (
 );
 
 CREATE INDEX {{ .Table }}_organization_id_idx ON {{ .Table }}(organization_id, id) WHERE deleted_at IS NULL;
+{{ .MigrationIndexes }}
 `
 
 const resourceMigrationDownTemplate = `-- Local/schema-teardown helper only. Do not run in production.

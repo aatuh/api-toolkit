@@ -80,6 +80,12 @@ source of truth is `docs/release-runbook.md`.
 - `api-toolkit generate resource` now accepts the v2 field and route-shaping
   flags `--field`, `--filter`, `--sort`, `--admin`, `--relationship`, and
   `--object-field`, validating the field DSL before mutating generated projects.
+  Generated resources now wire exact-match list filters and allow-listed
+  deterministic sorts through HTTP query parsing, application services,
+  parameterized Postgres queries, OpenAPI parameters, generated typed clients,
+  and partial Postgres indexes. Relationship flags add `<name>_id` fields, and
+  object-backed fields must end in `_key` and expose only object keys, not
+  payloads.
 - `api-toolkit contracts changelog` and `api-toolkit contracts impact` now
   report OpenAPI operation additions/removals and machine-readable breaking
   client impact for release review. Contract lint and impact checks now also

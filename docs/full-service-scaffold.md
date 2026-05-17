@@ -306,6 +306,13 @@ update behavior, soft delete behavior, tests, and typed client regeneration.
 The v2 flags accept field definitions, filters, deterministic sorts, admin
 routes, relationships, and object-backed fields, but still fail closed outside
 intact generated projects. It does not mutate arbitrary Go services.
+Filters are exact-match query parameters and sorts are allow-listed values such
+as `sort=name` or `sort=-name`; generated code validates them before building
+parameterized SQL. Relationship specs like `owner:organizations` add an
+`owner_id` field, and object-backed fields must end in `_key` so generated
+responses expose references rather than object payloads. Enum fields add
+OpenAPI enum metadata and Postgres `CHECK` constraints, while filter,
+relationship, and object-key fields add tenant-scoped partial indexes.
 
 ## Provider Workflows
 
