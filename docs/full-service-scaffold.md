@@ -116,7 +116,9 @@ The full profile standardizes these defaults:
   `GET /operations/{id}`, and includes app tests for replay-safe processing and
   sanitized failure problems. In `DATABASE_URL` mode, generated async wiring
   uses the contrib Postgres operation repository and transactional outbox
-  adapter through generated app-level ports.
+  adapter through generated app-level ports. The Postgres runtime routes the
+  shared outbox through `contrib/async`'s handler mux so widget import jobs and
+  outbound webhook delivery jobs can run behind one bounded worker loop.
 - Generated audit events record actor type, actor ID, tenant, action, resource,
   result, request ID, and redaction-safe metadata for organization, invitation,
   API-key, widget, and async import writes.
@@ -187,8 +189,9 @@ The profile generates or is expected to generate:
   on localhost, and performs HTTP smoke checks for readiness, OpenAPI, auth
   failure, tenant routes, managed API-key auth, idempotent widget writes, ETag
   conflict handling, async operation polling, outbox completion/retry behavior,
-  webhook delivery/replay, object write/readback, audit writes, admin health,
-  admin metrics, admin pprof, and public admin-route isolation. Set
+  webhook delivery attempt recording/replay, object write/readback, audit
+  writes, admin health, admin metrics, admin pprof, and public admin-route
+  isolation. Set
   `INTEGRATION_OBJECT_STORE=s3` to run the object checks against MinIO. The
   script materializes `.env` from `.env.example` when needed so Docker Compose
   can parse the generated services in a fresh checkout and tears down Compose

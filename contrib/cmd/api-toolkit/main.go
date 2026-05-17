@@ -3945,11 +3945,13 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/auditpostgres"
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v2/adapters/webhookdeliverypostgres"
 	"github.com/aatuh/api-toolkit/contrib/v2/adapters/idempotency"
 	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v2/adapters/pgxpool"
 	"github.com/aatuh/api-toolkit/contrib/v2/async"
 	"github.com/aatuh/api-toolkit/contrib/v2/bootstrap"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v2/webhookdelivery"
 {{ if eq .AuthMode "clerk" }}	clerkauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/clerk"
 {{ else if eq .AuthMode "oidc" }}	oidcauth "github.com/aatuh/api-toolkit/contrib/v2/middleware/auth/oidc"
 {{ else if eq .AuthMode "jwt" }}	jwtauth "github.com/aatuh/api-toolkit/v2/middleware/auth/jwt"
@@ -3996,6 +3998,7 @@ func run(ctx context.Context) error {
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
 	var postgresPool ports.DatabasePool
+	var webhookStore *postgres.WebhookStore
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		pool, err := postgres.Open(dbCtx, cfg.DatabaseURL)
@@ -4016,7 +4019,7 @@ func run(ctx context.Context) error {
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(postgresPool, auditpostgres.Options{}))
-		webhookStore, err := postgres.NewWebhookStore(postgresPool, cfg.WebhookSecretKey)
+		webhookStore, err = postgres.NewWebhookStore(postgresPool, cfg.WebhookSecretKey)
 		if err != nil {
 			pool.Close()
 			return err
@@ -4095,9 +4098,34 @@ func run(ctx context.Context) error {
 		asyncJobs = app.NewAsyncServiceWithStores(widgets, operationStore, outbox)
 		asyncStore = outbox
 	}
+	asyncHandler, err := async.NewHandlerMux(async.HandlerRoute{Kind: app.WidgetImportJobKind, Handler: asyncJobs})
+	if err != nil {
+		return err
+	}
+	if webhookStore != nil {
+		webhookDeliverer, err := webhookdelivery.NewDeliverer(webhookdelivery.DelivererConfig{
+			EndpointPolicy: webhookdelivery.EndpointPolicy{AllowInsecureHTTP: !strings.EqualFold(os.Getenv("ENV"), "production")},
+			Metrics:        metricsRecorder,
+			UserAgent:      "saas-api-full-webhooks/1",
+		})
+		if err != nil {
+			return err
+		}
+		webhookHandler, err := webhookdelivery.NewHandler(webhookdelivery.HandlerConfig{
+			Endpoints: webhookStore,
+			Deliverer: webhookDeliverer,
+			Attempts:  webhookStore,
+		})
+		if err != nil {
+			return err
+		}
+		if err := asyncHandler.Register(webhookdeliverypostgres.OutboxEventType, webhookHandler); err != nil {
+			return err
+		}
+	}
 	asyncRunner, err := async.New(async.Config{
 		Store:        asyncStore,
-		Handler:      asyncJobs,
+		Handler:      asyncHandler,
 		Logger:       ports.NopLogger{},
 		BatchSize:    5,
 		Concurrency:  2,
@@ -5966,6 +5994,7 @@ type WebhookStore interface {
 	ListEndpoints(ctx context.Context, tenantID, eventType string) ([]webhookdelivery.Endpoint, error)
 	GetEndpoint(ctx context.Context, tenantID, endpointID string) (webhookdelivery.Endpoint, bool, error)
 	EnqueueDelivery(ctx context.Context, delivery webhookdelivery.Delivery, job webhookdelivery.JobPayload) error
+	RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error
 	ListDeliveries(ctx context.Context, tenantID string) ([]webhookdelivery.Delivery, error)
 	GetDelivery(ctx context.Context, tenantID, deliveryID string) (webhookdelivery.Delivery, bool, error)
 	ReplayDelivery(ctx context.Context, tenantID, deliveryID string, nextAt time.Time) error
@@ -6180,6 +6209,47 @@ func (s *WebhookService) EnqueueDelivery(ctx context.Context, delivery webhookde
 	return nil
 }
 
+func (s *WebhookService) RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return ErrValidation
+	}
+	result.DeliveryID = strings.TrimSpace(result.DeliveryID)
+	result.TenantID = strings.TrimSpace(result.TenantID)
+	result.EndpointID = strings.TrimSpace(result.EndpointID)
+	if result.DeliveryID == "" || result.TenantID == "" || result.EndpointID == "" || result.Attempt <= 0 {
+		return ErrValidation
+	}
+	if s.store != nil {
+		return s.store.RecordAttempt(ctx, result)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delivery, ok := s.deliveries[result.DeliveryID]
+	if !ok || strings.TrimSpace(delivery.TenantID) != result.TenantID || strings.TrimSpace(delivery.EndpointID) != result.EndpointID {
+		return ErrNotFound
+	}
+	delivery.Attempt = result.Attempt
+	delivery.LastStatusCode = result.StatusCode
+	delivery.LastError = safeWebhookAttemptError(result.Error)
+	delivery.State = webhookdelivery.StateFailed
+	if result.Accepted {
+		delivery.State = webhookdelivery.StateSucceeded
+		delivery.LastError = ""
+	} else if !result.Retryable {
+		delivery.State = webhookdelivery.StateDeadLetter
+	}
+	if result.OccurredAt.IsZero() {
+		delivery.UpdatedAt = s.now().UTC()
+	} else {
+		delivery.UpdatedAt = result.OccurredAt.UTC()
+	}
+	s.deliveries[result.DeliveryID] = delivery
+	return nil
+}
+
 func (s *WebhookService) DispatchEvent(ctx context.Context, tenantID, eventType string, payload any) ([]webhookdelivery.Delivery, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -6384,9 +6454,25 @@ func hashWebhookSecret(secret string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func safeWebhookAttemptError(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	lower := strings.ToLower(value)
+	if strings.Contains(lower, "secret") || strings.Contains(lower, "token") || strings.Contains(lower, "password") || strings.Contains(lower, "api_key") || strings.Contains(lower, "apikey") {
+		return "delivery failed"
+	}
+	if len(value) > 256 {
+		value = value[:256]
+	}
+	return value
+}
+
 var _ webhookdelivery.EndpointRegistry = (*WebhookService)(nil)
 var _ webhookdelivery.EndpointGetter = (*WebhookService)(nil)
 var _ webhookdelivery.DeliveryEnqueuer = (*WebhookService)(nil)
+var _ webhookdelivery.AttemptRecorder = (*WebhookService)(nil)
 var _ webhookdelivery.Replayer = (*WebhookService)(nil)
 
 `
@@ -6497,6 +6583,56 @@ func TestWebhookServiceRejectsUnsafeEndpointAndReplaysTenantScopedDelivery(t *te
 	}
 }
 
+func TestWebhookServiceRecordsAttemptsWithoutSecretLeak(t *testing.T) {
+	ctx := context.Background()
+	tenancy := NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(ctx, "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	service := NewWebhookService(tenancy)
+	service.newSecret = func() (string, error) { return "webhook-secret-value", nil }
+	created, err := service.CreateEndpoint(ctx, "owner_1", org.ID, "https://example.com/webhooks", []string{"widget.created"})
+	if err != nil {
+		t.Fatalf("CreateEndpoint() error = %v", err)
+	}
+	deliveries, err := service.DispatchEvent(ctx, org.ID, "widget.created", map[string]any{"id": "wgt_1"})
+	if err != nil {
+		t.Fatalf("DispatchEvent() error = %v", err)
+	}
+	if len(deliveries) != 1 {
+		t.Fatalf("deliveries = %#v", deliveries)
+	}
+	result := webhookdelivery.AttemptResult{
+		DeliveryID: deliveries[0].ID,
+		TenantID:   org.ID,
+		EndpointID: created.Endpoint.ID,
+		EventID:    deliveries[0].EventID,
+		EventType:  "widget.created",
+		Attempt:    1,
+		Retryable:  true,
+		Error:      "dial webhook-secret-value failed",
+		OccurredAt: time.Unix(1_700_000_100, 0).UTC(),
+	}
+	if err := service.RecordAttempt(ctx, result); err != nil {
+		t.Fatalf("RecordAttempt() error = %v", err)
+	}
+	listed, err := service.ListDeliveriesForActor(ctx, "owner_1", org.ID)
+	if err != nil {
+		t.Fatalf("ListDeliveriesForActor() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].State != webhookdelivery.StateFailed || listed[0].LastError != "delivery failed" {
+		t.Fatalf("listed delivery after attempt = %#v", listed)
+	}
+	encoded, err := json.Marshal(listed)
+	if err != nil {
+		t.Fatalf("marshal deliveries: %v", err)
+	}
+	if strings.Contains(string(encoded), "webhook-secret-value") {
+		t.Fatalf("attempt result leaked signing secret: %s", encoded)
+	}
+}
+
 func TestWebhookServiceWithStorePersistsEndpointsAndDeliveries(t *testing.T) {
 	ctx := context.Background()
 	tenancy := NewTenancyService()
@@ -6592,6 +6728,23 @@ func (s *recordingWebhookStore) GetEndpoint(_ context.Context, tenantID, endpoin
 func (s *recordingWebhookStore) EnqueueDelivery(_ context.Context, delivery webhookdelivery.Delivery, job webhookdelivery.JobPayload) error {
 	s.delivery = delivery
 	s.job = job
+	return nil
+}
+
+func (s *recordingWebhookStore) RecordAttempt(_ context.Context, result webhookdelivery.AttemptResult) error {
+	if strings.TrimSpace(s.delivery.ID) != strings.TrimSpace(result.DeliveryID) {
+		return webhookdelivery.ErrDeliveryNotFound
+	}
+	if result.Accepted {
+		s.delivery.State = webhookdelivery.StateSucceeded
+	} else if result.Retryable {
+		s.delivery.State = webhookdelivery.StateFailed
+	} else {
+		s.delivery.State = webhookdelivery.StateDeadLetter
+	}
+	s.delivery.Attempt = result.Attempt
+	s.delivery.LastStatusCode = result.StatusCode
+	s.delivery.LastError = result.Error
 	return nil
 }
 
@@ -10132,6 +10285,13 @@ func (s *WebhookStore) EnqueueDelivery(ctx context.Context, delivery webhookdeli
 		return ErrWebhookStoreRequired
 	}
 	return s.base.EnqueueDelivery(ctx, delivery, job)
+}
+
+func (s *WebhookStore) RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error {
+	if s == nil || s.base == nil {
+		return ErrWebhookStoreRequired
+	}
+	return s.base.RecordAttempt(ctx, result)
 }
 
 func (s *WebhookStore) ListDeliveries(ctx context.Context, tenantID string) ([]webhookdelivery.Delivery, error) {

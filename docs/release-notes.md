@@ -151,6 +151,11 @@ source of truth is `docs/release-runbook.md`.
   service writes tenant-scoped pollable operation rows, enqueues outbox work,
   and the generated outbox store leases work through contrib async while
   keeping failure problems sanitized.
+- Generated `saas-api-full` Postgres runtimes now route the shared outbox
+  through `contrib/async`'s handler mux, dispatching `widgets.import` to the
+  widget importer and `webhook.delivery` to the outbound webhook deliverer.
+  Webhook attempts are recorded through the generated app/Postgres store
+  boundary with sanitized errors and low-cardinality delivery metrics.
 - Generated `saas-api-full` object routes now support `OBJECT_STORE=s3` via a
   generated blob-store port and S3-compatible adapter wrapper. Tenant and role
   checks remain in the app service; object bytes are written, read, and deleted

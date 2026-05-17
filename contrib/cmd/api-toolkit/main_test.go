@@ -1044,9 +1044,29 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile main.go: %v", err)
 	}
-	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
+	for _, want := range []string{"postgres.Open", "postgres.CheckRequiredTables", "postgres.NewWidgetStore", "app.NewWidgetServiceWithStore", "postgres.NewTenancyStore", "app.NewTenancyServiceWithStore", "postgres.NewAPIKeyStore", "app.NewAPIKeyServiceWithStore", "postgres.NewWidgetImportOperationStore", "postgres.NewWidgetImportOutbox", "app.NewAsyncServiceWithStores", "postgres.NewWebhookStore", "app.NewWebhookServiceWithStore", "cfg.WebhookSecretKey", "postgres.NewObjectStore", "app.NewObjectServiceWithStores", "objectstorage.OpenS3BlobStore", "auditpostgres.New", "pgxpooladapter.Adapter", "app.NewAuditServiceWithRecorder", "webhookdelivery.NewDeliverer", "webhookdelivery.NewHandler", "webhookdeliverypostgres.OutboxEventType", "async.NewHandlerMux", "Handler:      asyncHandler", "rediscache.OpenCache", "rediscache.OpenRateLimiter", "rediscache.OpenIdempotencyStore", "metricsmw.NewPrometheusRecorderChecked", "httpapi.NewMetricsMiddleware", "httpapi.NewRateLimitMiddleware", "httpapi.NewIdempotencyMiddleware", "httpapi.NewOpenAPIValidationMiddleware", "bootstrap.NewAPIService", "httpapi.RegisterRoutes", "bootstrap.StrictSaaSAPIMiddlewareOrder", "AdminAddr:               cfg.AdminAddr", "httpapi.NewHealthHandler", "version.NewHandler", "metricsmw.PrometheusHandler", "app.NewAuditService", "app.NewWebhookService", "app.NewObjectService", "app.NewCacheService", "Audit: auditLog", "Webhooks: webhooks", "Objects: objects", "Cache: cacheService", "Metrics: metricsMiddleware", "MetricsHandler: metricsmw.PrometheusHandler()", "OpenAPIValidation: openAPIValidation", "RateLimit: rateLimitMiddleware", "Idempotency: idempotencyMiddleware", "Readiness: readiness"} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
+		}
+	}
+
+	generatedWebhooks, err := os.ReadFile(filepath.Join(serviceDir, "internal", "app", "webhooks.go"))
+	if err != nil {
+		t.Fatalf("read generated app webhooks: %v", err)
+	}
+	for _, want := range []string{"RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "webhookdelivery.AttemptRecorder"} {
+		if !strings.Contains(string(generatedWebhooks), want) {
+			t.Fatalf("generated app webhooks missing %q", want)
+		}
+	}
+
+	generatedPostgresWebhooks, err := os.ReadFile(filepath.Join(serviceDir, "internal", "adapters", "postgres", "webhooks.go"))
+	if err != nil {
+		t.Fatalf("read generated postgres webhooks: %v", err)
+	}
+	for _, want := range []string{"RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "s.base.RecordAttempt(ctx, result)"} {
+		if !strings.Contains(string(generatedPostgresWebhooks), want) {
+			t.Fatalf("generated postgres webhooks missing %q", want)
 		}
 	}
 
