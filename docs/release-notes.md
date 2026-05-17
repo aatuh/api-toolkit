@@ -75,7 +75,9 @@ source of truth is `docs/release-runbook.md`.
   dependency references, and AWS Postgres/Redis/S3 primitives. Generated full
   services now include `cmd/assetcheck` plus `make observability-check`,
   `make deploy-check`, and `make asset-check` so those starter assets are
-  validated offline without Helm, Terraform, jq, or network access.
+  validated offline without Helm, Terraform, jq, or network access. Release
+  evidence now records those generated asset checks in
+  `full_profile_scaffold_evidence.asset_validation`.
 - Generated `saas-api-full` migrator commands now include `plan`, `verify`, and
   a guarded `down` command. Down migrations require both
   `--allow-dangerous-down` and `ALLOW_DANGEROUS_MIGRATION_DOWN=true`, and remain

@@ -125,8 +125,8 @@ Local release evidence is the developer/auditor tier. It contains:
 - `full_profile_scaffold_evidence`, which records the release-blocking
   `full-profile-scaffold-check`, OpenAPI 3.1 full scaffold output, checked-in
   typed `client-check` signal, resource generator check, provider-flag
-  generation, worker check, generated integration workflow status, and the
-  opt-in non-blocking `integration-check` status.
+  generation, generated asset validation, worker check, generated integration
+  workflow status, and the opt-in non-blocking `integration-check` status.
 
 Local release evidence does not generate or sign SBOMs. The summary records this
 as an artifact tier distinction, not as missing release work. Dirty local
