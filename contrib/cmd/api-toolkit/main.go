@@ -1105,7 +1105,7 @@ func generateTypeScriptClient(cfg typescriptClientConfig) error {
 		"tsconfig.json": []byte(`{
   "compilerOptions": {
     "declaration": true,
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "outDir": "dist",
@@ -1446,6 +1446,9 @@ func tsTypeForSchemaRef(ref *openapi3.SchemaRef, required bool) string {
 	}
 	if name := schemaNameFromRef(ref.Ref); name != "" {
 		typeName := exportedGoIdentifier(name)
+		if strings.EqualFold(name, "Problem") {
+			typeName = "ProblemDetails"
+		}
 		if required && !schemaRefNullable(ref) {
 			return typeName
 		}
@@ -4620,7 +4623,7 @@ func generateService(cfg scaffoldConfig) error {
 	}
 	var golden []byte
 	if cfg.Profile == scaffoldProfileSaaSAPIFull {
-		golden, err = renderSaaSAPIFullOpenAPIGolden(cfg.AuthMode)
+		golden, err = renderSaaSAPIFullOpenAPIGolden(cfg.AuthMode, cfg.Providers)
 	} else {
 		golden, err = renderSaaSAPIOpenAPIGolden(cfg.AuthMode)
 	}
@@ -4632,7 +4635,7 @@ func generateService(cfg scaffoldConfig) error {
 	}
 	if cfg.Profile == scaffoldProfileSaaSAPIFull {
 		if hasScaffoldClient(cfg.Clients, scaffoldClientGo) {
-			client, err := renderSaaSAPIFullGoClient()
+			client, err := renderSaaSAPIFullGoClient(cfg.Providers)
 			if err != nil {
 				return err
 			}
@@ -4641,7 +4644,7 @@ func generateService(cfg scaffoldConfig) error {
 			}
 		}
 		if hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript) {
-			client, err := renderSaaSAPIFullTypeScriptClient()
+			client, err := renderSaaSAPIFullTypeScriptClient(cfg.Providers)
 			if err != nil {
 				return err
 			}
@@ -4804,16 +4807,16 @@ func renderSaaSAPIOpenAPIGolden(authMode string) ([]byte, error) {
 	return normalizeJSON(doc)
 }
 
-func renderSaaSAPIFullOpenAPIGolden(authMode string) ([]byte, error) {
-	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode)
+func renderSaaSAPIFullOpenAPIGolden(authMode string, providers []string) ([]byte, error) {
+	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode, providers)
 	if err != nil {
 		return nil, err
 	}
 	return normalizeJSON(doc)
 }
 
-func renderSaaSAPIFullOpenAPIDoc(authMode string) (*openapi3.T, error) {
-	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode)
+func renderSaaSAPIFullOpenAPIDoc(authMode string, providers []string) (*openapi3.T, error) {
+	doc, err := renderSaaSAPIFullOpenAPIBytes(authMode, providers)
 	if err != nil {
 		return nil, err
 	}
@@ -4824,7 +4827,7 @@ func renderSaaSAPIFullOpenAPIDoc(authMode string) (*openapi3.T, error) {
 	return loaded, nil
 }
 
-func renderSaaSAPIFullOpenAPIBytes(authMode string) ([]byte, error) {
+func renderSaaSAPIFullOpenAPIBytes(authMode string, providers []string) ([]byte, error) {
 	registry := specs.NewRegistryWithOptions(specs.Info{
 		Title:       "Full SaaS API",
 		Description: "Generated api-toolkit full SaaS/API profile.",
@@ -4839,9 +4842,10 @@ func renderSaaSAPIFullOpenAPIBytes(authMode string) ([]byte, error) {
 		registry.RegisterSecurityScheme(authSchemeName, specs.SecurityScheme{Type: "apiKey", Name: "X-API-Key", In: "header"})
 	}
 	registry.SetSecurity([]specs.SecurityRequirement{{Name: authSchemeName}})
-	registerFullScaffoldSchemas(registry)
+	includeEntitlements := hasScaffoldProvider(providers, scaffoldProviderEntitlements)
+	registerFullScaffoldSchemas(registry, includeEntitlements)
 	specs.RegisterProblemCatalog(registry, nil)
-	for _, operation := range fullScaffoldOperations(authSchemeName) {
+	for _, operation := range fullScaffoldOperations(authSchemeName, includeEntitlements) {
 		registry.Register(operation)
 	}
 	doc, err := registry.OpenAPI()
@@ -4851,8 +4855,8 @@ func renderSaaSAPIFullOpenAPIBytes(authMode string) ([]byte, error) {
 	return doc, nil
 }
 
-func renderSaaSAPIFullGoClient() ([]byte, error) {
-	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey)
+func renderSaaSAPIFullGoClient(providers []string) ([]byte, error) {
+	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey, providers)
 	if err != nil {
 		return nil, err
 	}
@@ -4864,15 +4868,15 @@ func renderSaaSAPIFullGoClient() ([]byte, error) {
 	return formatted, nil
 }
 
-func renderSaaSAPIFullTypeScriptClient() ([]byte, error) {
-	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey)
+func renderSaaSAPIFullTypeScriptClient(providers []string) ([]byte, error) {
+	doc, err := renderSaaSAPIFullOpenAPIDoc(scaffoldAuthAPIKey, providers)
 	if err != nil {
 		return nil, err
 	}
 	return []byte(renderTypeScriptFetchClient(doc)), nil
 }
 
-func registerFullScaffoldSchemas(registry *specs.Registry) {
+func registerFullScaffoldSchemas(registry *specs.Registry, includeEntitlements bool) {
 	registry.RegisterSchema("Widget", map[string]any{
 		"type":     "object",
 		"required": []string{"id", "tenant_id", "name", "version"},
@@ -5181,10 +5185,42 @@ func registerFullScaffoldSchemas(registry *specs.Registry) {
 		"additionalProperties": false,
 		"properties":           map[string]any{},
 	})
+	if includeEntitlements {
+		registry.RegisterSchema("EntitlementSnapshot", map[string]any{
+			"type":     "object",
+			"required": []string{"plan_id", "features", "quotas", "usage"},
+			"properties": map[string]any{
+				"plan_id":  map[string]any{"type": "string"},
+				"features": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}}},
+				"quotas":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer", "format": "int64", "minimum": 0}},
+				"usage":    map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer", "format": "int64", "minimum": 0}},
+			},
+		})
+		registry.RegisterSchema("EntitlementUsageRequest", map[string]any{
+			"type":                 "object",
+			"required":             []string{"feature", "amount"},
+			"additionalProperties": false,
+			"properties": map[string]any{
+				"feature": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}},
+				"amount":  map[string]any{"type": "integer", "format": "int64", "minimum": 1},
+			},
+		})
+		registry.RegisterSchema("EntitlementDecision", map[string]any{
+			"type":     "object",
+			"required": []string{"allowed", "feature", "reason", "used", "limit"},
+			"properties": map[string]any{
+				"allowed": map[string]any{"type": "boolean"},
+				"feature": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}},
+				"reason":  map[string]any{"type": "string", "enum": []string{"allowed", "feature_denied", "quota_exceeded"}},
+				"used":    map[string]any{"type": "integer", "format": "int64", "minimum": 0},
+				"limit":   map[string]any{"type": "integer", "format": "int64", "minimum": 0},
+			},
+		})
+	}
 	// api-toolkit:openapi-schemas
 }
 
-func fullScaffoldOperations(authSchemeName string) []specs.Operation {
+func fullScaffoldOperations(authSchemeName string, includeEntitlements bool) []specs.Operation {
 	auth := func(scopes ...string) []specs.SecurityRequirement {
 		return []specs.SecurityRequirement{{Name: authSchemeName, Scopes: scopes}}
 	}
@@ -5333,8 +5369,26 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
+	entitlementSnapshotResponse := specs.Response{
+		Description: "Entitlement snapshot",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementSnapshot"},
+		},
+	}
+	entitlementUsageBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementUsageRequest"},
+		},
+	}
+	entitlementDecisionResponse := specs.Response{
+		Description: "Entitlement usage decision",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementDecision"},
+		},
+	}
 	// api-toolkit:openapi-operation-variables
-	return []specs.Operation{
+	operations := []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getLiveness",
 			Method:      http.MethodGet,
@@ -5694,6 +5748,37 @@ func fullScaffoldOperations(authSchemeName string) []specs.Operation {
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		// api-toolkit:openapi-operations
 	}
+	if includeEntitlements {
+		operations = append(operations,
+			routepolicy.ApplyMetadata(specs.Operation{
+				OperationID: "getOrganizationEntitlements",
+				Method:      http.MethodGet,
+				Path:        "/organizations/{organization_id}/entitlements",
+				Summary:     "Get organization entitlements",
+				Parameters: []specs.Parameter{
+					{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+					{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				},
+				Security:  auth("entitlements:read"),
+				Responses: map[int]specs.Response{http.StatusOK: entitlementSnapshotResponse},
+			}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+			routepolicy.ApplyMetadata(specs.Operation{
+				OperationID: "recordOrganizationEntitlementUsage",
+				Method:      http.MethodPost,
+				Path:        "/organizations/{organization_id}/entitlements/usage",
+				Summary:     "Record organization entitlement usage",
+				Parameters: []specs.Parameter{
+					{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+					{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+					{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				},
+				Security:    auth("entitlements:consume"),
+				RequestBody: entitlementUsageBody,
+				Responses:   map[int]specs.Response{http.StatusOK: entitlementDecisionResponse},
+			}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+		)
+	}
+	return operations
 }
 
 func scaffoldAuthSecuritySchemeName(authMode string) string {
@@ -7693,6 +7778,8 @@ var clerkWebhooksScaffoldFiles = []scaffoldFile{
 var entitlementsScaffoldFiles = []scaffoldFile{
 	{Name: "internal/entitlements/entitlements.go", Body: entitlementsTemplate},
 	{Name: "internal/entitlements/entitlements_test.go", Body: entitlementsTestTemplate},
+	{Name: "internal/adapters/postgres/entitlements.go", Body: postgresEntitlementsTemplate},
+	{Name: "internal/adapters/postgres/entitlements_test.go", Body: postgresEntitlementsTestTemplate},
 	{Name: "docs/providers/entitlements.md", Body: entitlementsDocTemplate},
 }
 
@@ -7716,7 +7803,7 @@ const fullTypeScriptPackageTemplate = `{
 const fullTypeScriptTSConfigTemplate = `{
   "compilerOptions": {
     "declaration": true,
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "outDir": "dist",
@@ -7732,6 +7819,8 @@ const fullTypeScriptReadmeTemplate = `# TypeScript Client
 Generated fetch client for this service's OpenAPI contract. Regenerate it with:
 
 ` + "`" + `api-toolkit clients typescript --openapi ../../testdata/openapi.golden.json --out . --package-name @example/api-client --style fetch` + "`" + `
+
+Run ` + "`" + `npm install` + "`" + ` once in this directory to enable local TypeScript compile checks through ` + "`" + `make client-ts-check` + "`" + `.
 `
 
 const providerReplayCommandTemplate = `package main
@@ -8800,54 +8889,293 @@ const entitlementsTemplate = `package entitlements
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
+	"sync"
 )
 
 type Feature string
+
+const (
+	FeatureWidgets Feature = "widgets"
+	FeatureObjects Feature = "objects"
+	FeatureWebhooks Feature = "webhooks"
+)
 
 type Plan struct {
 	ID       string
 	Features map[Feature]bool
 	Quotas   map[Feature]int64
+	Usage    map[Feature]int64
+}
+
+type Decision struct {
+	Allowed bool
+	Feature Feature
+	Reason  string
+	Used    int64
+	Limit   int64
+}
+
+type BillingMapping struct {
+	TenantID        string
+	Provider        string
+	CustomerRef     string
+	SubscriptionRef string
+	PlanID          string
 }
 
 type Store interface {
 	PlanForTenant(context.Context, string) (Plan, error)
 	IncrementUsage(context.Context, string, Feature, int64) (int64, error)
+	UpsertBillingMapping(context.Context, BillingMapping) error
+}
+
+type Observer interface {
+	ObserveEntitlementDecision(context.Context, Decision)
 }
 
 type Service struct {
-	Store Store
+	Store    Store
+	Observer Observer
 }
 
-func (s Service) Allowed(ctx context.Context, tenantID string, feature Feature) (bool, error) {
-	if s.Store == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(string(feature)) == "" {
-		return false, errors.New("invalid entitlement check")
+func NewService(store Store) *Service {
+	if store == nil {
+		store = NewMemoryStore()
+	}
+	return &Service{Store: store}
+}
+
+func (s *Service) Snapshot(ctx context.Context, tenantID string) (Plan, error) {
+	if err := validateTenant(tenantID); err != nil {
+		return Plan{}, err
+	}
+	if s == nil || s.Store == nil {
+		return Plan{}, errors.New("entitlement store is required")
 	}
 	plan, err := s.Store.PlanForTenant(ctx, tenantID)
 	if err != nil {
-		return false, err
+		return Plan{}, err
 	}
-	return plan.Features[feature], nil
+	return clonePlan(plan), nil
 }
 
-func (s Service) Consume(ctx context.Context, tenantID string, feature Feature, amount int64) (bool, error) {
-	if amount <= 0 {
-		return false, errors.New("amount must be positive")
+func (s *Service) Allowed(ctx context.Context, tenantID string, feature Feature) (Decision, error) {
+	if err := validateCheck(tenantID, feature, 1); err != nil {
+		return Decision{}, err
 	}
-	plan, err := s.Store.PlanForTenant(ctx, tenantID)
+	plan, err := s.Snapshot(ctx, tenantID)
 	if err != nil {
-		return false, err
+		return Decision{}, err
+	}
+	decision := Decision{Allowed: plan.Features[feature], Feature: feature, Reason: "allowed"}
+	if !decision.Allowed {
+		decision.Reason = "feature_denied"
+	}
+	s.observe(ctx, decision)
+	return decision, nil
+}
+
+func (s *Service) Consume(ctx context.Context, tenantID string, feature Feature, amount int64) (Decision, error) {
+	if err := validateCheck(tenantID, feature, amount); err != nil {
+		return Decision{}, err
+	}
+	plan, err := s.Snapshot(ctx, tenantID)
+	if err != nil {
+		return Decision{}, err
+	}
+	if !plan.Features[feature] {
+		decision := Decision{Allowed: false, Feature: feature, Reason: "feature_denied"}
+		s.observe(ctx, decision)
+		return decision, nil
 	}
 	limit := plan.Quotas[feature]
 	if limit <= 0 {
-		return plan.Features[feature], nil
+		decision := Decision{Allowed: true, Feature: feature, Reason: "allowed"}
+		s.observe(ctx, decision)
+		return decision, nil
 	}
 	used, err := s.Store.IncrementUsage(ctx, tenantID, feature, amount)
 	if err != nil {
-		return false, err
+		return Decision{}, err
 	}
-	return used <= limit, nil
+	decision := Decision{Allowed: used <= limit, Feature: feature, Reason: "allowed", Used: used, Limit: limit}
+	if !decision.Allowed {
+		decision.Reason = "quota_exceeded"
+	}
+	s.observe(ctx, decision)
+	return decision, nil
+}
+
+func (s *Service) ApplyBillingMapping(ctx context.Context, mapping BillingMapping) error {
+	mapping.TenantID = strings.TrimSpace(mapping.TenantID)
+	mapping.Provider = strings.TrimSpace(mapping.Provider)
+	mapping.CustomerRef = strings.TrimSpace(mapping.CustomerRef)
+	mapping.SubscriptionRef = strings.TrimSpace(mapping.SubscriptionRef)
+	mapping.PlanID = strings.TrimSpace(mapping.PlanID)
+	if mapping.TenantID == "" || mapping.Provider == "" || mapping.CustomerRef == "" || mapping.PlanID == "" {
+		return errors.New("invalid billing entitlement mapping")
+	}
+	if s == nil || s.Store == nil {
+		return errors.New("entitlement store is required")
+	}
+	return s.Store.UpsertBillingMapping(ctx, mapping)
+}
+
+func (s *Service) observe(ctx context.Context, decision Decision) {
+	if s != nil && s.Observer != nil {
+		s.Observer.ObserveEntitlementDecision(ctx, decision)
+	}
+}
+
+type MemoryStore struct {
+	mu       sync.Mutex
+	plans    map[string]Plan
+	mappings map[string]BillingMapping
+}
+
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
+		plans:    map[string]Plan{},
+		mappings: map[string]BillingMapping{},
+	}
+}
+
+func (s *MemoryStore) PlanForTenant(_ context.Context, tenantID string) (Plan, error) {
+	if err := validateTenant(tenantID); err != nil {
+		return Plan{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	plan, ok := s.plans[strings.TrimSpace(tenantID)]
+	if !ok {
+		plan = defaultPlan("starter")
+	}
+	return clonePlan(plan), nil
+}
+
+func (s *MemoryStore) IncrementUsage(_ context.Context, tenantID string, feature Feature, amount int64) (int64, error) {
+	if err := validateCheck(tenantID, feature, amount); err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := strings.TrimSpace(tenantID)
+	plan, ok := s.plans[key]
+	if !ok {
+		plan = defaultPlan("starter")
+	}
+	if plan.Usage == nil {
+		plan.Usage = map[Feature]int64{}
+	}
+	plan.Usage[feature] += amount
+	s.plans[key] = clonePlan(plan)
+	return plan.Usage[feature], nil
+}
+
+func (s *MemoryStore) UpsertBillingMapping(_ context.Context, mapping BillingMapping) error {
+	mapping.TenantID = strings.TrimSpace(mapping.TenantID)
+	mapping.Provider = strings.TrimSpace(mapping.Provider)
+	mapping.CustomerRef = strings.TrimSpace(mapping.CustomerRef)
+	mapping.SubscriptionRef = strings.TrimSpace(mapping.SubscriptionRef)
+	mapping.PlanID = strings.TrimSpace(mapping.PlanID)
+	if mapping.TenantID == "" || mapping.Provider == "" || mapping.CustomerRef == "" || mapping.PlanID == "" {
+		return errors.New("invalid billing entitlement mapping")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mappings[mapping.Provider+"\x00"+mapping.CustomerRef] = mapping
+	plan := defaultPlan(mapping.PlanID)
+	if existing, ok := s.plans[mapping.TenantID]; ok {
+		plan.Usage = cloneUsage(existing.Usage)
+	}
+	s.plans[mapping.TenantID] = plan
+	return nil
+}
+
+func PublicPlan(plan Plan) map[string]any {
+	features := make([]string, 0, len(plan.Features))
+	for feature, enabled := range plan.Features {
+		if enabled {
+			features = append(features, string(feature))
+		}
+	}
+	sort.Strings(features)
+	quotaValues := make(map[string]int64, len(plan.Quotas))
+	for feature, limit := range plan.Quotas {
+		quotaValues[string(feature)] = limit
+	}
+	usageValues := make(map[string]int64, len(plan.Usage))
+	for feature, used := range plan.Usage {
+		usageValues[string(feature)] = used
+	}
+	return map[string]any{"plan_id": plan.ID, "features": features, "quotas": quotaValues, "usage": usageValues}
+}
+
+func PublicDecision(decision Decision) map[string]any {
+	return map[string]any{
+		"allowed": decision.Allowed,
+		"feature": string(decision.Feature),
+		"reason":  decision.Reason,
+		"used":    decision.Used,
+		"limit":   decision.Limit,
+	}
+}
+
+func defaultPlan(planID string) Plan {
+	planID = strings.ToLower(strings.TrimSpace(planID))
+	if planID == "" {
+		planID = "starter"
+	}
+	switch planID {
+	case "pro", "business":
+		return Plan{ID: planID, Features: map[Feature]bool{FeatureWidgets: true, FeatureObjects: true, FeatureWebhooks: true}, Quotas: map[Feature]int64{FeatureWidgets: 10000, FeatureObjects: 1000, FeatureWebhooks: 100}, Usage: map[Feature]int64{}}
+	default:
+		return Plan{ID: planID, Features: map[Feature]bool{FeatureWidgets: true}, Quotas: map[Feature]int64{FeatureWidgets: 100}, Usage: map[Feature]int64{}}
+	}
+}
+
+func clonePlan(plan Plan) Plan {
+	return Plan{ID: plan.ID, Features: cloneFeatures(plan.Features), Quotas: cloneQuotas(plan.Quotas), Usage: cloneUsage(plan.Usage)}
+}
+
+func cloneFeatures(in map[Feature]bool) map[Feature]bool {
+	out := make(map[Feature]bool, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneQuotas(in map[Feature]int64) map[Feature]int64 {
+	out := make(map[Feature]int64, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneUsage(in map[Feature]int64) map[Feature]int64 {
+	out := make(map[Feature]int64, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func validateTenant(tenantID string) error {
+	if strings.TrimSpace(tenantID) == "" {
+		return errors.New("invalid entitlement check")
+	}
+	return nil
+}
+
+func validateCheck(tenantID string, feature Feature, amount int64) error {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(string(feature)) == "" || amount <= 0 {
+		return errors.New("invalid entitlement check")
+	}
+	return nil
 }
 `
 
@@ -8858,37 +9186,365 @@ import (
 	"testing"
 )
 
-type fakeStore struct {
-	plan Plan
-	used int64
-}
-
-func (s *fakeStore) PlanForTenant(context.Context, string) (Plan, error) {
-	return s.plan, nil
-}
-
-func (s *fakeStore) IncrementUsage(_ context.Context, _ string, _ Feature, amount int64) (int64, error) {
-	s.used += amount
-	return s.used, nil
-}
-
 func TestAllowedAndQuota(t *testing.T) {
-	store := &fakeStore{plan: Plan{
-		Features: map[Feature]bool{"widgets": true},
-		Quotas: map[Feature]int64{"widgets": 2},
-	}}
-	service := Service{Store: store}
-	allowed, err := service.Allowed(context.Background(), "tenant-1", "widgets")
-	if err != nil || !allowed {
-		t.Fatalf("Allowed() = %v, %v", allowed, err)
+	store := NewMemoryStore()
+	service := NewService(store)
+	if err := service.ApplyBillingMapping(context.Background(), BillingMapping{TenantID: "tenant-1", Provider: "stripe", CustomerRef: "cus_fixture", PlanID: "starter"}); err != nil {
+		t.Fatalf("ApplyBillingMapping() error = %v", err)
 	}
-	allowed, err = service.Consume(context.Background(), "tenant-1", "widgets", 3)
+	decision, err := service.Allowed(context.Background(), "tenant-1", FeatureWidgets)
+	if err != nil {
+		t.Fatalf("Allowed() error = %v", err)
+	}
+	if !decision.Allowed {
+		t.Fatalf("Allowed() = %#v", decision)
+	}
+	decision, err = service.Consume(context.Background(), "tenant-1", FeatureWidgets, 101)
 	if err != nil {
 		t.Fatalf("Consume() error = %v", err)
 	}
-	if allowed {
-		t.Fatal("quota should be exceeded")
+	if decision.Allowed || decision.Reason != "quota_exceeded" {
+		t.Fatalf("quota decision = %#v", decision)
 	}
+}
+
+func TestPublicPlanOmitsBillingIdentifiers(t *testing.T) {
+	store := NewMemoryStore()
+	service := NewService(store)
+	if err := service.ApplyBillingMapping(context.Background(), BillingMapping{TenantID: "tenant-1", Provider: "stripe", CustomerRef: "cus_secret", SubscriptionRef: "sub_secret", PlanID: "pro"}); err != nil {
+		t.Fatalf("ApplyBillingMapping() error = %v", err)
+	}
+	plan, err := service.Snapshot(context.Background(), "tenant-1")
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	public := PublicPlan(plan)
+	for _, key := range []string{"provider", "customer_ref", "subscription_ref", "tenant_id"} {
+		if _, ok := public[key]; ok {
+			t.Fatalf("public plan leaked %s: %#v", key, public)
+		}
+	}
+}
+`
+
+const postgresEntitlementsTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{ .Module }}/internal/entitlements"
+)
+
+var (
+	ErrEntitlementStoreRequired = errors.New("postgres entitlement store db is required")
+	ErrEntitlementInvalid       = errors.New("postgres entitlement input is invalid")
+)
+
+type EntitlementDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+type EntitlementStore struct {
+	db EntitlementDB
+}
+
+func NewEntitlementStore(db EntitlementDB) *EntitlementStore {
+	return &EntitlementStore{db: db}
+}
+
+func (s *EntitlementStore) PlanForTenant(ctx context.Context, tenantID string) (entitlements.Plan, error) {
+	if err := ctx.Err(); err != nil {
+		return entitlements.Plan{}, err
+	}
+	if s == nil || s.db == nil {
+		return entitlements.Plan{}, ErrEntitlementStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return entitlements.Plan{}, ErrEntitlementInvalid
+	}
+	rows, err := s.db.Query(ctx, "select plan_id, feature, enabled, quota_limit, usage_count from tenant_entitlements where organization_id=$1 order by feature", tenantID)
+	if err != nil {
+		return entitlements.Plan{}, fmt.Errorf("load tenant entitlements: %w", err)
+	}
+	defer rows.Close()
+	plan := entitlements.Plan{ID: "starter", Features: map[entitlements.Feature]bool{}, Quotas: map[entitlements.Feature]int64{}, Usage: map[entitlements.Feature]int64{}}
+	for rows.Next() {
+		var planID, feature string
+		var enabled bool
+		var quotaLimit, usageCount int64
+		if err := rows.Scan(&planID, &feature, &enabled, &quotaLimit, &usageCount); err != nil {
+			return entitlements.Plan{}, fmt.Errorf("scan tenant entitlement: %w", err)
+		}
+		if strings.TrimSpace(planID) != "" {
+			plan.ID = strings.TrimSpace(planID)
+		}
+		f := entitlements.Feature(strings.TrimSpace(feature))
+		plan.Features[f] = enabled
+		plan.Quotas[f] = quotaLimit
+		plan.Usage[f] = usageCount
+	}
+	if err := rows.Err(); err != nil {
+		return entitlements.Plan{}, fmt.Errorf("load tenant entitlements rows: %w", err)
+	}
+	if len(plan.Features) == 0 {
+		plan.Features[entitlements.FeatureWidgets] = true
+		plan.Quotas[entitlements.FeatureWidgets] = 100
+	}
+	return plan, nil
+}
+
+func (s *EntitlementStore) IncrementUsage(ctx context.Context, tenantID string, feature entitlements.Feature, amount int64) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if s == nil || s.db == nil {
+		return 0, ErrEntitlementStoreRequired
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	feature = entitlements.Feature(strings.TrimSpace(string(feature)))
+	if tenantID == "" || feature == "" || amount <= 0 {
+		return 0, ErrEntitlementInvalid
+	}
+	var used int64
+	if err := s.db.QueryRow(ctx, "update tenant_entitlements set usage_count=usage_count+$3, updated_at=now() where organization_id=$1 and feature=$2 returning usage_count", tenantID, string(feature), amount).Scan(&used); err != nil {
+		return 0, fmt.Errorf("increment entitlement usage: %w", err)
+	}
+	return used, nil
+}
+
+func (s *EntitlementStore) UpsertBillingMapping(ctx context.Context, mapping entitlements.BillingMapping) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.db == nil {
+		return ErrEntitlementStoreRequired
+	}
+	mapping.TenantID = strings.TrimSpace(mapping.TenantID)
+	mapping.Provider = strings.TrimSpace(mapping.Provider)
+	mapping.CustomerRef = strings.TrimSpace(mapping.CustomerRef)
+	mapping.SubscriptionRef = strings.TrimSpace(mapping.SubscriptionRef)
+	mapping.PlanID = strings.TrimSpace(mapping.PlanID)
+	if mapping.TenantID == "" || mapping.Provider == "" || mapping.CustomerRef == "" || mapping.PlanID == "" {
+		return ErrEntitlementInvalid
+	}
+	if _, err := s.db.Exec(ctx, "insert into billing_mappings (organization_id, provider, customer_ref, subscription_ref, plan_id, updated_at) values ($1,$2,$3,$4,$5,now()) on conflict (provider, customer_ref) do update set organization_id=excluded.organization_id, subscription_ref=excluded.subscription_ref, plan_id=excluded.plan_id, updated_at=now()", mapping.TenantID, mapping.Provider, mapping.CustomerRef, mapping.SubscriptionRef, mapping.PlanID); err != nil {
+		return fmt.Errorf("upsert billing mapping: %w", err)
+	}
+	for _, row := range defaultPlanRows(mapping.TenantID, mapping.PlanID) {
+		if _, err := s.db.Exec(ctx, "insert into tenant_entitlements (organization_id, plan_id, feature, enabled, quota_limit, updated_at) values ($1,$2,$3,$4,$5,now()) on conflict (organization_id, feature) do update set plan_id=excluded.plan_id, enabled=excluded.enabled, quota_limit=excluded.quota_limit, updated_at=now()", row.tenantID, row.planID, row.feature, row.enabled, row.quota); err != nil {
+			return fmt.Errorf("upsert tenant entitlement: %w", err)
+		}
+	}
+	return nil
+}
+
+type entitlementPlanRow struct {
+	tenantID string
+	planID   string
+	feature  string
+	enabled  bool
+	quota    int64
+}
+
+func defaultPlanRows(tenantID, planID string) []entitlementPlanRow {
+	planID = strings.ToLower(strings.TrimSpace(planID))
+	if planID == "pro" || planID == "business" {
+		return []entitlementPlanRow{
+			{tenantID: tenantID, planID: planID, feature: string(entitlements.FeatureWidgets), enabled: true, quota: 10000},
+			{tenantID: tenantID, planID: planID, feature: string(entitlements.FeatureObjects), enabled: true, quota: 1000},
+			{tenantID: tenantID, planID: planID, feature: string(entitlements.FeatureWebhooks), enabled: true, quota: 100},
+		}
+	}
+	if planID == "" {
+		planID = "starter"
+	}
+	return []entitlementPlanRow{{ "{{" }}tenantID: tenantID, planID: planID, feature: string(entitlements.FeatureWidgets), enabled: true, quota: 100}}
+}
+`
+
+const postgresEntitlementsTestTemplate = `package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{ .Module }}/internal/entitlements"
+)
+
+func TestEntitlementStorePlanAndUsage(t *testing.T) {
+	db := &fakeEntitlementDB{
+		rows: &fakeEntitlementRows{rows: [][]any{{ "{{" }}"pro", "widgets", true, int64(10000), int64(2)}}},
+		row:  fakeEntitlementRow{values: []any{int64(3)}},
+	}
+	store := NewEntitlementStore(db)
+	plan, err := store.PlanForTenant(context.Background(), "org_1")
+	if err != nil {
+		t.Fatalf("PlanForTenant() error = %v", err)
+	}
+	if plan.ID != "pro" || !plan.Features[entitlements.FeatureWidgets] || plan.Quotas[entitlements.FeatureWidgets] != 10000 || plan.Usage[entitlements.FeatureWidgets] != 2 {
+		t.Fatalf("PlanForTenant() = %#v", plan)
+	}
+	used, err := store.IncrementUsage(context.Background(), "org_1", entitlements.FeatureWidgets, 1)
+	if err != nil {
+		t.Fatalf("IncrementUsage() error = %v", err)
+	}
+	if used != 3 || !strings.Contains(db.lastRowSQL, "update tenant_entitlements") {
+		t.Fatalf("IncrementUsage() used=%d sql=%q", used, db.lastRowSQL)
+	}
+}
+
+func TestEntitlementStoreUpsertsBillingMappingAndPlanRows(t *testing.T) {
+	db := &fakeEntitlementDB{}
+	store := NewEntitlementStore(db)
+	err := store.UpsertBillingMapping(context.Background(), entitlements.BillingMapping{
+		TenantID: "org_1",
+		Provider: "stripe",
+		CustomerRef: "cus_fixture",
+		SubscriptionRef: "sub_fixture",
+		PlanID: "pro",
+	})
+	if err != nil {
+		t.Fatalf("UpsertBillingMapping() error = %v", err)
+	}
+	if len(db.execSQL) != 4 {
+		t.Fatalf("exec count = %d, want billing mapping plus three plan rows: %#v", len(db.execSQL), db.execSQL)
+	}
+	if !strings.Contains(db.execSQL[0], "billing_mappings") || !strings.Contains(db.execSQL[1], "tenant_entitlements") {
+		t.Fatalf("exec sql = %#v", db.execSQL)
+	}
+}
+
+func TestEntitlementStoreRequiresDatabase(t *testing.T) {
+	store := NewEntitlementStore(nil)
+	if _, err := store.PlanForTenant(context.Background(), "org_1"); !errors.Is(err, ErrEntitlementStoreRequired) {
+		t.Fatalf("PlanForTenant() error = %v", err)
+	}
+	if _, err := store.IncrementUsage(context.Background(), "org_1", entitlements.FeatureWidgets, 1); !errors.Is(err, ErrEntitlementStoreRequired) {
+		t.Fatalf("IncrementUsage() error = %v", err)
+	}
+	if err := store.UpsertBillingMapping(context.Background(), entitlements.BillingMapping{}); !errors.Is(err, ErrEntitlementStoreRequired) {
+		t.Fatalf("UpsertBillingMapping() error = %v", err)
+	}
+}
+
+type fakeEntitlementDB struct {
+	rows         pgx.Rows
+	row          pgx.Row
+	execErr      error
+	lastQuerySQL string
+	lastRowSQL   string
+	execSQL      []string
+}
+
+func (f *fakeEntitlementDB) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	f.lastQuerySQL = sql
+	if f.rows == nil {
+		return &fakeEntitlementRows{}, nil
+	}
+	return f.rows, nil
+}
+
+func (f *fakeEntitlementDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	f.lastRowSQL = sql
+	if f.row == nil {
+		return fakeEntitlementRow{err: pgx.ErrNoRows}
+	}
+	return f.row
+}
+
+func (f *fakeEntitlementDB) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	f.execSQL = append(f.execSQL, sql)
+	if f.execErr != nil {
+		return pgconn.CommandTag{}, f.execErr
+	}
+	return pgconn.NewCommandTag("INSERT 1"), nil
+}
+
+type fakeEntitlementRows struct {
+	rows [][]any
+	idx  int
+	err  error
+}
+
+func (r *fakeEntitlementRows) Close() {}
+func (r *fakeEntitlementRows) Err() error { return r.err }
+func (r *fakeEntitlementRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+func (r *fakeEntitlementRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeEntitlementRows) Values() ([]any, error) { return r.rows[r.idx-1], nil }
+func (r *fakeEntitlementRows) RawValues() [][]byte { return nil }
+func (r *fakeEntitlementRows) Conn() *pgx.Conn { return nil }
+
+func (r *fakeEntitlementRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+
+func (r *fakeEntitlementRows) Scan(dest ...any) error {
+	if r.idx == 0 || r.idx > len(r.rows) {
+		return errors.New("Scan called without current row")
+	}
+	return scanFakeEntitlementValues(r.rows[r.idx-1], dest...)
+}
+
+type fakeEntitlementRow struct {
+	values []any
+	err    error
+}
+
+func (r fakeEntitlementRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return scanFakeEntitlementValues(r.values, dest...)
+}
+
+func scanFakeEntitlementValues(values []any, dest ...any) error {
+	if len(values) != len(dest) {
+		return fmt.Errorf("value count %d does not match destination count %d", len(values), len(dest))
+	}
+	for i := range values {
+		switch d := dest[i].(type) {
+		case *string:
+			value, ok := values[i].(string)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want string", i, values[i])
+			}
+			*d = value
+		case *bool:
+			value, ok := values[i].(bool)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want bool", i, values[i])
+			}
+			*d = value
+		case *int64:
+			value, ok := values[i].(int64)
+			if !ok {
+				return fmt.Errorf("value %d is %T, want int64", i, values[i])
+			}
+			*d = value
+		default:
+			return fmt.Errorf("unsupported destination %T", dest[i])
+		}
+	}
+	return nil
 }
 `
 
@@ -8896,7 +9552,7 @@ const entitlementsDocTemplate = `# Entitlements
 
 The optional entitlements workflow is provider-neutral app code. It models plans, features, tenant entitlements, quotas, and usage counters without importing billing-provider SDKs.
 
-When combined with Stripe billing, provider webhooks should update app-owned billing mappings and then update these entitlements. Do not log billing customer IDs, subscription IDs, or quota usage payloads as high-cardinality metric labels.
+When combined with Stripe billing, provider webhooks update app-owned billing mappings and then update these entitlements. The generated HTTP routes expose tenant plan snapshots and quota consumption decisions without returning provider customer IDs, subscription IDs, tenant IDs in metric labels, or raw quota payloads.
 `
 
 const providerRunbookTemplate = `# Provider Runbook
@@ -8968,6 +9624,8 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v2/audit"
 	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"{{ .Module }}/internal/app"
+{{ if eq .HasEntitlements "true" }}	"{{ .Module }}/internal/entitlements"
+{{ end }}
 )
 
 type Provider interface {
@@ -8975,12 +9633,18 @@ type Provider interface {
 	ParseWebhook(context.Context, []byte, string) (compatbilling.WebhookEvent, error)
 }
 
+{{ if eq .HasEntitlements "true" }}type EntitlementUpdater interface {
+	ApplyBillingMapping(context.Context, entitlements.BillingMapping) error
+}
+
+{{ end }}
 type Service struct {
-	Provider   Provider
-	Audit      *app.AuditService
-	SuccessURL string
-	CancelURL  string
-	PriceID    string
+	Provider     Provider
+	Audit        *app.AuditService
+{{ if eq .HasEntitlements "true" }}	Entitlements EntitlementUpdater
+{{ end }}	SuccessURL   string
+	CancelURL    string
+	PriceID      string
 }
 
 func NewService(provider Provider, auditLog *app.AuditService) *Service {
@@ -9049,6 +9713,21 @@ func (s *Service) HandleWebhook(ctx context.Context, tenantID string, payload []
 	if tenantID == "" {
 		return compatbilling.WebhookEvent{}, app.ErrValidation
 	}
+{{ if eq .HasEntitlements "true" }}	if s.Entitlements != nil {
+		refs := stripePayloadRefs(event.Payload)
+		if refs.customerRef != "" && refs.planID != "" {
+			if err := s.Entitlements.ApplyBillingMapping(ctx, entitlements.BillingMapping{
+				TenantID:        tenantID,
+				Provider:        "stripe",
+				CustomerRef:     refs.customerRef,
+				SubscriptionRef: refs.subscriptionRef,
+				PlanID:          refs.planID,
+			}); err != nil {
+				return compatbilling.WebhookEvent{}, err
+			}
+		}
+	}
+{{ end }}
 	s.record(ctx, tenantID, "stripe", "stripe.webhook."+event.Type, "billing_webhook", event.ID, audit.ResultSuccess, map[string]string{"event_type": event.Type})
 	return event, nil
 }
@@ -9075,23 +9754,56 @@ func (s *Service) ServeWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func tenantIDFromStripePayload(payload []byte) string {
+	return stripePayloadRefs(payload).tenantID
+}
+
+type stripeRefs struct {
+	tenantID        string
+	customerRef     string
+	subscriptionRef string
+	planID          string
+}
+
+func stripePayloadRefs(payload []byte) stripeRefs {
 	var event struct {
-		Metadata map[string]string ` + "`json:\"metadata\"`" + `
-		Object   struct {
-			Metadata map[string]string ` + "`json:\"metadata\"`" + `
+		Metadata     map[string]string ` + "`json:\"metadata\"`" + `
+		Customer     string            ` + "`json:\"customer\"`" + `
+		Subscription string            ` + "`json:\"subscription\"`" + `
+		Object       struct {
+			Metadata     map[string]string ` + "`json:\"metadata\"`" + `
+			Customer     string            ` + "`json:\"customer\"`" + `
+			Subscription string            ` + "`json:\"subscription\"`" + `
 		} ` + "`json:\"object\"`" + `
 		Data struct {
 			Object struct {
-				Metadata map[string]string ` + "`json:\"metadata\"`" + `
+				Metadata     map[string]string ` + "`json:\"metadata\"`" + `
+				Customer     string            ` + "`json:\"customer\"`" + `
+				Subscription string            ` + "`json:\"subscription\"`" + `
 			} ` + "`json:\"object\"`" + `
 		} ` + "`json:\"data\"`" + `
 	}
 	if err := json.Unmarshal(payload, &event); err != nil {
-		return ""
+		return stripeRefs{}
+	}
+	refs := stripeRefs{
+		customerRef:     firstNonEmpty(event.Customer, event.Object.Customer, event.Data.Object.Customer),
+		subscriptionRef: firstNonEmpty(event.Subscription, event.Object.Subscription, event.Data.Object.Subscription),
 	}
 	for _, metadata := range []map[string]string{event.Metadata, event.Object.Metadata, event.Data.Object.Metadata} {
-		if tenantID := strings.TrimSpace(metadata["tenant_id"]); tenantID != "" {
-			return tenantID
+		if refs.tenantID == "" {
+			refs.tenantID = strings.TrimSpace(metadata["tenant_id"])
+		}
+		if refs.planID == "" {
+			refs.planID = firstNonEmpty(metadata["plan_id"], metadata["price_id"], metadata["product_id"])
+		}
+	}
+	return refs
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
 		}
 	}
 	return ""
@@ -9122,6 +9834,8 @@ import (
 
 	compatbilling "github.com/aatuh/api-toolkit/v2/compat/billing"
 	"{{ .Module }}/internal/app"
+{{ if eq .HasEntitlements "true" }}	"{{ .Module }}/internal/entitlements"
+{{ end }}
 )
 
 func TestCreateCheckoutSessionRecordsTenantScopedAudit(t *testing.T) {
@@ -9170,6 +9884,25 @@ func TestHandleWebhookRequiresVerifiedTenant(t *testing.T) {
 	}
 }
 
+{{ if eq .HasEntitlements "true" }}func TestHandleWebhookAppliesEntitlementMapping(t *testing.T) {
+	updater := &fakeEntitlementUpdater{}
+	provider := &fakeBillingProvider{event: compatbilling.WebhookEvent{
+		ID:      "evt_2",
+		Type:    "checkout.session.completed",
+		Payload: []byte(` + "`" + `{"data":{"object":{"customer":"cus_fixture","subscription":"sub_fixture","metadata":{"tenant_id":"org_1","plan_id":"pro"}}}}` + "`" + `),
+	}}
+	service := NewService(provider, app.NewAuditService())
+	service.Entitlements = updater
+
+	if _, err := service.HandleWebhook(context.Background(), "org_1", []byte(` + "`" + `{"id":"evt_2"}` + "`" + `), "sig_test"); err != nil {
+		t.Fatalf("HandleWebhook() error = %v", err)
+	}
+	if updater.mapping.TenantID != "org_1" || updater.mapping.Provider != "stripe" || updater.mapping.CustomerRef != "cus_fixture" || updater.mapping.SubscriptionRef != "sub_fixture" || updater.mapping.PlanID != "pro" {
+		t.Fatalf("entitlement mapping = %#v", updater.mapping)
+	}
+}
+
+{{ end }}
 type fakeBillingProvider struct {
 	request compatbilling.CheckoutSessionRequest
 	session compatbilling.CheckoutSession
@@ -9185,6 +9918,16 @@ func (p *fakeBillingProvider) ParseWebhook(_ context.Context, _ []byte, _ string
 	return p.event, nil
 }
 
+{{ if eq .HasEntitlements "true" }}type fakeEntitlementUpdater struct {
+	mapping entitlements.BillingMapping
+}
+
+func (u *fakeEntitlementUpdater) ApplyBillingMapping(_ context.Context, mapping entitlements.BillingMapping) error {
+	u.mapping = mapping
+	return nil
+}
+
+{{ end }}
 func metadataValues(metadata map[string]string) []string {
 	values := make([]string, 0, len(metadata))
 	for _, value := range metadata {
@@ -9933,6 +10676,8 @@ import (
 	"{{ .Module }}/internal/adapters/postgres"
 	rediscache "{{ .Module }}/internal/adapters/redis"
 	"{{ .Module }}/internal/app"
+{{ if eq .HasEntitlements "true" }}	entitlements "{{ .Module }}/internal/entitlements"
+{{ end }}
 	"{{ .Module }}/internal/httpapi"
 )
 
@@ -9964,6 +10709,8 @@ func run(ctx context.Context) error {
 	webhooks := app.NewWebhookServiceWithEndpointPolicy(tenancy, webhookEndpointPolicy)
 	objects := app.NewObjectService(tenancy)
 	cacheService := app.NewCacheService(nil)
+{{ if eq .HasEntitlements "true" }}	entitlementService := entitlements.NewService(nil)
+{{ end }}
 	// api-toolkit:main-service-defaults
 	var rateLimiter ports.RateLimiter
 	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
@@ -9990,6 +10737,8 @@ func run(ctx context.Context) error {
 		postgresPool = &pgxpooladapter.Adapter{Pool: pool}
 		tenancy = app.NewTenancyServiceWithStore(postgres.NewTenancyStore(pool))
 		widgets = app.NewWidgetServiceWithStore(postgres.NewWidgetStore(pool))
+{{ if eq .HasEntitlements "true" }}		entitlementService = entitlements.NewService(postgres.NewEntitlementStore(pool))
+{{ end }}
 		// api-toolkit:main-postgres-stores
 		apiKeys = app.NewAPIKeyServiceWithStore(cfg.APIKeyPepper, tenancy, postgres.NewAPIKeyStore(pool))
 		auditLog = app.NewAuditServiceWithRecorder(auditpostgres.New(postgresPool, auditpostgres.Options{}))
@@ -10144,6 +10893,8 @@ func run(ctx context.Context) error {
 		Webhooks:          webhooks,
 		Objects:           objects,
 		Cache:             cacheService,
+{{ if eq .HasEntitlements "true" }}		Entitlements:      entitlementService,
+{{ end }}
 		Metrics:           metricsMiddleware,
 		MetricsHandler:    metricsmw.PrometheusHandler(),
 		OpenAPIValidation: openAPIValidation,
@@ -14400,6 +15151,9 @@ var RequiredTables = []string{
 	"objects",
 	"webhook_endpoints",
 	"webhook_deliveries",
+{{ if eq .HasEntitlements "true" }}	"tenant_entitlements",
+	"billing_mappings",
+{{ end }}
 	// api-toolkit:postgres-required-tables
 }
 
@@ -17761,6 +18515,37 @@ func registerSchemas(registry *specs.Registry) {
 		"additionalProperties": false,
 		"properties":           map[string]any{},
 	})
+{{ if eq .HasEntitlements "true" }}	registry.RegisterSchema("EntitlementSnapshot", map[string]any{
+		"type":     "object",
+		"required": []string{"plan_id", "features", "quotas", "usage"},
+		"properties": map[string]any{
+			"plan_id":  map[string]any{"type": "string"},
+			"features": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}}},
+			"quotas":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer", "format": "int64", "minimum": 0}},
+			"usage":    map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer", "format": "int64", "minimum": 0}},
+		},
+	})
+	registry.RegisterSchema("EntitlementUsageRequest", map[string]any{
+		"type":                 "object",
+		"required":             []string{"feature", "amount"},
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"feature": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}},
+			"amount":  map[string]any{"type": "integer", "format": "int64", "minimum": 1},
+		},
+	})
+	registry.RegisterSchema("EntitlementDecision", map[string]any{
+		"type":     "object",
+		"required": []string{"allowed", "feature", "reason", "used", "limit"},
+		"properties": map[string]any{
+			"allowed": map[string]any{"type": "boolean"},
+			"feature": map[string]any{"type": "string", "enum": []string{"widgets", "objects", "webhooks"}},
+			"reason":  map[string]any{"type": "string", "enum": []string{"allowed", "feature_denied", "quota_exceeded"}},
+			"used":    map[string]any{"type": "integer", "format": "int64", "minimum": 0},
+			"limit":   map[string]any{"type": "integer", "format": "int64", "minimum": 0},
+		},
+	})
+{{ end }}
 	// api-toolkit:openapi-schemas
 }
 
@@ -17913,8 +18698,27 @@ func operations() []specs.Operation {
 			"application/json": {SchemaRef: "#/components/schemas/ObjectList"},
 		},
 	}
+{{ if eq .HasEntitlements "true" }}	entitlementSnapshotResponse := specs.Response{
+		Description: "Entitlement snapshot",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementSnapshot"},
+		},
+	}
+	entitlementUsageBody := &specs.RequestBody{
+		Required: true,
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementUsageRequest"},
+		},
+	}
+	entitlementDecisionResponse := specs.Response{
+		Description: "Entitlement usage decision",
+		Content: map[string]specs.MediaType{
+			"application/json": {SchemaRef: "#/components/schemas/EntitlementDecision"},
+		},
+	}
+{{ end }}
 	// api-toolkit:openapi-operation-variables
-	return []specs.Operation{
+	operations := []specs.Operation{
 		routepolicy.ApplyMetadata(specs.Operation{
 			OperationID: "getLiveness",
 			Method:      http.MethodGet,
@@ -18274,6 +19078,35 @@ func operations() []specs.Operation {
 		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
 		// api-toolkit:openapi-operations
 	}
+{{ if eq .HasEntitlements "true" }}	operations = append(operations,
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "getOrganizationEntitlements",
+			Method:      http.MethodGet,
+			Path:        "/organizations/{organization_id}/entitlements",
+			Summary:     "Get organization entitlements",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:  auth("entitlements:read"),
+			Responses: map[int]specs.Response{http.StatusOK: entitlementSnapshotResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithProblemResponses(problemStatuses...)),
+		routepolicy.ApplyMetadata(specs.Operation{
+			OperationID: "recordOrganizationEntitlementUsage",
+			Method:      http.MethodPost,
+			Path:        "/organizations/{organization_id}/entitlements/usage",
+			Summary:     "Record organization entitlement usage",
+			Parameters: []specs.Parameter{
+				{Name: "organization_id", In: "path", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "X-Tenant-ID", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+				{Name: "Idempotency-Key", In: "header", Required: true, Schema: map[string]any{"type": "string"}},
+			},
+			Security:    auth("entitlements:consume"),
+			RequestBody: entitlementUsageBody,
+			Responses:   map[int]specs.Response{http.StatusOK: entitlementDecisionResponse},
+		}, routepolicy.WithTenantRequired("header"), routepolicy.WithIdempotencyRequired(), routepolicy.WithRateLimit("write-standard"), routepolicy.WithProblemResponses(problemStatuses...)),
+	)
+{{ end }}	return operations
 }
 
 func normalizeJSON(data []byte) ([]byte, error) {
@@ -18325,6 +19158,8 @@ import (
 
 	"{{ .Module }}/internal/app"
 	"{{ .Module }}/internal/domain"
+{{ if eq .HasEntitlements "true" }}	"{{ .Module }}/internal/entitlements"
+{{ end }}
 )
 
 type Config struct {
@@ -18533,6 +19368,8 @@ type RouterConfig struct {
 	Webhooks *app.WebhookService
 	Objects  *app.ObjectService
 	Cache    *app.CacheService
+{{ if eq .HasEntitlements "true" }}	Entitlements *entitlements.Service
+{{ end }}
 	// api-toolkit:router-config-fields
 	Metrics  *metricsmw.Middleware
 	MetricsHandler http.Handler
@@ -18656,6 +19493,9 @@ func RegisterRoutes(r ports.HTTPRouter, cfg RouterConfig) error {
 	r.Post("/organizations/{organization_id}/objects", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handlePutObject))).ServeHTTP)
 	r.Get("/organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:read", http.HandlerFunc(cfg.handleGetObject)).ServeHTTP)
 	r.Delete("/organizations/{organization_id}/objects/{object_key}", cfg.protect("objects:write", cfg.idempotent(http.HandlerFunc(cfg.handleDeleteObject))).ServeHTTP)
+{{ if eq .HasEntitlements "true" }}	r.Get("/organizations/{organization_id}/entitlements", cfg.protect("entitlements:read", http.HandlerFunc(cfg.handleGetEntitlements)).ServeHTTP)
+	r.Post("/organizations/{organization_id}/entitlements/usage", cfg.protect("entitlements:consume", cfg.idempotent(http.HandlerFunc(cfg.handleRecordEntitlementUsage))).ServeHTTP)
+{{ end }}
 	r.Post("/invitations/{id}/accept", cfg.protect("invitations:accept", cfg.idempotent(http.HandlerFunc(cfg.handleAcceptInvitation))).ServeHTTP)
 	r.Get("/operations/{id}", cfg.protect("operations:read", http.HandlerFunc(cfg.handleGetOperation)).ServeHTTP)
 	r.Get("/widgets", cfg.protect("", http.HandlerFunc(cfg.handleListWidgets)).ServeHTTP)
@@ -18795,6 +19635,10 @@ func (cfg RouterConfig) withDefaults() RouterConfig {
 	if cfg.Cache == nil {
 		cfg.Cache = app.NewCacheService(nil)
 	}
+{{ if eq .HasEntitlements "true" }}	if cfg.Entitlements == nil {
+		cfg.Entitlements = entitlements.NewService(nil)
+	}
+{{ end }}
 	// api-toolkit:router-default-services
 	if cfg.MetricsHandler == nil {
 		cfg.MetricsHandler = metricsmw.PrometheusHandler()
@@ -19460,6 +20304,67 @@ func (cfg RouterConfig) handleDeleteObject(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+{{ if eq .HasEntitlements "true" }}func (cfg RouterConfig) handleGetEntitlements(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	allowed, err := cfg.Tenancy.HasRole(r.Context(), organizationID, actorID, domain.RoleViewer)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if !allowed {
+		writeAppError(w, app.ErrForbidden)
+		return
+	}
+	plan, err := cfg.Entitlements.Snapshot(r.Context(), organizationID)
+	if err != nil {
+		writeAppError(w, app.ErrValidation)
+		return
+	}
+	writeJSON(w, http.StatusOK, entitlements.PublicPlan(plan))
+}
+
+func (cfg RouterConfig) handleRecordEntitlementUsage(w http.ResponseWriter, r *http.Request) {
+	actorID, ok := cfg.authenticateActor(w, r)
+	if !ok {
+		return
+	}
+	organizationID, ok := cfg.authenticateOrganizationTenant(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
+		return
+	}
+	allowed, err := cfg.Tenancy.HasRole(r.Context(), organizationID, actorID, domain.RoleMember)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if !allowed {
+		writeAppError(w, app.ErrForbidden)
+		return
+	}
+	req, ok := decodeEntitlementUsageRequest(w, r)
+	if !ok {
+		return
+	}
+	decision, err := cfg.Entitlements.Consume(r.Context(), organizationID, entitlements.Feature(req.Feature), req.Amount)
+	if err != nil {
+		writeAppError(w, app.ErrValidation)
+		return
+	}
+	cfg.recordAudit(r, organizationID, actorID, "entitlement.usage.consume", "entitlement", req.Feature, map[string]string{"reason": decision.Reason})
+	writeJSON(w, http.StatusOK, entitlements.PublicDecision(decision))
+}
+
+{{ end }}
 func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	actorID, ok := cfg.authenticateActor(w, r)
 	if !ok {
@@ -19701,6 +20606,12 @@ type objectPutRequest struct {
 	Data        []byte
 }
 
+{{ if eq .HasEntitlements "true" }}type entitlementUsageRequest struct {
+	Feature string
+	Amount  int64
+}
+
+{{ end }}
 func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organizationRequest, bool) {
 	defer r.Body.Close()
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -19863,6 +20774,27 @@ func decodeObjectPutRequest(w http.ResponseWriter, r *http.Request) (objectPutRe
 	return objectPutRequest{Key: strings.TrimSpace(raw.Key), ContentType: strings.TrimSpace(raw.ContentType), Data: data}, true
 }
 
+{{ if eq .HasEntitlements "true" }}func decodeEntitlementUsageRequest(w http.ResponseWriter, r *http.Request) (entitlementUsageRequest, bool) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Feature string ` + "`json:\"feature\"`" + `
+		Amount  int64  ` + "`json:\"amount\"`" + `
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		return entitlementUsageRequest{}, false
+	}
+	raw.Feature = strings.TrimSpace(raw.Feature)
+	if raw.Feature == "" || raw.Amount <= 0 {
+		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "feature and positive amount are required"})
+		return entitlementUsageRequest{}, false
+	}
+	return entitlementUsageRequest{Feature: raw.Feature, Amount: raw.Amount}, true
+}
+
+{{ end }}
 func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest, bool) {
 	defer r.Body.Close()
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -20321,6 +21253,8 @@ import (
 {{ end }}
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v2/middleware/metrics"
 	"{{ .Module }}/internal/app"
+{{ if eq .HasEntitlements "true" }}	entitlements "{{ .Module }}/internal/entitlements"
+{{ end }}
 )
 
 func TestReadinessAndOpenAPI(t *testing.T) {
@@ -20457,6 +21391,43 @@ func TestAdminPprofRequiresAdminAndServesProfiles(t *testing.T) {
 	}
 }
 
+{{ if eq .HasEntitlements "true" }}func TestEntitlementRoutesExposePlanAndUsageWithoutBillingSecrets(t *testing.T) {
+	configureTestAuthEnv(t)
+	tenancy := app.NewTenancyService()
+	org, _, err := tenancy.CreateOrganization(context.Background(), "owner_1", "Acme")
+	if err != nil {
+		t.Fatalf("CreateOrganization() error = %v", err)
+	}
+	entitlementService := entitlements.NewService(nil)
+	if err := entitlementService.ApplyBillingMapping(context.Background(), entitlements.BillingMapping{TenantID: org.ID, Provider: "stripe", CustomerRef: "cus_secret", SubscriptionRef: "sub_secret", PlanID: "starter"}); err != nil {
+		t.Fatalf("ApplyBillingMapping() error = %v", err)
+	}
+	handler := NewRouter(RouterConfig{Widgets: app.NewWidgetService(), Tenancy: tenancy, APIKeys: app.NewAPIKeyService("test-pepper", tenancy), Entitlements: entitlementService, APIKey: "test-key"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/organizations/"+org.ID+"/entitlements", nil)
+	authorizeTestRequestAs(t, req, org.ID, "owner_1", "entitlements:read")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("entitlements status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "\"plan_id\":\"starter\"") || strings.Contains(rec.Body.String(), "cus_secret") || strings.Contains(rec.Body.String(), "sub_secret") {
+		t.Fatalf("entitlements body = %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/organizations/"+org.ID+"/entitlements/usage", strings.NewReader(` + "`" + `{"feature":"widgets","amount":101}` + "`" + `))
+	authorizeTestRequestAs(t, req, org.ID, "owner_1", "entitlements:consume")
+	req.Header.Set("Idempotency-Key", "entitlements-usage")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("entitlement usage status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "\"reason\":\"quota_exceeded\"") || strings.Contains(rec.Body.String(), "cus_secret") {
+		t.Fatalf("entitlement usage body = %s", rec.Body.String())
+	}
+}
+
+{{ end }}
 func TestCreateWidgetRequiresAuth(t *testing.T) {
 	handler := newTestRouter(t)
 	rec := httptest.NewRecorder()
@@ -21363,10 +22334,36 @@ CREATE TABLE webhook_deliveries (
 	delivered_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+{{ if eq .HasEntitlements "true" }}
+CREATE TABLE tenant_entitlements (
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	plan_id TEXT NOT NULL,
+	feature TEXT NOT NULL,
+	enabled BOOLEAN NOT NULL DEFAULT true,
+	quota_limit BIGINT NOT NULL DEFAULT 0,
+	usage_count BIGINT NOT NULL DEFAULT 0,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (organization_id, feature)
+);
+
+CREATE TABLE billing_mappings (
+	provider TEXT NOT NULL,
+	customer_ref TEXT NOT NULL,
+	organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	subscription_ref TEXT,
+	plan_id TEXT NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (provider, customer_ref)
+);
+
+CREATE INDEX billing_mappings_organization_id_idx ON billing_mappings(organization_id);
+{{ end }}
 `
 
 const fullMigrationDownTemplate = `-- Local/schema-teardown helper only. Do not run in production.
-DROP TABLE IF EXISTS webhook_deliveries;
+{{ if eq .HasEntitlements "true" }}DROP TABLE IF EXISTS billing_mappings;
+DROP TABLE IF EXISTS tenant_entitlements;
+{{ end }}DROP TABLE IF EXISTS webhook_deliveries;
 DROP TABLE IF EXISTS webhook_endpoints;
 DROP TABLE IF EXISTS objects;
 DROP TABLE IF EXISTS audit_events;
@@ -21434,6 +22431,7 @@ client-ts-check:
 		cp internal/client/ts/src/index.ts "$$tmp/index.ts"; \
 		$(API_TOOLKIT) clients typescript --openapi $(OPENAPI) --out internal/client/ts --package-name @example/api-client --style fetch; \
 		cmp -s "$$tmp/index.ts" internal/client/ts/src/index.ts || { echo "generated TypeScript client is out of date"; diff -u "$$tmp/index.ts" internal/client/ts/src/index.ts; exit 1; }; \
+		if command -v npm >/dev/null 2>&1 && [ -d internal/client/ts/node_modules ]; then (cd internal/client/ts && npm run build --silent); else echo "TypeScript build skipped; run npm install in internal/client/ts to enable it"; fi; \
 	else \
 		echo "TypeScript client not generated"; \
 	fi

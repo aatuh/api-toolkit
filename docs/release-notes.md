@@ -65,7 +65,9 @@ source of truth is `docs/release-runbook.md`.
   Problem Details errors, nullable fields, enums, and raw response access.
   `api-toolkit new service --profile saas-api-full --client typescript` adds the
   checked-in TypeScript client package and `client-ts-check` target while keeping
-  the existing generated Go client path source-compatible.
+  the existing generated Go client path source-compatible. Generated TypeScript
+  configs include DOM iterable fetch types, and `client-ts-check` runs a local
+  TypeScript build when `node_modules` is already present.
 - `api-toolkit ops observability --profile saas-api-full` now emits a bounded
   label Grafana/Prometheus/runbook bundle for the full scaffold, and
   `api-toolkit deploy helm` plus `api-toolkit deploy terraform --cloud aws`
@@ -104,8 +106,11 @@ source of truth is `docs/release-runbook.md`.
   fixation tests without adding session dependencies to the root module.
 - `api-toolkit new service --profile saas-api-full --with entitlements` now
   emits provider-neutral generated app code for plans, features, quotas, usage
-  counters, and billing-provider composition guidance. The workflow can compose
-  with `--with stripe-billing` without adding Stripe-shaped ports to core.
+  counters, OpenAPI entitlement routes, Postgres `tenant_entitlements` and
+  `billing_mappings` persistence, and billing-provider composition guidance.
+  The workflow composes with `--with stripe-billing` by updating app-owned
+  billing mappings before entitlement changes, without adding Stripe-shaped
+  ports to core.
 - `github.com/aatuh/api-toolkit/contrib/v2/entitlements` now provides
   provider-neutral feature and quota contracts, low-cardinality decisions,
   reusable store contract tests, and HTTP enforcement middleware that avoids
