@@ -95,10 +95,47 @@ api-toolkit new service \
 
 It keeps this quick-start profile small and starts a Postgres + Redis oriented
 tenant foundation with migrations, hexagonal package boundaries, OpenAPI
-contracts, generated smoke tests, opt-in integration checks, Docker Compose,
-and base Kubernetes assets. Later platform slices continue filling in durable
-async, audit, webhook, object storage, OIDC, and generated client behavior as
-tracked in [full-service-scaffold.md](full-service-scaffold.md).
+contracts, generated smoke tests, durable async/outbox workers, audit logs,
+outbound webhook delivery, object storage hooks, OpenAPI 3.1, a checked-in typed
+Go client, opt-in Docker integration checks, Docker Compose, and base Kubernetes
+assets.
+
+Useful full-profile follow-up commands:
+
+```sh
+make client-check
+make resource-check
+make migrate-check
+```
+
+Add app-specific tenant resources from inside a generated full-profile project:
+
+```sh
+api-toolkit generate resource \
+  --name project \
+  --plural projects \
+  --tenant-scoped \
+  --crud \
+  --postgres \
+  --soft-delete \
+  --etag \
+  --audit \
+  --webhooks
+```
+
+Provider starters stay opt-in:
+
+```sh
+api-toolkit new service \
+  --module example.com/my-api \
+  --profile saas-api-full \
+  --with stripe-billing \
+  --with resend-email \
+  --with clerk-webhooks
+```
+
+See [full-service-scaffold.md](full-service-scaffold.md) for the full runtime,
+migration, deployment, provider, and resource-generation contract.
 
 Next: use [cookbook.md](cookbook.md) for focused patterns and
 [../contrib/examples/README.md](../contrib/examples/README.md) for runnable

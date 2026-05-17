@@ -32,7 +32,7 @@ baseline table in another document.
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
 | `GOTOOLCHAIN=local make v3-readiness-check` | Focused compatibility-sensitive surface guardrails. | Verifies the v3 roadmap, replacement guidance, docs/examples, and release-note requirements for known cleanup surfaces. |
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
-| `GOTOOLCHAIN=local make full-profile-scaffold-check` | Focused generated `saas-api-full` release signal. | Generates the full scaffold through the CLI tests, then verifies generated `go test ./...`, contracts lint/diff, OpenAPI check, and checked-in Go client regeneration. |
+| `GOTOOLCHAIN=local make full-profile-scaffold-check` | Focused generated `saas-api-full` release signal. | Generates the full scaffold through the CLI tests, then verifies generated `go test ./...`, contracts lint/diff, OpenAPI 3.1, checked-in typed Go client regeneration, resource generation, provider flags, worker wiring, and generated integration workflow assets. |
 | `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
@@ -59,7 +59,10 @@ summary records exact subcommands, exit codes, durations, log paths, tool
 versions, git working-tree state, `publication_eligible`, contrib drift summary,
 disposition manifest paths, missing/expired disposition counts,
 `full_profile_scaffold_evidence`, publication artifact expectations, release log
-archive checksum evidence, and the explicit baseline.
+archive checksum evidence, and the explicit baseline. Full-profile evidence
+includes OpenAPI 3.1 output, typed client generation, resource generator checks,
+provider-flag generation, worker wiring, optional integration workflow assets,
+and non-blocking opt-in Docker integration status.
 It fails publication mode when the worktree is dirty. Set
 `ALLOW_DIRTY_RELEASE_EVIDENCE=1` only for a local dirty-tree audit.
 Automation must require `status=passed`, `publication_eligible=true`,
@@ -78,8 +81,10 @@ counts before accepting local publication evidence.
   report-only contrib drift must have release-note acknowledgement before
   publication evidence can pass.
 - The command includes `make full-profile-scaffold-check`, so the generated
-  `saas-api-full` scaffold, OpenAPI/contract workflow, and generated Go client
-  stay release-visible without making Docker integration checks mandatory.
+  `saas-api-full` scaffold, OpenAPI/contract workflow, generated typed Go
+  client, resource generator, provider flags, worker binary, and integration
+  workflow stay release-visible without making Docker integration checks
+  mandatory.
 - The command includes `make v3-readiness-check`, so compatibility-only surface
   removal planning, replacement guidance, and release-note requirements stay
   visible before any major-version cleanup.
@@ -118,7 +123,9 @@ Local release evidence is the developer/auditor tier. It contains:
   `contrib_drift.expired_disposition_count`, which dynamically compare the
   current drift report with `docs/contrib-api-drift-dispositions.tsv`.
 - `full_profile_scaffold_evidence`, which records the release-blocking
-  `full-profile-scaffold-check`, the generated `client-check` signal, and the
+  `full-profile-scaffold-check`, OpenAPI 3.1 full scaffold output, checked-in
+  typed `client-check` signal, resource generator check, provider-flag
+  generation, worker check, generated integration workflow status, and the
   opt-in non-blocking `integration-check` status.
 
 Local release evidence does not generate or sign SBOMs. The summary records this

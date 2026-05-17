@@ -127,7 +127,7 @@ Goal:
   routes fail closed when the bearer token tenant claim does not match
   `X-Tenant-ID`; protected writes also require the route-specific scope.
 - OAuth2 helpers standardize claims and scopes only after a validator verifies
-  issuer, audience, expiry, JWKS material, and tenant mapping. The experimental
+  issuer, audience, expiry, JWKS material, and tenant mapping. The supported
   contrib OIDC middleware provides provider-neutral JWKS validation and claim
   mapping for API bearer tokens; keep issuer, audience, discovery URL, and JWKS
   URL as trusted operator configuration and do not enable skip headers outside
@@ -135,7 +135,7 @@ Goal:
 - Upload helpers reject malformed, oversized, missing, or disallowed multipart
   files. Scan and persist untrusted content outside core helpers.
 - Webhook helpers verify inbound signatures and optional replay windows. The
-  experimental outbound webhook delivery package signs tenant-scoped events,
+  supported outbound webhook delivery package signs tenant-scoped events,
   rejects unsafe endpoint headers, keeps endpoint signing secrets out of async
   job payloads, and records only sanitized attempt results. The Postgres
   adapter loads signing material through an application-owned resolver instead
@@ -155,6 +155,14 @@ Goal:
   type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
   delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those
   observations.
+- Optional generated provider workflows are app-owned starter boundaries, not
+  root-module provider dependencies. `stripe-billing` must verify signed webhook
+  payloads before tenant-scoped audit writes; `resend-email` must keep raw
+  invitation tokens and full recipients out of logs and audit metadata; and
+  `clerk-webhooks` must reject bad signatures and tenant mismatches before sync
+  hooks run. Keep provider API keys, webhook secrets, and callback payloads out
+  of Problem Details, OpenAPI examples, metrics labels, and generated audit
+  metadata.
 - Generated full-profile cache wiring keeps local development in memory and
   uses Redis only when `CACHE_STORE=redis` or production defaults select it.
   Keep cache keys application-owned and low sensitivity; do not store API-key

@@ -250,6 +250,51 @@ The profile generates or is expected to generate:
   provider docs, and generated tests for bad signatures, tenant mismatch, and
   secret redaction from audit metadata.
 
+## Operational Commands
+
+Generated full-profile services include command targets for the production
+workflow:
+
+- `make migrate-up`, `make migrate-status`, and `make migrate-check` call
+  `cmd/migrate up|status|check` against contrib migrator-compatible
+  `migrations/*.up.sql` files. Run `migrate-check` before starting API or worker
+  replicas in environments where the migration Job is not used.
+- `make client-check` regenerates the checked-in typed Go client from
+  `testdata/openapi.golden.json` using `api-toolkit clients go --style typed`.
+- `make resource-check` verifies generated OpenAPI, typed client output, and
+  generated resource tests after `api-toolkit generate resource`.
+- `make integration-check` is opt-in Docker evidence. It exercises Postgres,
+  Redis, API, worker, webhook delivery, admin isolation, audit writes, and MinIO
+  when `INTEGRATION_OBJECT_STORE=s3`.
+
+## Resource Generation
+
+`api-toolkit generate resource` is intentionally narrow. It only runs inside a
+generated `saas-api-full` project that still has `api-toolkit.yaml` and expected
+generated anchors. The generator adds tenant-scoped CRUD files, a Postgres
+migration, OpenAPI registration, audit hooks, optional webhook events, ETag
+update behavior, soft delete behavior, tests, and typed client regeneration. It
+does not mutate arbitrary Go services.
+
+## Provider Workflows
+
+Provider workflows are selected at scaffold time with repeatable `--with` flags.
+The generated code uses app-owned boundaries and fake-provider tests instead of
+adding Stripe, Resend, or Clerk SDK dependencies to the toolkit root module.
+Provider secrets belong in generated app configuration or secret stores, never
+in OpenAPI examples, metrics labels, audit metadata, or Problem Details.
+
+## Deployment Assets
+
+The generated Kubernetes starter assets are intentionally generic. They define
+an API Deployment, worker Deployment, migration Job, public Service,
+internal-only admin Service, ConfigMap, Secret placeholder, PodDisruptionBudget,
+HPA, NetworkPolicy, resource requests/limits, non-root security contexts, and
+`/livez`/`/readyz` probes. They assume Postgres, Redis, and any S3-compatible
+object store are externally provisioned or reachable through environment
+configuration; Helm, Terraform, and cloud-provider-specific resources remain out
+of scope.
+
 ## Support Tier
 
 New reusable packages added for this profile start as `experimental` unless a

@@ -52,8 +52,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		stderr = io.Discard
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: api-toolkit <new|generate|contracts|clients|version>")
+		fmt.Fprintln(stderr, usageTopLevel)
 		return 2
+	}
+	if isHelpArg(args[0]) {
+		fmt.Fprintln(stdout, usageTopLevel)
+		return 0
 	}
 	switch args[0] {
 	case "version":
@@ -72,6 +76,41 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+const (
+	usageTopLevel      = "usage: api-toolkit <new|generate|contracts|clients|version>"
+	usageVersion       = "usage: api-toolkit version [--json]"
+	usageNew           = "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers] [--with stripe-billing|resend-email|clerk-webhooks]"
+	usageGenerate      = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--dir <path>]"
+	usageContracts     = "usage: api-toolkit contracts <lint|diff>"
+	usageContractsLint = "usage: api-toolkit contracts lint --openapi <openapi.json> [--public-path <path>] [--admin-path <path>]"
+	usageContractsDiff = "usage: api-toolkit contracts diff --base <openapi.json> --head <openapi.json>"
+	usageClients       = "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name> [--style raw|typed]"
+)
+
+func isHelpArg(arg string) bool {
+	return arg == "help" || arg == "--help" || arg == "-h" || arg == "-help"
+}
+
+func commandHelpRequested(args []string) bool {
+	return len(args) > 0 && isHelpArg(args[0])
+}
+
+func leafHelpRequested(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	first := args[0]
+	if len(args) == 1 && first == "help" {
+		return true
+	}
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" || arg == "-help" {
+			return true
+		}
+	}
+	return false
+}
+
 type versionMetadata struct {
 	ToolVersion    string `json:"tool_version"`
 	GoVersion      string `json:"go_version"`
@@ -84,6 +123,10 @@ type versionMetadata struct {
 }
 
 func runVersion(args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageVersion)
+		return 0
+	}
 	switch len(args) {
 	case 0:
 		printVersion(stdout)
@@ -97,7 +140,7 @@ func runVersion(args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 	}
-	fmt.Fprintln(stderr, "usage: api-toolkit version [--json]")
+	fmt.Fprintln(stderr, usageVersion)
 	return 2
 }
 
@@ -215,9 +258,17 @@ func isNonEmptyDigits(value string) bool {
 }
 
 func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageNew)
+		return 0
+	}
 	if len(args) == 0 || args[0] != "service" {
-		fmt.Fprintln(stderr, "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers] [--with stripe-billing|resend-email|clerk-webhooks]")
+		fmt.Fprintln(stderr, usageNew)
 		return 2
+	}
+	if leafHelpRequested(args[1:]) {
+		fmt.Fprintln(stdout, usageNew)
+		return 0
 	}
 	fs := flag.NewFlagSet("new service", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -270,9 +321,17 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 func runGenerate(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageGenerate)
+		return 0
+	}
 	if len(args) == 0 || args[0] != "resource" {
-		fmt.Fprintln(stderr, "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--dir <path>]")
+		fmt.Fprintln(stderr, usageGenerate)
 		return 2
+	}
+	if leafHelpRequested(args[1:]) {
+		fmt.Fprintln(stdout, usageGenerate)
+		return 0
 	}
 	fs := flag.NewFlagSet("generate resource", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -419,12 +478,20 @@ func validateScaffoldProviderWorkflows(profile string, workflows []string) ([]st
 }
 
 func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageContracts)
+		return 0
+	}
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: api-toolkit contracts <lint|diff>")
+		fmt.Fprintln(stderr, usageContracts)
 		return 2
 	}
 	switch args[0] {
 	case "lint":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageContractsLint)
+			return 0
+		}
 		fs := flag.NewFlagSet("contracts lint", flag.ContinueOnError)
 		fs.SetOutput(stderr)
 		openAPIPath := fs.String("openapi", "", "OpenAPI JSON file")
@@ -481,6 +548,10 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 		fmt.Fprintln(stdout, "contracts lint passed")
 		return 0
 	case "diff":
+		if leafHelpRequested(args[1:]) {
+			fmt.Fprintln(stdout, usageContractsDiff)
+			return 0
+		}
 		fs := flag.NewFlagSet("contracts diff", flag.ContinueOnError)
 		fs.SetOutput(stderr)
 		base := fs.String("base", "", "base OpenAPI JSON file")
@@ -501,9 +572,17 @@ func runContracts(ctx context.Context, args []string, stdout, stderr io.Writer) 
 }
 
 func runClients(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) {
+		fmt.Fprintln(stdout, usageClients)
+		return 0
+	}
 	if len(args) == 0 || args[0] != "go" {
-		fmt.Fprintln(stderr, "usage: api-toolkit clients go --openapi <openapi.json> --out <dir> --package <name> [--style raw|typed]")
+		fmt.Fprintln(stderr, usageClients)
 		return 2
+	}
+	if leafHelpRequested(args[1:]) {
+		fmt.Fprintln(stdout, usageClients)
+		return 0
 	}
 	fs := flag.NewFlagSet("clients go", flag.ContinueOnError)
 	fs.SetOutput(stderr)

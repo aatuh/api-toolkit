@@ -59,6 +59,66 @@ func TestRunVersionJSON(t *testing.T) {
 	}
 }
 
+func TestRunHelpUsageExitsZero(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "top level long", args: []string{"--help"}, want: usageTopLevel},
+		{name: "top level short", args: []string{"-h"}, want: usageTopLevel},
+		{name: "top level command", args: []string{"help"}, want: usageTopLevel},
+		{name: "version help", args: []string{"version", "help"}, want: usageVersion},
+		{name: "new group help", args: []string{"new", "help"}, want: usageNew},
+		{name: "new service help", args: []string{"new", "service", "help"}, want: usageNew},
+		{name: "new service short help", args: []string{"new", "service", "-h"}, want: usageNew},
+		{name: "generate group help", args: []string{"generate", "--help"}, want: usageGenerate},
+		{name: "generate resource help", args: []string{"generate", "resource", "help"}, want: usageGenerate},
+		{name: "contracts group help", args: []string{"contracts", "help"}, want: usageContracts},
+		{name: "contracts lint help", args: []string{"contracts", "lint", "--help"}, want: usageContractsLint},
+		{name: "contracts diff help", args: []string{"contracts", "diff", "-h"}, want: usageContractsDiff},
+		{name: "clients group help", args: []string{"clients", "help"}, want: usageClients},
+		{name: "clients go help", args: []string{"clients", "go", "--help"}, want: usageClients},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run(context.Background(), tt.args, &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("help exit code = %d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			if !strings.Contains(stdout.String(), tt.want) {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), tt.want)
+			}
+			if stderr.String() != "" {
+				t.Fatalf("help wrote stderr: %q", stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunUnknownCommandsExitTwo(t *testing.T) {
+	tests := [][]string{
+		{"unknown"},
+		{"new", "unknown"},
+		{"generate", "unknown"},
+		{"contracts", "unknown"},
+		{"clients", "unknown"},
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := run(context.Background(), args, &stdout, &stderr)
+			if code != 2 {
+				t.Fatalf("exit code = %d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			if stderr.String() == "" {
+				t.Fatal("unknown command should explain usage or unknown command")
+			}
+		})
+	}
+}
+
 func TestScaffoldDependencyVersionUsesInstalledSemver(t *testing.T) {
 	tests := []struct {
 		name string

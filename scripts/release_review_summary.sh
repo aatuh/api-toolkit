@@ -81,12 +81,17 @@ print(
     f"artifact={contrib.get('artifact_path')}"
 )
 print(
-    "full_profile_scaffold: "
-    f"profile={full_profile.get('profile')} "
-    f"validation={value(full_profile, ('scaffold_validation', 'status'))} "
-    f"client={value(full_profile, ('client_generation', 'status'))} "
-    f"integration={value(full_profile, ('integration_check', 'status'))}"
-)
+	    "full_profile_scaffold: "
+	    f"profile={full_profile.get('profile')} "
+	    f"validation={value(full_profile, ('scaffold_validation', 'status'))} "
+	    f"openapi31={value(full_profile, ('openapi_31_full_scaffold', 'status'))} "
+	    f"typed_client={value(full_profile, ('typed_client_generation', 'status'))} "
+	    f"resource_generator={value(full_profile, ('resource_generator_check', 'status'))} "
+	    f"provider_flags={value(full_profile, ('provider_flag_generation', 'status'))} "
+	    f"worker={value(full_profile, ('worker_check', 'status'))} "
+	    f"integration_workflow={value(full_profile, ('integration_workflow', 'status'))} "
+	    f"integration={value(full_profile, ('integration_check', 'status'))}"
+	)
 print(
     "artifact_expectations: "
     f"draft_assets={len(expectations.get('github_draft_release_assets') or [])} "

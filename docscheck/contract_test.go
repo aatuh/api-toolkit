@@ -815,6 +815,12 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 		"expired_disposition_count",
 		"contrib_drift_packages_from_log",
 		"full_profile_scaffold_evidence",
+		"openapi_31_full_scaffold",
+		"typed_client_generation",
+		"resource_generator_check",
+		"provider_flag_generation",
+		"worker_check",
+		"integration_workflow",
 		"make full-profile-scaffold-check",
 		"FULL_PROFILE_INTEGRATION_CHECK_STATUS",
 		"publication_artifact_checksums",
@@ -1021,13 +1027,58 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				LogPath         string `json:"log_path"`
 				ReleaseBlocking bool   `json:"release_blocking"`
 			} `json:"scaffold_validation"`
+			OpenAPI31FullScaffold struct {
+				Version         string `json:"version"`
+				Source          string `json:"source"`
+				GoldenPath      string `json:"golden_path"`
+				Status          string `json:"status"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"openapi_31_full_scaffold"`
 			ClientGeneration struct {
 				MakeTarget      string `json:"make_target"`
 				CommandLine     string `json:"command_line"`
 				Status          string `json:"status"`
 				LogPath         string `json:"log_path"`
 				CheckedInOutput bool   `json:"checked_in_output"`
+				Style           string `json:"style"`
 			} `json:"client_generation"`
+			TypedClientGeneration struct {
+				MakeTarget            string `json:"make_target"`
+				CommandLine           string `json:"command_line"`
+				Status                string `json:"status"`
+				LogPath               string `json:"log_path"`
+				CheckedInOutput       bool   `json:"checked_in_output"`
+				RawStyleCompatibility string `json:"raw_style_compatibility"`
+			} `json:"typed_client_generation"`
+			ResourceGeneratorCheck struct {
+				MakeTarget      string `json:"make_target"`
+				CommandLine     string `json:"command_line"`
+				ContractTest    string `json:"contract_test"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"resource_generator_check"`
+			ProviderFlagGeneration struct {
+				Flags           []string `json:"flags"`
+				ContractTest    string   `json:"contract_test"`
+				Status          string   `json:"status"`
+				LogPath         string   `json:"log_path"`
+				ReleaseBlocking bool     `json:"release_blocking"`
+			} `json:"provider_flag_generation"`
+			WorkerCheck struct {
+				Binary          string `json:"binary"`
+				CommandLine     string `json:"command_line"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"worker_check"`
+			IntegrationWorkflow struct {
+				Path            string `json:"path"`
+				TriggerPolicy   string `json:"trigger_policy"`
+				Status          string `json:"status"`
+				LogPath         string `json:"log_path"`
+				ReleaseBlocking bool   `json:"release_blocking"`
+			} `json:"integration_workflow"`
 			IntegrationCheck struct {
 				CommandLine     string  `json:"command_line"`
 				Status          string  `json:"status"`
@@ -1174,10 +1225,45 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	if !summary.FullProfileScaffoldEvidence.ScaffoldValidation.ReleaseBlocking {
 		t.Fatal("full profile scaffold validation must be release blocking")
 	}
+	if summary.FullProfileScaffoldEvidence.OpenAPI31FullScaffold.Version != "3.1.0" ||
+		summary.FullProfileScaffoldEvidence.OpenAPI31FullScaffold.GoldenPath != "testdata/openapi.golden.json" ||
+		!summary.FullProfileScaffoldEvidence.OpenAPI31FullScaffold.ReleaseBlocking {
+		t.Fatalf("full profile OpenAPI 3.1 evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.OpenAPI31FullScaffold)
+	}
 	if summary.FullProfileScaffoldEvidence.ClientGeneration.MakeTarget != "client-check" ||
 		!summary.FullProfileScaffoldEvidence.ClientGeneration.CheckedInOutput ||
+		summary.FullProfileScaffoldEvidence.ClientGeneration.Style != "typed" ||
 		!strings.Contains(summary.FullProfileScaffoldEvidence.ClientGeneration.CommandLine, "make client-check") {
 		t.Fatalf("full profile client generation evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ClientGeneration)
+	}
+	if summary.FullProfileScaffoldEvidence.TypedClientGeneration.MakeTarget != "client-check" ||
+		!summary.FullProfileScaffoldEvidence.TypedClientGeneration.CheckedInOutput ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.TypedClientGeneration.CommandLine, "--style typed") ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.TypedClientGeneration.RawStyleCompatibility, "--style raw") {
+		t.Fatalf("full profile typed client evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.TypedClientGeneration)
+	}
+	if summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.MakeTarget != "resource-check" ||
+		!strings.Contains(summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.ContractTest, "TestGenerateResourceAddsTenantScopedCRUDToFullProfile") ||
+		!summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck.ReleaseBlocking {
+		t.Fatalf("full profile resource generator evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ResourceGeneratorCheck)
+	}
+	for _, want := range []string{"--with stripe-billing", "--with resend-email", "--with clerk-webhooks"} {
+		if !containsString(summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.Flags, want) {
+			t.Fatalf("full profile provider flag evidence missing %q: %+v", want, summary.FullProfileScaffoldEvidence.ProviderFlagGeneration)
+		}
+	}
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.ContractTest, "TestNewServiceGeneratesFullProfileProviderWorkflows") ||
+		!summary.FullProfileScaffoldEvidence.ProviderFlagGeneration.ReleaseBlocking {
+		t.Fatalf("full profile provider flag evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.ProviderFlagGeneration)
+	}
+	if summary.FullProfileScaffoldEvidence.WorkerCheck.Binary != "cmd/worker" ||
+		!summary.FullProfileScaffoldEvidence.WorkerCheck.ReleaseBlocking {
+		t.Fatalf("full profile worker evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.WorkerCheck)
+	}
+	if summary.FullProfileScaffoldEvidence.IntegrationWorkflow.Path != ".github/workflows/integration.yml" ||
+		summary.FullProfileScaffoldEvidence.IntegrationWorkflow.TriggerPolicy != "workflow_dispatch_and_schedule_only" ||
+		!summary.FullProfileScaffoldEvidence.IntegrationWorkflow.ReleaseBlocking {
+		t.Fatalf("full profile integration workflow evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.IntegrationWorkflow)
 	}
 	if summary.FullProfileScaffoldEvidence.IntegrationCheck.Status != "not_run_opt_in" ||
 		summary.FullProfileScaffoldEvidence.IntegrationCheck.ReleaseBlocking {
@@ -2710,15 +2796,19 @@ func TestPublicMarkdownMakeTargetsExist(t *testing.T) {
 }
 
 func generatedScaffoldMakeTarget(rel, target string) bool {
-	if rel != "docs/getting-started.md" {
-		return false
+	switch rel {
+	case "docs/getting-started.md":
+		switch target {
+		case "openapi-check", "contracts-lint", "contracts-diff", "client-check", "resource-check", "migrate-check":
+			return true
+		}
+	case "docs/full-service-scaffold.md":
+		switch target {
+		case "migrate-up", "migrate-status", "migrate-check", "client-check", "resource-check", "integration-check":
+			return true
+		}
 	}
-	switch target {
-	case "openapi-check", "contracts-lint", "contracts-diff":
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func TestPublicMarkdownLocalLinksResolve(t *testing.T) {

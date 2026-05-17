@@ -20,6 +20,7 @@ metrics when the relevant hooks are present:
 - `health_status_changes_total` (counter)
 - `idempotency_outcomes_total` (counter)
 - `http_hard_timeout_events_total` (counter)
+- `webhook_delivery_events_total` (counter)
 
 Required labels:
 
@@ -56,6 +57,12 @@ Hard-timeout event labels:
 - `outcome` (`timeout`, `panic`, `capture_overflow`, or `unknown`)
 - `status_class` (`1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none`)
 - `timed_out`, `panicked`, and `capture_overflow` (`true` or `false`)
+
+Webhook delivery labels:
+
+- `event_type` (bounded catalog event type or `other`)
+- `outcome` (`succeeded`, `failed`, or another bounded outcome value)
+- `status_class` (`2xx`, `3xx`, `4xx`, `5xx`, `transport`, or `unknown`)
 
 ## Label policy
 
@@ -123,6 +130,11 @@ The contrib bootstrap helpers keep metrics opt-in:
   standard Prometheus handler behind admin authentication. The generated tests
   assert HTTP counters/histograms use route patterns and do not expose API keys,
   admin keys, idempotency keys, actors, or tenants as labels.
+- Generated `saas-api-full` webhook delivery workers wire bounded webhook
+  delivery observations through the same recorder. Generated async worker logs
+  use low-cardinality job kind and outcome fields; keep job IDs in logs only and
+  do not promote tenant IDs, object keys, delivery IDs, endpoint URLs, payloads,
+  or provider errors into metric labels.
 - Prefer `bootstrap.MountSystemEndpointsToWithAdmin` for new system endpoint
   wiring so metrics are mounted behind an explicit admin or internal-network
   wrapper.
