@@ -65,13 +65,16 @@ api-toolkit contracts lint --openapi ./openapi.json
 api-toolkit contracts lint --openapi ./openapi.json --public-path /status --admin-path /internal/debug
 api-toolkit contracts diff --base ./openapi.previous.json --head ./openapi.json
 api-toolkit clients go --openapi ./openapi.json --out ./client --package apiclient
+api-toolkit clients go --openapi ./openapi.json --out ./client --package apiclient --style typed
 api-toolkit version
 api-toolkit version --json
 ```
 
 `clients go` emits a stdlib-only Go client package for the supported OpenAPI
 subset: JSON request bodies, path/query/header options, API-key auth, bearer
-auth, and Problem Details error decoding.
+auth, and Problem Details error decoding. The default `raw` style preserves the
+original operation helpers; `--style typed` also generates component schema
+structs, typed request/response methods, and raw method escape hatches.
 
 `api-toolkit version` prints the tool version, Go runtime, main module, core
 module version, contrib module version, and optional build commit/date fields.

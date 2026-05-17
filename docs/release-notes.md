@@ -192,6 +192,10 @@ source of truth is `docs/release-runbook.md`.
   OpenAPI operations, including operation methods, path/query/header request
   options, JSON request bodies, API-key and bearer auth helpers, and Problem
   Details error decoding.
+- `api-toolkit clients go --style typed` now generates component schema
+  structs, typed request/response operation methods, typed Problem Details
+  error handling, and raw method escape hatches while preserving the existing
+  `raw` client style as the default.
 - `specs.Operation` now includes `OperationID` and emits OpenAPI
   `operationId` values so route contracts can carry stable client-visible
   operation identity.
