@@ -1,0 +1,87 @@
+name: generated-full-integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      include-minio:
+        description: Run optional MinIO-backed checks
+        required: false
+        default: "false"
+  schedule:
+    - cron: "17 3 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  saas-api-full:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: off
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Generate saas-api-full fixture
+        run: |
+          tmpdir="$(mktemp -d)"
+          echo "SERVICE_DIR=$tmpdir/full-api" >> "$GITHUB_ENV"
+          cd contrib
+          go run ./cmd/api-toolkit new service \
+            --module example.com/full-api \
+            --profile saas-api-full \
+            --auth api-key \
+            --dir "$tmpdir/full-api" \
+            --core-replace "$GITHUB_WORKSPACE" \
+            --contrib-replace "$GITHUB_WORKSPACE/contrib"
+      - name: Generated unit tests
+        run: go test ./...
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Generated contract lint
+        run: make contracts-lint
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Generated contract diff
+        run: make contracts-diff
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Generated OpenAPI check
+        run: make openapi-check
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Generated client check
+        run: make client-check
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Generated integration check
+        run: make integration-check
+        working-directory: ${{ env.SERVICE_DIR }}
+
+  saas-api-full-minio:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.include-minio == 'true'
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: off
+      COMPOSE_PROFILES: minio
+      ENABLE_MINIO_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # actions/checkout v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # actions/setup-go v5
+        with:
+          go-version: 1.25.x
+          check-latest: true
+      - name: Generate saas-api-full fixture
+        run: |
+          tmpdir="$(mktemp -d)"
+          echo "SERVICE_DIR=$tmpdir/full-api" >> "$GITHUB_ENV"
+          cd contrib
+          go run ./cmd/api-toolkit new service \
+            --module example.com/full-api \
+            --profile saas-api-full \
+            --auth api-key \
+            --dir "$tmpdir/full-api" \
+            --core-replace "$GITHUB_WORKSPACE" \
+            --contrib-replace "$GITHUB_WORKSPACE/contrib"
+      - name: Generated integration check with MinIO profile
+        run: make integration-check
+        working-directory: ${{ env.SERVICE_DIR }}

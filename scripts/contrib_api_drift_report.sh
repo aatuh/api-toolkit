@@ -76,7 +76,7 @@ fi
 echo "Contrib API drift report"
 echo "Baseline: $base_ref"
 echo "Package manifest: $manifest"
-echo "Policy: contrib remains outside the stable v2 API promise; supported-adapter incompatible drift fails this gate, while experimental and wrapper-only drift remains review evidence."
+echo "Policy: contrib remains outside the stable core API promise; supported-adapter incompatible drift fails this gate, while experimental and wrapper-only drift remains review evidence."
 
 drift_count=0
 skip_count=0

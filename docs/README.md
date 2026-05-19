@@ -9,6 +9,7 @@ without scanning the root README.
 | --- | --- | --- |
 | [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
+| [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, or caveated. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
@@ -103,9 +104,8 @@ identifies the installed generator and contract tool.
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [Versioning](../VERSIONING.md) | API consumers and maintainers | Define the stable core API surface and contrib compatibility policy. |
-| [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify v2 compatibility-sensitive port exports and preferred replacements. |
-| [V3 compatibility roadmap](v3-compatibility-roadmap.md) | Maintainers | Track future major-version cleanup requirements and evidence gates. |
-| [Response writer inventory](response-writer-inventory.md) | Maintainers | Keep the legacy response helper package contained. |
+| [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify compatibility-sensitive port history and preferred replacements. |
+| [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
@@ -116,6 +116,7 @@ identifies the installed generator and contract tool.
 | --- | --- | --- |
 | [Release runbook](release-runbook.md) | Release operators | Command source of truth for local checks, release evidence, artifact verification, and baseline policy. |
 | [Release review checklist](release-review.md) | Release reviewers | Short path through summary fields, manifests, dirty-tree decisions, artifacts, and release notes. |
+| [Governance](governance.md) | Maintainers | Branch protection, CODEOWNERS, tag protection, required checks, and release approval expectations. |
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
 | `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |
@@ -152,7 +153,8 @@ important public docs disappear from navigation:
 `docs/architecture.md`, `docs/security.md`, `SECURITY.md`, `docs/metrics.md`,
 `VERSIONING.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
-`docs/v3-compatibility-roadmap.md`, `docs/response-writer-inventory.md`,
+`docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,
+`docs/governance.md`,
 `docs/dependency-boundary.md`, `docs/dependency-risk.md`,
 `docs/package-doc-standard.md`, `docs/full-service-scaffold.md`,
 `docs/package-classification.tsv`, `docs/supported-adapter-contracts.tsv`,

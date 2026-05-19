@@ -1,0 +1,24 @@
+# Repository governance ownership.
+#
+# CODEOWNERS review should be required by branch protection for protected
+# branches and release-tag changes.
+
+* @aatuh
+
+/README.md @aatuh
+/VERSIONING.md @aatuh
+/docs/ @aatuh
+/scripts/ @aatuh
+/Makefile @aatuh
+/.github/ @aatuh
+
+/ports/ @aatuh
+/middleware/ @aatuh
+/endpoints/ @aatuh
+/routecontracts/ @aatuh
+/routepolicy/ @aatuh
+/specs/ @aatuh
+/contracttest/ @aatuh
+
+/contrib/ @aatuh
+/contrib/cmd/api-toolkit/ @aatuh

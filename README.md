@@ -11,8 +11,8 @@ stable surface, and release reviewers looking for the canonical docs path.
 
 | Module | Import path | Use for |
 | --- | --- | --- |
-| Core | `github.com/aatuh/api-toolkit/v3` | Stable ports, middleware, `httpx`, endpoint helpers, scheduler, and compatibility surfaces covered by the v2 API gate. |
-| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, examples, and tooling outside the stable v2 API promise. |
+| Core | `github.com/aatuh/api-toolkit/v3` | Stable ports, middleware, `httpx`, endpoint helpers, scheduler, and v3 API-gated production primitives. |
+| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, examples, and tooling outside the stable core API promise. |
 
 Install both when following the getting-started guide:
 
@@ -38,7 +38,7 @@ visible before publication.
 Core packages:
 
 - `ports` defines toolkit-wide boundary contracts.
-- `compat/billing` is the explicit v2 compatibility package for the current hosted-checkout and invoicing model.
+- `compat/billing` is the explicit compatibility package for the current hosted-checkout and invoicing model.
 - Runtime middleware: `middleware/*` covers JSON enforcement, timeouts,
   body/query limits, rate limiting, idempotency, secure headers, tracing,
   tenant context, deprecation headers, API key auth, JWT auth, and role authz.
@@ -59,7 +59,6 @@ Core packages:
 - Testing and client helpers: `apitest` and `apiclient` provide application
   test assertions and small client-side helpers without becoming a generated
   SDK.
-- The legacy response helper package is retained for v2 source compatibility; new response code should prefer `httpx`.
 
 Contrib packages:
 
@@ -71,6 +70,29 @@ Contrib packages:
 
 For API and test-status ownership, use `docs/package-classification.tsv` and the
 human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
+
+## Production readiness
+
+api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
+generated SaaS/API services. It is not a universal backend platform for every
+transport, streaming workload, provider workflow, or organization-specific
+operating model. Use [docs/production-readiness.md](docs/production-readiness.md)
+as the readiness matrix before standardizing on a package or generated profile.
+
+| Area | Readiness | Notes |
+| --- | --- | --- |
+| Stable core packages | Stable SemVer surface | Covered by `VERSIONING.md`, `scripts/apicheck.sh`, package classification, and release evidence. |
+| Supported contrib adapters | Supported adapter tier | Direct tests, docs, drift coverage, and behavior contracts are required; supported-adapter incompatible drift is gate-enforced and does not make contrib stable. |
+| Experimental contrib packages | Maintained but unstable | Use only with app-owned compatibility expectations until promoted with evidence. |
+| `saas-api` scaffold | Lean service starter | Keeps production-safe HTTP defaults without forcing persistence or membership models. |
+| `saas-api-full` scaffold | Production reference scaffold | Includes Postgres, Redis, tenancy, API keys, async/outbox, audit, webhooks, OpenAPI 3.1, clients, and deployment starters. |
+| Streaming, SSE, WebSockets, and large downloads | Explicit caveat | Use route-level opt-outs; do not apply hard-timeout response buffering, response validation, or idempotency response capture globally. |
+
+Streaming routes, server-sent events, websocket upgrades, and large downloads
+should be marked with `x-api-toolkit-streaming` and wired with
+`securityprofile.StreamingRouteOverride` or equivalent route-specific
+middleware. This preserves optional `http.ResponseWriter` interfaces and avoids
+buffering or validating responses that are not finite JSON documents.
 
 ## Health endpoint contract
 
@@ -125,8 +147,10 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 
 - Versioning and stable API policy: [VERSIONING.md](VERSIONING.md)
 - Compatibility-sensitive ports: [docs/ports-surface.md](docs/ports-surface.md)
-- V3 compatibility roadmap: [docs/v3-compatibility-roadmap.md](docs/v3-compatibility-roadmap.md)
-- Response writer compatibility inventory: [docs/response-writer-inventory.md](docs/response-writer-inventory.md)
+- V3 compatibility record: [docs/v3-compatibility-roadmap.md](docs/v3-compatibility-roadmap.md)
+- Response writer removal record: [docs/response-writer-inventory.md](docs/response-writer-inventory.md)
+- Production readiness matrix: [docs/production-readiness.md](docs/production-readiness.md)
+- Governance and branch protection: [docs/governance.md](docs/governance.md)
 - Public package classification: `docs/package-classification.tsv`
 
 Release command details live in [docs/release-runbook.md](docs/release-runbook.md).
@@ -137,10 +161,11 @@ Keep this landing page as a pointer, not a second release runbook.
 - Release manifests guide: [docs/release-manifests.md](docs/release-manifests.md)
 - Contrib drift package manifest: `docs/contrib-api-drift-packages.txt`
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
-- Current supported v2 API baseline: see `docs/release-runbook.md`.
-- Release readiness requires `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check`.
-- Publication evidence requires `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` from a clean worktree.
-- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
+- Current supported v3 API baseline: see `docs/release-runbook.md`.
+- First v3 major-release evidence may compare against `v2.1.0` only as documented v2-to-v3 breakage evidence, for example `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` and `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`; v3 patch and minor releases compare against the latest published v3 tag.
+- Release readiness requires an explicit baseline, for example `API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-check` for a post-`v3.0.0` v3 release.
+- Publication evidence requires an explicit baseline, for example `API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence`, from a clean worktree.
+- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.
 - `make release-api-check`, `make contrib-api-drift-report`, and `make contrib-release-notes-check` are explained in the runbook. Supported-adapter contrib packages are still outside the stable core API promise; supported-adapter incompatible drift is gate-enforced and does not make contrib stable.
 
