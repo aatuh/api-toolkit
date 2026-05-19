@@ -163,9 +163,9 @@ Keep this landing page as a pointer, not a second release runbook.
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
 - Current supported v3 API baseline: see `docs/release-runbook.md`.
 - First v3 major-release evidence may compare against `v2.1.0` only as documented v2-to-v3 breakage evidence, for example `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check` and `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`; v3 patch and minor releases compare against the latest published v3 tag.
-- Release readiness requires an explicit baseline, for example `API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-check` for a post-`v3.0.1` v3 release.
-- Publication evidence requires an explicit baseline, for example `API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-evidence`, from a clean worktree.
-- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
+- Release readiness requires an explicit baseline, for example `API_BASE_REF=v3.0.2 GOTOOLCHAIN=local make release-check` for a post-`v3.0.2` v3 release.
+- Publication evidence requires an explicit baseline, for example `API_BASE_REF=v3.0.2 GOTOOLCHAIN=local make release-evidence`, from a clean worktree.
+- `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.2 GOTOOLCHAIN=local make release-evidence` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.
 - `make release-api-check`, `make contrib-api-drift-report`, and `make contrib-release-notes-check` are explained in the runbook. Supported-adapter contrib packages are still outside the stable core API promise; supported-adapter incompatible drift is gate-enforced and does not make contrib stable.
 
