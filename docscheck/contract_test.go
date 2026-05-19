@@ -921,7 +921,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+			"API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-evidence",
 			"API_BASE_REF=v2.1.0",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
@@ -2548,8 +2548,8 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-evidence",
 		"API_BASE_REF=v2.1.0",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
@@ -2572,9 +2572,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v3 release baseline: `v3.0.0`",
-		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+		"Supported v3 release baseline: `v3.0.1`",
+		"API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v3.0.1 GOTOOLCHAIN=local make release-evidence",
 		"API_BASE_REF=v2.1.0",
 		"schema v2",
 		"local release evidence",

@@ -254,6 +254,13 @@ make_fake_tools "$fake_bin"
 ok_dir="$tmp/ok"
 make_bundle "$ok_dir"
 require_success local-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
+require_success local-verify-summary-baseline env PATH="$fake_bin:$PATH" bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
+
+baseline_mismatch_output="$(require_failure baseline-mismatch env PATH="$fake_bin:$PATH" API_BASE_REF=v3.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
+case "$baseline_mismatch_output" in
+  *"api_base_ref='v2.1.0', want 'v3.0.1'"*) ;;
+  *) printf 'explicit baseline mismatch did not fail clearly:\n%s\n' "$baseline_mismatch_output" >&2; exit 1 ;;
+esac
 
 missing_tag_output="$(require_failure publication-missing-tag env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 RELEASE_ARTIFACT_VERIFY_MODE=publication bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
 case "$missing_tag_output" in

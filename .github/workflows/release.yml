@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 env:
-  API_BASE_REF: v3.0.0
+  API_BASE_REF: v3.0.1
   GOTOOLCHAIN: local
   COSIGN_CERTIFICATE_IDENTITY_REGEXP: '^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$'
   COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
