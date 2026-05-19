@@ -1370,7 +1370,7 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 		summary.FullProfileScaffoldEvidence.IntegrationCheck.ReleaseBlocking {
 		t.Fatalf("full profile integration evidence should be opt-in and non-blocking by default: %+v", summary.FullProfileScaffoldEvidence.IntegrationCheck)
 	}
-	if !strings.Contains(summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine, "make integration-check") {
+	if !strings.Contains(summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine, "make generated-integration-check") {
 		t.Fatalf("full profile integration command = %q", summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine)
 	}
 	for _, tier := range []string{"local_release_evidence", "github_release_workflow"} {
@@ -1712,6 +1712,7 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 		"Protect `master`",
 		"Protect `v*` release tags",
 		"latest published v3 tag",
+		"make github-governance-check",
 		"Live provider checks are opt-in only",
 	} {
 		if !strings.Contains(governance, required) {
@@ -1771,6 +1772,65 @@ func TestCoverageCheckIncludesHighRiskPackageFloors(t *testing.T) {
 	} {
 		if !strings.Contains(script, required) {
 			t.Fatalf("scripts/coverage_check.sh missing high-risk coverage gate %q", required)
+		}
+	}
+}
+
+func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
+	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+
+	for _, required := range []string{
+		"generated-integration-check:",
+		"generated-integration-check-minio:",
+		"github-governance-check:",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing optional target %q", required)
+		}
+	}
+	for _, required := range []string{
+		"gh is not installed; skipping optional governance verification",
+		"require_code_owner_reviews",
+		"allow_force_pushes.enabled == false",
+		"rulesets?includes_parents=true",
+	} {
+		if !strings.Contains(governanceScript, required) {
+			t.Fatalf("github governance script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"--profile saas-api-full",
+		"make integration-check",
+		"INTEGRATION_OBJECT_STORE",
+		".ci-result/generated-integration",
+	} {
+		if !strings.Contains(integrationScript, required) {
+			t.Fatalf("generated integration script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"make generated-integration-check",
+		"make generated-integration-check-minio",
+		"make github-governance-check",
+		"not part of `finalize`",
+	} {
+		if !strings.Contains(runbook, required) && !strings.Contains(governance, required) {
+			t.Fatalf("governance docs missing optional check guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		".ci-result/generated-integration/status",
+		"make generated-integration-check",
+		"not_run_opt_in",
+	} {
+		if !strings.Contains(summaryScript, required) {
+			t.Fatalf("release summary script missing generated integration evidence %q", required)
 		}
 	}
 }
@@ -3008,6 +3068,11 @@ func generatedScaffoldMakeTarget(rel, target string) bool {
 	case "docs/release-notes.md":
 		switch target {
 		case "asset-check", "observability-check", "deploy-check":
+			return true
+		}
+	case "docs/release-runbook.md":
+		switch target {
+		case "integration-check":
 			return true
 		}
 	}

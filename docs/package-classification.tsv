@@ -69,23 +69,24 @@ github.com/aatuh/api-toolkit/v3/testutil/authtest	test-only	test-support	Root te
 github.com/aatuh/api-toolkit/contrib/v3	excluded	excluded	Module marker package only; no stable API promise.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres	supported-adapter	direct-tests	Postgres audit event adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis	supported-adapter	direct-tests	Redis cache adapter.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/cedar	experimental	direct-tests	Third-party policy adapter; not promoted until shared policy contract and drift evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/cedar	supported-adapter	direct-tests	Third-party Cedar policy adapter with shared policy-engine contract coverage.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/chi	supported-adapter	direct-tests	Supported chi router adapter and authz route validation helpers.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/clock	wrapper-only	wrapper-smoke-tested	Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar	experimental	direct-tests	Environment loading adapter; not promoted until config-loader contract and drift evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar	supported-adapter	direct-tests	Environment loading adapter with required-value, typed parsing, binding, .env loading, and redaction behavior.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest	test-only	test-support	Reusable health checker adapter contract tests.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient	experimental	direct-tests	Outbound HTTP client, breaker, and SSRF transport adapter; not promoted until shared HTTP-client contract and health evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient	supported-adapter	direct-tests	Outbound HTTP client, retry, breaker, bulkhead, timeout, and SSRF transport adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency	experimental	direct-tests	In-memory idempotency adapter for dev/test; production supported tier is Redis-backed.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis	supported-adapter	direct-tests	Redis idempotency adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencytest	test-only	test-support	Reusable idempotency adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap	supported-adapter	direct-tests	Supported zap logger adapter.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate	experimental	direct-tests	Database migration adapter; not promoted until migrator contract and release drift evidence are added.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/opa	experimental	direct-tests	OPA policy adapter; not promoted until shared policy contract and drift evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate	supported-adapter	direct-tests	Database migration adapter over contrib migrator lifecycle operations.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/opa	supported-adapter	direct-tests	OPA policy adapter with shared policy-engine contract coverage.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres	supported-adapter	direct-tests	Postgres operation repository adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3	supported-adapter	direct-tests	S3-compatible object storage adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres	supported-adapter	direct-tests	Postgres transactional outbox adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres	supported-adapter	direct-tests	Postgres outbound webhook endpoint registry, delivery, attempt, and replay adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool	supported-adapter	direct-tests	Postgres pool adapter.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest	test-only	test-support	Reusable policy adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis	supported-adapter	direct-tests	Redis rate-limit adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest	test-only	test-support	Reusable rate-limit adapter contract tests.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/resend	supported-adapter	direct-tests	Resend email adapter.
@@ -93,7 +94,7 @@ github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe	supported-adapter	direct
 github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres	supported-adapter	direct-tests	Postgres transaction adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/ulid	wrapper-only	wrapper-smoke-tested	Thin ULID generator adapter; smoke coverage is sufficient because behavior is delegated to the ULID generator library.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/validation	experimental	direct-tests	Validation adapter; not promoted until validation adapter contract and drift evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/validation	supported-adapter	direct-tests	Validation adapter with field mapping, nested validation, safe messages, and Problem Details-compatible errors.
 github.com/aatuh/api-toolkit/contrib/v3/async	supported-adapter	direct-tests	Durable async worker contracts and runner.
 github.com/aatuh/api-toolkit/contrib/v3/async/asynctest	test-only	test-support	Reusable async store contract tests.
 github.com/aatuh/api-toolkit/contrib/v3/audit	supported-adapter	direct-tests	Audit event contracts.
@@ -104,7 +105,7 @@ github.com/aatuh/api-toolkit/contrib/v3/cache/cachetest	test-only	test-support	R
 github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding, generated clients, contract checks, observability bundles, and deployment starters.
 github.com/aatuh/api-toolkit/contrib/v3/cmd/migrate	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v3/cmd/tester	tooling	direct-tests	CLI tooling package.
-github.com/aatuh/api-toolkit/contrib/v3/config	experimental	direct-tests	Contrib configuration loader; not promoted until loader contract and drift evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/config	supported-adapter	direct-tests	Contrib configuration loader with required-value, typed parsing, enum validation, deterministic errors, and safe defaults.
 github.com/aatuh/api-toolkit/contrib/v3/countrycodes	experimental	direct-tests	Country code helpers; low-level helper not yet in supported adapter scope.
 github.com/aatuh/api-toolkit/contrib/v3/email/markdown	experimental	direct-tests	Markdown email rendering adapter; not promoted until renderer contract and drift evidence are added.
 github.com/aatuh/api-toolkit/contrib/v3/email/noop	wrapper-only	wrapper-smoke-tested	No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.
@@ -141,6 +142,6 @@ github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics	supported-adapter	dir
 github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi	supported-adapter	direct-tests	OpenAPI validation middleware.
 github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace	supported-adapter	direct-tests	OpenTelemetry trace middleware.
 github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog	supported-adapter	direct-tests	Request logging middleware.
-github.com/aatuh/api-toolkit/contrib/v3/migrator	experimental	direct-tests	Migration orchestration package; not promoted until migrator contract and drift evidence are added.
-github.com/aatuh/api-toolkit/contrib/v3/scheduler/postgres	experimental	direct-tests	Postgres scheduler run store; not promoted until scheduler store contract and health evidence are added.
+github.com/aatuh/api-toolkit/contrib/v3/migrator	supported-adapter	direct-tests	Migration orchestration package with plan, status, check, verify, lock, checksum, guarded down, and failed-state behavior.
+github.com/aatuh/api-toolkit/contrib/v3/scheduler/postgres	supported-adapter	direct-tests	Postgres scheduler run store with record, last-finished lookup, and persistence error behavior.
 github.com/aatuh/api-toolkit/contrib/v3/telemetry	supported-adapter	direct-tests	OpenTelemetry wiring helpers.

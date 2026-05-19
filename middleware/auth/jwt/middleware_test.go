@@ -167,6 +167,96 @@ func TestSubjectFromTokenEnforcesRequiredClaimsAndAlgorithms(t *testing.T) {
 	}
 }
 
+func TestSubjectFromTokenRejectsInvalidRegisteredClaimsAndKeyMisses(t *testing.T) {
+	kf, privateKey := newTestKeyfunc(t)
+	now := time.Now()
+	mw := &Middleware{
+		cfg: Config{
+			Issuer:           "https://issuer.example",
+			Audience:         "example",
+			AllowedClockSkew: 5 * time.Second,
+		},
+		jwks:        kf,
+		allowedAlgs: []string{"RS256"},
+		claimReq: claimRequirements{
+			requireSubject:    true,
+			requireExpiration: true,
+			requireIssuedAt:   true,
+			requireNotBefore:  true,
+		},
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(jwt.MapClaims)
+		kid    string
+		want   string
+	}{
+		{
+			name: "invalid issuer",
+			mutate: func(claims jwt.MapClaims) {
+				claims["iss"] = "https://evil.example"
+			},
+			kid:  "test-kid",
+			want: "issuer",
+		},
+		{
+			name: "invalid audience",
+			mutate: func(claims jwt.MapClaims) {
+				claims["aud"] = "other-api"
+			},
+			kid:  "test-kid",
+			want: "audience",
+		},
+		{
+			name: "expired token",
+			mutate: func(claims jwt.MapClaims) {
+				claims["exp"] = float64(now.Add(-time.Minute).Unix())
+			},
+			kid:  "test-kid",
+			want: "expired",
+		},
+		{
+			name: "not yet valid token",
+			mutate: func(claims jwt.MapClaims) {
+				claims["nbf"] = float64(now.Add(time.Minute).Unix())
+			},
+			kid:  "test-kid",
+			want: "not valid",
+		},
+		{
+			name: "missing subject",
+			mutate: func(claims jwt.MapClaims) {
+				delete(claims, "sub")
+			},
+			kid:  "test-kid",
+			want: "subject",
+		},
+		{
+			name:   "jwks key miss",
+			mutate: func(jwt.MapClaims) {},
+			kid:    "unknown-kid",
+			want:   "key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := baseClaims(now)
+			claims["nbf"] = float64(now.Add(-time.Minute).Unix())
+			tt.mutate(claims)
+			token := signToken(t, jwt.SigningMethodRS256, claims, privateKey, tt.kid)
+			_, err := mw.subjectFromToken(token)
+			if err == nil {
+				t.Fatal("expected token validation error")
+			}
+			if got := strings.ToLower(err.Error()); !strings.Contains(got, tt.want) {
+				t.Fatalf("expected error containing %q, got %q", tt.want, err.Error())
+			}
+		})
+	}
+}
+
 func TestOptionalHandlerAuthFlow(t *testing.T) {
 	mw := &Middleware{enabled: true, log: ports.NopLogger{}}
 

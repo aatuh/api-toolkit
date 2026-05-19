@@ -6,8 +6,31 @@ import (
 
 	cedarcore "github.com/cedar-policy/cedar-go"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
+
+func TestPolicyEngineContract(t *testing.T) {
+	policytest.AssertEngineContract(t,
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractEngine(t, `permit (
+				principal == User::"user_123",
+				action == Action::"read",
+				resource == Document::"doc_123"
+			) when { context.tenant == "tenant_123" };`, false)
+		},
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractEngine(t, `forbid (
+				principal == User::"user_123",
+				action == Action::"read",
+				resource == Document::"doc_123"
+			);`, false)
+		},
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractEngine(t, `permit (principal, action, resource);`, true)
+		},
+	)
+}
 
 func TestEvaluateAllows(t *testing.T) {
 	const policyText = `permit (
@@ -74,4 +97,36 @@ func TestRecordFromMapValidatesKeys(t *testing.T) {
 	if _, err := RecordFromMap(map[string]any{"": "bad"}); err == nil {
 		t.Fatal("expected error for empty key")
 	}
+}
+
+func newContractEngine(t *testing.T, policyText string, malformed bool) ports.PolicyEngine {
+	t.Helper()
+	var policy cedarcore.Policy
+	if err := policy.UnmarshalCedar([]byte(policyText)); err != nil {
+		t.Fatalf("parse policy: %v", err)
+	}
+	policies := cedarcore.NewPolicySet()
+	policies.Add("policy0", &policy)
+	engine, err := New(Config{
+		Policies: policies,
+		RequestBuilder: func(req ports.PolicyRequest) (cedarcore.Request, error) {
+			if malformed {
+				return cedarcore.Request{}, context.Canceled
+			}
+			ctxRecord, err := recordFromContext(req.Context)
+			if err != nil {
+				return cedarcore.Request{}, err
+			}
+			return cedarcore.Request{
+				Principal: cedarcore.NewEntityUID("User", "user_123"),
+				Action:    cedarcore.NewEntityUID("Action", cedarcore.String(req.Action)),
+				Resource:  cedarcore.NewEntityUID("Document", "doc_123"),
+				Context:   ctxRecord,
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new engine: %v", err)
+	}
+	return engine
 }

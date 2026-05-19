@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -86,6 +87,62 @@ func TestRequestValidationRejectsMissingRequiredQueryParameter(t *testing.T) {
 	}
 }
 
+func TestRequestValidationRejectsInvalidJSONRequestBody(t *testing.T) {
+	spec := buildCreateWidgetSpec()
+	mw, err := New(spec)
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for invalid body")
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets", strings.NewReader(`{"name":123}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+	var body httpx.Problem
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Type != httpx.DefaultTypeURI(httpx.TypeValidation) {
+		t.Fatalf("problem type = %q, want validation", body.Type)
+	}
+	if body.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("problem status = %d, want 422", body.Status)
+	}
+}
+
+func TestResponseValidationDisabledByDefaultPassesInvalidResponses(t *testing.T) {
+	spec := buildPingSpec()
+	mw, err := New(spec)
+	if err != nil {
+		t.Fatalf("middleware error: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"bad": true})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected response validation to be disabled by default, got %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["bad"] != true {
+		t.Fatalf("unexpected body: %#v", body)
+	}
+}
+
 func TestMethodNotAllowedMapsToValidationProblem(t *testing.T) {
 	status := statusFromError(routers.ErrMethodNotAllowed)
 	if status != http.StatusMethodNotAllowed {
@@ -97,6 +154,17 @@ func TestMethodNotAllowedMapsToValidationProblem(t *testing.T) {
 	}
 	if problem.Detail != "method not allowed" {
 		t.Fatalf("detail = %q, want method not allowed", problem.Detail)
+	}
+}
+
+func TestStatusFromErrorMapsNotFoundTo404(t *testing.T) {
+	status := statusFromError(routers.ErrPathNotFound)
+	if status != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", status)
+	}
+	problem := problemForOpenAPIError(status, routers.ErrPathNotFound)
+	if problem.Type != httpx.DefaultTypeURI(httpx.TypeNotFound) {
+		t.Fatalf("problem type = %q, want not-found", problem.Type)
 	}
 }
 
@@ -261,6 +329,43 @@ func buildPingSpec() *openapi3.T {
 				Get: &openapi3.Operation{
 					OperationID: "Ping",
 					Responses:   responses,
+				},
+			}),
+		),
+	}
+}
+
+func buildCreateWidgetSpec() *openapi3.T {
+	requestSchema := openapi3.NewObjectSchema()
+	requestSchema.Required = []string{"name"}
+	requestSchema.Properties = map[string]*openapi3.SchemaRef{
+		"name": {Value: openapi3.NewStringSchema()},
+	}
+	responseSchema := openapi3.NewObjectSchema()
+	responseSchema.Required = []string{"id", "name"}
+	responseSchema.Properties = map[string]*openapi3.SchemaRef{
+		"id":   {Value: openapi3.NewStringSchema()},
+		"name": {Value: openapi3.NewStringSchema()},
+	}
+	return &openapi3.T{
+		OpenAPI: "3.0.0",
+		Info: &openapi3.Info{
+			Title:   "Widgets",
+			Version: "1.0.0",
+		},
+		Paths: openapi3.NewPaths(
+			openapi3.WithPath("/widgets", &openapi3.PathItem{
+				Post: &openapi3.Operation{
+					OperationID: "CreateWidget",
+					RequestBody: &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().
+						WithRequired(true).
+						WithJSONSchema(requestSchema),
+					},
+					Responses: openapi3.NewResponses(
+						openapi3.WithStatus(http.StatusCreated, &openapi3.ResponseRef{
+							Value: openapi3.NewResponse().WithDescription("created").WithJSONSchema(responseSchema),
+						}),
+					),
 				},
 			}),
 		),

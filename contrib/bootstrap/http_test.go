@@ -592,6 +592,58 @@ func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
 	}
 }
 
+func TestNewAPIServicePublicLivenessDoesNotDependOnReadiness(t *testing.T) {
+	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		LivenessChecks:  []string{"basic"},
+		ReadinessChecks: []string{"database"},
+	})
+	manager.RegisterChecker(health.NewBasicChecker())
+	manager.RegisterChecker(health.NewCustomChecker("database", func(context.Context) (ports.HealthStatus, string, interface{}) {
+		return ports.HealthStatusUnhealthy, "database unavailable", nil
+	}))
+
+	service, err := NewAPIService(APIServiceConfig{
+		Addr:      ":0",
+		AdminAddr: "127.0.0.1:0",
+		Log:       ports.NopLogger{},
+		SystemEndpoints: SystemEndpoints{
+			Health: health.NewHandler(manager),
+		},
+		Admin: SystemEndpointAdminOptions{
+			RequireAdmin: func(next http.Handler) http.Handler { return next },
+		},
+	})
+	if err != nil {
+		t.Fatalf("new API service: %v", err)
+	}
+
+	livez := httptest.NewRecorder()
+	service.Handler().ServeHTTP(livez, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Livez, nil))
+	if livez.Code != http.StatusOK {
+		t.Fatalf("liveness status = %d, want 200", livez.Code)
+	}
+
+	readyz := httptest.NewRecorder()
+	service.Handler().ServeHTTP(readyz, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if readyz.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness status = %d, want 503", readyz.Code)
+	}
+}
+
+func TestNewAPIServiceReturnsRouteRegistrationError(t *testing.T) {
+	_, err := NewAPIService(APIServiceConfig{
+		Addr: ":0",
+		Log:  ports.NopLogger{},
+		RegisterRoutes: func(ports.HTTPRouter) error {
+			return errors.New("route table invalid")
+		},
+	})
+	if err == nil || err.Error() != "register routes: route table invalid" {
+		t.Fatalf("unexpected route registration error: %v", err)
+	}
+}
+
 func TestNewAPIServiceRequiresAdminWrapperForSystemEndpoints(t *testing.T) {
 	_, err := NewAPIService(APIServiceConfig{
 		Addr: ":0",

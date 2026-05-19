@@ -820,6 +820,8 @@ full_profile_scaffold_evidence_json() {
   local integration_workflow_status
   local integration_status
   local integration_log
+  local recorded_integration_status
+  local recorded_integration_log=".ci-result/generated-integration/integration-check.log"
 
   scaffold_status="$(check_status_from_summary_records "$scaffold_check")"
   client_status="covered_by_scaffold_contract"
@@ -832,8 +834,12 @@ full_profile_scaffold_evidence_json() {
   provider_status="$client_status"
   worker_status="$client_status"
   integration_workflow_status="$client_status"
-  integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-not_run_opt_in}"
+  recorded_integration_status="$(cat "$repo_root/.ci-result/generated-integration/status" 2>/dev/null || true)"
+  integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-${recorded_integration_status:-not_run_opt_in}}"
   integration_log="${FULL_PROFILE_INTEGRATION_CHECK_LOG_PATH:-}"
+  if [ -z "$integration_log" ] && [ -n "$recorded_integration_status" ]; then
+    integration_log="$recorded_integration_log"
+  fi
 
   printf '{'
   printf '"profile":"saas-api-full",'
@@ -945,7 +951,7 @@ full_profile_scaffold_evidence_json() {
   printf '"release_blocking":true'
   printf '},'
   printf '"integration_check":{'
-  printf '"command_line":'; json_string "generated saas-api-full service: make integration-check"; printf ','
+  printf '"command_line":'; json_string "make generated-integration-check"; printf ','
   printf '"status":'; json_string "$integration_status"; printf ','
   printf '"log_path":'; json_nullable_string "$integration_log"; printf ','
   printf '"release_blocking":false'
