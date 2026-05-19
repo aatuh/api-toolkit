@@ -12,15 +12,16 @@ and ownership rules for api-toolkit.
   the change.
 - Require `make docs-check`, `make coverage-check`, `make test-race`, and the
   API compatibility check from CI before merge.
-- Protect `v*` release tags so only release maintainers can create or update
-  them.
+- Protect `v*` release tags and contrib module `contrib/v*` release tags so
+  only release maintainers can create or update them.
 - Do not publish a release from local dirty-tree audit evidence.
 
 Maintainers can run the optional authenticated verifier with
 `make github-governance-check`. The command uses `gh api` when available to
 check branch protection, required status checks, CODEOWNERS review, force-push
-and deletion protection, and tag rulesets. It skips cleanly when `gh` is not
-installed or authenticated, and it is not part of `finalize` or required PR CI.
+and deletion protection, and tag rulesets for both `refs/tags/v*` and
+`refs/tags/contrib/v*`. It skips cleanly when `gh` is not installed or
+authenticated, and it is not part of `finalize` or required PR CI.
 
 ## Release Approval
 

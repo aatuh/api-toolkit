@@ -38,6 +38,18 @@ source of truth is `docs/release-runbook.md`.
 
 ### Maturity evidence
 
+- Added `make generated-upgrade-compat-check`, an opt-in generated-service
+  upgrade compatibility signal that generates `saas-api-full` from the prior v3
+  baseline, replaces toolkit dependencies with the workspace, and runs generated
+  tests, OpenAPI, client, and contract checks. This stays outside `finalize`.
+- Tightened the optional GitHub governance verifier so release tag protection
+  covers both root `v*` tags and contrib module `contrib/v*` tags.
+- Removed the local root-module `replace` directive from `contrib/go.mod` so
+  the contrib CLI can be installed with
+  `go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@vX.Y.Z`.
+- Added `docs/coverage-hardening-backlog.md` to make the next JWT, health,
+  pgxpool, OpenAPI middleware, and webhook delivery coverage floor increases
+  conditional on behavior-test evidence rather than numeric threshold churn.
 - Raised maturity evidence for high-risk v3 surfaces with additional JWT,
   OpenAPI validation, and bootstrap tests. The package coverage gate now keeps
   the OpenAPI validation middleware and bootstrap floors aligned with the new
