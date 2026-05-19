@@ -3,8 +3,8 @@
 # api_status values:
 # stable, compatibility-only, experimental, wrapper-only, test-only, example-only,
 # generated, tooling, excluded.
-# stable: covered by the core v2 API compatibility promise and release API gate.
-# compatibility-only: stable for v2 source compatibility, but legacy or migration-shaped.
+# stable: covered by the core v3 API compatibility promise and release API gate.
+# compatibility-only: stable for migration-shaped APIs that should not guide new generic designs.
 # experimental: maintained but not protected by the stable API gate.
 # wrapper-only: thin convenience package; behavior belongs to the delegated adapter.
 # test-only, example-only, generated, tooling, excluded: not public API promises.
@@ -22,7 +22,7 @@ github.com/aatuh/api-toolkit/v3/apiclient	stable	direct-tests	Stable client-side
 github.com/aatuh/api-toolkit/v3/apitest	stable	direct-tests	Stable HTTP API response assertion helpers.
 github.com/aatuh/api-toolkit/v3/authorization	stable	direct-tests	Core authorization context helpers.
 github.com/aatuh/api-toolkit/v3/binding	stable	direct-tests	Stable request binding and validation Problem Details helpers.
-github.com/aatuh/api-toolkit/v3/compat/billing	compatibility-only	direct-tests	Explicit v2 hosted-checkout and billing compatibility package.
+github.com/aatuh/api-toolkit/v3/compat/billing	compatibility-only	direct-tests	Explicit hosted-checkout and billing compatibility package.
 github.com/aatuh/api-toolkit/v3/contracttest	stable	direct-tests	Stable route, OpenAPI, and problem catalog contract test helpers.
 github.com/aatuh/api-toolkit/v3/docscheck	excluded	direct-tests	Repository contract tests, not public API.
 github.com/aatuh/api-toolkit/v3/email	stable	direct-tests	Core email port types.
@@ -43,7 +43,7 @@ github.com/aatuh/api-toolkit/v3/middleware/auth/jwt	stable	direct-tests	Stable J
 github.com/aatuh/api-toolkit/v3/middleware/auth/shared	experimental	direct-tests	Auth middleware implementation-sharing package; intentionally not stable API.
 github.com/aatuh/api-toolkit/v3/middleware/auth/tenant	stable	direct-tests	Stable tenant context middleware.
 github.com/aatuh/api-toolkit/v3/middleware/deprecation	stable	direct-tests	Stable Deprecation, Sunset, and Link header middleware.
-github.com/aatuh/api-toolkit/v3/middleware/idempotency	stable	direct-tests	Stable idempotency middleware with v2 compatibility shims.
+github.com/aatuh/api-toolkit/v3/middleware/idempotency	stable	direct-tests	Stable idempotency middleware with token-aware release semantics.
 github.com/aatuh/api-toolkit/v3/middleware/json	stable	direct-tests	Stable JSON content middleware.
 github.com/aatuh/api-toolkit/v3/middleware/maxbody	stable	direct-tests	Stable request body limit middleware.
 github.com/aatuh/api-toolkit/v3/middleware/querylimits	stable	direct-tests	Stable query limit parsing.

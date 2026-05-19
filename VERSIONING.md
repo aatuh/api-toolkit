@@ -6,7 +6,7 @@ compatibility-sensitive exceptions, and release-command intent.
 This project follows semantic versioning for the core module
 `github.com/aatuh/api-toolkit/v3`. From v1 onward, we treat the packages listed
 below as stable: any breaking change requires a major version bump. Stability
-does not imply every exported identifier is perfectly adapter-neutral; some v2
+does not imply every exported identifier is perfectly adapter-neutral; some
 surfaces are explicitly classified as compatibility-sensitive so the public docs
 do not over-claim genericity. `docs/package-classification.tsv` classifies every
 root and contrib package so new public packages cannot appear without an
@@ -64,16 +64,15 @@ All exported identifiers in these packages are considered stable:
 
 ## Compatibility-sensitive stable sub-surfaces
 
-These exports remain part of the v2 compatibility promise, but they are not the
-recommended model for new generic boundary design:
+These exports remain compatibility-shaped, but they are not the recommended
+model for new generic boundary design:
 
-- `github.com/aatuh/api-toolkit/v3/ports` billing contracts in
-  `ports/billing.go` are stable in v2 but intentionally Stripe-shaped today.
-  They are deprecated in favor of `github.com/aatuh/api-toolkit/v3/compat/billing`,
-  which is the explicit v2 compatibility import path for that model.
-- `github.com/aatuh/api-toolkit/v3/ports` database stats contracts in
-  `ports/database.go`, including `DatabasePool.Stat` and `DatabaseStats`, are
-  stable in v2 but intentionally mirror pgxpool-style counters today.
+- `github.com/aatuh/api-toolkit/v3/compat/billing` keeps the hosted-checkout
+  and invoicing compatibility model explicit. New applications should prefer
+  app-owned billing ports unless this model is exactly what they need.
+- `github.com/aatuh/api-toolkit/v3/ports` database snapshot contracts are the
+  generic observability path. Driver-shaped counters belong in adapters or
+  compatibility packages, not generic `ports`.
 
 Compatibility-sensitive means:
 
@@ -81,14 +80,12 @@ Compatibility-sensitive means:
   requires otherwise.
 - New design work should prefer narrower, plain-value, or app-owned contracts
   instead of widening these surfaces further.
-- For the existing hosted-checkout and invoicing model, new v2 code should
-  import `github.com/aatuh/api-toolkit/v3/compat/billing` instead of importing
-  billing contracts from `ports`.
+- For the existing hosted-checkout and invoicing model, new code should import
+  `github.com/aatuh/api-toolkit/v3/compat/billing` or use app-owned ports.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
-- The current v3 cleanup checklist covers the deprecated `ports/billing.go`
-  aliases, `DatabasePool.Stat`/`DatabaseStats`, and the legacy
-  `response_writer` package.
+- The v3 cleanup record covers the removed deprecated `ports/billing.go`
+  aliases, driver-shaped database stats, and legacy `response_writer` package.
 
 ## Experimental or unstable surfaces
 
@@ -98,7 +95,7 @@ Compatibility-sensitive means:
 
 ## Contrib module policy
 
-The contrib module is outside the stable API compatibility promise for v2.
+The contrib module is outside the stable API compatibility promise.
 `make release-api-check` covers only the core module
 `github.com/aatuh/api-toolkit/v3`; it does not cover
 `github.com/aatuh/api-toolkit/contrib/v3`.
@@ -134,12 +131,11 @@ incompatible; it is not a substitute for human compatibility judgment. `make
 release-check` and `make release-evidence` include that gate so unacknowledged
 incompatible report-only drift cannot be published by the normal release path.
 
-Compatibility-sensitive v3 cleanup stays gated separately from the stable v2
-API check. `make v3-readiness-check` runs focused docscheck guardrails for
-provider-shaped billing ports, driver-shaped database stats, legacy response
-helpers, tokenless idempotency release, unchecked authz construction, checked
-list parser shims, and release-note requirements before those surfaces can be
-removed in a major version.
+Compatibility-sensitive cleanup stays gated separately from the stable API
+check. `make v3-readiness-check` runs focused docscheck guardrails for the
+completed provider-shaped billing extraction, driver-shaped database stats,
+legacy response helper removal, token-aware idempotency release, checked authz
+construction, checked list parser APIs, and release-note requirements.
 
 ## Deprecation policy
 
@@ -163,12 +159,14 @@ command source of truth. `make api-check` is a local compatibility helper.
 adapter, integration, middleware, bootstrap, telemetry, and production generator
 CLI behavior notes.
 
-Publication evidence must come from a clean worktree with
-`API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`. A local
+Publication evidence must come from a clean worktree with an explicit baseline,
+for example `API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence` for a
+post-`v3.0.0` v3 release. First v3 major-release evidence may use
+`API_BASE_REF=v2.1.0` only as documented v2-to-v3 transition evidence. A local
 dirty-tree audit must opt in with
-`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`
-and is not acceptable before publishing. This is local dirty-tree audit evidence,
-not publication evidence.
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence`
+and is not acceptable before publishing. This is local dirty-tree audit
+evidence, not publication evidence.
 
 For exact commands, artifact verification, manifest review, and baseline
 maintenance rules, use `docs/release-runbook.md`.
@@ -183,8 +181,8 @@ publication artifact verification with `RELEASE_ARTIFACT_VERIFY_MODE=publication
 
 - API compatibility checks protect exported identifiers in the stable surface,
   not every runtime contract or operator-facing default.
-- API compatibility checks still cover the full `ports` package, including the
-  compatibility-sensitive billing and database-stats exports described above.
+- API compatibility checks still cover the full stable package list, including
+  compatibility-shaped packages described above.
 - Review [docs/release-notes.md](docs/release-notes.md)
   on every upgrade for behavior changes around health endpoint exposure,
   scheduler observability, transaction cleanup, and `contrib` migration state

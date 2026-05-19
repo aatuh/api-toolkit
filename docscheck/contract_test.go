@@ -903,7 +903,8 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
+			"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+			"API_BASE_REF=v2.1.0",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
 			"not acceptable before publishing",
@@ -1582,39 +1583,23 @@ func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
 	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
 
 	for _, required := range []string{
-		"## V3 removal matrix",
-		"## V3 owner checklist",
-		"`ports/billing.go`",
+		"## V3 Removal Matrix",
+		"## V3 Owner Checklist",
 		"`github.com/aatuh/api-toolkit/v3/compat/billing`",
-		"`ports.DatabasePool.Stat`",
-		"`ports.DatabaseStats`",
-		"`ports.DatabasePoolSnapshotProvider`",
+		"`DatabasePoolSnapshotProvider`",
 		"`ports.SnapshotDatabasePoolStats`",
 		"`response_writer`",
 		"`github.com/aatuh/api-toolkit/v3/httpx`",
-		"`ports/idempotency.go` keeps `IdempotencyReleaser.Release(ctx, key)`",
-		"`ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)` is the preferred token-aware release path",
-		"`contrib/adapters/idempotencytest` owns reusable adapter contract coverage",
-		"`middleware/auth/authz.NewRequireRoleMiddleware` keeps the v2-compatible",
-		"`middleware/auth/authz.NewRequireRoleMiddlewareChecked` is the preferred",
+		"`ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)`",
+		"`middleware/auth/authz.NewRequireRoleMiddlewareChecked`",
 		"`ValidateRequireRoleMiddlewareRoutes`",
-		"`endpoints/list.ParseListQuery`",
 		"`ParseListQueryChecked`",
 		"`DefaultFilterParserChecked`",
 		"`DefaultSortParserChecked`",
-		"Removal trigger",
-		"Required tests",
-		"Release-note requirements",
-		"## V3 implementation tracks",
-		"### Provider-shaped billing ports removal",
-		"### Database stats compatibility removal",
-		"### Legacy response writer removal",
-		"idempotency response capture",
-		"### Compatibility shim removal",
-		"Keep v2 source compatibility intact until the v3 branch",
-		"Idempotency compatibility telemetry labels",
-		"Hard-timeout response capture",
-		"Admin endpoint registration ergonomics",
+		"Required evidence",
+		"## Remaining Guardrails",
+		"bounded",
+		"streaming, SSE, websocket, and large-download",
 	} {
 		if !strings.Contains(roadmap, required) {
 			t.Fatalf("docs/v3-compatibility-roadmap.md missing %q", required)
@@ -1660,6 +1645,8 @@ func TestHardTimeoutDocsCoverCaptureAndStreamingLimits(t *testing.T) {
 	code := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "timeout.go"))
 	doc := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "doc.go"))
 	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	readiness := readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))
 
 	for _, required := range []string{
 		"MaxCaptureBytes",
@@ -1677,11 +1664,113 @@ func TestHardTimeoutDocsCoverCaptureAndStreamingLimits(t *testing.T) {
 	}{
 		{"middleware/timeout/doc.go", doc},
 		{"docs/security.md", security},
+		{"README.md", readme},
+		{"docs/production-readiness.md", readiness},
 	} {
 		for _, required := range []string{"streaming", "server-sent events", "websocket", "http.ResponseWriter"} {
 			if !strings.Contains(source.text, required) {
 				t.Fatalf("%s missing hard-timeout streaming/interface limitation %q", source.name, required)
 			}
+		}
+	}
+}
+
+func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	readiness := readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	codeowners := readText(t, filepath.Join(repoRoot, ".github", "CODEOWNERS"))
+	integration := readText(t, filepath.Join(repoRoot, ".github", "workflows", "integration.yml"))
+
+	for _, required := range []string{
+		"Production readiness",
+		"docs/production-readiness.md",
+		"Stable core packages",
+		"Supported contrib adapters",
+		"Experimental contrib packages",
+		"Streaming, SSE, WebSockets, and large downloads",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing production readiness text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"production-credible for conventional Go JSON/HTTP APIs",
+		"Supported-adapter incompatible drift is gate-enforced",
+		"`saas-api-full` scaffold",
+		"`x-api-toolkit-streaming`",
+		"`securityprofile.StreamingRouteOverride`",
+		"Load, soak, and rollback evidence",
+	} {
+		if !strings.Contains(readiness, required) {
+			t.Fatalf("docs/production-readiness.md missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Require CODEOWNERS review",
+		"Protect `master`",
+		"Protect `v*` release tags",
+		"latest published v3 tag",
+		"Live provider checks are opt-in only",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"* @aatuh",
+		"/contrib/cmd/api-toolkit/",
+		"/.github/",
+		"/scripts/",
+	} {
+		if !strings.Contains(codeowners, required) {
+			t.Fatalf(".github/CODEOWNERS missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"workflow_dispatch",
+		"schedule:",
+		"--profile saas-api-full",
+		"make contracts-lint",
+		"make contracts-diff",
+		"make openapi-check",
+		"make client-check",
+		"make integration-check",
+		"include-minio",
+	} {
+		if !strings.Contains(integration, required) {
+			t.Fatalf(".github/workflows/integration.yml missing %q", required)
+		}
+	}
+}
+
+func TestCoverageCheckIncludesHighRiskPackageFloors(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	script := readText(t, filepath.Join(repoRoot, "scripts", "coverage_check.sh"))
+
+	for _, required := range []string{
+		"(cd \"$dir\" && \"$go_cmd\" tool cover",
+		"AUTH_APIKEY_COVERAGE_MIN",
+		"AUTH_AUTHZ_COVERAGE_MIN",
+		"AUTH_JWT_COVERAGE_MIN",
+		"AUTH_TENANT_COVERAGE_MIN",
+		"IDEMPOTENCY_COVERAGE_MIN",
+		"RATELIMIT_COVERAGE_MIN",
+		"WEBHOOKS_COVERAGE_MIN",
+		"HEALTH_COVERAGE_MIN",
+		"ROUTECONTRACTS_COVERAGE_MIN",
+		"SPECS_COVERAGE_MIN",
+		"CONTRACTTEST_COVERAGE_MIN",
+		"CONTRIB_BOOTSTRAP_COVERAGE_MIN",
+		"CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN",
+		"CONTRIB_RATELIMITREDIS_COVERAGE_MIN",
+		"CONTRIB_AUTH_OIDC_COVERAGE_MIN",
+		"CONTRIB_OPENAPI_COVERAGE_MIN",
+		"CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("scripts/coverage_check.sh missing high-risk coverage gate %q", required)
 		}
 	}
 }
@@ -2381,8 +2470,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v2.1.0",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
 		"docs/release-runbook.md",
@@ -2404,9 +2494,10 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v2 release baseline: `v2.1.0`",
-		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence",
+		"Supported v3 release baseline: `v3.0.0`",
+		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v2.1.0",
 		"schema v2",
 		"local release evidence",
 		"GitHub release workflow evidence",

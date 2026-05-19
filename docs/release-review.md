@@ -8,10 +8,14 @@ Use this as the short reviewer path before publishing a release.
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
 - Accept only clean publication evidence before publishing:
-  `API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`.
+  `API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence` for v3 patch
+  and minor releases.
 - A local dirty-tree audit may use
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v2.1.0 GOTOOLCHAIN=local make release-evidence`,
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.0 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
+- First v3 major-release evidence may use `API_BASE_REF=v2.1.0` only as
+  documented v2-to-v3 transition evidence; later v3 releases compare against
+  the latest published v3 tag.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`,
@@ -43,7 +47,8 @@ Use this as the short reviewer path before publishing a release.
 - Check `docs/package-classification.tsv` for public package API and test
   posture changes.
 - Check `docs/ports-surface.md` and `docs/v3-compatibility-roadmap.md` for
-  compatibility-sensitive v2 surfaces and pending major-version cleanup.
+  completed v3 cleanup decisions and remaining compatibility-sensitive
+  guardrails.
 - Download the GitHub draft release assets into one directory and run
   `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
   Publication mode requires online GitHub provenance attestation verification.
@@ -115,16 +120,15 @@ Verification checklist:
   unless release reviewers explicitly ran generated Docker integration checks
   and set `FULL_PROFILE_INTEGRATION_CHECK_STATUS`.
 
-## Known v2 debt status
+## Known v3 cleanup status
 
-| Surface | Status for v2 release review | V3 reference |
+| Surface | Status for v3 release review | Reference |
 | --- | --- | --- |
-| `compat/billing` and deprecated `ports/billing.go` aliases | Stable v2 compatibility surface; new code should prefer `compat/billing` or app-owned billing ports. | `docs/v3-compatibility-roadmap.md` |
-| `DatabasePool.Stat` and `DatabaseStats` | Stable v2 compatibility surface; prefer plain-value snapshot APIs. | `docs/v3-compatibility-roadmap.md` |
-| `response_writer` | Stable but legacy; prefer `httpx`. | `docs/v3-compatibility-roadmap.md` |
-| Tokenless idempotency release | Mixed-version v2 recovery shim; prefer token-aware reservation release. | `docs/v3-compatibility-roadmap.md` |
-| Authz unchecked constructor | V2 source-compatible constructor; prefer checked startup validation. | `docs/v3-compatibility-roadmap.md` |
-| List parser unchecked helpers | V2 source-compatible helpers; prefer checked parser APIs when validation matters. | `docs/v3-compatibility-roadmap.md` |
+| `compat/billing` | Explicit hosted-checkout compatibility package; provider-shaped billing no longer belongs in generic `ports`. | `docs/ports-surface.md` |
+| Database pool stats | Generic code should use plain-value snapshot APIs or adapter-owned stats; driver-shaped counters stay out of generic contracts. | `docs/ports-surface.md` |
+| Legacy response helpers | Public `response_writer` was removed from v3; use `httpx` and package-local recorders. | `docs/v3-compatibility-roadmap.md` |
+| Idempotency release | Token-aware reservation release is the supported path; release evidence keeps redaction and replay behavior visible. | `docs/v3-compatibility-roadmap.md` |
+| Authz constructors and list parsers | Checked startup validation and checked parser APIs are the documented paths for new code. | `docs/v3-compatibility-roadmap.md` |
 
 ## Evidence examples
 
