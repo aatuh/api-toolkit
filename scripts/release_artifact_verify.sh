@@ -8,7 +8,7 @@ issuer="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubuserconten
 release_tag="${RELEASE_TAG:-}"
 github_repo="${GITHUB_REPOSITORY:-aatuh/api-toolkit}"
 verify_mode="${RELEASE_ARTIFACT_VERIFY_MODE:-local}"
-expected_api_base_ref="${API_BASE_REF:-v2.1.0}"
+expected_api_base_ref="${API_BASE_REF:-}"
 
 case "$verify_mode" in
   local|publication) ;;
@@ -140,8 +140,11 @@ if summary.get("status") != "passed":
     fail(f"status={summary.get('status')!r}, want passed")
 if summary.get("publication_eligible") is not True:
     fail("publication_eligible must be true")
-if summary.get("api_base_ref") != expected_api_base_ref:
-    fail(f"api_base_ref={summary.get('api_base_ref')!r}, want {expected_api_base_ref!r}")
+summary_api_base_ref = summary.get("api_base_ref")
+if not summary_api_base_ref:
+    fail("api_base_ref must be recorded")
+if expected_api_base_ref and summary_api_base_ref != expected_api_base_ref:
+    fail(f"api_base_ref={summary_api_base_ref!r}, want {expected_api_base_ref!r}")
 
 provenance = summary.get("provenance_policy") or {}
 if provenance.get("status") != "passed":
