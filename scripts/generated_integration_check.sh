@@ -27,6 +27,7 @@ if {
     --contrib-replace "$repo_root/contrib"
 
   cd "$service_dir"
+  go mod tidy
   go test ./...
   make contracts-lint
   make contracts-diff
