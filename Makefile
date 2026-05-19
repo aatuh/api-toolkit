@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio v3-readiness-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check v3-readiness-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -71,6 +71,9 @@ generated-integration-check: ## Opt-in Docker-backed generated saas-api-full int
 
 generated-integration-check-minio: ## Opt-in generated saas-api-full integration check with MinIO
 	@INCLUDE_MINIO=true GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_integration_check.sh
+
+generated-upgrade-compat-check: ## Opt-in generated service upgrade compatibility check from the prior v3 baseline
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_upgrade_compat_check.sh
 
 github-governance-check: ## Optional authenticated GitHub branch/tag protection verification
 	@scripts/github_governance_check.sh

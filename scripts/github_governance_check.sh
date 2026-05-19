@@ -55,7 +55,24 @@ check_true "force pushes disabled" "$(printf '%s' "$protection_json" | jq -r '.a
 check_true "deletions disabled" "$(printf '%s' "$protection_json" | jq -r '.allow_deletions.enabled == false')"
 
 rulesets_json="$(gh api "repos/$repo/rulesets?includes_parents=true" 2>/dev/null || printf '[]')"
-check_true "tag protection or rulesets configured" "$(printf '%s' "$rulesets_json" | jq -r '[.[] | select((.target == "tag") or (.name | test("tag"; "i")))] | length > 0')"
+tag_rulesets_detail="$(
+  printf '['
+  first=1
+  while IFS= read -r ruleset_id; do
+    [ -n "$ruleset_id" ] || continue
+    detail="$(gh api "repos/$repo/rulesets/$ruleset_id" 2>/dev/null || true)"
+    [ -n "$detail" ] || continue
+    if [ "$first" -eq 0 ]; then
+      printf ','
+    fi
+    first=0
+    printf '%s' "$detail"
+  done < <(printf '%s' "$rulesets_json" | jq -r '.[] | select((.target == "tag") or (.name | test("tag"; "i"))) | .id')
+  printf ']'
+)"
+check_true "tag protection or rulesets configured" "$(printf '%s' "$tag_rulesets_detail" | jq -r '[.[] | select(.target == "tag")] | length > 0')"
+check_true "root release tags protected" "$(printf '%s' "$tag_rulesets_detail" | jq -r '[.[] | select(.target == "tag") | .conditions.ref_name.include[]? | select(. == "refs/tags/v*")] | length > 0')"
+check_true "contrib release tags protected" "$(printf '%s' "$tag_rulesets_detail" | jq -r '[.[] | select(.target == "tag") | .conditions.ref_name.include[]? | select(. == "refs/tags/contrib/v*")] | length > 0')"
 
 if [ "$fail" -ne 0 ]; then
   echo "github-governance-check: governance settings are incomplete" >&2

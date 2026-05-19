@@ -1799,13 +1799,16 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
 	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
+	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	coverageBacklog := readText(t, filepath.Join(repoRoot, "docs", "coverage-hardening-backlog.md"))
 
 	for _, required := range []string{
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
+		"generated-upgrade-compat-check:",
 		"github-governance-check:",
 	} {
 		if !strings.Contains(makefile, required) {
@@ -1817,6 +1820,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"require_code_owner_reviews",
 		"allow_force_pushes.enabled == false",
 		"rulesets?includes_parents=true",
+		"refs/tags/contrib/v*",
 	} {
 		if !strings.Contains(governanceScript, required) {
 			t.Fatalf("github governance script missing %q", required)
@@ -1833,8 +1837,21 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"GENERATOR_REF",
+		"v3.0.0",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v3=",
+		"make contracts-diff",
+		".ci-result/generated-upgrade-compat",
+	} {
+		if !strings.Contains(upgradeCompatScript, required) {
+			t.Fatalf("generated upgrade compatibility script missing %q", required)
+		}
+	}
+	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
+		"make generated-upgrade-compat-check",
 		"make github-governance-check",
 		"not part of `finalize`",
 	} {
@@ -1849,6 +1866,34 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	} {
 		if !strings.Contains(summaryScript, required) {
 			t.Fatalf("release summary script missing generated integration evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"AUTH_JWT_COVERAGE_MIN",
+		"HEALTH_COVERAGE_MIN",
+		"CONTRIB_PGXPOOL_COVERAGE_MIN",
+		"CONTRIB_OPENAPI_COVERAGE_MIN",
+		"CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN",
+		"raise only after behavior tests are merged",
+	} {
+		if !strings.Contains(coverageBacklog, required) {
+			t.Fatalf("coverage hardening backlog missing %q", required)
+		}
+	}
+}
+
+func TestContribModuleRemainsInstallableByVersion(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	goMod := readText(t, filepath.Join(repoRoot, "contrib", "go.mod"))
+	if strings.Contains(goMod, "\nreplace ") {
+		t.Fatalf("contrib/go.mod must not contain replace directives; published contrib/v3 CLI installs reject versioned modules with replace directives")
+	}
+	for _, required := range []string{
+		"github.com/aatuh/api-toolkit/v3 v3.0.1",
+		"module github.com/aatuh/api-toolkit/contrib/v3",
+	} {
+		if !strings.Contains(goMod, required) {
+			t.Fatalf("contrib/go.mod missing %q", required)
 		}
 	}
 }

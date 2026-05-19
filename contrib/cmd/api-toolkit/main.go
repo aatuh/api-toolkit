@@ -39,7 +39,7 @@ const (
 	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v3"
 )
 
-const defaultScaffoldModuleVersion = "v3.0.0"
+const defaultScaffoldModuleVersion = "v3.0.2"
 
 func main() {
 	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))

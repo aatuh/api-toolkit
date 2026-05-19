@@ -10,6 +10,7 @@ without scanning the root README.
 | [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, or caveated. |
+| [Coverage hardening backlog](coverage-hardening-backlog.md) | Maintainers | Track behavior-test prerequisites before raising high-risk package coverage floors. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
