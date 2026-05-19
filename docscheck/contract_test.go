@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -397,6 +398,23 @@ func TestContribPackageClassificationAndCompatibilityPolicy(t *testing.T) {
 		if !strings.Contains(versioning, required) {
 			t.Fatalf("VERSIONING.md missing contrib compatibility policy text %q", required)
 		}
+	}
+}
+
+func TestListedGoPackagesParserIgnoresGoDownloadChatter(t *testing.T) {
+	packages := parseListedGoPackagesOutput(t, []byte(strings.Join([]string{
+		"go: downloading golang.org/x/crypto v0.50.0",
+		"go: downloading github.com/redis/go-redis/v9 v9.19.0",
+		"github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient\t3\t1",
+		"github.com/aatuh/api-toolkit/contrib/v3/config\t2\t0",
+	}, "\n")))
+
+	want := []listedPackage{
+		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient", DirectTestFiles: 4},
+		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v3/config", DirectTestFiles: 2},
+	}
+	if !reflect.DeepEqual(packages, want) {
+		t.Fatalf("packages = %+v, want %+v", packages, want)
 	}
 }
 
@@ -3824,9 +3842,18 @@ func listedGoPackages(t *testing.T, dir string) []listedPackage {
 	if err != nil {
 		t.Fatalf("go list packages in %s:\n%s\nerror: %v", dir, out, err)
 	}
+	return parseListedGoPackagesOutput(t, out)
+}
+
+func parseListedGoPackagesOutput(t *testing.T, out []byte) []listedPackage {
+	t.Helper()
+
 	var packages []listedPackage
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "go: downloading ") {
 			continue
 		}
 		cols := strings.Split(line, "\t")
