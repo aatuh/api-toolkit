@@ -24,7 +24,7 @@ jobs:
           go-version: 1.25.x
           check-latest: true
 
-      - uses: github/codeql-action/init@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # github/codeql-action v3
+      - uses: github/codeql-action/init@9e0d7b8d25671d64c341c19c0152d693099fb5ba # github/codeql-action v3
         with:
           languages: go
 
@@ -33,6 +33,6 @@ jobs:
           go build ./...
           (cd contrib && go build ./...)
 
-      - uses: github/codeql-action/analyze@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # github/codeql-action v3
+      - uses: github/codeql-action/analyze@9e0d7b8d25671d64c341c19c0152d693099fb5ba # github/codeql-action v3
         with:
           upload: always
