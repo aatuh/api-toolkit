@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/MicahParks/jwkset v0.11.0
-	github.com/MicahParks/keyfunc/v3 v3.7.0
+	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/aatuh/api-toolkit/v3 v3.0.2
 	github.com/aatuh/envvar/v2 v2.1.5
 	github.com/alicebob/miniredis/v2 v2.37.0
@@ -14,7 +14,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.4
 	github.com/go-chi/cors v1.2.2
 	github.com/go-playground/validator/v10 v10.30.1
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.0
 	github.com/oklog/ulid/v2 v2.1.1
