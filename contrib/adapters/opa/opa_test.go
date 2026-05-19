@@ -7,8 +7,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
+
+func TestPolicyEngineContract(t *testing.T) {
+	policytest.AssertEngineContract(t,
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractClient(t, `{"result": true}`)
+		},
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractClient(t, `{"result": false}`)
+		},
+		func(t *testing.T) ports.PolicyEngine {
+			return newContractClient(t, `{"result": {"allow": "super-secret-token"}}`)
+		},
+	)
+}
 
 func TestEvaluateAllowsBooleanResult(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +58,30 @@ func TestEvaluateAllowsBooleanResult(t *testing.T) {
 	if !decision.Allow {
 		t.Fatal("expected allow")
 	}
+}
+
+func newContractClient(t *testing.T, response string) ports.PolicyEngine {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		input, ok := payload["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected input object, got %T", payload["input"])
+		}
+		if input["action"] != "read" {
+			t.Fatalf("expected action read, got %v", input["action"])
+		}
+		_, _ = w.Write([]byte(response))
+	}))
+	t.Cleanup(server.Close)
+	client, err := New(Config{DecisionURL: server.URL})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	return client
 }
 
 func TestEvaluateResultKey(t *testing.T) {

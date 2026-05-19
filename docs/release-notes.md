@@ -34,6 +34,30 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-05-19
+
+### Maturity evidence
+
+- Raised maturity evidence for high-risk v3 surfaces with additional JWT,
+  OpenAPI validation, and bootstrap tests. The package coverage gate now keeps
+  the OpenAPI validation middleware and bootstrap floors aligned with the new
+  observed coverage.
+- Promoted production-relevant contrib packages to `supported-adapter` after
+  direct tests, package docs, behavior-contract rows, and drift coverage were
+  confirmed: `contrib/adapters/httpclient`, `contrib/adapters/envvar`,
+  `contrib/config`, `contrib/adapters/validation`,
+  `contrib/adapters/migrate`, `contrib/migrator`, and
+  `contrib/scheduler/postgres`.
+- OPA and Cedar policy adapters now use a shared policy-engine contract for
+  provider-neutral request mapping, allow/deny decisions, malformed input
+  failures, and safe error surfaces, and are promoted to `supported-adapter`.
+
+### Upgrade notes
+
+- Contrib packages promoted to `supported-adapter` remain outside the stable
+  root SemVer promise. Incompatible supported-adapter drift is now
+  release-gated and must be release-noted.
+
 ## 2026-05-02
 
 ### Correctness, security, and release governance

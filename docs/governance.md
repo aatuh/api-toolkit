@@ -16,6 +16,12 @@ and ownership rules for api-toolkit.
   them.
 - Do not publish a release from local dirty-tree audit evidence.
 
+Maintainers can run the optional authenticated verifier with
+`make github-governance-check`. The command uses `gh api` when available to
+check branch protection, required status checks, CODEOWNERS review, force-push
+and deletion protection, and tag rulesets. It skips cleanly when `gh` is not
+installed or authenticated, and it is not part of `finalize` or required PR CI.
+
 ## Release Approval
 
 Release reviewers use `docs/release-runbook.md` as the command source of truth
@@ -27,6 +33,8 @@ assets verify.
 The first v3 release line may compare against `v2.1.0` only when recording the
 intentional v2 to v3 major-version breakage evidence. v3 patch and minor
 releases compare against the latest published v3 tag, starting with `v3.0.0`.
+When GitHub repository settings are accessible, reviewers should attach
+`make github-governance-check` output as optional publication-review evidence.
 
 ## Supported Adapter Governance
 
