@@ -37,6 +37,9 @@ jobs:
             --dir "$tmpdir/full-api" \
             --core-replace "$GITHUB_WORKSPACE" \
             --contrib-replace "$GITHUB_WORKSPACE/contrib"
+      - name: Resolve generated module sums
+        run: go mod tidy
+        working-directory: ${{ env.SERVICE_DIR }}
       - name: Generated unit tests
         run: go test ./...
         working-directory: ${{ env.SERVICE_DIR }}
@@ -82,6 +85,9 @@ jobs:
             --dir "$tmpdir/full-api" \
             --core-replace "$GITHUB_WORKSPACE" \
             --contrib-replace "$GITHUB_WORKSPACE/contrib"
+      - name: Resolve generated module sums
+        run: go mod tidy
+        working-directory: ${{ env.SERVICE_DIR }}
       - name: Generated integration check with MinIO profile
         run: make integration-check
         working-directory: ${{ env.SERVICE_DIR }}
