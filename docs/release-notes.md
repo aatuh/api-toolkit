@@ -36,6 +36,20 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-20
 
+### Release proof and reference service
+
+- `.next_steps.md` now tracks the current `v3.1.0` release-and-proof checklist
+  with `v3.0.2` as the release baseline, replacing stale `v3.0.1` guidance.
+- Added `examples/reference-saas-api` as a checked-in `saas-api-full` adoption
+  proof service with local workspace replacements, typed client output,
+  OpenAPI/contract assets, Docker integration assets, deployment starters, and
+  observability assets.
+- Added `make reference-service-check` as optional non-Docker evidence for the
+  checked-in reference service. It stays outside default `finalize`.
+- Generated `saas-api-full` `.gitignore` files no longer ignore
+  `internal/client/apiclient`, so the checked-in typed Go client can be tracked
+  by generated services.
+
 ### Contrib validation adapter
 
 - `contrib/adapters/validation` now uses

@@ -126,7 +126,7 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", ".ci-result", "audit", "contrib":
+			case ".git", ".ci-result", "audit", "contrib", "examples":
 				return filepath.SkipDir
 			}
 			return nil
@@ -3134,6 +3134,11 @@ func generatedScaffoldMakeTarget(rel, target string) bool {
 			return true
 		}
 	case "docs/release-runbook.md":
+		switch target {
+		case "integration-check":
+			return true
+		}
+	case "docs/reference-service.md":
 		switch target {
 		case "integration-check":
 			return true

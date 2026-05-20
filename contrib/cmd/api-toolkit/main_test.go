@@ -1237,6 +1237,9 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 			t.Fatalf("generated .gitignore missing %q", want)
 		}
 	}
+	if strings.Contains(string(generatedGitignore), "internal/client/apiclient") {
+		t.Fatalf("generated .gitignore must not ignore checked-in Go client output, got:\n%s", generatedGitignore)
+	}
 	generatedMakefile, err := os.ReadFile(filepath.Join(serviceDir, "Makefile"))
 	if err != nil {
 		t.Fatalf("read generated Makefile: %v", err)

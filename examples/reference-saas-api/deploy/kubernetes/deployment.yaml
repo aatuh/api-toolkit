@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: example/api:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: public
+              containerPort: 8080
+            - name: admin
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: api-config
+          env:
+            - name: ASYNC_WORKER_ENABLED
+              value: "false"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: database-url
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: redis-addr
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: api-key
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: admin-key
+            - name: API_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: api-key-pepper
+            - name: WEBHOOK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: webhook-secret-key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: public
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: public
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3

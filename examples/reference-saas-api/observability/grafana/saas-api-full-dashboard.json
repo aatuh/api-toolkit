@@ -1,0 +1,14 @@
+{
+  "title": "api-toolkit saas-api-full",
+  "schemaVersion": 39,
+  "panels": [
+    {"title": "HTTP latency", "type": "timeseries", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket[5m])) by (le, route, method))"}]},
+    {"title": "HTTP errors", "type": "timeseries", "targets": [{"expr": "sum(rate(http_server_requests_total{code=~\"5..\"}[5m])) by (route, method)"}]},
+    {"title": "Readiness", "type": "stat", "targets": [{"expr": "api_toolkit_readiness_state"}]},
+    {"title": "Idempotency outcomes", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_idempotency_outcomes_total[5m])) by (outcome)"}]},
+    {"title": "Rate limits", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_rate_limit_decisions_total[5m])) by (decision)"}]},
+    {"title": "Outbox jobs", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_outbox_jobs_total[5m])) by (state, kind)"}]},
+    {"title": "Webhook delivery", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_webhook_delivery_total[5m])) by (state)"}]},
+    {"title": "Audit failures", "type": "timeseries", "targets": [{"expr": "sum(rate(api_toolkit_audit_write_failures_total[5m]))"}]}
+  ]
+}
