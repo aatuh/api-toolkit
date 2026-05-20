@@ -23404,7 +23404,6 @@ coverage.out
 tmp/
 api
 *.test
-internal/client/apiclient/
 `
 
 const fullDockerignoreTemplate = `.git
