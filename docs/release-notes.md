@@ -108,6 +108,10 @@ source of truth is `docs/release-runbook.md`.
   after adding behavior tests for signing, endpoint policy, retry
   classification, safe error surfaces, tenant mismatch rejection, replay
   safety, attempt recording, secret resolution, and readiness health.
+- Raised the pgxpool adapter coverage floor after adding behavior tests for
+  constructor validation, bounded startup contexts, database readiness mapping,
+  plain-value snapshots, legacy stats wrappers, acquire failures, and close
+  idempotence.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

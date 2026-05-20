@@ -2,12 +2,14 @@ package pgxpool
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -78,6 +80,14 @@ func TestAdapterStatSnapshotNilAdapter(t *testing.T) {
 	}
 }
 
+func TestNewRejectsMalformedDSN(t *testing.T) {
+	t.Parallel()
+
+	if _, err := New("://bad dsn"); err == nil {
+		t.Fatal("New() error = nil, want malformed DSN error")
+	}
+}
+
 func TestNewWithContextRejectsMalformedDSN(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +95,55 @@ func TestNewWithContextRejectsMalformedDSN(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewWithContext() error = nil, want malformed DSN error")
 	}
+}
+
+func TestAdapterStatsWrappersAndCloseAreSafeWithoutBackend(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	pool, err := NewWithContext(ctx, "postgres://user:pass@localhost/db?host=/tmp/api-toolkit-missing-socket&connect_timeout=1")
+	if err != nil {
+		t.Fatalf("NewWithContext() error = %v", err)
+	}
+	adapter := pool.(*Adapter)
+	stats := adapter.Stat()
+	if stats == nil {
+		t.Fatal("Stat() = nil")
+	}
+	if got := stats.AcquireCount(); got != 0 {
+		t.Fatalf("AcquireCount() = %d, want 0 before acquire", got)
+	}
+	if got := stats.AcquireDuration(); got < 0 {
+		t.Fatalf("AcquireDuration() = %v, want non-negative", got)
+	}
+	if got := stats.AcquiredConns(); got != 0 {
+		t.Fatalf("AcquiredConns() = %d, want 0", got)
+	}
+	if got := stats.CanceledAcquireCount(); got != 0 {
+		t.Fatalf("CanceledAcquireCount() = %d, want 0", got)
+	}
+	if got := stats.ConstructingConns(); got < 0 {
+		t.Fatalf("ConstructingConns() = %d, want non-negative", got)
+	}
+	if got := stats.EmptyAcquireCount(); got != 0 {
+		t.Fatalf("EmptyAcquireCount() = %d, want 0 before acquire", got)
+	}
+	if got := stats.IdleConns(); got != 0 {
+		t.Fatalf("IdleConns() = %d, want 0 without backend", got)
+	}
+	if got := stats.MaxConns(); got == 0 {
+		t.Fatalf("MaxConns() = %d, want configured max", got)
+	}
+	if got := stats.NewConnsCount(); got != 0 {
+		t.Fatalf("NewConnsCount() = %d, want 0 without backend", got)
+	}
+	if got := stats.TotalConns(); got != 0 {
+		t.Fatalf("TotalConns() = %d, want 0 without backend", got)
+	}
+	adapter.Close()
+	adapter.Close()
 }
 
 func TestNewWithContextExposesAdapterStatsAndAcquireErrors(t *testing.T) {
@@ -108,6 +167,22 @@ func TestNewWithContextExposesAdapterStatsAndAcquireErrors(t *testing.T) {
 	}
 	if _, err := pool.Acquire(ctx); err == nil {
 		t.Fatal("Acquire() error = nil, want backend connection error")
+	}
+}
+
+func TestDatabaseHealthCheckerMapsPingReadiness(t *testing.T) {
+	t.Parallel()
+
+	healthy := health.NewDatabaseChecker(fakeDatabasePool{})
+	if result := healthy.Check(context.Background()); result.Status != ports.HealthStatusHealthy {
+		t.Fatalf("healthy status = %#v", result)
+	}
+
+	wantErr := errors.New("postgres down")
+	unhealthy := health.NewDatabaseChecker(fakeDatabasePool{pingErr: wantErr})
+	result := unhealthy.Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy || result.Message == "" {
+		t.Fatalf("unhealthy result = %#v", result)
 	}
 }
 
