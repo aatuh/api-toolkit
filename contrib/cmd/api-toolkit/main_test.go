@@ -1288,8 +1288,8 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"permissions:",
 		"contents: read",
 		"GOTOOLCHAIN: local",
-		"actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
-		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+		"actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+		"actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c",
 		"go-version: 1.25.x",
 		"make finalize",
 	} {

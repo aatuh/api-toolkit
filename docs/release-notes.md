@@ -121,6 +121,8 @@ source of truth is `docs/release-runbook.md`.
 - Updated the release workflow provenance attestation action from the older
   `actions/attest-build-provenance` generation to a pinned v4.1.0 commit while
   preserving release artifact verification semantics.
+- Updated generated lean and full scaffold GitHub Actions templates to pinned
+  `actions/checkout` v6.0.2 and `actions/setup-go` v6.4.0 commits.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
