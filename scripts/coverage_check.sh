@@ -83,7 +83,7 @@ if [[ "$check" -eq 1 ]]; then
   check_min "github.com/aatuh/api-toolkit/v3/oauth2" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
   check_min "github.com/aatuh/api-toolkit/v3/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
   check_min "github.com/aatuh/api-toolkit/v3/contracttest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/contracttest")" "${CONTRACTTEST_COVERAGE_MIN:-83.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/endpoints/health" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/health")" "${HEALTH_COVERAGE_MIN:-62.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/endpoints/health" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/health")" "${HEALTH_COVERAGE_MIN:-80.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey")" "${AUTH_APIKEY_COVERAGE_MIN:-79.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/authz" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/authz")" "${AUTH_AUTHZ_COVERAGE_MIN:-77.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt")" "${AUTH_JWT_COVERAGE_MIN:-90.0}"

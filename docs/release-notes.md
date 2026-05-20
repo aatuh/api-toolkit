@@ -96,6 +96,10 @@ source of truth is `docs/release-runbook.md`.
 - Raised the JWT middleware package coverage floor after adding behavior tests
   for valid subject propagation, skip-header enforcement, nil/disabled handler
   behavior, safe close behavior, and JWKS health checks.
+- Raised the health endpoints package coverage floor after adding behavior
+  tests for public liveness/readiness separation, dependency state transitions,
+  timeout mapping, public detail redaction, admin-only detailed health access,
+  dependency checker options, and scheduler callbacks.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

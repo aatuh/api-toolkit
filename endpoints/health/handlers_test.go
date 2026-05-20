@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +20,17 @@ type stubRouteRegistrar struct {
 
 func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
 	s.patterns = append(s.patterns, pattern)
+}
+
+type capturingRouteRegistrar struct {
+	handlers map[string]http.HandlerFunc
+}
+
+func (r *capturingRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
+	if r.handlers == nil {
+		r.handlers = make(map[string]http.HandlerFunc)
+	}
+	r.handlers[pattern] = h
 }
 
 func TestNewHandlerDefaultsNilManager(t *testing.T) {
@@ -111,6 +124,114 @@ func TestMiddlewareUsesCachedHealthSnapshotWithoutProbing(t *testing.T) {
 	}
 	if manager.getHealthCalls != 0 {
 		t.Fatalf("expected middleware to avoid GetHealth probes, got %d calls", manager.getHealthCalls)
+	}
+}
+
+func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableCaching:   false,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"process"},
+		ReadinessChecks: []string{"database"},
+	})
+	manager.RegisterChecker(fixedChecker{
+		name:    "process",
+		status:  ports.HealthStatusHealthy,
+		message: "process alive",
+		details: map[string]any{"internal": "live-detail"},
+	})
+	manager.RegisterChecker(fixedChecker{
+		name:    "database",
+		status:  ports.HealthStatusUnhealthy,
+		message: "database down",
+		details: map[string]any{"dsn": "postgres://secret@example/db"},
+	})
+	handler := NewHandler(manager)
+
+	liveRec := httptest.NewRecorder()
+	handler.LivenessHandler(liveRec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Livez, nil))
+	if liveRec.Code != http.StatusOK {
+		t.Fatalf("liveness status code = %d, want 200", liveRec.Code)
+	}
+	var liveBody map[string]any
+	if err := json.NewDecoder(liveRec.Body).Decode(&liveBody); err != nil {
+		t.Fatalf("decode liveness: %v", err)
+	}
+	if liveBody["status"] != string(ports.HealthStatusHealthy) {
+		t.Fatalf("liveness status = %#v, want healthy", liveBody["status"])
+	}
+	if _, ok := liveBody["details"]; ok {
+		t.Fatalf("liveness response leaked checker details: %#v", liveBody["details"])
+	}
+
+	readyRec := httptest.NewRecorder()
+	handler.ReadinessHandler(readyRec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if readyRec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness status code = %d, want 503", readyRec.Code)
+	}
+	readyRaw := readyRec.Body.String()
+	if readyRaw == "" || strings.Contains(readyRaw, "postgres://secret") {
+		t.Fatalf("readiness response leaked secret detail: %q", readyRaw)
+	}
+	var readyBody map[string]any
+	if err := json.NewDecoder(readyRec.Body).Decode(&readyBody); err != nil {
+		t.Fatalf("decode readiness: %v", err)
+	}
+	if readyBody["status"] != string(ports.HealthStatusUnhealthy) {
+		t.Fatalf("readiness status = %#v, want unhealthy", readyBody["status"])
+	}
+	if _, ok := readyBody["details"]; ok {
+		t.Fatalf("readiness response leaked checker details: %#v", readyBody["details"])
+	}
+}
+
+func TestReadinessHandlerTracksDependencyStateTransitions(t *testing.T) {
+	checker := &mutableStatusChecker{name: "database", message: "database down"}
+	checker.status.Store(string(ports.HealthStatusUnhealthy))
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableCaching:   false,
+		ReadinessChecks: []string{"database"},
+	})
+	manager.RegisterChecker(checker)
+	handler := NewHandler(manager)
+
+	rec := httptest.NewRecorder()
+	handler.ReadinessHandler(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("initial readiness status code = %d, want 503", rec.Code)
+	}
+
+	checker.status.Store(string(ports.HealthStatusHealthy))
+	checker.message = "database ready"
+	rec = httptest.NewRecorder()
+	handler.ReadinessHandler(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("recovered readiness status code = %d, want 200", rec.Code)
+	}
+}
+
+func TestLivenessHandlerMapsTimeoutToServiceUnavailable(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:        10 * time.Millisecond,
+		EnableCaching:  false,
+		LivenessChecks: []string{"slow"},
+	})
+	manager.RegisterChecker(&blockingChecker{name: "slow", started: make(chan struct{})})
+	handler := NewHandler(manager)
+
+	rec := httptest.NewRecorder()
+	handler.LivenessHandler(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Livez, nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("liveness status code = %d, want 503", rec.Code)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode liveness: %v", err)
+	}
+	if got, ok := body["message"].(string); !ok || !strings.Contains(got, context.DeadlineExceeded.Error()) {
+		t.Fatalf("liveness timeout message = %#v, want deadline exceeded", body["message"])
 	}
 }
 
@@ -284,6 +405,60 @@ func TestRegisterAdminDetailedHealthRouteWrapsDetailedHealth(t *testing.T) {
 	}
 }
 
+func TestRegisterAdminDetailedHealthRouteKeepsDetailedOutputBehindWrapper(t *testing.T) {
+	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+		Timeout:         time.Second,
+		EnableDetailed:  true,
+		LivenessChecks:  []string{"database"},
+		ReadinessChecks: []string{"database"},
+	})
+	manager.RegisterChecker(fixedChecker{
+		name:    "database",
+		status:  ports.HealthStatusHealthy,
+		message: "database ready",
+		details: map[string]any{"internal_pool": "ready"},
+	})
+	handler := NewHandler(manager)
+	router := &capturingRouteRegistrar{}
+	err := handler.RegisterAdminDetailedHealthRoute(router, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-Admin") != "true" {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	if err != nil {
+		t.Fatalf("register admin detailed health: %v", err)
+	}
+	registered := router.handlers[specs.HealthDetailed]
+	if registered == nil {
+		t.Fatal("expected detailed health handler to be registered")
+	}
+
+	rec := httptest.NewRecorder()
+	registered(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.HealthDetailed, nil))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unauthorized detailed status code = %d, want 403", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.HealthDetailed, nil)
+	req.Header.Set("X-Admin", "true")
+	registered(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authorized detailed status code = %d, want 200", rec.Code)
+	}
+	var body ports.DetailedHealthResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode detailed health: %v", err)
+	}
+	if _, ok := body.Checks["database"]; !ok {
+		t.Fatalf("expected database check in detailed health, got %#v", body.Checks)
+	}
+}
+
 func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         time.Second,
@@ -452,4 +627,46 @@ func containsCheck(checks []string, want string) bool {
 		}
 	}
 	return false
+}
+
+type fixedChecker struct {
+	name    string
+	status  ports.HealthStatus
+	message string
+	details any
+}
+
+func (c fixedChecker) Name() string {
+	return c.name
+}
+
+func (c fixedChecker) Check(context.Context) ports.HealthResult {
+	return ports.HealthResult{
+		Status:    c.status,
+		Message:   c.message,
+		Details:   c.details,
+		Timestamp: time.Now(),
+	}
+}
+
+type mutableStatusChecker struct {
+	name    string
+	status  atomic.Value
+	message string
+}
+
+func (c *mutableStatusChecker) Name() string {
+	return c.name
+}
+
+func (c *mutableStatusChecker) Check(context.Context) ports.HealthResult {
+	status, _ := c.status.Load().(string)
+	if status == "" {
+		status = string(ports.HealthStatusUnknown)
+	}
+	return ports.HealthResult{
+		Status:    ports.HealthStatus(status),
+		Message:   c.message,
+		Timestamp: time.Now(),
+	}
 }
