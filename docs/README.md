@@ -9,6 +9,7 @@ without scanning the root README.
 | --- | --- | --- |
 | [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
+| [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, or caveated. |
 | [Coverage hardening backlog](coverage-hardening-backlog.md) | Maintainers | Track behavior-test prerequisites before raising high-risk package coverage floors. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |

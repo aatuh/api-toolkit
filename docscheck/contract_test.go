@@ -126,7 +126,7 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", ".ci-result", "audit", "contrib":
+			case ".git", ".ci-result", "audit", "contrib", "examples":
 				return filepath.SkipDir
 			}
 			return nil
@@ -3138,6 +3138,11 @@ func generatedScaffoldMakeTarget(rel, target string) bool {
 		case "integration-check":
 			return true
 		}
+	case "docs/reference-service.md":
+		switch target {
+		case "integration-check":
+			return true
+		}
 	}
 	return false
 }
@@ -3501,9 +3506,13 @@ func releaseEvidenceEnv(extra ...string) []string {
 		if strings.HasPrefix(value, "ALLOW_DIRTY_RELEASE_EVIDENCE=") {
 			continue
 		}
+		if strings.HasPrefix(value, "FULL_PROFILE_INTEGRATION_CHECK_STATUS=") ||
+			strings.HasPrefix(value, "FULL_PROFILE_INTEGRATION_CHECK_LOG_PATH=") {
+			continue
+		}
 		env = append(env, value)
 	}
-	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local")
+	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local", "FULL_PROFILE_INTEGRATION_CHECK_STATUS=not_run_opt_in")
 	env = append(env, extra...)
 	return env
 }

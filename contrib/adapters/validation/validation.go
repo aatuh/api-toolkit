@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-playground/validator/v10"
+	validatev3 "github.com/aatuh/validate/v3"
+	validateerrors "github.com/aatuh/validate/v3/errors"
 
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
 	"github.com/aatuh/api-toolkit/v3/ports"
@@ -19,25 +20,37 @@ import (
 //revive:disable-next-line:exported
 type ValidationError struct {
 	Field   string `json:"field"`
+	Code    string `json:"code,omitempty"`
 	Message string `json:"message"`
-	Value   string `json:"value,omitempty"`
+	Param   any    `json:"param,omitempty"`
+	// Deprecated: Value is retained for source compatibility and is no longer
+	// populated by this adapter to avoid exposing raw submitted values.
+	Value string `json:"value,omitempty"`
 }
 
 func (e ValidationError) Error() string {
-	if e.Field != "" {
-		return fmt.Sprintf("%s: %s", e.Field, e.Message)
+	message := strings.TrimSpace(e.Message)
+	if message == "" {
+		message = strings.TrimSpace(e.Code)
 	}
-	return e.Message
+	if message == "" {
+		message = "validation failed"
+	}
+	if e.Field != "" {
+		return fmt.Sprintf("%s: %s", e.Field, message)
+	}
+	return message
 }
 
 // FieldErrors converts the validation error to standard field errors.
 func (e ValidationError) FieldErrors() fielderrors.FieldErrors {
-	if strings.TrimSpace(e.Field) == "" && strings.TrimSpace(e.Message) == "" {
+	if strings.TrimSpace(e.Field) == "" && strings.TrimSpace(e.Message) == "" && strings.TrimSpace(e.Code) == "" {
 		return nil
 	}
 	return fielderrors.FieldErrors{
 		{
 			Field:   e.Field,
+			Code:    e.Code,
 			Message: e.Message,
 		},
 	}
@@ -74,66 +87,63 @@ func (e ValidationErrors) FieldErrors() fielderrors.FieldErrors {
 	for _, err := range e.Errors {
 		out = append(out, fielderrors.FieldError{
 			Field:   err.Field,
+			Code:    err.Code,
 			Message: err.Message,
 		})
 	}
 	return out
 }
 
-// playgroundValidator adapts go-playground/validator to the toolkit interface.
-type playgroundValidator struct {
-	validator *validator.Validate
+// validateValidator adapts github.com/aatuh/validate/v3 to the toolkit interface.
+type validateValidator struct {
+	validator *validatev3.Validate
 }
 
-// NewBasicValidator retains the old constructor name but now returns the
-// go-playground-backed validator.
+// NewBasicValidator retains the old constructor name and returns the default
+// validate-backed validator.
 func NewBasicValidator() ports.Validator {
-	return NewPlaygroundValidator()
+	return NewValidateValidator()
 }
 
 // New returns the default validator implementation.
 func New() ports.Validator {
-	return NewPlaygroundValidator()
+	return NewValidateValidator()
 }
 
-// NewPlaygroundValidator constructs a validator backed by github.com/go-playground/validator/v10.
+// NewValidateValidator constructs a validator backed by github.com/aatuh/validate/v3.
+func NewValidateValidator() ports.Validator {
+	return &validateValidator{validator: validatev3.New()}
+}
+
+// NewPlaygroundValidator constructs the default validate-backed validator.
+//
+// Deprecated: use NewValidateValidator. This constructor no longer uses
+// github.com/go-playground/validator/v10.
 func NewPlaygroundValidator() ports.Validator {
-	v := validator.New(validator.WithRequiredStructEnabled())
-	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		tag := fld.Tag.Get("json")
-		if tag == "" {
-			return fld.Name
-		}
-		name := strings.Split(tag, ",")[0]
-		if name == "-" || name == "" {
-			return fld.Name
-		}
-		return name
-	})
-	return &playgroundValidator{validator: v}
+	return NewValidateValidator()
 }
 
-func (p *playgroundValidator) Validate(ctx context.Context, value interface{}) error {
+func (v *validateValidator) Validate(ctx context.Context, value interface{}) error {
 	if value == nil {
 		return ValidationError{Message: "value is required"}
 	}
 	if !isStruct(value) {
 		return ValidationError{Message: "value must be a struct or pointer to struct"}
 	}
-	return convertError(p.validator.StructCtx(normalizeContext(ctx), value))
+	return v.validateStruct(ctx, value)
 }
 
-func (p *playgroundValidator) ValidateStruct(ctx context.Context, obj interface{}) error {
+func (v *validateValidator) ValidateStruct(ctx context.Context, obj interface{}) error {
 	if obj == nil {
 		return ValidationError{Message: "object is required"}
 	}
 	if !isStruct(obj) {
 		return ValidationError{Message: "object must be a struct or pointer to struct"}
 	}
-	return convertError(p.validator.StructCtx(normalizeContext(ctx), obj))
+	return v.validateStruct(ctx, obj)
 }
 
-func (p *playgroundValidator) ValidateField(ctx context.Context, obj interface{}, field string) error {
+func (v *validateValidator) ValidateField(ctx context.Context, obj interface{}, field string) error {
 	if obj == nil {
 		return ValidationError{Message: "object is required"}
 	}
@@ -145,11 +155,42 @@ func (p *playgroundValidator) ValidateField(ctx context.Context, obj interface{}
 	if !ok {
 		return ValidationError{Message: "object must be a struct or pointer to struct"}
 	}
-	resolvedField, err := resolveFieldPath(structType, field)
+	resolvedPath, err := resolveFieldPath(structType, field)
 	if err != nil {
 		return err
 	}
-	return convertError(p.validator.StructPartialCtx(normalizeContext(ctx), obj, resolvedField))
+
+	err = validatev3.ValidateStructContextWithOpts(
+		normalizeContext(ctx),
+		v.validator,
+		obj,
+		validationOptions(),
+	)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	var validateErrors validatev3.Errors
+	if errors.As(err, &validateErrors) {
+		filtered := filterValidateErrors(validateErrors, resolvedPath)
+		return convertValidateErrors(filtered)
+	}
+	return ValidationError{Field: resolvedPath, Message: "field validation failed"}
+}
+
+func (v *validateValidator) validateStruct(ctx context.Context, obj interface{}) error {
+	return convertError(validatev3.ValidateStructContextWithOpts(
+		normalizeContext(ctx),
+		v.validator,
+		obj,
+		validationOptions(),
+	))
+}
+
+func validationOptions() validatev3.ValidateOpts {
+	return validatev3.ValidateOpts{FieldNameFunc: validatev3.JSONFieldName}
 }
 
 func isStruct(v interface{}) bool {
@@ -161,27 +202,44 @@ func convertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var invalid *validator.InvalidValidationError
-	if errors.As(err, &invalid) {
-		return ValidationError{Message: invalidValidationMessage(invalid)}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
 	}
-	var ve validator.ValidationErrors
+	var ve validatev3.Errors
 	if errors.As(err, &ve) {
-		errs := ValidationErrors{}
-		for _, fe := range ve {
-			msg := buildMessage(fe)
-			errs.Errors = append(errs.Errors, ValidationError{
-				Field:   fe.Field(),
-				Message: msg,
-				Value:   fmt.Sprintf("%v", fe.Value()),
-			})
-		}
-		if len(errs.Errors) == 1 {
-			return errs.Errors[0]
-		}
-		return errs
+		return convertValidateErrors(ve)
 	}
-	return err
+	return ValidationError{Message: "validation failed"}
+}
+
+func convertValidateErrors(ve validatev3.Errors) error {
+	if len(ve) == 0 {
+		return nil
+	}
+	errs := ValidationErrors{Errors: make([]ValidationError, 0, len(ve))}
+	for _, fe := range ve {
+		errs.Errors = append(errs.Errors, convertValidateError(fe))
+	}
+	if len(errs.Errors) == 1 {
+		return errs.Errors[0]
+	}
+	return errs
+}
+
+func convertValidateError(fe validateerrors.FieldError) ValidationError {
+	message := strings.TrimSpace(fe.Msg)
+	if message == "" {
+		message = strings.TrimSpace(fe.Code)
+	}
+	if message == "" {
+		message = "validation failed"
+	}
+	return ValidationError{
+		Field:   fe.Path,
+		Code:    fe.Code,
+		Message: message,
+		Param:   fe.Param,
+	}
 }
 
 var validatorTimeType = reflect.TypeOf(time.Time{})
@@ -232,11 +290,28 @@ func resolveFieldPath(rootType reflect.Type, fieldPath string) (string, error) {
 			}
 		}
 
-		resolved = append(resolved, field.Name)
+		resolved = append(resolved, externalFieldName(field))
 		currentType = indirectType(field.Type)
 	}
 
 	return strings.Join(resolved, "."), nil
+}
+
+func filterValidateErrors(errs validatev3.Errors, fieldPath string) validatev3.Errors {
+	if len(errs) == 0 {
+		return nil
+	}
+	filtered := make(validatev3.Errors, 0, len(errs))
+	for _, err := range errs {
+		if matchesFieldPath(err.Path, fieldPath) {
+			filtered = append(filtered, err)
+		}
+	}
+	return filtered
+}
+
+func matchesFieldPath(got, want string) bool {
+	return got == want || strings.HasPrefix(got, want+".") || strings.HasPrefix(got, want+"[")
 }
 
 func resolveField(structType reflect.Type, name string) (reflect.StructField, bool) {
@@ -278,29 +353,9 @@ func jsonFieldName(field reflect.StructField) string {
 	return name
 }
 
-func invalidValidationMessage(err *validator.InvalidValidationError) string {
-	if err == nil || err.Type == nil {
-		return "invalid validation target"
+func externalFieldName(field reflect.StructField) string {
+	if name := jsonFieldName(field); name != "" {
+		return name
 	}
-	return fmt.Sprintf("invalid validation target: %s", err.Type.String())
-}
-
-func buildMessage(fe validator.FieldError) string {
-	switch fe.Tag() {
-	case "required":
-		return "is required"
-	case "min":
-		return fmt.Sprintf("must be at least %s", fe.Param())
-	case "max":
-		return fmt.Sprintf("must be at most %s", fe.Param())
-	case "len":
-		return fmt.Sprintf("must be %s in length", fe.Param())
-	case "oneof":
-		return fmt.Sprintf("must be one of [%s]", fe.Param())
-	default:
-		if fe.Param() != "" {
-			return fmt.Sprintf("failed '%s'=%s validation", fe.Tag(), fe.Param())
-		}
-		return fmt.Sprintf("failed '%s' validation", fe.Tag())
-	}
+	return field.Name
 }

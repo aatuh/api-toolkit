@@ -3,6 +3,7 @@ package validation
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
@@ -57,9 +58,10 @@ func TestValidateStructUsesJSONFieldNames(t *testing.T) {
 	}
 
 	want := fielderrors.FieldErrors{
-		{Field: "email", Message: "is required"},
-		{Field: "age", Message: "must be at least 18"},
-		{Field: "role", Message: "must be one of [admin user]"},
+		{Field: "email", Code: "required", Message: "value is required"},
+		{Field: "age", Code: "int.min", Message: "minimum value is 18"},
+		{Field: "role", Code: "string.oneof", Message: "must be one of: admin, user"},
+		{Field: "profile.handle", Code: "required", Message: "value is required"},
 	}
 	if diff := got.FieldErrors(); len(diff) != len(want) {
 		t.Fatalf("FieldErrors() len = %d, want %d", len(diff), len(want))
@@ -79,8 +81,8 @@ func TestValidateStructAcceptsPointerToStruct(t *testing.T) {
 	if !errors.As(err, &got) {
 		t.Fatalf("expected ValidationErrors, got %T", err)
 	}
-	if len(got.Errors) != 3 {
-		t.Fatalf("validation errors = %d, want 3", len(got.Errors))
+	if len(got.Errors) != 4 {
+		t.Fatalf("validation errors = %d, want 4", len(got.Errors))
 	}
 }
 
@@ -108,13 +110,16 @@ func TestValidateFieldReturnsSingleFieldError(t *testing.T) {
 	if got.Field != "email" {
 		t.Fatalf("field = %q, want email", got.Field)
 	}
-	if got.Message != "is required" {
-		t.Fatalf("message = %q, want %q", got.Message, "is required")
+	if got.Code != "required" {
+		t.Fatalf("code = %q, want required", got.Code)
+	}
+	if got.Message != "value is required" {
+		t.Fatalf("message = %q, want %q", got.Message, "value is required")
 	}
 }
 
 func TestValidateFieldAcceptsJSONFieldName(t *testing.T) {
-	v := NewPlaygroundValidator()
+	v := NewValidateValidator()
 
 	err := v.ValidateField(context.Background(), validationFixture{}, "email")
 	var got ValidationError
@@ -124,8 +129,36 @@ func TestValidateFieldAcceptsJSONFieldName(t *testing.T) {
 	if got.Field != "email" {
 		t.Fatalf("field = %q, want email", got.Field)
 	}
-	if got.Message != "is required" {
-		t.Fatalf("message = %q, want %q", got.Message, "is required")
+	if got.Code != "required" {
+		t.Fatalf("code = %q, want required", got.Code)
+	}
+	if got.Message != "value is required" {
+		t.Fatalf("message = %q, want %q", got.Message, "value is required")
+	}
+}
+
+func TestValidateFieldAcceptsNestedJSONFieldPath(t *testing.T) {
+	v := New()
+
+	err := v.ValidateField(context.Background(), validationFixture{}, "profile.handle")
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if got.Field != "profile.handle" {
+		t.Fatalf("field = %q, want profile.handle", got.Field)
+	}
+	if got.Code != "required" {
+		t.Fatalf("code = %q, want required", got.Code)
+	}
+}
+
+func TestValidateFieldFiltersUnrelatedErrors(t *testing.T) {
+	v := New()
+
+	err := v.ValidateField(context.Background(), validationFixture{Age: 21}, "Age")
+	if err != nil {
+		t.Fatalf("ValidateField valid field returned error: %v", err)
 	}
 }
 
@@ -180,7 +213,7 @@ func TestValidateFieldRejectsUnknownField(t *testing.T) {
 }
 
 func TestValidationMethodsAcceptNilContext(t *testing.T) {
-	v := NewPlaygroundValidator()
+	v := New()
 
 	assertNoPanic(t, "Validate nil context", func() {
 		err := v.Validate(nilContext(), validationFixture{})
@@ -207,6 +240,60 @@ func TestValidationMethodsAcceptNilContext(t *testing.T) {
 	})
 }
 
+func TestNewPlaygroundValidatorIsDeprecatedValidateBackedAlias(t *testing.T) {
+	v := NewPlaygroundValidator()
+
+	err := v.ValidateStruct(context.Background(), validationFixture{})
+	var got ValidationErrors
+	if !errors.As(err, &got) {
+		t.Fatalf("expected ValidationErrors, got %T", err)
+	}
+	if len(got.Errors) == 0 || got.Errors[0].Code != "required" {
+		t.Fatalf("first validation error = %#v, want validate-backed required code", got.Errors)
+	}
+}
+
+func TestValidationErrorsDoNotExposeRawValues(t *testing.T) {
+	const secretEmail = "secret-person@example.invalid"
+	v := New()
+
+	err := v.ValidateStruct(context.Background(), validationFixture{
+		Email: secretEmail,
+		Age:   21,
+		Role:  "owner",
+		Profile: validationProfile{
+			Handle: "aatu",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected invalid role")
+	}
+	if strings.Contains(err.Error(), secretEmail) {
+		t.Fatalf("validation error exposed raw email %q in %q", secretEmail, err.Error())
+	}
+	var got ValidationError
+	if !errors.As(err, &got) {
+		t.Fatalf("expected single ValidationError, got %T", err)
+	}
+	if got.Code != "string.oneof" {
+		t.Fatalf("code = %q, want string.oneof", got.Code)
+	}
+	if got.Value != "" {
+		t.Fatalf("value = %q, want empty deprecated value field", got.Value)
+	}
+}
+
+func TestValidationMethodsPropagateCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	v := New()
+
+	err := v.ValidateStruct(ctx, validationFixture{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ValidateStruct canceled error = %v, want context.Canceled", err)
+	}
+}
+
 func assertNoPanic(t *testing.T, name string, fn func()) {
 	t.Helper()
 	defer func() {
@@ -222,7 +309,12 @@ func nilContext() context.Context {
 }
 
 type validationFixture struct {
-	Email string `json:"email" validate:"required,email"`
-	Age   int    `json:"age" validate:"min=18"`
-	Role  string `json:"role" validate:"oneof=admin user"`
+	Email   string            `json:"email" validate:"string;required;email"`
+	Age     int               `json:"age" validate:"int;min=18"`
+	Role    string            `json:"role" validate:"string;oneof=admin,user"`
+	Profile validationProfile `json:"profile"`
+}
+
+type validationProfile struct {
+	Handle string `json:"handle" validate:"string;required"`
 }

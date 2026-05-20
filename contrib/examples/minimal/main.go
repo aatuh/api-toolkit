@@ -15,8 +15,8 @@ import (
 )
 
 type createWidgetRequest struct {
-	Name     string `json:"name" validate:"required"`
-	Quantity int    `json:"quantity" validate:"min=1"`
+	Name     string `json:"name" validate:"string;required"`
+	Quantity int    `json:"quantity" validate:"int;min=1"`
 }
 
 func main() {
