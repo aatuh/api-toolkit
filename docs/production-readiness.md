@@ -6,7 +6,9 @@ Go API services and where application-owned work is still required.
 api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
 generated SaaS/API services. It is not a universal backend platform for every
 transport, streaming workload, provider workflow, or organization-specific
-operating model.
+operating model. Generated code is app-owned; api-toolkit standardizes the
+HTTP/API infrastructure foundation while product logic, provider workflows, and
+deployment evidence stay with each service.
 
 | Area | Status | What is covered | Caveats |
 | --- | --- | --- | --- |
@@ -14,7 +16,7 @@ operating model.
 | Supported contrib adapters | Supported adapter tier | Postgres, Redis, chi, logging, OpenTelemetry, OpenAPI validation, bootstrap, async/outbox, audit, cache, object storage, webhook delivery, and selected auth/provider adapters with direct tests and drift evidence. | Supported-adapter incompatible drift is gate-enforced, but contrib is not part of the stable core API promise. |
 | Experimental contrib packages | Maintained experimental tier | Policy-engine adapters, some config/migration helpers, country/email helpers, and development-only adapters. | Do not treat as standardized production contracts until promoted with tests, docs, health checks where relevant, drift coverage, and release notes. |
 | `saas-api` scaffold | Lean starter | Runnable API-key/JWT/Clerk/dev-header service with health, OpenAPI, metrics, validation, idempotency, and safe admin endpoint defaults. | Keep app-specific persistence, membership, and workers app-owned or use `saas-api-full`. |
-| `saas-api-full` scaffold | Production reference scaffold | Postgres + Redis foundation with tenancy, memberships, API keys, async/outbox, audit, webhook delivery, OpenAPI 3.1, generated clients, deployment starters, and integration-check assets. | Generated code is ordinary app-owned code and still needs product-specific tests, threat modeling, and operational ownership. |
+| `saas-api-full` scaffold | Production reference scaffold | Postgres + Redis foundation with tenancy, memberships, API keys, async/outbox, audit, webhook delivery, OpenAPI 3.1, generated clients, deployment starters, and integration-check assets. | Generated code is app-owned ordinary Go code and still needs product-specific tests, threat modeling, and operational ownership. |
 | `examples/reference-saas-api` | Checked-in adoption proof | A separate generated `saas-api-full` application module verified by `make reference-service-check` and optional Docker integration. | This is release-context evidence, not a substitute for each downstream service's own load, backup/restore, incident-response, and rollout evidence. |
 | Streaming, SSE, WebSockets, and large downloads | Explicit caveat | Route metadata and security profile opt-outs exist for streaming and large-response paths. | Do not apply hard-timeout response buffering, response validation, or idempotency response capture globally to these routes. Use `x-api-toolkit-streaming`, `securityprofile.StreamingRouteOverride`, and route-level middleware opt-outs. server-sent events, websocket upgrades, and custom `http.ResponseWriter` interfaces need route-specific wiring. |
 | Release evidence | Publication-grade path | Clean `make release-evidence`, artifact verification, SBOMs, signatures, provenance, and release-review docs. | Dirty-tree evidence is local audit evidence only. Scheduled generated-scaffold integration is release evidence context, not a default PR blocker. |

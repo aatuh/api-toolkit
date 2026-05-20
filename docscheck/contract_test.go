@@ -1705,6 +1705,8 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	for _, required := range []string{
 		"Production readiness",
 		"docs/production-readiness.md",
+		"not a universal backend platform",
+		"Generated code is app-owned",
 		"Stable core packages",
 		"Supported contrib adapters",
 		"Experimental contrib packages",
@@ -1716,6 +1718,8 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	}
 	for _, required := range []string{
 		"production-credible for conventional Go JSON/HTTP APIs",
+		"not a universal backend platform",
+		"Generated code is app-owned",
 		"Supported-adapter incompatible drift is gate-enforced",
 		"`saas-api-full` scaffold",
 		"`x-api-toolkit-streaming`",
@@ -1824,6 +1828,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
 	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
+	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
 	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
@@ -1840,9 +1845,24 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"reference-service-evidence:",
 		"reference-service-evidence-contract:",
 		"github-governance-check:",
+		"actions-audit:",
+		"actions-audit-contract:",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing optional target %q", required)
+		}
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) actions-audit") {
+		t.Fatal("audit-check must include actions-audit")
+	}
+	for _, required := range []string{
+		"actions/attest-build-provenance v1",
+		"unpinned action ref",
+		"stale generated checkout action",
+		"stale generated setup-go action",
+	} {
+		if !strings.Contains(actionsAuditScript, required) {
+			t.Fatalf("actions audit script missing %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -1899,6 +1919,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"make generated-upgrade-compat-check",
 		"make reference-service-evidence",
 		"make github-governance-check",
+		"make actions-audit",
+		"make coverage-check",
+		"docs/coverage-hardening-backlog.md",
 		"not part of `finalize`",
 	} {
 		if !strings.Contains(runbook, required) && !strings.Contains(referenceService, required) && !strings.Contains(governance, required) {

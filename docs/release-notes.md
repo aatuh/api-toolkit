@@ -126,6 +126,13 @@ source of truth is `docs/release-runbook.md`.
 - Added `make actions-audit` and contract coverage for pinned GitHub Actions
   workflow refs, stale action comments, and generated workflow template versions;
   it runs in `make audit-check` and remains non-mutating.
+- Tightened README and production-readiness positioning so api-toolkit is
+  explicitly scoped to conventional HTTP/JSON API infrastructure, not a
+  universal backend platform, and generated code is app-owned.
+- Aligned the release runbook with end-game proof targets by making
+  `actions-audit`, `coverage-check`, generated upgrade compatibility, generated
+  integration, and reference-service evidence visible to release reviewers while
+  keeping Docker-backed checks opt-in.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
