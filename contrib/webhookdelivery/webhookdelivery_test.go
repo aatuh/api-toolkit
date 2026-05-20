@@ -33,6 +33,27 @@ func TestCatalogRejectsUnsupportedEvents(t *testing.T) {
 	}
 }
 
+func TestCatalogValidationBranches(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewCatalog(); !errors.Is(err, ErrUnsupportedEvent) {
+		t.Fatalf("NewCatalog() error = %v, want %v", err, ErrUnsupportedEvent)
+	}
+	if _, err := NewCatalog("bad event"); !errors.Is(err, ErrInvalidEvent) {
+		t.Fatalf("NewCatalog(bad) error = %v, want %v", err, ErrInvalidEvent)
+	}
+	catalog, err := NewCatalog(" widget.created ")
+	if err != nil {
+		t.Fatalf("NewCatalog() error = %v", err)
+	}
+	if !catalog.Allows("widget.created") || !catalog.Allows(" widget.created ") {
+		t.Fatalf("Allows() should trim event names consistently")
+	}
+	if err := ValidateEvent(Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`not json`)}); !errors.Is(err, ErrInvalidEvent) {
+		t.Fatalf("ValidateEvent() error = %v, want %v", err, ErrInvalidEvent)
+	}
+}
+
 func TestValidateEndpointRequiresSafeHTTPSWebhookTarget(t *testing.T) {
 	t.Parallel()
 
@@ -70,6 +91,32 @@ func TestValidateEndpointRequiresSafeHTTPSWebhookTarget(t *testing.T) {
 	}
 }
 
+func TestSafeHeadersCloneAndRejectUnsafeValues(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{"X-Trace": []string{" abc "}}
+	cloned, err := SafeHeaders(headers)
+	if err != nil {
+		t.Fatalf("SafeHeaders() error = %v", err)
+	}
+	headers.Set("X-Trace", "changed")
+	if got := cloned.Get("X-Trace"); got != "abc" {
+		t.Fatalf("cloned header = %q, want trimmed immutable copy", got)
+	}
+	if cloned, err := SafeHeaders(nil); err != nil || cloned == nil {
+		t.Fatalf("SafeHeaders(nil) = %#v, %v", cloned, err)
+	}
+	for _, headers := range []http.Header{
+		{"X-Bad\nName": []string{"value"}},
+		{"X-Trace": []string{"bad\nvalue"}},
+		{"X-Webhook-Signature": []string{"sig"}},
+	} {
+		if _, err := SafeHeaders(headers); !errors.Is(err, ErrUnsafeHeader) {
+			t.Fatalf("SafeHeaders(%#v) error = %v, want %v", headers, err, ErrUnsafeHeader)
+		}
+	}
+}
+
 func TestEndpointMatchesTenantAndSubscription(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +133,30 @@ func TestEndpointMatchesTenantAndSubscription(t *testing.T) {
 	}
 	if EndpointMatches(Endpoint{ID: "we_1", TenantID: "org_1", Disabled: true, Events: []string{AnyEventType}}, event) {
 		t.Fatal("EndpointMatches() should reject disabled endpoints")
+	}
+}
+
+func TestDefaultDeliveryIDAndSafeLabelAreStableAndBounded(t *testing.T) {
+	t.Parallel()
+
+	event := Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created"}
+	endpoint := Endpoint{ID: "we_1", TenantID: "org_1"}
+	first := DefaultDeliveryID(event, endpoint)
+	second := DefaultDeliveryID(event, endpoint)
+	if first == "" || first != second || !strings.HasPrefix(first, "whdel_") {
+		t.Fatalf("DefaultDeliveryID() = %q and %q", first, second)
+	}
+	if first == DefaultDeliveryID(event, Endpoint{ID: "we_2", TenantID: "org_1"}) {
+		t.Fatalf("DefaultDeliveryID() should vary by endpoint")
+	}
+	if got := SafeLabel(" Weird Event/Type With Spaces And A Very Long Label That Should Be Truncated Past Sixty Four Bytes "); got != "weird_event_type_with_spaces_and_a_very_long_label_that_should_b" {
+		t.Fatalf("SafeLabel() = %q", got)
+	}
+	if got := SafeLabel("!!!"); got != "___" {
+		t.Fatalf("SafeLabel punctuation = %q", got)
+	}
+	if got := SafeLabel(""); got != "unknown" {
+		t.Fatalf("SafeLabel empty = %q", got)
 	}
 }
 
@@ -134,6 +205,62 @@ func TestDispatcherEnqueuesTenantScopedDeliveries(t *testing.T) {
 	}
 	if !store.enqueued[0].delivery.CreatedAt.Equal(clock()) || !store.enqueued[0].delivery.NextAt.Equal(clock()) {
 		t.Fatalf("delivery timestamps = %#v", store.enqueued[0].delivery)
+	}
+}
+
+func TestDispatcherValidationAndStoreErrors(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := NewCatalog("widget.created")
+	if err != nil {
+		t.Fatalf("NewCatalog() error = %v", err)
+	}
+	if _, err := NewDispatcher(DispatcherConfig{Catalog: catalog}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("NewDispatcher() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	if _, err := NewDispatcher(DispatcherConfig{Endpoints: &fakeRegistry{}, Store: &fakeDeliveryStore{}}); !errors.Is(err, ErrUnsupportedEvent) {
+		t.Fatalf("NewDispatcher() empty catalog error = %v, want %v", err, ErrUnsupportedEvent)
+	}
+	dispatcher, err := NewDispatcher(DispatcherConfig{
+		Catalog:   catalog,
+		Endpoints: &fakeRegistry{err: errors.New("registry down")},
+		Store:     &fakeDeliveryStore{},
+	})
+	if err != nil {
+		t.Fatalf("NewDispatcher() error = %v", err)
+	}
+	if _, err := dispatcher.Dispatch(context.Background(), Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}); err == nil || !strings.Contains(err.Error(), "registry down") {
+		t.Fatalf("Dispatch() registry error = %v", err)
+	}
+
+	store := &fakeDeliveryStore{}
+	dispatcher, err = NewDispatcher(DispatcherConfig{
+		Catalog:        catalog,
+		Endpoints:      &fakeRegistry{endpoints: []Endpoint{{ID: "we_1", TenantID: "org_1", URL: "https://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}}},
+		Store:          store,
+		DeliveryIDFunc: func(Event, Endpoint) string { return "" },
+	})
+	if err != nil {
+		t.Fatalf("NewDispatcher() error = %v", err)
+	}
+	if _, err := dispatcher.Dispatch(context.Background(), Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}); !errors.Is(err, ErrInvalidDelivery) {
+		t.Fatalf("Dispatch() invalid delivery error = %v, want %v", err, ErrInvalidDelivery)
+	}
+
+	store.err = errors.New("enqueue failed")
+	dispatcher, err = NewDispatcher(DispatcherConfig{
+		Catalog:   catalog,
+		Endpoints: &fakeRegistry{endpoints: []Endpoint{{ID: "we_1", TenantID: "org_1", URL: "https://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}}},
+		Store:     store,
+	})
+	if err != nil {
+		t.Fatalf("NewDispatcher() error = %v", err)
+	}
+	if _, err := dispatcher.Dispatch(context.Background(), Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}); err == nil || !strings.Contains(err.Error(), "enqueue failed") {
+		t.Fatalf("Dispatch() enqueue error = %v", err)
+	}
+	if _, err := (*Dispatcher)(nil).Dispatch(context.Background(), Event{}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil Dispatch() error = %v, want %v", err, ErrStoreNotConfigured)
 	}
 }
 
@@ -196,6 +323,77 @@ func TestDelivererSignsRequestAndAccepts2xx(t *testing.T) {
 	}
 }
 
+func TestDelivererClassifiesTransportAndStatusFailures(t *testing.T) {
+	t.Parallel()
+
+	var observations []DeliveryObservation
+	deliverer, err := NewDeliverer(DelivererConfig{
+		Client: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("dial tcp: secret=should-not-leak")
+		}),
+		Clock:   fixedClock(),
+		Metrics: MetricsRecorderFunc(func(_ context.Context, event DeliveryObservation) { observations = append(observations, event) }),
+	})
+	if err != nil {
+		t.Fatalf("NewDeliverer() error = %v", err)
+	}
+	result, err := deliverer.Deliver(context.Background(), Endpoint{
+		ID:            "we_1",
+		TenantID:      "org_1",
+		URL:           "https://example.com/hooks",
+		SigningSecret: []byte("super-secret"),
+		Events:        []string{"widget.created"},
+	}, Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"secret":"payload"}`)}, 0)
+	if !errors.Is(err, ErrDeliveryFailed) || !result.Retryable || result.StatusClass != "transport" || result.Attempt != 1 {
+		t.Fatalf("transport result=%#v err=%v", result, err)
+	}
+	if strings.Contains(result.Error, "secret") || strings.Contains(err.Error(), "payload") {
+		t.Fatalf("unsafe transport error leaked sensitive content result=%#v err=%v", result, err)
+	}
+	if len(observations) != 1 || observations[0].Outcome != "transport_error" || observations[0].StatusClass != "transport" {
+		t.Fatalf("observations = %#v", observations)
+	}
+	statusTests := []struct {
+		name       string
+		status     int
+		retryable  bool
+		statusCode string
+	}{
+		{name: "client failure", status: http.StatusBadRequest, retryable: false, statusCode: "4xx"},
+		{name: "rate limited", status: http.StatusTooManyRequests, retryable: true, statusCode: "4xx"},
+		{name: "server failure", status: http.StatusBadGateway, retryable: true, statusCode: "5xx"},
+		{name: "unknown status", status: 99, retryable: false, statusCode: "unknown"},
+	}
+	for _, tt := range statusTests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deliverer, err := NewDeliverer(DelivererConfig{
+				Client: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: tt.status, Body: io.NopCloser(strings.NewReader("secret response body"))}, nil
+				}),
+			})
+			if err != nil {
+				t.Fatalf("NewDeliverer() error = %v", err)
+			}
+			result, err := deliverer.Deliver(context.Background(), Endpoint{
+				ID:            "we_1",
+				TenantID:      "org_1",
+				URL:           "https://example.com/hooks",
+				SigningSecret: []byte("super-secret"),
+				Events:        []string{"widget.created"},
+			}, Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}, 1)
+			if !errors.Is(err, ErrDeliveryFailed) || result.Retryable != tt.retryable || result.StatusClass != tt.statusCode {
+				t.Fatalf("Deliver() result=%#v err=%v", result, err)
+			}
+			if strings.Contains(result.Error, "secret response body") {
+				t.Fatalf("response body leaked in result: %#v", result)
+			}
+		})
+	}
+}
+
 func TestDelivererReturnsSafeFailureForNon2xx(t *testing.T) {
 	t.Parallel()
 
@@ -233,6 +431,34 @@ func TestDelivererReturnsSafeFailureForNon2xx(t *testing.T) {
 	}
 	if strings.Contains(result.Error, "do-not-leak") || strings.Contains(result.Error, "should-not-leak") || strings.Contains(err.Error(), "super-secret") {
 		t.Fatalf("unsafe failure leaked sensitive content: result=%#v err=%v", result, err)
+	}
+}
+
+func TestDelivererValidationFailuresAreSafe(t *testing.T) {
+	t.Parallel()
+
+	result, err := (*Deliverer)(nil).Deliver(context.Background(), Endpoint{}, Event{}, 1)
+	if !errors.Is(err, ErrDeliveryFailed) || result.Error != "webhook deliverer not configured" {
+		t.Fatalf("nil Deliver() result=%#v err=%v", result, err)
+	}
+	deliverer, err := NewDeliverer(DelivererConfig{Client: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("unexpected request")
+		return nil, errors.New("unexpected request")
+	})})
+	if err != nil {
+		t.Fatalf("NewDeliverer() error = %v", err)
+	}
+	result, err = deliverer.Deliver(context.Background(), Endpoint{ID: "we_1", TenantID: "org_2", URL: "https://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}, Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"secret":"payload"}`)}, 1)
+	if !errors.Is(err, ErrTenantMismatch) || strings.Contains(result.Error, "payload") {
+		t.Fatalf("tenant mismatch result=%#v err=%v", result, err)
+	}
+	result, err = deliverer.Deliver(context.Background(), Endpoint{ID: "we_1", TenantID: "org_1", URL: "ftp://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}, Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}, 1)
+	if !errors.Is(err, ErrInvalidEndpoint) || result.Error != "webhook endpoint invalid" {
+		t.Fatalf("invalid endpoint result=%#v err=%v", result, err)
+	}
+	result, err = deliverer.Deliver(context.Background(), Endpoint{ID: "we_1", TenantID: "org_1", URL: "https://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}, Event{ID: "", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}, 1)
+	if !errors.Is(err, ErrInvalidEvent) || result.Error != "webhook event invalid" {
+		t.Fatalf("invalid event result=%#v err=%v", result, err)
 	}
 }
 
@@ -291,6 +517,54 @@ func TestAsyncHandlerLoadsEndpointAndRecordsAttempt(t *testing.T) {
 	}
 }
 
+func TestAsyncHandlerErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewHandler(HandlerConfig{}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("NewHandler() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	if err := (*Handler)(nil).Handle(context.Background(), async.Job{}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil Handle() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	deliverer, err := NewDeliverer(DelivererConfig{Client: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
+	})})
+	if err != nil {
+		t.Fatalf("NewDeliverer() error = %v", err)
+	}
+	handler, err := NewHandler(HandlerConfig{Endpoints: &fakeGetter{}, Deliverer: deliverer})
+	if err != nil {
+		t.Fatalf("NewHandler() error = %v", err)
+	}
+	if err := handler.Handle(context.Background(), async.Job{ID: "del_1", TenantID: "org_1", Payload: []byte(`not json`)}); !errors.Is(err, ErrInvalidDelivery) {
+		t.Fatalf("invalid payload error = %v, want %v", err, ErrInvalidDelivery)
+	}
+	payload, err := EncodeJobPayload(JobPayload{DeliveryID: "del_1", EndpointID: "we_1", Event: Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}})
+	if err != nil {
+		t.Fatalf("EncodeJobPayload() error = %v", err)
+	}
+	if err := handler.Handle(context.Background(), async.Job{ID: "other", TenantID: "org_1", Payload: payload}); !errors.Is(err, ErrInvalidDelivery) {
+		t.Fatalf("job id mismatch error = %v, want %v", err, ErrInvalidDelivery)
+	}
+	if err := handler.Handle(context.Background(), async.Job{ID: "del_1", TenantID: "org_1", Payload: payload}); !errors.Is(err, ErrDeliveryNotFound) {
+		t.Fatalf("missing endpoint error = %v, want %v", err, ErrDeliveryNotFound)
+	}
+
+	recorder := &fakeAttemptRecorder{err: errors.New("record failed")}
+	handler, err = NewHandler(HandlerConfig{
+		Endpoints: &fakeGetter{endpoint: Endpoint{ID: "we_1", TenantID: "org_1", URL: "https://example.com/hooks", SigningSecret: []byte("secret"), Events: []string{"widget.created"}}},
+		Deliverer: deliverer,
+		Attempts:  recorder,
+	})
+	if err != nil {
+		t.Fatalf("NewHandler() error = %v", err)
+	}
+	err = handler.Handle(context.Background(), async.Job{ID: "del_1", TenantID: "org_1", Payload: payload})
+	if err == nil || !strings.Contains(err.Error(), "record failed") {
+		t.Fatalf("record failure error = %v", err)
+	}
+}
+
 func TestAsyncHandlerRejectsTenantMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -315,6 +589,25 @@ func TestAsyncHandlerRejectsTenantMismatch(t *testing.T) {
 	}
 	if err := handler.Handle(context.Background(), async.Job{ID: "del_1", TenantID: "org_1", Payload: payload}); !errors.Is(err, ErrTenantMismatch) {
 		t.Fatalf("Handle() error = %v, want %v", err, ErrTenantMismatch)
+	}
+}
+
+func TestJobPayloadValidationAndReplayErrors(t *testing.T) {
+	t.Parallel()
+
+	if _, err := EncodeJobPayload(JobPayload{}); !errors.Is(err, ErrInvalidDelivery) {
+		t.Fatalf("EncodeJobPayload() error = %v, want %v", err, ErrInvalidDelivery)
+	}
+	if _, err := EncodeJobPayload(JobPayload{DeliveryID: "del_1", EndpointID: "we_1", Event: Event{ID: "evt_1", TenantID: "org_1", Type: "bad event", Payload: json.RawMessage(`{"id":"w_1"}`)}}); !errors.Is(err, ErrInvalidEvent) {
+		t.Fatalf("EncodeJobPayload() invalid event error = %v, want %v", err, ErrInvalidEvent)
+	}
+	for _, payload := range [][]byte{nil, []byte(`not json`), []byte(`{"delivery_id":"","endpoint_id":"we_1"}`)} {
+		if _, err := DecodeJobPayload(payload); !errors.Is(err, ErrInvalidDelivery) {
+			t.Fatalf("DecodeJobPayload(%q) error = %v, want %v", payload, err, ErrInvalidDelivery)
+		}
+	}
+	if err := Replay(context.Background(), nil, ReplayCommand{TenantID: "org_1", DeliveryID: "del_1"}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("Replay(nil) error = %v, want %v", err, ErrStoreNotConfigured)
 	}
 }
 
@@ -374,10 +667,14 @@ func fixedClock() func() time.Time {
 
 type fakeRegistry struct {
 	endpoints []Endpoint
+	err       error
 }
 
 func (f *fakeRegistry) ListEndpoints(ctx context.Context, tenantID, eventType string) ([]Endpoint, error) {
 	_ = ctx
+	if f.err != nil {
+		return nil, f.err
+	}
 	var out []Endpoint
 	for _, endpoint := range f.endpoints {
 		if endpoint.TenantID == tenantID && endpoint.SubscribedTo(eventType) {
@@ -394,10 +691,14 @@ type enqueuedDelivery struct {
 
 type fakeDeliveryStore struct {
 	enqueued []enqueuedDelivery
+	err      error
 }
 
 func (f *fakeDeliveryStore) EnqueueDelivery(ctx context.Context, delivery Delivery, job JobPayload) error {
 	_ = ctx
+	if f.err != nil {
+		return f.err
+	}
 	f.enqueued = append(f.enqueued, enqueuedDelivery{delivery: delivery, job: job})
 	return nil
 }
@@ -417,10 +718,14 @@ func (f *fakeGetter) GetEndpoint(ctx context.Context, tenantID, endpointID strin
 
 type fakeAttemptRecorder struct {
 	results []AttemptResult
+	err     error
 }
 
 func (f *fakeAttemptRecorder) RecordAttempt(ctx context.Context, result AttemptResult) error {
 	_ = ctx
+	if f.err != nil {
+		return f.err
+	}
 	f.results = append(f.results, result)
 	return nil
 }

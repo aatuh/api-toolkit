@@ -61,11 +61,44 @@ func TestListEndpointsLoadsSubscribedTenantEndpointsAndSecrets(t *testing.T) {
 	}
 }
 
+func TestListEndpointsValidationAndErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	if _, err := (*Store)(nil).ListEndpoints(context.Background(), "org_1", "widget.created"); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil ListEndpoints() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{})
+	if _, err := store.ListEndpoints(context.Background(), "", "widget.created"); !errors.Is(err, webhookdelivery.ErrInvalidEvent) {
+		t.Fatalf("ListEndpoints(empty tenant) error = %v, want %v", err, webhookdelivery.ErrInvalidEvent)
+	}
+	if _, err := store.ListEndpoints(context.Background(), "org_1", "*"); !errors.Is(err, webhookdelivery.ErrInvalidEvent) {
+		t.Fatalf("ListEndpoints(wildcard) error = %v, want %v", err, webhookdelivery.ErrInvalidEvent)
+	}
+	queryErr := errors.New("query failed")
+	store = New(&fakeDBPool{conn: &fakeDBConnection{queryErr: queryErr}}, Options{})
+	if _, err := store.ListEndpoints(context.Background(), "org_1", "widget.created"); !errors.Is(err, queryErr) {
+		t.Fatalf("ListEndpoints(query error) = %v, want %v", err, queryErr)
+	}
+	rowsErr := errors.New("rows failed")
+	store = New(&fakeDBPool{conn: &fakeDBConnection{rows: &fakeRows{err: rowsErr}}}, Options{SecretResolver: staticSecret()})
+	if _, err := store.ListEndpoints(context.Background(), "org_1", "widget.created"); !errors.Is(err, rowsErr) {
+		t.Fatalf("ListEndpoints(rows error) = %v, want %v", err, rowsErr)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{rows: &fakeRows{values: [][]any{{"we_1", "org_1", "https://example.com/hooks", []string{"widget.created"}, false, time.Now()}}}}}, Options{})
+	if _, err := store.ListEndpoints(context.Background(), "org_1", "widget.created"); !errors.Is(err, ErrSecretResolverRequired) {
+		t.Fatalf("ListEndpoints(secret resolver) = %v, want %v", err, ErrSecretResolverRequired)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{rows: &fakeRows{values: [][]any{{"we_1", "org_1", "https://example.com/hooks", []string{"widget.created"}, false, time.Now()}}}}}, Options{SecretResolver: missingSecret()})
+	if _, err := store.ListEndpoints(context.Background(), "org_1", "widget.created"); !errors.Is(err, ErrSecretNotFound) {
+		t.Fatalf("ListEndpoints(secret missing) = %v, want %v", err, ErrSecretNotFound)
+	}
+}
+
 func TestGetEndpointReturnsFalseForNoRows(t *testing.T) {
 	t.Parallel()
 
 	conn := &fakeDBConnection{row: scanFuncRow(func(...any) error { return pgx.ErrNoRows })}
-	store := New(&fakeDBPool{conn: conn}, Options{SecretResolver: staticSecret("secret")})
+	store := New(&fakeDBPool{conn: conn}, Options{SecretResolver: staticSecret()})
 	endpoint, ok, err := store.GetEndpoint(context.Background(), "org_1", "missing")
 	if err != nil {
 		t.Fatalf("GetEndpoint() error = %v", err)
@@ -75,10 +108,42 @@ func TestGetEndpointReturnsFalseForNoRows(t *testing.T) {
 	}
 }
 
+func TestGetEndpointValidationAndSecretErrors(t *testing.T) {
+	t.Parallel()
+
+	if _, _, err := (*Store)(nil).GetEndpoint(context.Background(), "org_1", "we_1"); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil GetEndpoint() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{})
+	if _, _, err := store.GetEndpoint(context.Background(), "", "we_1"); !errors.Is(err, webhookdelivery.ErrInvalidEndpoint) {
+		t.Fatalf("GetEndpoint(empty tenant) error = %v, want %v", err, webhookdelivery.ErrInvalidEndpoint)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{EndpointTable: "bad;table"})
+	if _, _, err := store.GetEndpoint(context.Background(), "org_1", "we_1"); !errors.Is(err, ErrInvalidTable) {
+		t.Fatalf("GetEndpoint(invalid table) error = %v, want %v", err, ErrInvalidTable)
+	}
+	rowErr := errors.New("scan failed")
+	store = New(&fakeDBPool{conn: &fakeDBConnection{row: scanFuncRow(func(...any) error { return rowErr })}}, Options{SecretResolver: staticSecret()})
+	if _, _, err := store.GetEndpoint(context.Background(), "org_1", "we_1"); !errors.Is(err, rowErr) {
+		t.Fatalf("GetEndpoint(scan error) = %v, want %v", err, rowErr)
+	}
+	resolveErr := errors.New("secret backend down")
+	store = New(&fakeDBPool{conn: &fakeDBConnection{row: endpointRow("https://example.com/hooks")}}, Options{
+		SecretResolver: SecretResolverFunc(func(context.Context, string, string) ([]byte, bool, error) { return nil, false, resolveErr }),
+	})
+	if _, _, err := store.GetEndpoint(context.Background(), "org_1", "we_1"); !errors.Is(err, resolveErr) {
+		t.Fatalf("GetEndpoint(secret error) = %v, want %v", err, resolveErr)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{row: endpointRow("https://example.com/hooks")}}, Options{SecretResolver: missingSecret()})
+	if _, _, err := store.GetEndpoint(context.Background(), "org_1", "we_1"); !errors.Is(err, ErrSecretNotFound) {
+		t.Fatalf("GetEndpoint(secret missing) = %v, want %v", err, ErrSecretNotFound)
+	}
+}
+
 func TestGetEndpointRequiresSecretResolver(t *testing.T) {
 	t.Parallel()
 
-	conn := &fakeDBConnection{row: endpointRow("we_1", "org_1", "https://example.com/hooks", []string{"widget.created"}, false, time.Now())}
+	conn := &fakeDBConnection{row: endpointRow("https://example.com/hooks")}
 	store := New(&fakeDBPool{conn: conn}, Options{})
 	_, _, err := store.GetEndpoint(context.Background(), "org_1", "we_1")
 	if !errors.Is(err, ErrSecretResolverRequired) {
@@ -86,13 +151,22 @@ func TestGetEndpointRequiresSecretResolver(t *testing.T) {
 	}
 }
 
+func TestSecretResolverFuncNilFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	_, ok, err := (SecretResolverFunc)(nil).ResolveSigningSecret(context.Background(), "org_1", "we_1")
+	if ok || !errors.Is(err, ErrSecretResolverRequired) {
+		t.Fatalf("ResolveSigningSecret(nil) ok=%v err=%v, want %v", ok, err, ErrSecretResolverRequired)
+	}
+}
+
 func TestGetEndpointUsesConfiguredEndpointPolicy(t *testing.T) {
 	t.Parallel()
 
-	conn := &fakeDBConnection{row: endpointRow("we_1", "org_1", "http://127.0.0.1:18081/hooks", []string{"widget.created"}, false, time.Now())}
+	conn := &fakeDBConnection{row: endpointRow("http://127.0.0.1:18081/hooks")}
 	store := New(&fakeDBPool{conn: conn}, Options{
 		EndpointPolicy: webhookdelivery.EndpointPolicy{AllowInsecureHTTP: true},
-		SecretResolver: staticSecret("secret"),
+		SecretResolver: staticSecret(),
 	})
 
 	endpoint, ok, err := store.GetEndpoint(context.Background(), "org_1", "we_1")
@@ -101,6 +175,44 @@ func TestGetEndpointUsesConfiguredEndpointPolicy(t *testing.T) {
 	}
 	if !ok || endpoint.URL != "http://127.0.0.1:18081/hooks" {
 		t.Fatalf("GetEndpoint() = endpoint=%#v ok=%v", endpoint, ok)
+	}
+}
+
+func TestEnqueueDeliveryDefaultsAndFailureBranches(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_500, 0).UTC()
+	event := webhookdelivery.Event{ID: "evt_1", TenantID: "org_1", Type: "widget.created", Payload: json.RawMessage(`{"id":"w_1"}`)}
+	delivery := webhookdelivery.Delivery{
+		ID:         "del_1",
+		TenantID:   "org_1",
+		EndpointID: "we_1",
+		EventID:    "evt_1",
+		EventType:  "widget.created",
+		URL:        "https://example.com/hooks",
+	}
+	job := webhookdelivery.JobPayload{DeliveryID: "del_1", EndpointID: "we_1", Event: event}
+
+	if err := (*Store)(nil).EnqueueDelivery(context.Background(), delivery, job); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil EnqueueDelivery() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	tx := &fakeDBTransaction{rowsAffected: 1}
+	conn := &fakeDBConnection{tx: tx}
+	store := New(&fakeDBPool{conn: conn}, Options{Clock: func() time.Time { return now }})
+	if err := store.EnqueueDelivery(context.Background(), delivery, job); err != nil {
+		t.Fatalf("EnqueueDelivery() error = %v", err)
+	}
+	args := tx.execCalls[0].args
+	if args[6] != string(webhookdelivery.StatePending) || args[8] != now || args[10] != now {
+		t.Fatalf("defaulted delivery args = %#v", args)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{tx: &fakeDBTransaction{}}}, Options{DeliveryTable: "bad-table;drop"})
+	if err := store.EnqueueDelivery(context.Background(), delivery, job); !errors.Is(err, ErrInvalidTable) {
+		t.Fatalf("EnqueueDelivery(invalid table) error = %v, want %v", err, ErrInvalidTable)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{})
+	if err := store.EnqueueDelivery(context.Background(), delivery, job); err == nil || !strings.Contains(err.Error(), "transactions are not supported") {
+		t.Fatalf("EnqueueDelivery(begin failure) error = %v", err)
 	}
 }
 
@@ -164,6 +276,53 @@ func TestEnqueueDeliveryInsertsDeliveryAndOutboxInTransaction(t *testing.T) {
 	}
 }
 
+func TestRecordAttemptStateMappingAndValidation(t *testing.T) {
+	t.Parallel()
+
+	if err := (*Store)(nil).RecordAttempt(context.Background(), webhookdelivery.AttemptResult{}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil RecordAttempt() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{})
+	if err := store.RecordAttempt(context.Background(), webhookdelivery.AttemptResult{DeliveryID: "del_1", TenantID: "org_1", EndpointID: "we_1", EventID: "evt_1", EventType: "bad event", Attempt: 1}); !errors.Is(err, webhookdelivery.ErrInvalidDelivery) {
+		t.Fatalf("RecordAttempt(invalid) error = %v, want %v", err, webhookdelivery.ErrInvalidDelivery)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{DeliveryTable: "bad;table"})
+	if err := store.RecordAttempt(context.Background(), webhookdelivery.AttemptResult{DeliveryID: "del_1", TenantID: "org_1", EndpointID: "we_1", EventID: "evt_1", EventType: "widget.created", Attempt: 1}); !errors.Is(err, ErrInvalidTable) {
+		t.Fatalf("RecordAttempt(invalid table) error = %v, want %v", err, ErrInvalidTable)
+	}
+
+	tests := []struct {
+		name   string
+		result webhookdelivery.AttemptResult
+		state  string
+	}{
+		{name: "accepted", result: webhookdelivery.AttemptResult{Accepted: true, StatusCode: 204}, state: "succeeded"},
+		{name: "non retryable", result: webhookdelivery.AttemptResult{Accepted: false, Retryable: false, StatusCode: 400}, state: "dead_letter"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			conn := &fakeDBConnection{rowsAffected: 1}
+			store := New(&fakeDBPool{conn: conn}, Options{})
+			result := tt.result
+			result.DeliveryID = "del_1"
+			result.TenantID = "org_1"
+			result.EndpointID = "we_1"
+			result.EventID = "evt_1"
+			result.EventType = "widget.created"
+			result.Attempt = 1
+			if err := store.RecordAttempt(context.Background(), result); err != nil {
+				t.Fatalf("RecordAttempt() error = %v", err)
+			}
+			if got := conn.execCalls[0].args[4]; got != tt.state {
+				t.Fatalf("state arg = %v, want %s", got, tt.state)
+			}
+		})
+	}
+}
+
 func TestEnqueueDeliveryRejectsTenantMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +342,36 @@ func TestEnqueueDeliveryRejectsTenantMismatch(t *testing.T) {
 	})
 	if !errors.Is(err, webhookdelivery.ErrTenantMismatch) {
 		t.Fatalf("EnqueueDelivery() error = %v, want %v", err, webhookdelivery.ErrTenantMismatch)
+	}
+}
+
+func TestReplayDeliveryValidationMissingAndDefaultTime(t *testing.T) {
+	t.Parallel()
+
+	if err := (*Store)(nil).ReplayDelivery(context.Background(), "org_1", "del_1", time.Time{}); !errors.Is(err, ErrStoreNotConfigured) {
+		t.Fatalf("nil ReplayDelivery() error = %v, want %v", err, ErrStoreNotConfigured)
+	}
+	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{})
+	if err := store.ReplayDelivery(context.Background(), "", "del_1", time.Time{}); !errors.Is(err, webhookdelivery.ErrInvalidDelivery) {
+		t.Fatalf("ReplayDelivery(empty tenant) error = %v, want %v", err, webhookdelivery.ErrInvalidDelivery)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{DeliveryTable: "bad;table"})
+	if err := store.ReplayDelivery(context.Background(), "org_1", "del_1", time.Time{}); !errors.Is(err, ErrInvalidTable) {
+		t.Fatalf("ReplayDelivery(invalid table) error = %v, want %v", err, ErrInvalidTable)
+	}
+	store = New(&fakeDBPool{conn: &fakeDBConnection{rowsAffected: 0}}, Options{})
+	if err := store.ReplayDelivery(context.Background(), "org_1", "missing", time.Now()); !errors.Is(err, ErrDeliveryNotFound) {
+		t.Fatalf("ReplayDelivery(missing) error = %v, want %v", err, ErrDeliveryNotFound)
+	}
+
+	now := time.Unix(1_700_000_600, 0).UTC()
+	conn := &fakeDBConnection{rowsAffected: 1}
+	store = New(&fakeDBPool{conn: conn}, Options{Clock: func() time.Time { return now }})
+	if err := store.ReplayDelivery(context.Background(), "org_1", "del_1", time.Time{}); err != nil {
+		t.Fatalf("ReplayDelivery(default time) error = %v", err)
+	}
+	if got := conn.execCalls[0].args[2]; got != now {
+		t.Fatalf("ReplayDelivery nextAt = %v, want %v", got, now)
 	}
 }
 
@@ -255,7 +444,7 @@ func TestReplayDeliverySchedulesTenantScopedReplay(t *testing.T) {
 func TestInvalidTableRejected(t *testing.T) {
 	t.Parallel()
 
-	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{EndpointTable: "webhook_endpoints;drop", SecretResolver: staticSecret("secret")})
+	store := New(&fakeDBPool{conn: &fakeDBConnection{}}, Options{EndpointTable: "webhook_endpoints;drop", SecretResolver: staticSecret()})
 	_, err := store.ListEndpoints(context.Background(), "org_1", "widget.created")
 	if !errors.Is(err, ErrInvalidTable) {
 		t.Fatalf("ListEndpoints() error = %v, want %v", err, ErrInvalidTable)
@@ -303,21 +492,27 @@ func TestHealthChecker(t *testing.T) {
 	}
 }
 
-func endpointRow(id, tenantID, url string, events []string, disabled bool, createdAt time.Time) ports.DatabaseRow {
+func endpointRow(url string) ports.DatabaseRow {
 	return scanFuncRow(func(dest ...any) error {
-		*(dest[0].(*string)) = id
-		*(dest[1].(*string)) = tenantID
+		*(dest[0].(*string)) = "we_1"
+		*(dest[1].(*string)) = "org_1"
 		*(dest[2].(*string)) = url
-		*(dest[3].(*[]string)) = append([]string(nil), events...)
-		*(dest[4].(*bool)) = disabled
-		*(dest[5].(*time.Time)) = createdAt
+		*(dest[3].(*[]string)) = []string{"widget.created"}
+		*(dest[4].(*bool)) = false
+		*(dest[5].(*time.Time)) = time.Now()
 		return nil
 	})
 }
 
-func staticSecret(secret string) SecretResolver {
+func staticSecret() SecretResolver {
 	return SecretResolverFunc(func(context.Context, string, string) ([]byte, bool, error) {
-		return []byte(secret), true, nil
+		return []byte("secret"), true, nil
+	})
+}
+
+func missingSecret() SecretResolver {
+	return SecretResolverFunc(func(context.Context, string, string) ([]byte, bool, error) {
+		return nil, false, nil
 	})
 }
 
@@ -342,6 +537,7 @@ type fakeDBConnection struct {
 	execCalls    []execCall
 	querySQL     string
 	queryArgs    []any
+	queryErr     error
 	row          ports.DatabaseRow
 	rows         *fakeRows
 	tx           ports.DatabaseTransaction
@@ -353,6 +549,9 @@ type fakeDBConnection struct {
 func (c *fakeDBConnection) Query(_ context.Context, sql string, args ...any) (ports.DatabaseRows, error) {
 	c.querySQL = sql
 	c.queryArgs = append([]any(nil), args...)
+	if c.queryErr != nil {
+		return nil, c.queryErr
+	}
 	if c.rows != nil {
 		return c.rows, nil
 	}
@@ -419,6 +618,7 @@ type fakeRows struct {
 	values [][]any
 	index  int
 	closed bool
+	err    error
 }
 
 func (r *fakeRows) Next() bool {
@@ -450,7 +650,7 @@ func (r *fakeRows) Close() {
 }
 
 func (r *fakeRows) Err() error {
-	return nil
+	return r.err
 }
 
 type fakeDBResult int64

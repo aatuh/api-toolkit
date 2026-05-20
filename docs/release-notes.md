@@ -104,6 +104,10 @@ source of truth is `docs/release-runbook.md`.
   tests for option constructors, OpenAPI file loading, route failure Problem
   Details, request validation field mapping, response validation error hooks,
   streaming opt-outs, large-response bypasses, and response buffering limits.
+- Raised webhook delivery and Postgres webhook delivery adapter coverage floors
+  after adding behavior tests for signing, endpoint policy, retry
+  classification, safe error surfaces, tenant mismatch rejection, replay
+  safety, attempt recording, secret resolution, and readiness health.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
