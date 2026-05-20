@@ -49,6 +49,9 @@ source of truth is `docs/release-runbook.md`.
 - Full-profile docs and generated READMEs now state that sample `widgets` are
   app-owned starter domain code meant to be replaced or complemented by product
   resources.
+- Added `make reference-service-evidence`, which records non-blocking
+  reference-service proof under `.ci-result/reference-service/`, with optional
+  `REFERENCE_SERVICE_DOCKER=1` and `REFERENCE_SERVICE_MINIO=1` runtime evidence.
 
 ### Release proof and reference service
 

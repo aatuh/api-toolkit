@@ -25,6 +25,19 @@ That target runs the reference service tests, OpenAPI golden check, contract
 lint/diff, typed client regeneration check, asset check, observability check,
 and deployment asset check. It is not part of default `make finalize`.
 
+Use the evidence target when release reviewers need a recorded local artifact:
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make reference-service-evidence
+```
+
+The command writes `.ci-result/reference-service/status`,
+`.ci-result/reference-service/summary.json`, and logs for the checks it ran.
+Set `REFERENCE_SERVICE_DOCKER=1` to include the service-owned Docker
+`integration-check`; set `REFERENCE_SERVICE_MINIO=1` only when object-storage
+integration evidence is in scope. The target is opt-in and not part of default
+`make finalize`.
+
 Use the generated-service upgrade compatibility check when release reviewers
 need evidence that published generator output can move to the current workspace:
 
@@ -59,6 +72,7 @@ Before claiming a release has reference-service evidence, record these outcomes
 in release review notes:
 
 - `make reference-service-check` result.
+- `make reference-service-evidence` summary path and status.
 - Docker-backed `make integration-check` result, including whether MinIO ran.
 - Migration `up`, `check`, `verify`, and guarded `down` refusal result.
 - Backup/restore drill notes for Postgres and object storage when the service is

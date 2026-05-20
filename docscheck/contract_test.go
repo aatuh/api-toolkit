@@ -1800,7 +1800,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
+	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
 	coverageBacklog := readText(t, filepath.Join(repoRoot, "docs", "coverage-hardening-backlog.md"))
@@ -1809,6 +1811,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
 		"generated-upgrade-compat-check:",
+		"reference-service-evidence:",
+		"reference-service-evidence-contract:",
 		"github-governance-check:",
 	} {
 		if !strings.Contains(makefile, required) {
@@ -1852,13 +1856,26 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"REFERENCE_SERVICE_DOCKER",
+		"REFERENCE_SERVICE_MINIO",
+		".ci-result/reference-service",
+		"summary.json",
+		"reference-service-check",
+		"make -C \"$repo_root/examples/reference-saas-api\" integration-check",
+	} {
+		if !strings.Contains(referenceEvidenceScript, required) {
+			t.Fatalf("reference service evidence script missing %q", required)
+		}
+	}
+	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-upgrade-compat-check",
+		"make reference-service-evidence",
 		"make github-governance-check",
 		"not part of `finalize`",
 	} {
-		if !strings.Contains(runbook, required) && !strings.Contains(governance, required) {
+		if !strings.Contains(runbook, required) && !strings.Contains(referenceService, required) && !strings.Contains(governance, required) {
 			t.Fatalf("governance docs missing optional check guidance %q", required)
 		}
 	}
