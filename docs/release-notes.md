@@ -100,6 +100,10 @@ source of truth is `docs/release-runbook.md`.
   tests for public liveness/readiness separation, dependency state transitions,
   timeout mapping, public detail redaction, admin-only detailed health access,
   dependency checker options, and scheduler callbacks.
+- Raised the OpenAPI validation middleware coverage floor after adding behavior
+  tests for option constructors, OpenAPI file loading, route failure Problem
+  Details, request validation field mapping, response validation error hooks,
+  streaming opt-outs, large-response bypasses, and response buffering limits.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
