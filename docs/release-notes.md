@@ -123,6 +123,9 @@ source of truth is `docs/release-runbook.md`.
   preserving release artifact verification semantics.
 - Updated generated lean and full scaffold GitHub Actions templates to pinned
   `actions/checkout` v6.0.2 and `actions/setup-go` v6.4.0 commits.
+- Added `make actions-audit` and contract coverage for pinned GitHub Actions
+  workflow refs, stale action comments, and generated workflow template versions;
+  it runs in `make audit-check` and remains non-mutating.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

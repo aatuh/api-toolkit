@@ -28,7 +28,7 @@ change. Do not introduce a second baseline table in another document.
 | Command | Intent | Output |
 | --- | --- | --- |
 | `GOTOOLCHAIN=local make finalize` | Local implementation gate before committing changes; may rewrite formatted Go files and module files. | Pass/fail local quality signal, not release evidence. |
-| `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, not release evidence. |
+| `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, including `make actions-audit` for pinned GitHub Actions and generated workflow templates, not release evidence. |
 | `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
 | `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |

@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -96,10 +96,17 @@ v3-readiness-check: ## Run compatibility-sensitive v3 readiness guardrails
 contrib-review-contract: ## Run contrib drift/release-note script contract tests
 	@env -u API_BASE_REF -u CONTRIB_API_BASE_REF -u CONTRIB_RELEASE_BASE_REF scripts/contrib_review_contract_test.sh
 
+actions-audit: ## Audit GitHub Actions pins and generated workflow template versions
+	@scripts/actions_audit.sh
+
+actions-audit-contract: ## Run GitHub Actions audit script contract tests
+	@scripts/actions_audit_contract_test.sh
+
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
 	@$(MAKE) api-check-contract
 	@$(MAKE) contrib-review-contract
+	@$(MAKE) actions-audit-contract
 	@$(MAKE) release-artifact-verify-contract
 	@$(MAKE) release-evidence-parser-contract
 	@$(MAKE) generated-upgrade-compat-contract
@@ -192,6 +199,7 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
+	$(MAKE) actions-audit
 	$(MAKE) docs-check
 	$(MAKE) test
 	$(MAKE) test-race
