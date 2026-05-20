@@ -1816,6 +1816,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"Runtime OpenAPI request validation is enabled by default.",
 		"The public router emits bounded Prometheus HTTP request metrics, and `/metrics` is served only from the admin router.",
 		"The admin router mounts real Go pprof handlers behind `X-Admin-Key`; the public router does not mount pprof when `ADMIN_ADDR` is set.",
+		"Widgets are sample app-owned domain code.",
 		"API-key mode keeps `API_KEY` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup.",
 		"`make integration-check`",
 	} {
@@ -2082,7 +2083,7 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	}
 }
 
-func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
+func TestGenerateResourceSupportsAppOwnedReplacementErgonomics(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
 	serviceDir := filepath.Join(tmp, "service")
@@ -2104,8 +2105,9 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 		"--dir", serviceDir,
 		"--name", "project",
 		"--plural", "projects",
-		"--field", "status:string:enum=active|archived",
-		"--field", "rank:int",
+		"--field", "name:string:required",
+		"--field", "status:string:default=active:enum=active|archived",
+		"--field", "budget:int",
 		"--filter", "status",
 		"--sort", "name",
 		"--admin",
@@ -2144,7 +2146,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated manifest after resource: %v", err)
 	}
-	for _, want := range []string{"name: project", "plural: projects", "tenant_scoped: true", "postgres: true", "soft_delete: true", "etag: true", "audit: true", "webhooks: true", "admin: true", "status:string:enum=active|archived", "rank:int", "filters:", "sorts:", "relationships:", "object_fields:"} {
+	for _, want := range []string{"name: project", "plural: projects", "tenant_scoped: true", "postgres: true", "soft_delete: true", "etag: true", "audit: true", "webhooks: true", "admin: true", "name:string:required", "status:string:default=active:enum=active|archived", "budget:int", "filters:", "sorts:", "relationships:", "object_fields:"} {
 		if !strings.Contains(string(generatedManifest), want) {
 			t.Fatalf("generated manifest missing resource %q:\n%s", want, generatedManifest)
 		}
@@ -2171,7 +2173,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read openapi after resource: %v", err)
 	}
-	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject", `"status":`, `map[string]any{"type": "string", "enum": []string{"active", "archived"}}`, `"rank":`, `"type": "integer"`, `"owner_id":`, `map[string]any{"type": "string"}`, `"attachment_key":`, `map[string]any{"type": "string", "description": "Object key stored by object service"}`, `Name: "status", In: "query"`, `Name: "sort", In: "query"`} {
+	for _, want := range []string{"ProjectCreateRequest", "ProjectList", "listProjects", "createProject", "updateProject", "deleteProject", `"name":`, `map[string]any{"type": "string"}`, `"status":`, `map[string]any{"type": "string", "enum": []string{"active", "archived"}, "default": "active"}`, `"budget":`, `"type": "integer"`, `"owner_id":`, `map[string]any{"type": "string"}`, `"attachment_key":`, `map[string]any{"type": "string", "description": "Object key stored by object service"}`, `Name: "status", In: "query"`, `Name: "sort", In: "query"`} {
 		if !strings.Contains(string(generatedOpenAPI), want) {
 			t.Fatalf("generated openapi missing resource wiring %q", want)
 		}
@@ -2180,7 +2182,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated domain resource: %v", err)
 	}
-	for _, want := range []string{"Status", "string", "Rank", "int", "OwnerID", "AttachmentKey", `"status":`, `r.Status`, `"rank":`, `r.Rank`, `"owner_id":`, `r.OwnerID`, `"attachment_key":`, `r.AttachmentKey`} {
+	for _, want := range []string{"Name", "string", "Status", "string", "Budget", "int", "OwnerID", "AttachmentKey", `"name":`, `r.Name`, `"status":`, `r.Status`, `"budget":`, `r.Budget`, `"owner_id":`, `r.OwnerID`, `"attachment_key":`, `r.AttachmentKey`} {
 		if !strings.Contains(string(generatedDomain), want) {
 			t.Fatalf("generated domain missing resource field %q:\n%s", want, generatedDomain)
 		}
@@ -2216,7 +2218,7 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated resource migration: %v", err)
 	}
-	for _, want := range []string{"status TEXT", "rank INTEGER", "owner_id TEXT", "attachment_key TEXT", "CHECK (status IN ('active', 'archived'))", "CREATE INDEX projects_organization_status_idx", "CREATE INDEX projects_organization_owner_id_idx", "CREATE INDEX projects_organization_attachment_key_idx"} {
+	for _, want := range []string{"name TEXT NOT NULL", "status TEXT DEFAULT 'active'", "budget INTEGER", "owner_id TEXT", "attachment_key TEXT", "CHECK (status IN ('active', 'archived'))", "CREATE INDEX projects_organization_status_idx", "CREATE INDEX projects_organization_owner_id_idx", "CREATE INDEX projects_organization_attachment_key_idx"} {
 		if !strings.Contains(string(generatedMigration), want) {
 			t.Fatalf("generated migration missing resource field %q:\n%s", want, generatedMigration)
 		}
@@ -2227,11 +2229,13 @@ func TestGenerateResourceAddsTenantScopedCRUDToFullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated resource service tests failed:\n%s\nerror: %v", output, err)
 	}
-	cmd = exec.CommandContext(context.Background(), "make", "resource-check")
-	cmd.Dir = serviceDir
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generated resource-check failed:\n%s\nerror: %v", output, err)
+	for _, target := range []string{"openapi-check", "client-check", "contracts-lint", "contracts-diff", "resource-check"} {
+		cmd = exec.CommandContext(context.Background(), "make", target)
+		cmd.Dir = serviceDir
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("generated %s failed:\n%s\nerror: %v", target, output, err)
+		}
 	}
 }
 

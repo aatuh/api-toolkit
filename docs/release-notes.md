@@ -43,6 +43,12 @@ source of truth is `docs/release-runbook.md`.
   `v3.1.0`; `GENERATOR_REF` remains as a source-compatible single-ref alias.
 - Generated upgrade compatibility evidence now writes one log per generator ref
   plus `.ci-result/generated-upgrade-compat/status.tsv`.
+- Full-profile resource generation tests now prove the generated `project`
+  replacement path with required/default/enum fields, filters, deterministic
+  sorts, OpenAPI/client checks, contract checks, and `resource-check` evidence.
+- Full-profile docs and generated READMEs now state that sample `widgets` are
+  app-owned starter domain code meant to be replaced or complemented by product
+  resources.
 
 ### Release proof and reference service
 

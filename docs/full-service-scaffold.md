@@ -25,7 +25,9 @@ checks, contract lint/diff targets, generated HTTP smoke tests, and a generated
 widget import operation that returns `202 Accepted` and can be polled. The
 scaffold now also emits `api-toolkit.yaml`, which lets
 `api-toolkit generate resource` add tenant-scoped CRUD resources through
-generated anchors rather than arbitrary source rewriting. The generated
+generated anchors rather than arbitrary source rewriting. Widgets are sample
+app-owned domain code meant to be replaced or complemented by generated
+product resources. The generated
 application layer now includes organizations, memberships,
 invitations, role checks, hashed invitation-token storage, and single-use
 invitation acceptance. It also includes generated API-key lifecycle services
@@ -306,6 +308,9 @@ workflow:
   when `INTEGRATION_OBJECT_STORE=s3`.
 
 ## Resource Generation
+
+The generated widget domain is an app-owned starter slice, not toolkit-owned
+business logic. Teams can delete or replace it after adding product resources.
 
 `api-toolkit generate resource` is intentionally narrow. It only runs inside a
 generated `saas-api-full` project that still has `api-toolkit.yaml` and expected
