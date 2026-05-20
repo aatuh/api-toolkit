@@ -19,6 +19,21 @@ operating model.
 | Streaming, SSE, WebSockets, and large downloads | Explicit caveat | Route metadata and security profile opt-outs exist for streaming and large-response paths. | Do not apply hard-timeout response buffering, response validation, or idempotency response capture globally to these routes. Use `x-api-toolkit-streaming`, `securityprofile.StreamingRouteOverride`, and route-level middleware opt-outs. server-sent events, websocket upgrades, and custom `http.ResponseWriter` interfaces need route-specific wiring. |
 | Release evidence | Publication-grade path | Clean `make release-evidence`, artifact verification, SBOMs, signatures, provenance, and release-review docs. | Dirty-tree evidence is local audit evidence only. Scheduled generated-scaffold integration is release evidence context, not a default PR blocker. |
 
+## Adapter Maturity Review
+
+The adapter maturity review is manifest-driven. Packages classified as
+`supported-adapter` in `docs/package-classification.tsv` are the
+evidence-complete supported adapter set: they must have direct tests, package
+docs, a behavior contract in `docs/supported-adapter-contracts.tsv`, and release
+drift coverage in `docs/contrib-api-drift-packages.txt`.
+
+Packages classified as `experimental` are intentionally not promoted. They can
+be useful and maintained, but remain outside the supported-adapter tier until
+their package-specific tests, docs, health behavior where relevant, drift
+coverage, and release notes justify promotion. The manifests remain the source
+of truth; this section exists to make that review visible during production
+readiness and release review.
+
 ## Maturity Evidence Still Required Per Service
 
 - Application-specific authorization and tenant-isolation tests.

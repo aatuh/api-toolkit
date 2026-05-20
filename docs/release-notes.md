@@ -115,6 +115,9 @@ source of truth is `docs/release-runbook.md`.
 - Added a docscheck gate that every `supported-adapter` contrib package has
   direct tests, package docs, a behavior-contract row, and release drift
   coverage before it can retain the supported-adapter classification.
+- Added a manifest-driven adapter maturity review to the production-readiness
+  docs so supported adapters are visible as evidence-complete and experimental
+  packages are clearly not promoted.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

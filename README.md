@@ -77,7 +77,8 @@ api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
 generated SaaS/API services. It is not a universal backend platform for every
 transport, streaming workload, provider workflow, or organization-specific
 operating model. Use [docs/production-readiness.md](docs/production-readiness.md)
-as the readiness matrix before standardizing on a package or generated profile.
+as the readiness matrix and adapter maturity review before standardizing on a
+package or generated profile.
 
 | Area | Readiness | Notes |
 | --- | --- | --- |

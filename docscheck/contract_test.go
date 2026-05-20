@@ -1720,12 +1720,20 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 		"`saas-api-full` scaffold",
 		"`x-api-toolkit-streaming`",
 		"`securityprofile.StreamingRouteOverride`",
+		"## Adapter Maturity Review",
+		"evidence-complete supported adapter set",
+		"intentionally not promoted",
+		"docs/supported-adapter-contracts.tsv",
+		"docs/contrib-api-drift-packages.txt",
 		"Load, soak, and rollback evidence",
 		"reference-service.md#adoption-evidence-template",
 	} {
 		if !strings.Contains(readiness, required) {
 			t.Fatalf("docs/production-readiness.md missing %q", required)
 		}
+	}
+	if !strings.Contains(readme, "adapter maturity review") {
+		t.Fatal("docs/README.md missing adapter maturity review link text")
 	}
 	template := markdownSection(t, referenceService, "## Adoption Evidence Template")
 	for _, required := range []string{
