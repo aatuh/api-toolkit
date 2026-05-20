@@ -1837,8 +1837,11 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"GENERATED_UPGRADE_COMPAT_REFS",
 		"GENERATOR_REF",
 		"v3.0.0",
+		"v3.1.0",
+		"status.tsv",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v3=",
 		"make contracts-diff",

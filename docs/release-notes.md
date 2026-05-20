@@ -36,6 +36,14 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-20
 
+### End-game hardening
+
+- `make generated-upgrade-compat-check` now accepts
+  `GENERATED_UPGRADE_COMPAT_REFS` and defaults to checking both `v3.0.0` and
+  `v3.1.0`; `GENERATOR_REF` remains as a source-compatible single-ref alias.
+- Generated upgrade compatibility evidence now writes one log per generator ref
+  plus `.ci-result/generated-upgrade-compat/status.tsv`.
+
 ### Release proof and reference service
 
 - Removed the temporary `.next_steps.md` release checklist after publishing

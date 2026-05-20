@@ -25,6 +25,18 @@ That target runs the reference service tests, OpenAPI golden check, contract
 lint/diff, typed client regeneration check, asset check, observability check,
 and deployment asset check. It is not part of default `make finalize`.
 
+Use the generated-service upgrade compatibility check when release reviewers
+need evidence that published generator output can move to the current workspace:
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make generated-upgrade-compat-check
+```
+
+By default this checks `v3.0.0` and `v3.1.0`. Set
+`GENERATED_UPGRADE_COMPAT_REFS="v3.1.0 vX.Y.Z"` to choose a matrix, or
+`GENERATOR_REF=vX.Y.Z` for the older single-ref path. Results are written under
+`.ci-result/generated-upgrade-compat/` with one log per generator ref.
+
 Use the service-owned Docker target when release reviewers need runtime
 evidence:
 
