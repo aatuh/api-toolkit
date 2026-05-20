@@ -160,11 +160,11 @@ adapter, integration, middleware, bootstrap, telemetry, and production generator
 CLI behavior notes.
 
 Publication evidence must come from a clean worktree with an explicit baseline,
-for example `API_BASE_REF=v3.0.2 GOTOOLCHAIN=local make release-evidence` for a
-post-`v3.0.2` v3 release. First v3 major-release evidence may use
+for example `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` for a
+post-`v3.1.0` v3 release. First v3 major-release evidence may use
 `API_BASE_REF=v2.1.0` only as documented v2-to-v3 transition evidence. A local
 dirty-tree audit must opt in with
-`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.0.2 GOTOOLCHAIN=local make release-evidence`
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence`
 and is not acceptable before publishing. This is local dirty-tree audit
 evidence, not publication evidence.
 
