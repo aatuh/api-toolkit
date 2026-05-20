@@ -93,6 +93,9 @@ source of truth is `docs/release-runbook.md`.
   upgrade compatibility signal that generates `saas-api-full` from the prior v3
   baseline, replaces toolkit dependencies with the workspace, and runs generated
   tests, OpenAPI, client, and contract checks. This stays outside `finalize`.
+- Raised the JWT middleware package coverage floor after adding behavior tests
+  for valid subject propagation, skip-header enforcement, nil/disabled handler
+  behavior, safe close behavior, and JWKS health checks.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

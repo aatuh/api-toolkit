@@ -9,7 +9,7 @@ operational, or compatibility behavior that users rely on.
 
 | Floor variable | Package | Current focus before raising |
 | --- | --- | --- |
-| `AUTH_JWT_COVERAGE_MIN` | `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt` | Add or keep behavior tests for issuer and audience rejection, algorithm allowlists, required claims, expired and not-yet-valid tokens, JWKS key misses, skip-header controls, and trusted-proxy bypass rejection. |
+| `AUTH_JWT_COVERAGE_MIN` | `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt` | Keep behavior tests for issuer and audience rejection, algorithm allowlists, required claims, expired and not-yet-valid tokens, JWKS key misses, skip-header controls, trusted-proxy bypass rejection, subject context propagation, and JWKS health. |
 | `HEALTH_COVERAGE_MIN` | `github.com/aatuh/api-toolkit/v3/health` | Add or keep behavior tests for liveness/readiness separation, dependency state changes, timeout/error mapping, detailed health redaction, and admin-only detailed output. |
 | `CONTRIB_PGXPOOL_COVERAGE_MIN` | `github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool` | Add or keep behavior tests for startup validation, ping/readiness behavior, plain-value stats snapshots, close semantics, and safe error surfaces. |
 | `CONTRIB_OPENAPI_COVERAGE_MIN` | `github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi` | Add or keep behavior tests for request validation failures, response validation opt-in, Problem Details error mapping, streaming-route opt-out, and large-response bypass. |
