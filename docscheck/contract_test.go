@@ -2047,6 +2047,56 @@ func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) 
 	}
 }
 
+func TestSupportedAdaptersHaveCompleteEvidence(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	contracts := loadSupportedAdapterContracts(t, repoRoot)
+	driftPackages := make(map[string]bool)
+	for _, importPath := range contribDriftManifestPackages(t, repoRoot) {
+		driftPackages[importPath] = true
+	}
+	listedPackages := make(map[string]listedPackage)
+	for _, pkg := range listedGoPackages(t, filepath.Join(repoRoot, "contrib")) {
+		listedPackages[pkg.ImportPath] = pkg
+	}
+
+	var missing []string
+	for _, cls := range classes {
+		if cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		if !inModule(cls.ImportPath, contribModulePath) {
+			missing = append(missing, cls.ImportPath+" is not in the contrib module")
+			continue
+		}
+		if cls.TestStatus != "direct-tests" {
+			missing = append(missing, cls.ImportPath+" has test_status "+cls.TestStatus+", want direct-tests")
+		}
+		if _, ok := contracts[cls.ImportPath]; !ok {
+			missing = append(missing, cls.ImportPath+" is missing from docs/supported-adapter-contracts.tsv")
+		}
+		if !driftPackages[cls.ImportPath] {
+			missing = append(missing, cls.ImportPath+" is missing from docs/contrib-api-drift-packages.txt")
+		}
+		pkg, ok := listedPackages[cls.ImportPath]
+		if !ok {
+			missing = append(missing, cls.ImportPath+" is missing from go list ./...")
+			continue
+		}
+		if pkg.DirectTestFiles == 0 {
+			missing = append(missing, cls.ImportPath+" has no direct test files")
+		}
+		docPath := filepath.Join(contribPackageDir(repoRoot, cls.ImportPath), "doc.go")
+		if _, err := os.Stat(docPath); err != nil {
+			missing = append(missing, cls.ImportPath+" is missing package docs at "+docPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("supported-adapter evidence is incomplete:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
 func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -3995,6 +4045,15 @@ func assertClassifiedPackages(t *testing.T, name string, packages []listedPackag
 
 func inModule(importPath, modulePath string) bool {
 	return importPath == modulePath || strings.HasPrefix(importPath, modulePath+"/")
+}
+
+func contribPackageDir(repoRoot, importPath string) string {
+	rel := strings.TrimPrefix(importPath, contribModulePath)
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		return filepath.Join(repoRoot, "contrib")
+	}
+	return filepath.Join(repoRoot, "contrib", filepath.FromSlash(rel))
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {

@@ -112,6 +112,9 @@ source of truth is `docs/release-runbook.md`.
   constructor validation, bounded startup contexts, database readiness mapping,
   plain-value snapshots, legacy stats wrappers, acquire failures, and close
   idempotence.
+- Added a docscheck gate that every `supported-adapter` contrib package has
+  direct tests, package docs, a behavior-contract row, and release drift
+  coverage before it can retain the supported-adapter classification.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
