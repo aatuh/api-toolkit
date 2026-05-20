@@ -1697,6 +1697,7 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
 	readiness := readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	codeowners := readText(t, filepath.Join(repoRoot, ".github", "CODEOWNERS"))
 	integration := readText(t, filepath.Join(repoRoot, ".github", "workflows", "integration.yml"))
@@ -1720,9 +1721,26 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 		"`x-api-toolkit-streaming`",
 		"`securityprofile.StreamingRouteOverride`",
 		"Load, soak, and rollback evidence",
+		"reference-service.md#adoption-evidence-template",
 	} {
 		if !strings.Contains(readiness, required) {
 			t.Fatalf("docs/production-readiness.md missing %q", required)
+		}
+	}
+	template := markdownSection(t, referenceService, "## Adoption Evidence Template")
+	for _, required := range []string{
+		"Setup time",
+		"Upgrade result",
+		"OpenAPI/client result",
+		"Tenant isolation notes",
+		"Idempotency notes",
+		"Backup/restore notes",
+		"Load-smoke notes",
+		"Known pain points",
+		"does not replace deployment-owned evidence",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("docs/reference-service.md adoption evidence template missing %q", required)
 		}
 	}
 	for _, required := range []string{

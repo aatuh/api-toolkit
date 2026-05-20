@@ -52,6 +52,9 @@ source of truth is `docs/release-runbook.md`.
 - Added `make reference-service-evidence`, which records non-blocking
   reference-service proof under `.ci-result/reference-service/`, with optional
   `REFERENCE_SERVICE_DOCKER=1` and `REFERENCE_SERVICE_MINIO=1` runtime evidence.
+- Added a reference-service adoption evidence template for setup time, upgrade
+  results, OpenAPI/client checks, tenant isolation, idempotency, backup/restore,
+  load-smoke notes, and known pain points.
 
 ### Release proof and reference service
 

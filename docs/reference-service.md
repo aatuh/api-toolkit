@@ -83,3 +83,20 @@ in release review notes:
 Keep failures as release-context evidence until they are understood. Do not make
 Docker-backed reference-service checks required PR or local finalize gates until
 they are consistently fast and stable.
+
+## Adoption Evidence Template
+
+Use this template when evaluating a downstream service generated from or
+upgraded with api-toolkit. Repo evidence proves the scaffold path remains
+usable; it does not replace deployment-owned evidence for the real service.
+
+| Evidence item | Result |
+| --- | --- |
+| Setup time | Record elapsed time from generator command to first passing local check. |
+| Upgrade result | Record source toolkit version, target toolkit version, changed files, and `generated-upgrade-compat-check` or service-specific upgrade output. |
+| OpenAPI/client result | Record `openapi-check`, `contracts-lint`, `contracts-diff`, `client-check`, and any generated TypeScript client result. |
+| Tenant isolation notes | Record tenant mismatch tests, role failures, and any app-owned authorization checks added beyond the scaffold. |
+| Idempotency notes | Record unsafe-write replay behavior, conflict behavior, and storage mode used during evidence. |
+| Backup/restore notes | Record Postgres backup/restore and object-store restore drill status for the target environment. |
+| Load-smoke notes | Record request rate, latency, error rate, bottleneck, and whether the result was local, staging, or production-like. |
+| Known pain points | Record manual edits, confusing generated boundaries, missing docs, slow checks, or operational gaps. |

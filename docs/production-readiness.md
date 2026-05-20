@@ -28,3 +28,6 @@ operating model.
 - Operational runbooks for paging, backups, restore drills, migrations, and
   incident response.
 - Review of streaming, binary, multipart, and unusually large response routes.
+
+Use the [reference service evidence template](reference-service.md#adoption-evidence-template)
+when turning repository proof into downstream service adoption evidence.
