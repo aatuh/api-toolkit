@@ -34,6 +34,23 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-05-20
+
+### Contrib validation adapter
+
+- `contrib/adapters/validation` now uses
+  `github.com/aatuh/validate/v3@v3.0.7` instead of
+  `github.com/go-playground/validator/v10`.
+- Validation tags in toolkit examples now use the validate v3 grammar, such as
+  `validate:"string;required;email"` and `validate:"int;min=1"`.
+- Field errors now preserve validate v3 JSON field paths and stable error codes
+  while continuing to avoid raw submitted values in error strings. The
+  deprecated `ValidationError.Value` field is retained for source compatibility
+  but is no longer populated by the adapter.
+- `NewPlaygroundValidator` remains as a deprecated source-compatible alias, but
+  it no longer constructs a go-playground-backed validator. Use
+  `NewValidateValidator` for new code.
+
 ## 2026-05-19
 
 ### Maturity evidence

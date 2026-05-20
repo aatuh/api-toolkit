@@ -94,7 +94,7 @@ github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe	supported-adapter	direct
 github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres	supported-adapter	direct-tests	Postgres transaction adapter.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/ulid	wrapper-only	wrapper-smoke-tested	Thin ULID generator adapter; smoke coverage is sufficient because behavior is delegated to the ULID generator library.
 github.com/aatuh/api-toolkit/contrib/v3/adapters/uuid	wrapper-only	wrapper-smoke-tested	Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.
-github.com/aatuh/api-toolkit/contrib/v3/adapters/validation	supported-adapter	direct-tests	Validation adapter with field mapping, nested validation, safe messages, and Problem Details-compatible errors.
+github.com/aatuh/api-toolkit/contrib/v3/adapters/validation	supported-adapter	direct-tests	Validation adapter backed by github.com/aatuh/validate/v3 with field mapping, nested validation, structured codes, safe messages, and Problem Details-compatible errors.
 github.com/aatuh/api-toolkit/contrib/v3/async	supported-adapter	direct-tests	Durable async worker contracts and runner.
 github.com/aatuh/api-toolkit/contrib/v3/async/asynctest	test-only	test-support	Reusable async store contract tests.
 github.com/aatuh/api-toolkit/contrib/v3/audit	supported-adapter	direct-tests	Audit event contracts.
