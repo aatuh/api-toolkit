@@ -118,6 +118,9 @@ source of truth is `docs/release-runbook.md`.
 - Added a manifest-driven adapter maturity review to the production-readiness
   docs so supported adapters are visible as evidence-complete and experimental
   packages are clearly not promoted.
+- Updated the release workflow provenance attestation action from the older
+  `actions/attest-build-provenance` generation to a pinned v4.1.0 commit while
+  preserving release artifact verification semantics.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
