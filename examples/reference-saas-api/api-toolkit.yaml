@@ -1,0 +1,15 @@
+profile: saas-api-full
+module: example.com/reference-saas-api
+generator_version: v3.0.2
+openapi: testdata/openapi.golden.json
+client:
+
+  go:
+    path: internal/client/apiclient
+    package: apiclient
+
+resources:
+  # api-toolkit:manifest-resources
+providers:
+
+  # api-toolkit:manifest-providers

@@ -34,6 +34,37 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-05-20
+
+### Release proof and reference service
+
+- `.next_steps.md` now tracks the current `v3.1.0` release-and-proof checklist
+  with `v3.0.2` as the release baseline, replacing stale `v3.0.1` guidance.
+- Added `examples/reference-saas-api` as a checked-in `saas-api-full` adoption
+  proof service with local workspace replacements, typed client output,
+  OpenAPI/contract assets, Docker integration assets, deployment starters, and
+  observability assets.
+- Added `make reference-service-check` as optional non-Docker evidence for the
+  checked-in reference service. It stays outside default `finalize`.
+- Generated `saas-api-full` `.gitignore` files no longer ignore
+  `internal/client/apiclient`, so the checked-in typed Go client can be tracked
+  by generated services.
+
+### Contrib validation adapter
+
+- `contrib/adapters/validation` now uses
+  `github.com/aatuh/validate/v3@v3.0.7` instead of
+  `github.com/go-playground/validator/v10`.
+- Validation tags in toolkit examples now use the validate v3 grammar, such as
+  `validate:"string;required;email"` and `validate:"int;min=1"`.
+- Field errors now preserve validate v3 JSON field paths and stable error codes
+  while continuing to avoid raw submitted values in error strings. The
+  deprecated `ValidationError.Value` field is retained for source compatibility
+  but is no longer populated by the adapter.
+- `NewPlaygroundValidator` remains as a deprecated source-compatible alias, but
+  it no longer constructs a go-playground-backed validator. Use
+  `NewValidateValidator` for new code.
+
 ## 2026-05-19
 
 ### Maturity evidence

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  ENV: "production"
+  API_ADDR: ":8080"
+  ADMIN_ADDR: ":9090"
+  REDIS_ADDR: "redis.example.internal:6379"
+  CACHE_STORE: "redis"
+  RATE_LIMIT_STORE: "redis"
+  RATE_LIMIT_KEY_PREFIX: "ratelimit:"
+  IDEMPOTENCY_STORE: "redis"
+  IDEMPOTENCY_KEY_PREFIX: "idempotency:"
+  OPENAPI_REQUEST_VALIDATION: "true"
+  OPENAPI_RESPONSE_VALIDATION: "false"
+  ASYNC_WORKER_ENABLED: "true"
+  OBJECT_STORE: "memory"

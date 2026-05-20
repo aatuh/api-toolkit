@@ -18,8 +18,8 @@ import (
 )
 
 type checkoutRequest struct {
-	Amount   int64  `json:"amount" validate:"min=1"`
-	Currency string `json:"currency" validate:"required"`
+	Amount   int64  `json:"amount" validate:"int64;min=1"`
+	Currency string `json:"currency" validate:"string;required"`
 }
 
 type fakeProvider struct{}
