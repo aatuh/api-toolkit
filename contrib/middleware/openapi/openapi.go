@@ -1,4 +1,3 @@
-// Package openapi provides OpenAPI request and response validation middleware.
 package openapi
 
 import (

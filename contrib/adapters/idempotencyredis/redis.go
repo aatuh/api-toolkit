@@ -1,4 +1,3 @@
-// Package idempotencyredis provides Redis-backed idempotency storage.
 package idempotencyredis
 
 import (

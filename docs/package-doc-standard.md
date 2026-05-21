@@ -42,6 +42,8 @@ stable packages that were missing richer package comments: `apiclient`,
 
 ## Quality gate
 
-`GOTOOLCHAIN=local make docs-check` includes a docscheck rule that fails when a
+`GOTOOLCHAIN=local make docs-check` includes docscheck rules that fail when a
 public `doc.go` reintroduces the placeholder `Package X provides X utilities`
-shape.
+shape, when stable or supported-adapter package comments fall below the minimum
+depth expected by this standard, or when supported-adapter contract evidence
+points at an implementation file instead of the canonical `doc.go`.

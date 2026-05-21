@@ -2146,7 +2146,8 @@ func TestSupportedAdaptersHaveCompleteEvidence(t *testing.T) {
 		if cls.TestStatus != "direct-tests" {
 			missing = append(missing, cls.ImportPath+" has test_status "+cls.TestStatus+", want direct-tests")
 		}
-		if _, ok := contracts[cls.ImportPath]; !ok {
+		contract, ok := contracts[cls.ImportPath]
+		if !ok {
 			missing = append(missing, cls.ImportPath+" is missing from docs/supported-adapter-contracts.tsv")
 		}
 		if !driftPackages[cls.ImportPath] {
@@ -2163,11 +2164,42 @@ func TestSupportedAdaptersHaveCompleteEvidence(t *testing.T) {
 		docPath := filepath.Join(contribPackageDir(repoRoot, cls.ImportPath), "doc.go")
 		if _, err := os.Stat(docPath); err != nil {
 			missing = append(missing, cls.ImportPath+" is missing package docs at "+docPath)
+		} else if ok {
+			docEvidence := "package docs in " + slashRel(repoRoot, docPath)
+			if !strings.Contains(contract.Evidence, docEvidence) {
+				missing = append(missing, cls.ImportPath+" contract evidence must cite "+docEvidence)
+			}
 		}
 	}
 	sort.Strings(missing)
 	if len(missing) > 0 {
 		t.Fatalf("supported-adapter evidence is incomplete:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
+func TestStableAndSupportedAdapterPackageDocsMeetMinimumDepth(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	var weak []string
+
+	for _, cls := range classes {
+		if cls.APIStatus != "stable" && cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
+		if dir == "" {
+			weak = append(weak, cls.ImportPath+" has unsupported import path for package-doc check")
+			continue
+		}
+		docPath := filepath.Join(dir, "doc.go")
+		comment := packageDocCommentText(t, docPath)
+		if len(strings.Fields(comment)) < 25 {
+			weak = append(weak, slashRel(repoRoot, docPath)+" has package docs below the minimum depth for "+cls.APIStatus)
+		}
+	}
+	sort.Strings(weak)
+	if len(weak) > 0 {
+		t.Fatalf("stable and supported-adapter package docs below minimum depth:\n%s", strings.Join(weak, "\n"))
 	}
 }
 
@@ -4157,6 +4189,35 @@ func contribPackageDir(repoRoot, importPath string) string {
 		return filepath.Join(repoRoot, "contrib")
 	}
 	return filepath.Join(repoRoot, "contrib", filepath.FromSlash(rel))
+}
+
+func classifiedPackageDir(repoRoot, importPath string) string {
+	rootV3Module := rootModulePath + "/v3"
+	switch {
+	case importPath == rootV3Module:
+		return repoRoot
+	case strings.HasPrefix(importPath, rootV3Module+"/"):
+		rel := strings.TrimPrefix(importPath, rootV3Module+"/")
+		return filepath.Join(repoRoot, filepath.FromSlash(rel))
+	case importPath == contribModulePath || strings.HasPrefix(importPath, contribModulePath+"/"):
+		return contribPackageDir(repoRoot, importPath)
+	default:
+		return ""
+	}
+}
+
+func packageDocCommentText(t *testing.T, path string) string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	if file.Doc == nil || strings.TrimSpace(file.Doc.Text()) == "" {
+		t.Fatalf("%s missing package doc comment", path)
+	}
+	return file.Doc.Text()
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {

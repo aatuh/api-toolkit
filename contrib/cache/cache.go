@@ -1,4 +1,3 @@
-// Package cache defines supported contrib cache contracts for adapters.
 package cache
 
 import (

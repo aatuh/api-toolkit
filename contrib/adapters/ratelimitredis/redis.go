@@ -1,4 +1,3 @@
-// Package ratelimitredis provides Redis-backed rate limiting.
 package ratelimitredis
 
 import (

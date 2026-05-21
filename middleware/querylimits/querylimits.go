@@ -1,4 +1,3 @@
-// Package querylimits provides query parameter guardrails.
 package querylimits
 
 import (
