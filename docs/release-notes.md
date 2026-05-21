@@ -3,6 +3,16 @@
 Audience: release consumers and maintainers who need dated behavior changes,
 upgrade notes, and package-tied compatibility acknowledgements.
 
+## Current release guidance
+
+| Need | Current guidance |
+| --- | --- |
+| Exact release commands and supported `API_BASE_REF` | Use `docs/release-runbook.md`; do not maintain a second baseline table here. |
+| User-visible behavior, migration notes, and compatibility acknowledgements | Add dated entries in this file. Keep historical entries historical unless later guidance would otherwise mislead readers. |
+| Stable surface changes | Update `VERSIONING.md`, package docs, compatibility docs, release notes, and docscheck coverage together. |
+| Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |
+| Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.1`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
+
 ## Release checklist
 
 For stable surface changes, deprecations, or compatibility-sensitive updates,

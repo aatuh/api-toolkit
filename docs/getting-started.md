@@ -3,6 +3,14 @@
 Audience: new users who want a runnable production-oriented API skeleton with
 the standard service wiring already in place.
 
+## Prerequisites
+
+- Go 1.25.x.
+- Make.
+- curl for the local HTTP checks.
+- Docker only for generated Docker Compose, integration, or database-backed
+  checks; the first-run path below stays local.
+
 ## 1) Generate a service
 
 ```sh

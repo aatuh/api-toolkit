@@ -83,134 +83,26 @@ Goal:
 
 ## Security-sensitive helper ownership
 
-- API key auth extracts credentials and enforces verifier decisions. Store,
-  hash, rotate, and revoke keys in application-owned verifier code.
-- Generated full-profile API-key management returns raw key secrets only from
-  the create response, stores only peppered SHA-256 hashes, displays non-secret
-  prefixes, tracks `last_used_at` during verification, and requires admin role
-  checks for create/list/revoke. API-key auth mode keeps `API_KEY` as a
-  bootstrap setup credential and verifies generated keys through the generated
-  API-key service when the bootstrap key does not match. Generated keys are
-  scope-checked, bound to their organization, and rejected after revocation.
-  Set `API_KEY_PEPPER` explicitly in production and keep raw key secrets out of
-  logs, metrics, Problem Details, and examples.
-- Generated full-profile invitation services return raw invitation tokens only
-  from the creation use case, store token hashes, reject wrong or replayed
-  tokens, and require role checks before invitation creation. Do not log raw
-  invitation tokens or include them in Problem Details responses.
-- Generated full-profile organization and invitation HTTP routes require
-  authentication, `Idempotency-Key` on unsafe writes, role-aware application
-  checks, and matching `X-Tenant-ID`/organization path values for
-  organization-scoped routes. API-key full-profile scaffolds use
-  `API_ACTOR_ID` for bootstrap-key actor identity; the `X-Actor-ID` request
-  header is only a non-production fallback for exercising role flows before a
-  generated scoped API key exists.
-- Generated full-profile async widget imports keep operation polling
-  tenant-scoped, reuse `Idempotency-Key` for replay-safe acceptance, and store
-  sanitized operation failure problems. Do not put raw request payloads,
-  provider errors, secrets, tenant identifiers, or idempotency keys into async
-  logs, metrics labels, Problem Details, or operation results.
-- Generated full-profile Postgres startup checks should fail closed before
-  serving production traffic when `DATABASE_URL` is configured but the database
-  is unreachable or required tables are missing. Readiness and admin detailed
-  health expose only generic unavailable responses; keep DSNs, SQL errors, and
-  migration details in operator logs, not HTTP Problem Details.
-- Generated full-profile audit hooks record write actions without raw API-key
-  secrets, invitation tokens, idempotency keys, authorization headers, request
-  payloads, or provider errors. Treat audit metadata as allow-listed operational
-  context only; anything credential-shaped should be dropped before recording.
-- Tenant middleware compares configured tenant sources before handlers run. Use
-  `RequireAllSources` for routes that must prove a request header or URL tenant
-  matches the authenticated tenant scope.
-- Generated full-profile JWT, Clerk, and OIDC modes validate issuer, audience,
-  allowed algorithms, and JWKS material before handlers run. Tenant-scoped
-  routes fail closed when the bearer token tenant claim does not match
-  `X-Tenant-ID`; protected writes also require the route-specific scope.
-- OAuth2 helpers standardize claims and scopes only after a validator verifies
-  issuer, audience, expiry, JWKS material, and tenant mapping. The supported
-  contrib OIDC middleware provides provider-neutral JWKS validation and claim
-  mapping for API bearer tokens; keep issuer, audience, discovery URL, and JWKS
-  URL as trusted operator configuration and do not enable skip headers outside
-  explicit development bypass policy.
-- Upload helpers reject malformed, oversized, missing, or disallowed multipart
-  files. Scan and persist untrusted content outside core helpers.
-- Webhook helpers verify inbound signatures and optional replay windows. The
-  supported outbound webhook delivery package signs tenant-scoped events,
-  rejects unsafe endpoint headers, keeps endpoint signing secrets out of async
-  job payloads, and records only sanitized attempt results. The Postgres
-  adapter loads signing material through an application-owned resolver instead
-  of storing raw endpoint secrets in webhook endpoint rows. Keep receiver
-  allow-lists, SSRF-aware transports, duplicate suppression, provider schemas,
-  and endpoint-secret rotation in application-owned code.
-- Generated full-profile webhook endpoint creation returns the signing secret
-  once and omits it from endpoint lists, delivery lists, replay responses,
-  audit metadata, and Problem Details. When `DATABASE_URL` is configured, the
-  generated Postgres store requires `WEBHOOK_SECRET_KEY` and encrypts endpoint
-  signing secrets before persistence so workers can sign future deliveries
-  without storing raw secrets in response-visible state. Treat webhook target
-  URLs as operator or tenant-admin input only; production delivery workers
-  should use SSRF-aware outbound transports and receiver allow-lists where your
-  threat model requires them.
-- Webhook delivery metrics and request-log hooks expose only bounded event
-  type, outcome, and status-class labels. Do not add tenant IDs, endpoint IDs,
-  delivery IDs, URLs, request bodies, secrets, or raw receiver errors to those
-  observations.
-- Optional generated provider workflows are app-owned starter boundaries, not
-  root-module provider dependencies. `stripe-billing` must verify signed webhook
-  payloads before tenant-scoped audit writes; `resend-email` must keep raw
-  invitation tokens and full recipients out of logs and audit metadata; and
-  `clerk-webhooks` must reject bad signatures and tenant mismatches before sync
-  hooks run. Keep provider API keys, webhook secrets, and callback payloads out
-  of Problem Details, OpenAPI examples, metrics labels, and generated audit
-  metadata.
-- Optional generated entitlements are provider-neutral app-owned boundaries.
-  Generated full services persist billing mappings separately from public plan
-  snapshots and expose only plan IDs, enabled features, quota limits, and usage
-  counters. Keep billing customer IDs, subscription IDs, raw quota payloads, and
-  tenant IDs out of metric labels and public errors; billing webhooks should
-  update app-owned mappings before changing tenant entitlements.
-- `contrib/entitlements` decisions intentionally exclude tenant, customer, and
-  subscription identifiers. Preserve that property in adapters and observers:
-  metric labels should use bounded feature and outcome labels only.
-- The generated `saas-web` profile is isolated from API-first scaffolds. Cookie
-  sessions must use HttpOnly, Secure, and SameSite defaults; CSRF tokens must be
-  compared in constant time; login callback state must be validated before
-  session rotation; production startup must require a strong `SESSION_SECRET`;
-  browser CORS must never use wildcard credentials; and raw session IDs or CSRF
-  tokens must not appear in logs, metrics, audit metadata, OpenAPI examples, or
-  Problem Details.
-- Generated migration `down` commands are guarded for local/schema-teardown
-  only. Do not enable `ALLOW_DANGEROUS_MIGRATION_DOWN=true` in shared or
-  production environments, and review `migrate plan`/`migrate verify` output
-  before rollout.
-- Generated observability, Helm, and Terraform starters are templates, not a
-  substitute for environment-specific network policy and secret management.
-  Keep Terraform state, Helm values, Kubernetes Secret manifests, DSNs, API keys,
-  provider tokens, and object-store credentials out of source control.
-- Generated full-profile cache wiring keeps local development in memory and
-  uses Redis only when `CACHE_STORE=redis` or production defaults select it.
-  Keep cache keys application-owned and low sensitivity; do not store API-key
-  secrets, invitation tokens, webhook signing secrets, provider secrets, or raw
-  request payloads in shared cache values.
-- Generated full-profile idempotency wiring uses the core middleware with
-  tenant-aware hashed storage keys. `IDEMPOTENCY_STORE=redis` keeps replay state
-  outside the process for multi-instance services; logs and metrics must remain
-  limited to bounded outcome labels and must not include raw `Idempotency-Key`
-  values or replay response bodies.
-- Object storage helpers validate bucket/key references, enforce content-type
-  and size policy, and reject secret-shaped metadata. Treat object payloads as
-  untrusted content: scan before use, keep S3 endpoints as trusted operator
-  configuration rather than tenant input, and avoid logging object keys when
-  they can encode user-provided names or personal data.
-- Generated full-profile object routes reject traversal-shaped keys, nested
-  keys, hidden-file-shaped keys, unsupported content types, and oversized
-  payloads. Create/list responses and validation Problem Details do not echo
-  object payloads; read responses intentionally return object content to
-  authorized callers only. The generated Postgres object metadata store keeps
-  tenant ID, object key, content type, size, and timestamps only; it must not
-  store object payload bytes or user-supplied secret metadata.
-- Cookbook recipes for these helpers live in `docs/cookbook.md`; keep this
-  security document focused on ownership boundaries and production caveats.
+| Area | Toolkit/generated responsibility | Application/operator responsibility |
+| --- | --- | --- |
+| API keys | Core API-key auth extracts credentials and enforces verifier decisions. Generated full-profile API-key management returns raw key secrets only from create responses, stores peppered SHA-256 hashes, displays non-secret prefixes, tracks `last_used_at`, scope-checks keys, and rejects revoked keys. | Store, rotate, and revoke keys in application-owned verifier code. Set `API_KEY_PEPPER` explicitly in production and keep raw keys out of logs, metrics, Problem Details, examples, and release evidence. |
+| Invitations and tenant routes | Generated invitation services store token hashes, reject wrong or replayed tokens, require role checks, and return raw invitation tokens only from creation. Organization-scoped routes require authentication, `Idempotency-Key` on unsafe writes, role checks, and matching `X-Tenant-ID`/organization path values. | Do not log raw invitation tokens. Use `API_ACTOR_ID` for bootstrap-key actor identity; `X-Actor-ID` is only a non-production fallback before generated scoped API keys exist. |
+| Idempotency | Generated unsafe writes use `Options.RequireKey`, return Problem Details 400 when required keys are missing, and use `TenantScopedStorageKeyFunc()` for tenant-aware hashed storage keys. `IDEMPOTENCY_STORE=redis` keeps replay state outside the process for multi-instance services. | Keep logs and metrics limited to bounded outcome labels. Do not record raw `Idempotency-Key` values or replay response bodies. Adapter legacy idempotency recovery events hash keys by default; raw keys should stay disabled in production. |
+| Rate limits, cache, and Redis | Generated services default to memory for local development and use Redis when `CACHE_STORE=redis`, `RATE_LIMIT_STORE=redis`, `IDEMPOTENCY_STORE=redis`, or production defaults select it. Rate-limit keys are derived from actor, tenant, method, and route path. | Use service-specific Redis prefixes. Keep cache/rate-limit keys low sensitivity and never store API-key secrets, invitation tokens, webhook signing secrets, provider secrets, object keys, or raw request payloads in shared cache values. |
+| Postgres and migrations | When `DATABASE_URL` is configured, generated startup checks open a pgx pool, check required platform tables, and fail readiness/admin health closed if Postgres is unavailable. Generated migration `down` commands require `ALLOW_DANGEROUS_MIGRATION_DOWN=true` plus the CLI guard. | Keep DSNs, SQL errors, migration details, and Terraform state in operator-only logs or secret stores. Review `migrate plan` and `migrate verify` before rollout; do not enable dangerous down guards in shared or production environments. |
+| Auth providers and OAuth/OIDC | Generated JWT, Clerk, and OIDC modes validate issuer, audience, algorithms, and JWKS material before handlers run. Tenant-scoped bearer routes fail closed on tenant mismatch. OAuth2 helpers standardize claims only after validator checks. | Keep issuer, audience, discovery URL, and JWKS URL as trusted operator configuration. Do not enable skip headers outside explicit development bypass policy. |
+| Webhooks and providers | Core webhook helpers verify signatures and replay windows. Generated outbound webhook routes omit signing secrets from list, delivery, replay, audit, and Problem Details surfaces. With `DATABASE_URL`, `WEBHOOK_SECRET_KEY` encrypts endpoint signing secrets before persistence. Optional provider workflows verify signed callbacks before tenant-scoped audit writes. | Keep receiver allow-lists, SSRF-aware transports, duplicate suppression, provider schemas, endpoint rotation, and provider API keys app-owned. Do not put callback payloads, endpoint URLs, receiver errors, or provider secrets in Problem Details, metrics labels, OpenAPI examples, or audit metadata. |
+| Audit and observability | Generated audit hooks record write actions with redaction-safe metadata. Webhook/request-log hooks expose bounded event type, outcome, and status-class labels. `OTEL_TRACING_ENABLED=false` by default; when tracing is enabled, `OTEL_EXPORTER_OTLP_ENDPOINT` is required and the tracer provider is closed during shutdown. | Treat audit metadata as allow-listed operational context only. Keep tenant IDs, endpoint IDs, delivery IDs, URLs, request bodies, secrets, raw provider errors, and unbounded user input out of logs, traces, metrics labels, dashboards, and release evidence. |
+| Uploads and object storage | Upload helpers reject malformed, oversized, missing, or disallowed multipart files. Object helpers validate bucket/key references, content-type, size, and secret-shaped metadata. Generated object routes reject traversal-shaped, nested, hidden-file-shaped, unsupported, and oversized keys. | Scan and persist untrusted content outside core helpers. Keep S3 endpoints trusted operator configuration, not tenant input, and avoid logging object keys when they can encode personal data. |
+| Browser sessions | The generated `saas-web` profile is isolated from API-first scaffolds and emits HttpOnly/Secure/SameSite cookies, CSRF middleware, Redis-backed session-store boundaries, OIDC callback state validation, safe browser CORS, and production `SESSION_SECRET` checks. | Keep raw session IDs and CSRF tokens out of logs, metrics, audit metadata, OpenAPI examples, and Problem Details. Browser CORS must never use wildcard credentials. |
+| Deployment starters | Generated observability, Helm, Kubernetes, and Terraform starters document expected checks and placeholders. | Treat starters as templates. Keep Terraform state, Helm values, Kubernetes Secret manifests, DSNs, API keys, provider tokens, and object-store credentials out of source control. |
+
+Tenant middleware compares configured tenant sources before handlers run. Use
+`RequireAllSources` for routes that must prove a request header or URL tenant
+matches the authenticated tenant scope. Cookbook recipes for these helpers live
+in `docs/cookbook.md`; scaffold-specific setup and operations live in
+`docs/full-service-scaffold.md`, `docs/reference-service.md`, and
+`examples/reference-saas-api/`.
 
 ## OWASP Mapping (Resource Consumption)
 

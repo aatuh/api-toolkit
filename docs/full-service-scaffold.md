@@ -16,62 +16,21 @@ The profile is still a scaffold, not a hosted product framework. Generated code
 should remain ordinary Go that application teams can own, edit, test, and
 delete.
 
-Current implementation status: the generator emits the initial full-profile
-foundation with API-key auth, tenant-scoped widget writes, idempotent create
-replay, optimistic-update ETags, contrib migrator-compatible Postgres
-`*.up.sql` migrations, Docker Compose with a dedicated migration service,
-Postgres and Redis, optional MinIO, base Kubernetes manifests, OpenAPI golden
-checks, contract lint/diff targets, generated HTTP smoke tests, and a generated
-widget import operation that returns `202 Accepted` and can be polled. The
-scaffold now also emits `api-toolkit.yaml`, which lets
-`api-toolkit generate resource` add tenant-scoped CRUD resources through
-generated anchors rather than arbitrary source rewriting. Widgets are sample
-app-owned domain code meant to be replaced or complemented by generated
-product resources. The generated
-application layer now includes organizations, memberships,
-invitations, role checks, hashed invitation-token storage, and single-use
-invitation acceptance. It also includes generated API-key lifecycle services
-and routes for create/list/revoke, scoped permissions, last-used tracking, and
-peppered SHA-256 secret hashes. In API-key auth mode, generated API keys can
-authenticate tenant-scoped protected routes after the static bootstrap key is
-used for initial setup. The generated HTTP router exposes these workflows with
-OpenAPI contracts and generated Go client methods. Generated
-write routes now record audit events with actor, tenant, action, resource,
-result, request ID, and redaction-safe metadata. The generated HTTP layer now
-also includes outbound webhook event catalog, endpoint create/list, delivery
-list, and replay routes; widget writes enqueue tenant-scoped webhook delivery
-records for subscribed endpoints without exposing signing secrets. It includes
-tenant-scoped object routes with strict key, content-type, and size policy.
-Reusable building blocks now exist for durable operations, transactional
-outbox work, S3-compatible object storage, OpenAPI 3.1, and generated Go
-client output; the generated S3 object path now persists object metadata
-through a Postgres adapter when `DATABASE_URL` is configured.
-When `DATABASE_URL` is configured, the generated binary opens a pgx pool,
-checks required platform tables at startup, and makes readiness/admin health
-fail closed if Postgres becomes unavailable.
-Generated full-profile services now also wrap public traffic with the contrib
-Prometheus metrics middleware and serve the standard Prometheus handler only
-from the admin router, with route-pattern labels instead of raw paths.
-They also mount the standard Go pprof handlers through the core admin pprof
-helper, so profiling stays behind the generated admin authentication wrapper.
-The generated binary now uses `bootstrap.NewAPIService` as its composition
-root, including strict SaaS middleware order validation, public/admin listener
-splitting, safe system endpoint mounting, graceful shutdown, and background
-worker lifecycle management. It exposes `/livez` separately from `/readyz`:
-liveness is process-only, while readiness reflects configured Postgres/Redis
-dependencies. Runtime OpenAPI request validation is enabled by default, and
-response validation is enabled in development/test or by setting
-`OPENAPI_RESPONSE_VALIDATION=true`. The CLI now also includes the optional
-TypeScript fetch client generator, observability bundle generator, Helm chart
-starter, AWS Terraform dependency starter, OpenAPI changelog/impact commands,
-and a separate `saas-web` session profile so browser-session concerns stay out
-of API-first scaffolds. `saas-web` emits secure cookie sessions, CSRF
-middleware, memory and Redis-backed session-store boundaries, OIDC callback
-state validation, safe browser CORS, and production startup checks.
-Contract lint/diff tooling covers OpenAPI 3.1 nullable/examples, schema
-composition review metadata, callbacks/webhooks, multipart request bodies,
-binary and streaming responses, schema default changes, enum widening/narrowing,
-and generated-client compatibility assumptions.
+## Current Capability Status
+
+| Area | Status | Evidence |
+| --- | --- | --- |
+| Runtime foundation | Implemented: API-key auth, tenant-scoped widget writes, idempotent create replay, optimistic-update ETags, durable async widget imports returning `202 Accepted`, Postgres migrations, Redis-backed runtime state, Docker Compose, optional MinIO, and generated HTTP smoke tests. | Runtime contract below; `examples/reference-saas-api`; `make full-profile-scaffold-check`. |
+| App-owned resources | Implemented: `api-toolkit.yaml` lets `api-toolkit generate resource` add tenant-scoped CRUD resources through generated anchors. Widgets are sample app-owned domain code meant to be replaced or complemented by generated product resources. | Resource generator tests and generated README guidance. |
+| Tenant model | Implemented: organizations, memberships, invitations, role checks, hashed invitation-token storage, single-use invitation acceptance, scoped API keys, last-used tracking, and peppered SHA-256 API-key hashes. | Generated app tests, OpenAPI contracts, and typed Go client output. |
+| API surface | Implemented: organization and membership routes, invitation flows, API-key lifecycle routes, tenant-scoped widgets, durable async operations, outbound webhook delivery and replay, and tenant-scoped object routes with strict key, content-type, and size policy. | OpenAPI golden checks, contract lint/diff targets, generated Go client methods. |
+| Persistence and readiness | Implemented: Postgres stores platform tables and S3 object metadata when `DATABASE_URL` is configured; startup opens a pgx pool, checks required platform tables, and makes readiness/admin health fail closed when Postgres is unavailable. | Runtime contract below; migration lifecycle checks. |
+| Observability and admin | Implemented: contrib Prometheus metrics middleware, admin-only metrics, route-pattern labels instead of raw paths, and Go pprof mounted through the core admin pprof helper behind generated admin authentication. | Observability assets, admin route tests, reference-service evidence. |
+| Composition root | Implemented: `bootstrap.NewAPIService` owns public/admin listener splitting, strict SaaS middleware order validation, safe system endpoint mounting, graceful shutdown, and background worker lifecycle management. | Bootstrap tests and generated service checks. |
+| Health and validation | Implemented: `/livez` is process-only, `/readyz` reflects configured Postgres/Redis dependencies, request validation is enabled by default, and response validation is enabled in development/test or with `OPENAPI_RESPONSE_VALIDATION=true`. | Runtime contract below; OpenAPI middleware checks. |
+| Deployment and operations | Implemented starter assets: base Kubernetes manifests, Helm chart starter, AWS Terraform dependency starter, observability bundle, OpenAPI changelog/impact commands, and opt-in Docker integration tests. | Generated deployment docs and `examples/reference-saas-api`. |
+| API-first boundary | Maintained: `saas-web` is a separate session profile with secure cookie sessions, CSRF middleware, Redis-backed session-store boundaries, OIDC callback state validation, safe browser CORS, and production startup checks, so browser-session concerns stay out of API-first scaffolds. | `saas-web` generator tests. |
+| Contract tooling | Implemented: OpenAPI 3.1 nullable/examples, schema composition review metadata, callbacks/webhooks, multipart request bodies, binary and streaming responses, schema default changes, enum widening/narrowing, and generated-client compatibility assumptions. | Contract lint/diff, changelog, and impact commands. |
 
 ## Runtime Contract
 
