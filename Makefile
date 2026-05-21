@@ -1,5 +1,7 @@
 MODULES := . contrib
 GO ?= go
+GOWORK ?= off
+export GOWORK
 
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
