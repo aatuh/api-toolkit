@@ -1710,11 +1710,43 @@ The generated bundle assumes bounded labels only: route, method, code class, dep
 - Async processing: outbox pending jobs drain and dead letters are investigated.
 - Webhook delivery: dead letters trigger operator review and replay after the receiver is fixed.
 
-## Operator Actions
+## Verification
+
+Run deterministic asset checks before editing dashboards or rules:
+
+` + "```sh" + `
+make observability-check
+make asset-check
+` + "```" + `
+
+After deployment, confirm:
+
+- The public API exports bounded HTTP metrics by route, method, and code class.
+- ` + "`/metrics`" + `, ` + "`/health/detailed`" + `, and ` + "`/debug/pprof/`" + ` are reachable only through the admin listener or internal admin Service.
+- Alert rules load successfully in the target Prometheus-compatible system.
+- The dashboard imports without adding tenant, user, email, API-key, idempotency-key, or raw path labels.
+
+## Triage
 
 - For readiness failures, inspect Postgres and Redis health before restarting workloads.
 - For idempotency or rate-limit spikes, verify client retry behavior and route policies.
 - For admin endpoint isolation, confirm metrics, pprof, and detailed health are reachable only through the internal admin service or admin listener.
+- For outbox backlog or webhook dead letters, inspect worker health, receiver errors, retry classification, and replay safety before manual replay.
+- For high 5xx rates, compare route, code class, dependency health, recent deploys, and migration status. Keep user-specific values out of labels and incident notes unless there is an explicit support need.
+
+## Evidence To Record
+
+| Evidence | Record |
+| --- | --- |
+| Asset validation | ` + "`make observability-check`" + ` or ` + "`make asset-check`" + ` result. |
+| Dashboard review | Dashboard version, data source, imported panel count, and confirmation that labels stay bounded. |
+| Alert review | Rule file version, loaded rule group names, and firing/resolved state. |
+| Admin isolation | Network path used to reach admin metrics, detailed health, and pprof. |
+| Incident | Time window, route/code-class/dependency labels, action taken, and whether any secret or personal data was deliberately excluded. |
+
+## Privacy And Secret Handling
+
+Do not add tenant IDs, user IDs, emails, API keys, admin keys, webhook secrets, idempotency keys, raw URLs, request bodies, provider payloads, or object keys to metric labels, traces, dashboard variables, alert annotations, or screenshots used as release evidence.
 `
 
 const helmChartTemplate = `apiVersion: v2
@@ -1941,6 +1973,84 @@ stringData:
 const helmReadmeTemplate = `# Helm Starter
 
 This chart packages the generated API server, worker, migration Job, admin Service, probes, resources, NetworkPolicy, HPA, PDB, and secret/config references. The admin Service is internal-only by default.
+
+## Prerequisites
+
+- Helm 3 and access to the target Kubernetes cluster.
+- A built application image pushed to a registry the cluster can pull from.
+- A Secret named by ` + "`secretName`" + ` that contains the generated service environment keys from ` + "`.env.example`" + `.
+
+## Required Values
+
+| Value | Purpose |
+| --- | --- |
+| ` + "`image.repository`" + ` and ` + "`image.tag`" + ` | API, worker, and migration image. |
+| ` + "`secretName`" + ` | Existing Secret consumed through ` + "`envFrom`" + `. |
+| ` + "`api.replicas`" + ` and ` + "`worker.replicas`" + ` | API and worker replica counts. |
+| ` + "`adminService.enabled`" + ` and ` + "`adminService.port`" + ` | Internal admin listener exposure. |
+| ` + "`migration.enabled`" + ` | Whether the migration Job is installed with the chart. |
+| ` + "`resources`" + ` and ` + "`autoscaling`" + ` | Starter requests, limits, and HPA bounds. |
+
+## Required Secrets
+
+At minimum, provide ` + "`DATABASE_URL`" + `, ` + "`REDIS_ADDR`" + ` when Redis-backed stores are enabled, ` + "`API_KEY`" + `, ` + "`ADMIN_KEY`" + `, ` + "`API_KEY_PEPPER`" + `, and ` + "`WEBHOOK_SECRET_KEY`" + `. Add S3 and provider secrets only when those generated features are enabled. Use placeholders in examples; never commit live secret values.
+
+## Validate
+
+` + "```sh" + `
+helm lint deploy/helm
+helm template api-toolkit deploy/helm --values deploy/helm/values.yaml >/tmp/api-toolkit-rendered.yaml
+kubectl apply --dry-run=server -f /tmp/api-toolkit-rendered.yaml
+` + "```" + `
+
+## Admin Isolation
+
+Keep the admin Service reachable only from operator namespaces or private networking. Do not expose ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, or ` + "`/debug/pprof/`" + ` through the public ingress.
+
+## Non-goals
+
+The chart is a starter, not a hosted platform. It does not choose an ingress controller, certificate issuer, external secret manager, cluster autoscaler, or cloud account layout.
+`
+
+const kubernetesReadmeTemplate = `# Kubernetes Starter
+
+These manifests are direct Kubernetes starters for the generated API server, worker, migration Job, public Service, internal admin Service, NetworkPolicy, HPA, PDB, ConfigMap, and Secret placeholder.
+
+## Prerequisites
+
+- A target namespace and image pull access for the generated application image.
+- Postgres and Redis endpoints reachable from the namespace.
+- A Secret created from ` + "`secret.example.yaml`" + ` with placeholder values replaced outside Git.
+
+## Required Configuration
+
+| File | Required review |
+| --- | --- |
+| ` + "`configmap.yaml`" + ` | Public/admin bind addresses, Redis-backed store modes, validation flags, worker enablement, and object-store mode. |
+| ` + "`secret.example.yaml`" + ` | ` + "`database-url`" + `, ` + "`redis-addr`" + `, ` + "`api-key`" + `, ` + "`admin-key`" + `, ` + "`api-key-pepper`" + `, and ` + "`webhook-secret-key`" + ` placeholders. |
+| ` + "`deployment.yaml`" + ` | API image, read-only filesystem, probes, secret references, and ` + "`ASYNC_WORKER_ENABLED=false`" + ` when workers run separately. |
+| ` + "`worker-deployment.yaml`" + ` | Dedicated worker image, security context, and dependency secrets. |
+| ` + "`migration-job.yaml`" + ` | Migration image and command to run before API/worker rollout. |
+| ` + "`network-policy.yaml`" + ` | Public port, admin port, DNS, Postgres, Redis, and external HTTPS egress policy. |
+
+## Validate
+
+` + "```sh" + `
+kubectl apply --dry-run=server -f deploy/kubernetes/
+kubectl rollout status deployment/api
+kubectl rollout status deployment/api-worker
+kubectl get job api-migrate
+` + "```" + `
+
+Use a client inside the cluster or a controlled port-forward to verify ` + "`/livez`" + ` and ` + "`/readyz`" + `. Keep admin checks on the internal admin Service.
+
+## Admin Isolation
+
+` + "`admin-service.yaml`" + ` is ClusterIP and annotated internal-only. Restrict access to operator namespaces; do not route the admin port through the public Service or ingress.
+
+## Non-goals
+
+These manifests do not install Postgres, Redis, S3-compatible storage, ingress, certificates, external DNS, or secret-manager integrations.
 `
 
 const terraformAWSMainTemplate = `resource "aws_db_instance" "postgres" {
@@ -2030,6 +2140,46 @@ const terraformAWSReadmeTemplate = `# AWS Terraform Starter
 This starter creates dependency primitives for the generated service: RDS Postgres, ElastiCache Redis, an S3 bucket, IAM policy examples, and outputs that can be copied into Helm values or your deployment pipeline.
 
 It intentionally avoids choosing ECS or EKS application hosting. Wire these outputs into the platform you already operate.
+
+## Prerequisites
+
+- Terraform with an AWS provider configuration supplied by the caller.
+- A remote state backend configured by the application team before shared use.
+- Network, subnet, security-group, encryption, backup, and access-review decisions owned by the deployment platform.
+
+## Required Inputs
+
+| Variable | Purpose |
+| --- | --- |
+| ` + "`name`" + ` | Prefix for generated dependency names. |
+| ` + "`postgres_instance_class`" + ` | Starter RDS instance class. |
+| ` + "`postgres_username`" + ` | Database admin username. |
+| ` + "`postgres_password`" + ` | Sensitive database password; pass through a secret mechanism, not a committed tfvars file. |
+| ` + "`redis_node_type`" + ` | Starter Redis node type. |
+| ` + "`object_bucket_name`" + ` | S3 bucket name for object storage. |
+
+## Outputs To Wire Into The Service
+
+| Output | Service configuration |
+| --- | --- |
+| ` + "`database_endpoint`" + ` | Build the generated service ` + "`DATABASE_URL`" + ` secret. |
+| ` + "`redis_endpoint`" + ` | Set ` + "`REDIS_ADDR`" + ` when Redis stores are enabled. |
+| ` + "`object_bucket_name`" + ` | Set ` + "`S3_BUCKET`" + ` when ` + "`OBJECT_STORE=s3`" + `. |
+| ` + "`service_policy_arn`" + ` | Attach least-privilege object-store access to the runtime identity. |
+
+## Validate
+
+` + "```sh" + `
+terraform fmt -check
+terraform validate
+terraform plan -out=tfplan
+` + "```" + `
+
+Record the plan output location and reviewed inputs in deployment evidence. Do not paste secrets or full provider state into tickets, logs, or release notes.
+
+## Non-goals
+
+This starter does not choose the application host, Kubernetes cluster, ingress, DNS, certificate, secret manager, VPC topology, backup policy, or production sizing.
 `
 
 type resourceConfig struct {
@@ -7791,6 +7941,7 @@ var fullScaffoldFiles = []scaffoldFile{
 	{Name: "deploy/kubernetes/pod-disruption-budget.yaml", Body: fullKubernetesPDBTemplate},
 	{Name: "deploy/kubernetes/hpa.yaml", Body: fullKubernetesHPATemplate},
 	{Name: "deploy/kubernetes/network-policy.yaml", Body: fullKubernetesNetworkPolicyTemplate},
+	{Name: "deploy/kubernetes/README.md", Body: kubernetesReadmeTemplate},
 	{Name: "observability/grafana/saas-api-full-dashboard.json", Body: observabilityGrafanaDashboardTemplate},
 	{Name: "observability/prometheus/saas-api-full-rules.yaml", Body: observabilityPrometheusRulesTemplate},
 	{Name: "observability/runbooks/observability.md", Body: observabilityRunbookTemplate},
@@ -9631,18 +9782,50 @@ const providerRunbookTemplate = `# Provider Runbook
 
 Provider workflows are app-owned starter code. Local tests use fake providers and checked-in fixtures; live checks are opt-in through ` + "`RUN_PROVIDER_LIVE_CHECKS=true make provider-live-check`" + ` and must never run from default ` + "`make finalize`" + `.
 
-## Replay
+## Local Verification
 
 - Keep signed webhook fixtures under ` + "`testdata/providers`" + `.
 - Run ` + "`go run ./cmd/provider-replay --fixture-dir testdata/providers`" + ` or ` + "`make provider-check`" + ` before touching live sandbox credentials.
 - Reproduce provider callback failures with deterministic fixture payloads before using sandbox credentials.
 - Never paste live API keys, webhook secrets, customer IDs, invitation tokens, or callback bodies into issue trackers or logs.
 
+Expected local evidence:
+
+- ` + "`make provider-check`" + ` passes with fake providers.
+- ` + "`cmd/provider-replay`" + ` prints sanitized fixture summaries only.
+- Tenant mismatch and signature-failure fixtures stay rejected.
+
+## Live Sandbox Checks
+
+Live checks are operator-initiated only:
+
+` + "```sh" + `
+RUN_PROVIDER_LIVE_CHECKS=true make provider-live-check
+` + "```" + `
+
+Before running them, confirm credentials are loaded from a secret manager or local shell environment, not committed files. Afterward, rotate any temporary sandbox credential that was shared outside the normal secret path.
+
 ## Failure Modes
 
 - Signature failures: verify the configured secret and provider clock tolerance.
 - Tenant mismatch: reject the callback and inspect app-owned billing or identity mappings.
 - Provider outage: retry app-owned operations with idempotency keys and keep user-visible errors generic.
+
+## Triage
+
+1. Reproduce with ` + "`testdata/providers`" + ` fixtures and ` + "`cmd/provider-replay`" + `.
+2. Check whether the failure is signature verification, stale provider metadata, tenant mapping, idempotency collision, provider timeout, or downstream persistence.
+3. Record the fixture name, command, sanitized event type, tenant mapping result, and outcome. Do not record raw callback bodies or secrets.
+4. Use live sandbox credentials only after fixture reproduction fails to explain the issue.
+
+## Evidence To Record
+
+| Evidence | Record |
+| --- | --- |
+| Local replay | Command, fixture name, sanitized summary, and pass/fail. |
+| Provider tests | ` + "`make provider-check`" + ` result and package list. |
+| Live sandbox | Opt-in command, provider sandbox account, sanitized request ID, and result. |
+| Incident follow-up | Secret rotation decision, tenant mapping fix, retry/idempotency result, and user-visible message review. |
 `
 
 const providerStripeWebhookFixtureTemplate = `{
@@ -23952,30 +24135,98 @@ const fullReadmeTemplate = `# Generated api-toolkit Full SaaS API
 Generated profile: ` + "`{{ .Profile }}`" + `.
 Generated auth mode: ` + "`{{ .AuthMode }}`" + `.
 
-Run locally:
+This service is app-owned generated code. Keep the toolkit module replacements,
+runtime policy, and generated assets under your application's review process.
+
+## Quickstart
+
+Prerequisites: Go 1.25.x and Make. Docker is only needed for
+` + "`make integration-check`" + ` and optional MinIO-backed object storage evidence.
+
+1. Copy ` + "`.env.example`" + ` into your local environment mechanism and keep the
+   checked-in file placeholder-only.
+2. Run the deterministic local checks:
 
 ` + "```sh" + `
 make test
+make openapi-check
+make contracts-lint
+make contracts-diff
+` + "```" + `
+
+3. Start the API locally:
+
+` + "```sh" + `
 go run ./cmd/api
 ` + "```" + `
 
-Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata.
-When ` + "`DATABASE_URL`" + ` is set, ` + "`WEBHOOK_SECRET_KEY`" + ` must be a 32-byte raw or base64-encoded key used to encrypt webhook endpoint signing secrets at rest.
-Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis.
-When ` + "`DATABASE_URL`" + ` is set, startup opens a pgx pool, checks required platform tables, and readiness reflects database health.
-The generated binary uses ` + "`bootstrap.NewAPIService`" + ` for public/admin listeners, graceful shutdown, background workers, strict middleware order validation, and safe system endpoint mounting.
-` + "`cmd/worker`" + ` runs background jobs without serving public HTTP traffic. Set ` + "`ASYNC_WORKER_ENABLED=false`" + ` on API deployments when you run dedicated worker replicas.
-` + "`cmd/migrate`" + ` applies and checks contrib migrator-compatible SQL files under ` + "`migrations/`" + `. Docker Compose and Kubernetes assets run it before API/worker startup.
-` + "`/livez`" + ` is a process liveness probe and never checks Postgres, Redis, or S3; ` + "`/readyz`" + ` reflects configured dependencies.
-Runtime OpenAPI request validation is enabled by default. Response validation is enabled in development/test or when ` + "`OPENAPI_RESPONSE_VALIDATION=true`" + `.
-The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router.
-The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; the public router does not mount pprof when ` + "`ADMIN_ADDR`" + ` is set.
-Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata.
-The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation.
-Widgets are sample app-owned domain code. Replace or complement them with product resources generated by ` + "`api-toolkit generate resource`" + `.
-Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
-API-key mode keeps ` + "`API_KEY`" + ` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup. Bootstrap requests use ` + "`API_ACTOR_ID`" + ` for production actor identity; in non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` before a generated API key exists.
+Expected result: the public listener serves ` + "`/livez`" + ` and the admin listener
+serves authenticated health, metrics, and pprof routes when ` + "`ADMIN_ADDR`" + ` is set.
+
+## Configuration
+
+` + "`.env.example`" + ` documents local defaults only. Replace every production
+secret outside Git and keep real values in your runtime secret manager.
+
+| Key | Local default | Production requirement |
+| --- | --- | --- |
+| ` + "`ENV`" + ` | ` + "`development`" + ` | Set to your deployed environment name. |
+| ` + "`API_ADDR`" + ` | ` + "`:8080`" + ` | Bind the public API listener. |
+| ` + "`ADMIN_ADDR`" + ` | ` + "`:9090`" + ` | Bind the admin listener on an internal-only network. |
+| ` + "`DATABASE_URL`" + ` | empty | Required for Postgres persistence. Startup opens a pgx pool, checks required platform tables, and readiness reflects database health when this is set. |
+| ` + "`REDIS_ADDR`" + ` | ` + "`localhost:6379`" + ` | Required when cache, rate limit, or idempotency stores use Redis. |
+| ` + "`CACHE_STORE`" + ` | ` + "`memory`" + ` | Use ` + "`redis`" + ` for shared production cache state. |
+| ` + "`RATE_LIMIT_STORE`" + ` | ` + "`memory`" + ` | Use ` + "`redis`" + ` for shared production rate limits. |
+| ` + "`RATE_LIMIT_KEY_PREFIX`" + ` | ` + "`ratelimit:`" + ` | Use a service-specific prefix when Redis is shared. |
+| ` + "`IDEMPOTENCY_STORE`" + ` | ` + "`memory`" + ` | Use ` + "`redis`" + ` for shared production idempotency. |
+| ` + "`IDEMPOTENCY_KEY_PREFIX`" + ` | ` + "`idempotency:`" + ` | Use a service-specific prefix when Redis is shared. |
+| ` + "`OPENAPI_REQUEST_VALIDATION`" + ` | ` + "`true`" + ` | Keep enabled unless a route has a documented app-owned exception. |
+| ` + "`OPENAPI_RESPONSE_VALIDATION`" + ` | ` + "`true`" + ` | Usually disable in production unless the latency and error-mode tradeoff is accepted. |
+| ` + "`ASYNC_WORKER_ENABLED`" + ` | ` + "`true`" + ` | Set ` + "`false`" + ` on API deployments when dedicated worker replicas run ` + "`cmd/worker`" + `. |
+| ` + "`OBJECT_STORE`" + ` | ` + "`memory`" + ` | Use ` + "`s3`" + ` when object data must persist outside process memory. |
+| ` + "`S3_ENDPOINT`" + `, ` + "`S3_REGION`" + `, ` + "`S3_BUCKET`" + ` | local starter values | Required when ` + "`OBJECT_STORE=s3`" + `. |
+| ` + "`S3_ACCESS_KEY_ID`" + `, ` + "`S3_SECRET_ACCESS_KEY`" + ` | empty | Required secrets when S3-compatible credentials are used. |
+| ` + "`API_KEY`" + ` | ` + "`local-dev-key`" + ` | Bootstrap setup credential only; rotate and replace with generated scoped API keys after setup. |
+| ` + "`API_ACTOR_ID`" + ` | empty | Set a production actor identity for bootstrap requests. |
+| ` + "`API_KEY_PEPPER`" + ` | empty | Required high-entropy secret for managed API-key hashing in production. |
+| ` + "`WEBHOOK_SECRET_KEY`" + ` | empty | Required when ` + "`DATABASE_URL`" + ` is set; must be a 32-byte raw or base64-encoded key for encrypting webhook endpoint signing secrets at rest. |
+| ` + "`ADMIN_KEY`" + ` | ` + "`local-admin-key`" + ` | Required for ` + "`X-Admin-Key`" + ` on admin health, metrics, and pprof routes. |
+
+## Quality Checks
+
+| Command | Purpose |
+| --- | --- |
+| ` + "`make test`" + ` | Tidy modules and run unit tests. |
+| ` + "`make openapi-check`" + ` | Verify the OpenAPI golden file. |
+| ` + "`make contracts-lint`" + ` | Lint the OpenAPI contract. |
+| ` + "`make contracts-diff`" + ` | Compare the current OpenAPI contract with ` + "`OPENAPI_BASE`" + `. |
+| ` + "`make client-check`" + ` | Regenerate and compare the typed Go client. |
+| ` + "`make asset-check`" + ` | Validate generated observability and deployment assets. |
+| ` + "`make observability-check`" + ` | Validate dashboard and alert-rule assets. |
+| ` + "`make deploy-check`" + ` | Validate Helm, Kubernetes, and Terraform starter assets. |
+| ` + "`make provider-check`" + ` | Run fake-provider tests and replay checked-in provider fixtures when provider workflows are generated. |
+| ` + "`make integration-check`" + ` | Opt-in Docker smoke check for Postgres, Redis, API, worker, migrations, tenant routes, idempotency, outbox/webhooks, object readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. |
+| ` + "`make finalize`" + ` | Deterministic local gate: format, test, build, OpenAPI, contracts, asset checks, and clean. It does not run Docker or live provider checks. |
+
+## Runtime Surface
+
+| Area | Generated behavior |
+| --- | --- |
+| Persistence | Postgres stores tenants, API keys, widgets, operations, outbox, audit, webhook delivery state, and object metadata. |
+| Redis | Redis is used for shared idempotency, rate limiting, and cache state in production. Local development uses ` + "`CACHE_STORE=memory`" + `, ` + "`RATE_LIMIT_STORE=memory`" + `, and ` + "`IDEMPOTENCY_STORE=memory`" + ` unless you opt into Redis. |
+| Service bootstrap | The generated binary uses ` + "`bootstrap.NewAPIService`" + ` for public/admin listeners, graceful shutdown, background workers, strict middleware order validation, and safe system endpoint mounting. |
+| Worker | ` + "`cmd/worker`" + ` runs background jobs without serving public HTTP traffic. |
+| Migrations | ` + "`cmd/migrate`" + ` applies and checks contrib migrator-compatible SQL files under ` + "`migrations/`" + `. Docker Compose and Kubernetes assets run it before API/worker startup. |
+| Health | ` + "`/livez`" + ` is a process liveness probe and never checks Postgres, Redis, or S3; ` + "`/readyz`" + ` reflects configured dependencies. |
+| OpenAPI | Runtime OpenAPI request validation is enabled by default. Response validation is enabled in development/test or when ` + "`OPENAPI_RESPONSE_VALIDATION=true`" + `. |
+| Metrics and pprof | The public router emits bounded Prometheus HTTP request metrics, and ` + "`/metrics`" + ` is served only from the admin router. The admin router mounts real Go pprof handlers behind ` + "`X-Admin-Key`" + `; the public router does not mount pprof when ` + "`ADMIN_ADDR`" + ` is set. |
+| Audit | Write routes record audit events with redaction-safe metadata; raw API-key secrets, invitation tokens, webhook signing secrets, and idempotency keys are not audit metadata. |
+| API surface | The generated HTTP layer starts with organization creation/listing, member listing, invitation creation/acceptance, tenant isolation, tenant-scoped idempotent widget writes, async widget imports with pollable operation state, outbound webhook endpoint/delivery/replay routes, and strict tenant-scoped object storage routes. API-key, JWT, Clerk, and OIDC modes are wired with fail-closed startup validation. |
+| Sample domain | Widgets are sample app-owned domain code. Replace or complement them with product resources generated by ` + "`api-toolkit generate resource`" + `. |
 {{ if eq .HasProviderWorkflows "true" }}
+
+## Provider Workflows
+
 Optional provider workflows generated: {{ .ProviderWorkflows }}.
 {{ if eq .HasStripeBilling "true" }}` + "`internal/providers/stripebilling`" + ` creates tenant-scoped checkout sessions and verifies Stripe webhooks before audit writes.
 {{ end }}{{ if eq .HasResendEmail "true" }}` + "`internal/providers/resendemail`" + ` sends invitation emails through a sender boundary with a no-op local fallback.
@@ -23985,18 +24236,17 @@ Optional provider workflows generated: {{ .ProviderWorkflows }}.
 Provider SDKs and provider-specific imports stay in the generated app module; the toolkit root module remains provider-neutral.
 {{ end }}
 
-Useful checks:
-
-` + "```sh" + `
-make openapi-check
-make contracts-lint
-make contracts-diff
-make integration-check
-` + "```" + `
+## Production Caveats
 
 ` + "`make integration-check`" + ` is opt-in and starts Postgres and Redis through Docker Compose, applies the generated migration, hydrates module sums with ` + "`go mod tidy`" + `, runs ` + "`go test ./...`" + `, starts the worker and API on localhost, and performs HTTP smoke checks for liveness, readiness, OpenAPI, auth failure, tenant routes, managed API-key auth, idempotent widget writes, ETag conflict handling, async operation polling, outbox completion/retry behavior, webhook delivery/replay, object write/readback, audit writes, admin health, admin metrics, admin pprof, and public admin-route isolation. Set ` + "`INTEGRATION_OBJECT_STORE=s3`" + ` to include MinIO-backed S3 object storage in the same script. The default finalize target stays local and deterministic.
 
 Admin routes are intended for a separate listener when ` + "`ADMIN_ADDR`" + ` is set. Keep ` + "`/health/detailed`" + `, ` + "`/metrics`" + `, and ` + "`/debug/pprof/`" + ` behind admin authentication and network isolation.
+
+Unsafe write routes require ` + "`Idempotency-Key`" + `. Organization-scoped routes require ` + "`X-Tenant-ID`" + ` to match the organization path parameter.
+
+API-key mode keeps ` + "`API_KEY`" + ` as a bootstrap setup credential and verifies generated scoped API keys through the API-key service after setup. Bootstrap requests use ` + "`API_ACTOR_ID`" + ` for production actor identity; in non-production only, tests and local tools may send ` + "`X-Actor-ID`" + ` before a generated API key exists.
+
+Do not copy live API keys, admin keys, webhook secrets, S3 credentials, provider secrets, invitation tokens, idempotency keys, or raw callback bodies into logs, tickets, traces, metrics, or release evidence.
 `
 
 const goModTemplate = `module {{ .Module }}

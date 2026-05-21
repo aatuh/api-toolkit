@@ -1474,6 +1474,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"deploy/kubernetes/pod-disruption-budget.yaml",
 		"deploy/kubernetes/hpa.yaml",
 		"deploy/kubernetes/network-policy.yaml",
+		"deploy/kubernetes/README.md",
 		"README.md",
 	} {
 		if _, err := os.Stat(filepath.Join(serviceDir, name)); err != nil {

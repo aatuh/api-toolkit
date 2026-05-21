@@ -64,7 +64,7 @@ contrib-release-notes-check: tools ## Review gate requiring release notes for su
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
 
 full-profile-scaffold-check: ## Generate and validate the saas-api-full scaffold, clients, contracts, resource generator, providers, and web profile
-	@(cd contrib && $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
+	@(cd contrib && GOWORK="$${GOWORK:-off}" $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
 
 generated-integration-check: ## Opt-in Docker-backed generated saas-api-full integration check
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_integration_check.sh
