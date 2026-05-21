@@ -18,6 +18,12 @@ jobs:
           check-latest: true
       - name: Unit tests and coverage
         run: make coverage-check
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -s .ci-result/coverage/summary.md ]; then
+            cat .ci-result/coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Race tests
         run: make test-race
       - name: govulncheck

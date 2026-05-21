@@ -1857,6 +1857,46 @@ func TestReferenceServiceAppLocalDocsAreDiscoverable(t *testing.T) {
 	}
 }
 
+func TestReferenceServicePackageTestInventoryIsExplicit(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	packages := listedGoPackages(t, filepath.Join(repoRoot, "examples", "reference-saas-api"))
+	allowedNoDirectTests := map[string]string{
+		"example.com/reference-saas-api/cmd/api":                   "entrypoint exercised by reference-service-check and Docker integration evidence",
+		"example.com/reference-saas-api/cmd/migrate":               "entrypoint exercised by migration lifecycle and Docker integration evidence",
+		"example.com/reference-saas-api/cmd/worker":                "entrypoint exercised by worker wiring and Docker integration evidence",
+		"example.com/reference-saas-api/internal/client/apiclient": "generated typed client checked by client-check",
+		"example.com/reference-saas-api/internal/domain":           "domain value types exercised through app, adapter, and HTTP tests",
+	}
+
+	var missing []string
+	for _, pkg := range packages {
+		if pkg.DirectTestFiles > 0 {
+			continue
+		}
+		rationale, ok := allowedNoDirectTests[pkg.ImportPath]
+		if !ok || strings.TrimSpace(rationale) == "" {
+			missing = append(missing, pkg.ImportPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("reference service packages without direct tests need explicit inventory rationale:\n%s", strings.Join(missing, "\n"))
+	}
+
+	for importPath := range allowedNoDirectTests {
+		found := false
+		for _, pkg := range packages {
+			if pkg.ImportPath == importPath {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("reference service test inventory has stale package %s", importPath)
+		}
+	}
+}
+
 func TestTrashArchiveStaysOutOfActiveDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	archiveReadme := readText(t, filepath.Join(repoRoot, ".trash", "README.md"))
@@ -1893,8 +1933,15 @@ func TestCoverageCheckIncludesHighRiskPackageFloors(t *testing.T) {
 		"AUTH_AUTHZ_COVERAGE_MIN",
 		"AUTH_JWT_COVERAGE_MIN",
 		"AUTH_TENANT_COVERAGE_MIN",
+		"ENDPOINTS_DOCS_COVERAGE_MIN",
+		"HTTPX_IDENTITY_COVERAGE_MIN",
+		"HTTPX_RECOVER_COVERAGE_MIN",
 		"IDEMPOTENCY_COVERAGE_MIN",
+		"JSON_MIDDLEWARE_COVERAGE_MIN",
+		"MAXBODY_COVERAGE_MIN",
+		"QUERYLIMITS_COVERAGE_MIN",
 		"RATELIMIT_COVERAGE_MIN",
+		"SECURITYPROFILE_COVERAGE_MIN",
 		"WEBHOOKS_COVERAGE_MIN",
 		"HEALTH_COVERAGE_MIN",
 		"ROUTECONTRACTS_COVERAGE_MIN",
@@ -1920,6 +1967,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
+	referenceCoverageScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_coverage.sh"))
 	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
 	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
@@ -1932,6 +1980,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-check-minio:",
 		"generated-upgrade-compat-check:",
 		"reference-service-evidence:",
+		"reference-service-coverage:",
 		"reference-service-evidence-contract:",
 		"github-governance-check:",
 		"actions-audit:",
@@ -2003,10 +2052,22 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"${OUTPUT_DIR:-.ci-result}/coverage",
+		"reference-service.coverprofile",
+		"reference-service.func",
+		"reference-service-summary.md",
+		"app-owned evidence",
+	} {
+		if !strings.Contains(referenceCoverageScript, required) {
+			t.Fatalf("reference service coverage script missing %q", required)
+		}
+	}
+	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-upgrade-compat-check",
 		"make reference-service-evidence",
+		"make reference-service-coverage",
 		"make github-governance-check",
 		"make actions-audit",
 		"make coverage-check",
@@ -2033,6 +2094,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"CONTRIB_OPENAPI_COVERAGE_MIN",
 		"CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN",
 		"raise only after behavior tests are merged",
+		"reference-service-coverage",
 	} {
 		if !strings.Contains(coverageBacklog, required) {
 			t.Fatalf("coverage hardening backlog missing %q", required)

@@ -2,14 +2,20 @@ package securityprofile
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/v3/middleware/querylimits"
 )
 
 type stubMiddlewareChain struct {
@@ -309,6 +315,150 @@ func TestProfileApplyToUsesMinimalMiddlewareChain(t *testing.T) {
 
 	if len(chain.middlewares) != 2 {
 		t.Fatalf("expected 2 middlewares, got %d", len(chain.middlewares))
+	}
+}
+
+func TestNewRequiresAuthCheckWhenAuthIsRequired(t *testing.T) {
+	if _, err := New(); err == nil {
+		t.Fatal("expected auth check requirement")
+	}
+}
+
+func TestAuthAllowlistBypassesAuthCheck(t *testing.T) {
+	profile, err := New(
+		WithAuthCheck(func(*http.Request) bool { return false }),
+		WithAuthAllowlist("/healthz", "/docs/*"),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for _, path := range []string{"/healthz", "/docs/openapi.json"} {
+		t.Run(path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("expected allowlisted request to pass, got %d", rec.Code)
+			}
+		})
+	}
+}
+
+func TestAuthCheckAndCustomErrorWriter(t *testing.T) {
+	var capturedStatus int
+	var capturedProblem map[string]any
+	profile, err := New(
+		WithAuthCheck(func(r *http.Request) bool {
+			return r.Header.Get("Authorization") == "Bearer ok"
+		}),
+		WithErrorWriter(func(w http.ResponseWriter, status int, p httpx.Problem) {
+			capturedStatus = status
+			capturedProblem = map[string]any{
+				"type":   p.Type,
+				"title":  p.Title,
+				"detail": p.Detail,
+			}
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(capturedProblem)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	failRec := httptest.NewRecorder()
+	failReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/private", nil)
+	handler.ServeHTTP(failRec, failReq)
+	if failRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized, got %d", failRec.Code)
+	}
+	if capturedStatus != http.StatusUnauthorized {
+		t.Fatalf("captured status = %d, want 401", capturedStatus)
+	}
+	if capturedProblem["detail"] != "authentication required" {
+		t.Fatalf("captured problem = %#v", capturedProblem)
+	}
+
+	okRec := httptest.NewRecorder()
+	okReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/private", nil)
+	okReq.Header.Set("Authorization", "Bearer ok")
+	handler.ServeHTTP(okRec, okReq)
+	if okRec.Code != http.StatusNoContent {
+		t.Fatalf("expected authorized request to pass, got %d", okRec.Code)
+	}
+}
+
+func TestDevBypassDoesNotBypassWithoutDevBuildOrTrustedProxy(t *testing.T) {
+	profile, err := New(
+		WithAuthCheck(func(*http.Request) bool { return false }),
+		WithDevBypassHeader("X-Debug-Bypass", true),
+		WithResolver(identity.Resolver{
+			HeaderPolicy: identity.HeaderPolicyNone,
+			TrustedProxies: []netip.Prefix{
+				netip.MustParsePrefix("127.0.0.1/32"),
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/private", nil)
+	req.RemoteAddr = "203.0.113.10:1234"
+	req.Header.Set("X-Debug-Bypass", "true")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected bypass to fail closed, got %d", rec.Code)
+	}
+}
+
+func TestRouteOverrideValidationAndMethodMatching(t *testing.T) {
+	if _, err := New(WithRequireAuth(false), WithRouteOverrides(RouteOverride{})); err == nil {
+		t.Fatal("expected empty route override pattern to fail")
+	}
+
+	disabled := false
+	profile, err := New(
+		WithRequireAuth(false),
+		WithQueryLimits(querylimits.Options{MaxParams: 1}),
+		WithRouteOverrides(RouteOverride{
+			Pattern:            "/search",
+			Methods:            []string{" post "},
+			QueryLimitsEnabled: &disabled,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("profile error: %v", err)
+	}
+	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	postRec := httptest.NewRecorder()
+	postReq := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/search?a=1&b=2", nil)
+	handler.ServeHTTP(postRec, postReq)
+	if postRec.Code != http.StatusNoContent {
+		t.Fatalf("expected POST override to disable query limits, got %d", postRec.Code)
+	}
+
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/search?a=1&b=2", nil)
+	handler.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected GET to keep baseline query limits, got %d", getRec.Code)
 	}
 }
 

@@ -58,6 +58,23 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-20
 
+### Test evidence and coverage reporting
+
+- Added focused behavior tests for `endpoints/docs`, `httpx/identity`,
+  `httpx/recover`, `middleware/json`, `middleware/maxbody`,
+  `middleware/querylimits`, and `securityprofile`, then added
+  package-specific coverage floors for those stable HTTP/security surfaces.
+- `make coverage-check` now writes `.ci-result/coverage/summary.md` so CI can
+  append root/contrib coverage totals to the GitHub job summary without making
+  aggregate coverage the test-quality score.
+- Added `make reference-service-coverage` as non-Docker generated-service
+  coverage evidence. It writes `.ci-result/coverage/reference-service.func` and
+  `.ci-result/coverage/reference-service-summary.md` separately from toolkit
+  root/contrib coverage thresholds.
+- Docscheck now keeps the checked-in reference service package test inventory
+  explicit, including package-level rationales for generated or entrypoint
+  packages that intentionally do not carry direct tests.
+
 ### End-game hardening
 
 - `make generated-upgrade-compat-check` now accepts

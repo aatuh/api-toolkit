@@ -2,7 +2,9 @@ package docs
 
 import (
 	"context"
+	"errors"
 	htmltemplate "html/template"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +22,33 @@ type stubRouteRegistrar struct {
 
 func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
 	s.patterns = append(s.patterns, pattern)
+}
+
+type stubDocsProvider struct {
+	html       string
+	openAPI    []byte
+	openAPIErr error
+	version    string
+	info       ports.DocsInfo
+}
+
+func (p stubDocsProvider) GetHTML() (string, error) {
+	return p.html, nil
+}
+
+func (p stubDocsProvider) GetOpenAPI() ([]byte, error) {
+	if p.openAPIErr != nil {
+		return nil, p.openAPIErr
+	}
+	return p.openAPI, nil
+}
+
+func (p stubDocsProvider) GetVersion() (string, error) {
+	return p.version, nil
+}
+
+func (p stubDocsProvider) GetInfo() ports.DocsInfo {
+	return p.info
 }
 
 func TestNewHandlerDefaultsNilManager(t *testing.T) {
@@ -93,6 +122,23 @@ func TestNewDefaultsToStaticMode(t *testing.T) {
 	}
 	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
 		t.Fatalf("default html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	}
+}
+
+func TestNewStrictUsesStaticFirstPartyHTML(t *testing.T) {
+	manager, ok := NewStrict().(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
+		t.Fatalf("strict html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	}
+	html, err := manager.GetHTML()
+	if err != nil {
+		t.Fatalf("get html: %v", err)
+	}
+	if strings.Contains(html, "cdn.jsdelivr.net") || strings.Contains(html, "<script") {
+		t.Fatalf("expected strict first-party html, got %q", html)
 	}
 }
 
@@ -345,6 +391,109 @@ func TestOpenAPIHandlerServesYAMLWhenEnabled(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "openapi: 3.0.0") {
 		t.Fatalf("expected yaml spec body, got %q", body)
+	}
+}
+
+func TestOpenAPIReturnsNotFoundWhenAllFormatsDisabled(t *testing.T) {
+	manager, ok := NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "Formats disabled",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  false,
+		EnableYAML:  false,
+	}).(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+
+	if _, err := manager.GetOpenAPI(); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected fs.ErrNotExist, got %v", err)
+	}
+}
+
+func TestOpenAPIProviderOutputMustMatchEnabledFormat(t *testing.T) {
+	manager, ok := NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "Only YAML enabled",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  false,
+		EnableYAML:  true,
+	}).(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	manager.RegisterProvider(stubDocsProvider{
+		openAPI: []byte(`{"openapi":"3.1.0","info":{"title":"Docs","version":"1.0.0"}}`),
+	})
+
+	if _, err := manager.GetOpenAPI(); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected disabled provider format to return fs.ErrNotExist, got %v", err)
+	}
+}
+
+func TestOpenAPIProviderPreservesFormatContentType(t *testing.T) {
+	manager, ok := NewWithConfig(ports.DocsConfig{
+		Title:       "Docs",
+		Description: "YAML provider",
+		Version:     "1.0.0",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  false,
+		EnableYAML:  true,
+	}).(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	manager.RegisterProvider(stubDocsProvider{
+		openAPI: []byte("openapi: 3.1.0\ninfo:\n  title: Docs\n  version: 1.0.0\n"),
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs/openapi.yaml", nil)
+	manager.ServeOpenAPI(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/yaml" {
+		t.Fatalf("expected application/yaml content type, got %q", got)
+	}
+}
+
+func TestProviderVersionAndInfoOverrideConfig(t *testing.T) {
+	manager, ok := NewWithConfig(ports.DocsConfig{
+		Title:       "Configured",
+		Description: "Configured docs",
+		Version:     "0.0.1",
+		Paths:       ports.DefaultDocsPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+	}).(*Manager)
+	if !ok {
+		t.Fatal("expected concrete docs manager")
+	}
+	manager.RegisterProvider(stubDocsProvider{
+		version: "9.9.9",
+		info: ports.DocsInfo{
+			Title:       "Provided",
+			Description: "Provided docs",
+			Version:     "9.9.9",
+		},
+	})
+
+	version, err := manager.GetVersion()
+	if err != nil {
+		t.Fatalf("get version: %v", err)
+	}
+	if version != "9.9.9" {
+		t.Fatalf("version = %q, want provider version", version)
+	}
+	if got := manager.GetInfo(); got.Title != "Provided" || got.Version != "9.9.9" {
+		t.Fatalf("expected provider info, got %#v", got)
 	}
 }
 

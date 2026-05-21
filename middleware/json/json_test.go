@@ -2,6 +2,8 @@ package jsonmw
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -119,5 +121,64 @@ func TestHandlerSkipsJSONEnforcementForBodylessRequests(t *testing.T) {
 				t.Fatalf("expected 204, got %d", rec.Code)
 			}
 		})
+	}
+}
+
+func TestStrictDecoderRejectsNilBody(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+	req.Body = nil
+
+	dec, err := StrictDecoder(req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if dec != nil {
+		t.Fatalf("expected nil decoder, got %#v", dec)
+	}
+	if err.Error() != "empty body" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStrictDecoderRejectsUnknownFields(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"name":"api","extra":true}`))
+
+	dec, err := StrictDecoder(req)
+	if err != nil {
+		t.Fatalf("strict decoder: %v", err)
+	}
+	var payload struct {
+		Name string `json:"name"`
+	}
+	err = dec.Decode(&payload)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+	if !strings.Contains(err.Error(), `unknown field "extra"`) {
+		t.Fatalf("expected unknown field error, got %v", err)
+	}
+	if payload.Name != "api" {
+		t.Fatalf("expected known field to decode before rejection, got %q", payload.Name)
+	}
+}
+
+func TestStrictDecoderDecodesKnownFields(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"name":"api"}`))
+
+	dec, err := StrictDecoder(req)
+	if err != nil {
+		t.Fatalf("strict decoder: %v", err)
+	}
+	var payload struct {
+		Name string `json:"name"`
+	}
+	if err := dec.Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.Name != "api" {
+		t.Fatalf("name = %q, want api", payload.Name)
+	}
+	if err := dec.Decode(&payload); !errors.Is(err, io.EOF) {
+		t.Fatalf("expected EOF after single object, got %v", err)
 	}
 }

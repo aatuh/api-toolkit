@@ -50,6 +50,18 @@ Set `REFERENCE_SERVICE_DOCKER=1` to include the service-owned Docker
 integration evidence is in scope. The target is opt-in and not part of default
 `make finalize`.
 
+Use the coverage target when reviewers need a non-Docker coverage diagnostic for
+the checked-in generated service:
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make reference-service-coverage
+```
+
+The command writes `.ci-result/coverage/reference-service.func` and
+`.ci-result/coverage/reference-service-summary.md`. It is reported separately
+from root and contrib coverage thresholds because generated application code is
+app-owned evidence, not part of the toolkit module aggregate.
+
 Use the generated-service upgrade compatibility check when release reviewers
 need evidence that published generator output can move to the current workspace:
 

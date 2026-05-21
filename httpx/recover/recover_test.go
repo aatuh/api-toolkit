@@ -135,6 +135,40 @@ func TestMiddlewareRemainsCompatibleWithoutLogger(t *testing.T) {
 	}
 }
 
+func TestNewWithNilLoggerUsesNoopLogger(t *testing.T) {
+	handler := New(WithLogger(nil))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestMiddlewareReraisesAbortHandler(t *testing.T) {
+	handler := Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic(http.ErrAbortHandler)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	defer func() {
+		got := recover()
+		err, ok := got.(error)
+		if !ok || !errors.Is(err, http.ErrAbortHandler) {
+			t.Fatalf("expected abort handler panic, got %v", got)
+		}
+		if rec.Body.Len() != 0 {
+			t.Fatalf("expected no recovery body for abort handler, got %q", rec.Body.String())
+		}
+	}()
+	handler.ServeHTTP(rec, req)
+}
+
 func kvToMap(kv []any) map[string]any {
 	out := make(map[string]any)
 	for i := 0; i+1 < len(kv); i += 2 {

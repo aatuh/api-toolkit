@@ -74,6 +74,22 @@ contrib_total="$(coverage_total "$out_dir/contrib.func")"
 echo "coverage-summary: root total ${root_total}%"
 echo "coverage-summary: contrib total ${contrib_total}%"
 
+cat >"$out_dir/summary.md" <<EOF_SUMMARY
+## Coverage summary
+
+Coverage is a review signal, not a substitute for behavior and contract tests.
+
+| Module | Total |
+| --- | ---: |
+| root | ${root_total}% |
+| contrib | ${contrib_total}% |
+
+Detailed function summaries:
+
+- \`${out_dir}/root.func\`
+- \`${out_dir}/contrib.func\`
+EOF_SUMMARY
+
 if [[ "$check" -eq 1 ]]; then
   check_min "root aggregate" "$root_total" "$root_min"
   check_min "contrib aggregate" "$contrib_total" "$contrib_min"
@@ -83,14 +99,21 @@ if [[ "$check" -eq 1 ]]; then
   check_min "github.com/aatuh/api-toolkit/v3/oauth2" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
   check_min "github.com/aatuh/api-toolkit/v3/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
   check_min "github.com/aatuh/api-toolkit/v3/contracttest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/contracttest")" "${CONTRACTTEST_COVERAGE_MIN:-83.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/endpoints/docs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/docs")" "${ENDPOINTS_DOCS_COVERAGE_MIN:-70.0}"
   check_min "github.com/aatuh/api-toolkit/v3/endpoints/health" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/health")" "${HEALTH_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/httpx/identity" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/identity")" "${HTTPX_IDENTITY_COVERAGE_MIN:-70.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/httpx/recover" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/recover")" "${HTTPX_RECOVER_COVERAGE_MIN:-55.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey")" "${AUTH_APIKEY_COVERAGE_MIN:-79.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/authz" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/authz")" "${AUTH_AUTHZ_COVERAGE_MIN:-77.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt")" "${AUTH_JWT_COVERAGE_MIN:-90.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/tenant" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/tenant")" "${AUTH_TENANT_COVERAGE_MIN:-84.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/idempotency" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/idempotency")" "${IDEMPOTENCY_COVERAGE_MIN:-71.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/middleware/json" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/json")" "${JSON_MIDDLEWARE_COVERAGE_MIN:-70.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/middleware/maxbody" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/maxbody")" "${MAXBODY_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/middleware/querylimits" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/querylimits")" "${QUERYLIMITS_COVERAGE_MIN:-90.0}"
   check_min "github.com/aatuh/api-toolkit/v3/middleware/ratelimit" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/ratelimit")" "${RATELIMIT_COVERAGE_MIN:-68.0}"
   check_min "github.com/aatuh/api-toolkit/v3/routecontracts" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/routecontracts")" "${ROUTECONTRACTS_COVERAGE_MIN:-83.0}"
+  check_min "github.com/aatuh/api-toolkit/v3/securityprofile" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/securityprofile")" "${SECURITYPROFILE_COVERAGE_MIN:-80.0}"
   check_min "github.com/aatuh/api-toolkit/v3/specs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/specs")" "${SPECS_COVERAGE_MIN:-82.0}"
   check_min "github.com/aatuh/api-toolkit/v3/webhooks" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/webhooks")" "${WEBHOOKS_COVERAGE_MIN:-80.0}"
 
