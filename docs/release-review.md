@@ -8,10 +8,10 @@ Use this as the short reviewer path before publishing a release.
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
 - Accept only clean publication evidence before publishing:
-  `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` for v3 patch
+  `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` for v3 patch
   and minor releases.
 - A local dirty-tree audit may use
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence`,
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
 - First v3 major-release evidence may use `API_BASE_REF=v2.1.0` only as
   documented v2-to-v3 transition evidence; later v3 releases compare against

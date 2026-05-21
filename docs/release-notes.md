@@ -11,7 +11,7 @@ upgrade notes, and package-tied compatibility acknowledgements.
 | User-visible behavior, migration notes, and compatibility acknowledgements | Add dated entries in this file. Keep historical entries historical unless later guidance would otherwise mislead readers. |
 | Stable surface changes | Update `VERSIONING.md`, package docs, compatibility docs, release notes, and docscheck coverage together. |
 | Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |
-| Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.1`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
+| Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.2`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
 
 ## Release checklist
 
@@ -56,6 +56,18 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-05-21
+
+### Release baseline maintenance
+
+- Published `v3.1.2` from the current `master` release tag evidence and
+  advanced the v3 patch/minor release baseline examples to `v3.1.2`.
+- Added the paired `contrib/v3.1.2` module tag because the contrib module
+  changed in the release.
+- `make generated-upgrade-compat-check` now defaults to the published baseline
+  matrix `v3.0.0 v3.1.2`; `GENERATOR_REF` remains as the single-ref
+  compatibility alias.
+
 ## 2026-05-20
 
 ### Test evidence and coverage reporting
@@ -95,7 +107,7 @@ source of truth is `docs/release-runbook.md`.
 
 - `make generated-upgrade-compat-check` now accepts
   `GENERATED_UPGRADE_COMPAT_REFS` and defaults to checking both `v3.0.0` and
-  `v3.1.1`; `GENERATOR_REF` remains as a source-compatible single-ref alias.
+  `v3.1.2`; `GENERATOR_REF` remains as a source-compatible single-ref alias.
 - Generated upgrade compatibility evidence now writes one log per generator ref
   plus `.ci-result/generated-upgrade-compat/status.tsv`.
 - Full-profile resource generation tests now prove the generated `project`

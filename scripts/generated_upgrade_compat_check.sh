@@ -12,7 +12,7 @@ if [ -n "${GENERATED_UPGRADE_COMPAT_REFS:-}" ]; then
 elif [ -n "${GENERATOR_REF:-}" ]; then
   generator_refs="$GENERATOR_REF"
 else
-  generator_refs="v3.0.0 v3.1.1"
+  generator_refs="v3.0.0 v3.1.2"
 fi
 
 mkdir -p "$repo_root/$result_dir"
