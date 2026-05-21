@@ -1,5 +1,5 @@
 // Package stripe adapts Stripe Checkout, webhooks, portal, and invoicing to the
-// explicit v2 compat/billing contracts.
+// explicit compat/billing contracts.
 //
 // New constructs a Stripe-backed provider. Webhook verification is required by
 // default; skip-verification paths are development-only and must be enabled with

@@ -7,10 +7,9 @@ imported by dependencies but not called by this repository.
 
 Current imported-but-not-called count: `0`.
 
-Owner decision: release evidence does not fail solely because findings are
-imported but not called. Reviewers must confirm there are `0` called
-vulnerabilities and inspect the imported-only IDs before publishing.
-Release evidence does not fail solely because findings are imported but not called.
+Owner decision: release evidence does not fail solely because findings are imported but not called.
+Reviewers must confirm there are `0` called vulnerabilities and inspect the
+imported-only IDs before publishing.
 
 The active disposition manifest is header-only while the imported-only count is
 `0`. Add rows back to `docs/vulnerability-dispositions.tsv` only when current

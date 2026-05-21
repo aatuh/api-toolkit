@@ -1804,6 +1804,85 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	}
 }
 
+func TestReferenceServiceAppLocalDocsAreDiscoverable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	combined := referenceService + "\n" + docsIndex
+
+	requiredTargets := map[string][]string{
+		"examples/reference-saas-api/README.md": {
+			"This service is app-owned generated code",
+			"make openapi-check",
+			"make contracts-lint",
+		},
+		"examples/reference-saas-api/deploy/helm/README.md": {
+			"Required Values",
+			"Required Secrets",
+			"admin Service",
+		},
+		"examples/reference-saas-api/deploy/kubernetes/README.md": {
+			"Required Configuration",
+			"internal admin Service",
+			"`/livez`",
+			"`/readyz`",
+		},
+		"examples/reference-saas-api/deploy/terraform/aws/README.md": {
+			"Outputs To Wire Into The Service",
+			"RDS",
+			"ElastiCache Redis",
+		},
+		"examples/reference-saas-api/observability/runbooks/observability.md": {
+			"bounded labels",
+			"SLO Defaults",
+			"admin listener",
+		},
+		"examples/reference-saas-api/docs/providers/provider-runbook.md": {
+			"app-owned starter code",
+			"Live checks are operator-initiated only",
+			"provider-live-check",
+		},
+	}
+
+	for rel, required := range requiredTargets {
+		if !strings.Contains(combined, rel) {
+			t.Fatalf("reference-service docs must link or name app-local document %s", rel)
+		}
+		content := readText(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
+		for _, text := range required {
+			if !strings.Contains(content, text) {
+				t.Fatalf("%s missing audience-purpose guidance %q", rel, text)
+			}
+		}
+	}
+}
+
+func TestTrashArchiveStaysOutOfActiveDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	archiveReadme := readText(t, filepath.Join(repoRoot, ".trash", "README.md"))
+	for _, required := range []string{
+		"not active product documentation",
+		"not active product",
+		"should not link into `.trash/`",
+		"explicit maintainer decision",
+	} {
+		if !strings.Contains(archiveReadme, required) {
+			t.Fatalf(".trash/README.md missing archive policy %q", required)
+		}
+	}
+
+	var violations []string
+	for _, path := range docsQualityMarkdownFiles(t, repoRoot) {
+		content := readText(t, path)
+		if strings.Contains(content, ".trash/") || strings.Contains(content, "../.trash") {
+			violations = append(violations, slashRel(repoRoot, path))
+		}
+	}
+	if len(violations) > 0 {
+		t.Fatalf("active docs must not link to .trash archive files:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestCoverageCheckIncludesHighRiskPackageFloors(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	script := readText(t, filepath.Join(repoRoot, "scripts", "coverage_check.sh"))
@@ -2686,6 +2765,82 @@ func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
 	}
 }
 
+func TestCurrentV3PackageDocsAvoidStaleV2CompatibilityClaims(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	forbidden := []string{
+		"v2 source compatibility",
+		"v2 source-compatible",
+		"v2-compatible",
+		"v2 convenience",
+		"explicit v2 compat",
+		"for the rest of v2",
+		"provider-shaped billing contracts in billing.go are deprecated",
+		"aliases to the existing ports exports",
+		"legacy response writer package is similarly retained",
+	}
+
+	var violations []string
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", ".trash", "audit", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Base(path) != "doc.go" {
+			return nil
+		}
+		content := readText(t, path)
+		for _, text := range forbidden {
+			if strings.Contains(content, text) {
+				violations = append(violations, slashRel(repoRoot, path)+" contains "+strconv.Quote(text))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan package docs: %v", err)
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("current v3 package docs contain stale v2-only claims:\n%s", strings.Join(violations, "\n"))
+	}
+
+	portsDoc := readText(t, filepath.Join(repoRoot, "ports", "doc.go"))
+	for _, required := range []string{
+		"stable core boundary contracts",
+		"github.com/aatuh/api-toolkit/v3/compat/billing",
+		"Response",
+		"httpx",
+		"DatabasePoolSnapshotProvider",
+		"SnapshotDatabasePoolStats",
+		"docs/ports-surface.md",
+		"docs/v3-compatibility-roadmap.md",
+	} {
+		if !strings.Contains(portsDoc, required) {
+			t.Fatalf("ports/doc.go missing current v3 guidance %q", required)
+		}
+	}
+
+	billingDoc := readText(t, filepath.Join(repoRoot, "compat", "billing", "doc.go"))
+	for _, required := range []string{
+		"v3 compatibility model",
+		"hosted checkout",
+		"billing portal",
+		"provider-shaped billing",
+		"generic ports package",
+		"app-owned port",
+	} {
+		if !strings.Contains(billingDoc, required) {
+			t.Fatalf("compat/billing/doc.go missing current v3 guidance %q", required)
+		}
+	}
+}
+
 func TestStablePortsAvoidNewProviderSpecificNaming(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	blocked := regexp.MustCompile(`(?i)(stripe|pgx|postgres|redis|dynamo|s3|aws|gcp|azure|checkout|invoice|paymentmethod|priceid|customerid)`)
@@ -3406,6 +3561,12 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/contrib-api-drift-dispositions.tsv",
 		"docs/vulnerability-dispositions.tsv",
 		"contrib/examples/README.md",
+		"examples/reference-saas-api/README.md",
+		"examples/reference-saas-api/deploy/helm/README.md",
+		"examples/reference-saas-api/deploy/kubernetes/README.md",
+		"examples/reference-saas-api/deploy/terraform/aws/README.md",
+		"examples/reference-saas-api/observability/runbooks/observability.md",
+		"examples/reference-saas-api/docs/providers/provider-runbook.md",
 		"PANIC_POLICY.md",
 		"release-check-summary.json",
 	} {

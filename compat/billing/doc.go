@@ -1,11 +1,11 @@
-// Package billing exposes the provider-shaped v2 billing compatibility surface
-// outside the generic ports package.
+// Package billing contains the v3 compatibility model for hosted checkout,
+// billing portal, invoicing, and generic payment-provider webhooks.
 //
-// New code that wants the existing hosted-checkout, webhook, invoicing, and
-// billing-portal contract should depend on this package explicitly instead of
-// importing those types from ports. All identifiers here are aliases to the
-// existing ports exports so migration stays source-compatible for the rest of
-// v2.
+// These contracts are defined here directly so provider-shaped billing
+// boundaries stay out of the generic ports package. Use this package when the
+// hosted-checkout, webhook, invoicing, and billing-portal shape fits the
+// application; otherwise define an app-owned port or use a dedicated adapter
+// contract.
 //
 // This package is compatibility-sensitive, not provider-neutral. Applications
 // that need a different billing model should define an app-owned port or use a

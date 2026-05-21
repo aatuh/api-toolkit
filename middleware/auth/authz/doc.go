@@ -1,7 +1,7 @@
 // Package authz provides role-based authorization middleware.
 //
-// NewRequireRoleMiddleware keeps the v2-compatible single-return constructor
-// shape. Invalid configuration fails closed at request time. Use
+// NewRequireRoleMiddleware keeps the compatibility-oriented single-return
+// constructor shape. Invalid configuration fails closed at request time. Use
 // NewRequireRoleMiddlewareChecked when application startup should fail fast on
 // an empty required role or nil RolesFromContext resolver.
 //

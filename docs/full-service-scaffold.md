@@ -16,6 +16,14 @@ The profile is still a scaffold, not a hosted product framework. Generated code
 should remain ordinary Go that application teams can own, edit, test, and
 delete.
 
+## Reading Path
+
+Start with the capability table for release status, then use Runtime Contract
+for service behavior, Operational Commands for generated Make targets, and
+Deployment Assets for Kubernetes, Helm, Terraform, and observability starters.
+The generated service's own README remains the command source of truth for an
+application checkout.
+
 ## Current Capability Status
 
 | Area | Status | Evidence |

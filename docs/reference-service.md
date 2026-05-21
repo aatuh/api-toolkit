@@ -13,6 +13,18 @@ delivery, audit records, object storage hooks, OpenAPI 3.1, the typed Go
 client, admin health/metrics/pprof isolation, Docker Compose, Kubernetes
 manifests, Helm, Terraform AWS starters, and observability assets.
 
+## App-local Documentation
+
+Use these app-owned documents when checking generated-service behavior instead
+of relying only on root repository docs:
+
+- [Reference service README](../examples/reference-saas-api/README.md)
+- [Helm starter](../examples/reference-saas-api/deploy/helm/README.md)
+- [Kubernetes starter](../examples/reference-saas-api/deploy/kubernetes/README.md)
+- [Terraform AWS dependency starter](../examples/reference-saas-api/deploy/terraform/aws/README.md)
+- [Observability runbook](../examples/reference-saas-api/observability/runbooks/observability.md)
+- [Provider workflow runbook](../examples/reference-saas-api/docs/providers/provider-runbook.md)
+
 ## Local Verification
 
 Use the root target for non-Docker evidence:

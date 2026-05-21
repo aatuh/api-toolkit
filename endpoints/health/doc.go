@@ -8,8 +8,8 @@
 //     RegisterPublicRoutesTo for public probes and RegisterAdminDetailedHealthRoute
 //     for admin mounts so an explicit wrapper is required at construction time.
 //     Treat policy-free RegisterRoutes, RegisterRoutesTo, RegisterCustomRoutes,
-//     and RegisterCustomRoutesTo detailed-health mounts as v2 source-compatible
-//     legacy behavior.
+//     and RegisterCustomRoutesTo detailed-health mounts as compatibility
+//     convenience behavior that should be wrapped by callers before public use.
 //   - Custom managers can opt into detailed route exposure and cached snapshot
 //     middleware behavior by implementing ports.DetailedHealthManager and
 //     ports.CachedHealthManager in addition to ports.HealthManager.

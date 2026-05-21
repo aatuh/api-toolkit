@@ -54,6 +54,11 @@ through `bootstrap.NewAPIService`, exposes `/livez` separately from `/readyz`,
 keeps detailed health/metrics/pprof on admin routes, and enables runtime
 OpenAPI request validation by default.
 
+Reference-service evidence starts at [reference-service.md](reference-service.md)
+and then follows the app-owned docs under `examples/reference-saas-api`,
+including its README, deployment starter docs, observability runbook, and
+provider workflow runbook.
+
 The same CLI can review OpenAPI artifacts before release. `contracts lint`
 checks operation IDs, non-public security requirements, unsafe-write tenant,
 idempotency, rate-limit metadata, request body metadata, documented 2xx success
@@ -163,4 +168,10 @@ important public docs disappear from navigation:
 `docs/contrib-api-drift-packages.txt`,
 `docs/contrib-api-drift-dispositions.tsv`,
 `docs/vulnerability-dispositions.tsv`, `contrib/examples/README.md`,
+`examples/reference-saas-api/README.md`,
+`examples/reference-saas-api/deploy/helm/README.md`,
+`examples/reference-saas-api/deploy/kubernetes/README.md`,
+`examples/reference-saas-api/deploy/terraform/aws/README.md`,
+`examples/reference-saas-api/observability/runbooks/observability.md`,
+`examples/reference-saas-api/docs/providers/provider-runbook.md`,
 `PANIC_POLICY.md`, and `release-check-summary.json`.

@@ -2,7 +2,7 @@
 //
 // Use ParseListQueryChecked when handlers need field-level validation errors for
 // pagination, filtering, or sorting. The single-return ParseListQuery and parser
-// helpers remain available for v2 source compatibility, but new examples should
+// helpers remain available as compatibility shims, but new examples should
 // prefer the checked APIs when invalid input must produce Problem Details.
 //
 // See contrib/examples/pagination for a runnable limit/offset endpoint.

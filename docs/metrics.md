@@ -117,7 +117,7 @@ The contrib bootstrap helpers keep metrics opt-in:
 
 - `bootstrap.ProfileStrictAPI` and `bootstrap.ProfileDev` use a No-op metrics
   recorder unless you pass `bootstrap.WithMetricsRecorder(...)`.
-- `bootstrap.MountSystemEndpoints` preserves v2 convenience behavior and only
+- `bootstrap.MountSystemEndpoints` preserves convenience behavior and only
   mounts `specs.Metrics` when you set `SystemEndpoints.Metrics` explicitly.
 - Generated `saas-api` services create one Prometheus recorder, pass it to the
   default router, and run the health scheduler as an `APIService` background

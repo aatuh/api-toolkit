@@ -3,7 +3,7 @@
 // System endpoints and pprof profiles
 // -----------------------------------
 //
-// `MountSystemEndpoints` and `MountSystemEndpointsTo` preserve v2 convenience
+// `MountSystemEndpoints` and `MountSystemEndpointsTo` preserve convenience
 // behavior where pprof is disabled unless explicitly enabled. Prefer
 // `MountSystemEndpointsToWithAdmin` for new wiring that includes detailed
 // health, pprof, or metrics so operator-only routes require an explicit

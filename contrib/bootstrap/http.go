@@ -130,14 +130,14 @@ type SystemEndpointAdminOptions struct {
 }
 
 // MountSystemEndpoints registers health, docs, version, and metrics endpoints.
-// It preserves v2 convenience behavior; prefer MountSystemEndpointsToWithAdmin
+// It preserves convenience behavior; prefer MountSystemEndpointsToWithAdmin
 // when mounting metrics, pprof, or detailed health from new wiring.
 func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
 	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{})
 }
 
 // MountSystemEndpointsTo registers system endpoints on a minimal GET-only
-// surface. It preserves v2 convenience behavior; prefer
+// surface. It preserves convenience behavior; prefer
 // MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
 // health from new wiring.
 func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
@@ -154,7 +154,7 @@ func MountSystemEndpointsToWithProfile(r ports.MethodRouteRegistrar, se SystemEn
 }
 
 // MountSystemEndpointsToWithOptions mounts system endpoints with explicit
-// runtime options. It preserves v2 convenience behavior; prefer
+// runtime options. It preserves convenience behavior; prefer
 // MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
 // health from new wiring.
 func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointOptions) {
