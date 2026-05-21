@@ -69,6 +69,9 @@ source of truth is `docs/release-runbook.md`.
   informational statuses, committed-state behavior, optional response-writer
   interface forwarding, and unsupported interface fallbacks. Coverage floors now
   protect those observability middleware packages.
+- Replaced direct sleep-based assertions in timeout, security-profile,
+  outbound HTTP retry, and transaction cleanup tests with context deadlines or
+  channel synchronization so the same behavior is checked with less timing risk.
 - `make coverage-check` now writes `.ci-result/coverage/summary.md` so CI can
   append root/contrib coverage totals to the GitHub job summary without making
   aggregate coverage the test-quality score.

@@ -112,7 +112,7 @@ func TestWithHardTimeoutWritesTimeoutProblem(t *testing.T) {
 	}
 
 	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(30 * time.Millisecond)
+		<-r.Context().Done()
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -175,7 +175,9 @@ func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
 	}
 
 	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(30 * time.Millisecond)
+		if r.URL.Path == "/hard" {
+			<-r.Context().Done()
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -244,8 +246,9 @@ func TestStreamingRouteOverrideDisablesHardTimeoutBuffering(t *testing.T) {
 		if r.URL.Path == "/events" {
 			_, hasFlusher := w.(http.Flusher)
 			w.Header().Set("X-Has-Flusher", strconv.FormatBool(hasFlusher))
+		} else {
+			<-r.Context().Done()
 		}
-		time.Sleep(30 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 

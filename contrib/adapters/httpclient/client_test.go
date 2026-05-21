@@ -363,7 +363,6 @@ func TestRetryStopsWhenContextCanceledDuringBackoff(t *testing.T) {
 		t.Fatal("first attempt did not start")
 	}
 
-	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	select {

@@ -66,7 +66,7 @@ func TestPropagatorHandlerDoesNotForceTimeoutResponse(t *testing.T) {
 	}
 
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(20 * time.Millisecond)
+		<-r.Context().Done()
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -90,7 +90,7 @@ func TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse(t *testing.T) {
 		if _, ok := r.Context().Deadline(); !ok {
 			t.Error("expected request deadline")
 		}
-		time.Sleep(30 * time.Millisecond)
+		<-r.Context().Done()
 		w.Header().Set("X-Late", "true")
 		if _, err := w.Write([]byte("late")); err == nil {
 			t.Error("expected late write to fail after hard timeout")

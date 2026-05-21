@@ -30,9 +30,7 @@ func TestWithinTxUsesCleanupContextForRollback(t *testing.T) {
 			name: "timed out context",
 			prepare: func(ctx context.Context) (context.Context, context.CancelFunc) {
 				ctx, cancel := context.WithTimeout(ctx, time.Nanosecond)
-				for ctx.Err() == nil {
-					time.Sleep(time.Millisecond)
-				}
+				<-ctx.Done()
 				return ctx, cancel
 			},
 			wantDone: context.DeadlineExceeded,
