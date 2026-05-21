@@ -159,14 +159,11 @@ command source of truth. `make api-check` is a local compatibility helper.
 adapter, integration, middleware, bootstrap, telemetry, and production generator
 CLI behavior notes.
 
-Publication evidence must come from a clean worktree with an explicit baseline,
-for example `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` for a
-post-`v3.1.1` v3 release. First v3 major-release evidence may use
-`API_BASE_REF=v2.1.0` only as documented v2-to-v3 transition evidence. A local
-dirty-tree audit must opt in with
-`ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence`
-and is not acceptable before publishing. This is local dirty-tree audit
-evidence, not publication evidence.
+Publication evidence must come from a clean worktree with an explicit baseline.
+Use `docs/release-runbook.md` for the current command examples. First v3
+major-release evidence may use `API_BASE_REF=v2.1.0` only as documented
+v2-to-v3 transition evidence. A local dirty-tree audit must opt in with
+`ALLOW_DIRTY_RELEASE_EVIDENCE=1` and an explicit `API_BASE_REF`; it is not acceptable before publishing. This is local dirty-tree audit evidence, not publication evidence.
 
 For exact commands, artifact verification, manifest review, and baseline
 maintenance rules, use `docs/release-runbook.md`.

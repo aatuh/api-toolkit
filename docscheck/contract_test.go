@@ -917,19 +917,29 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 	}{
 		{"README.md", readme},
 		{"VERSIONING.md", versioning},
-		{"docs/release-runbook.md", runbook},
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence",
 			"API_BASE_REF=v2.1.0",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
 			"not acceptable before publishing",
+			"docs/release-runbook.md",
 		} {
 			if !strings.Contains(source.text, required) {
 				t.Fatalf("%s missing release evidence mode policy text %q", source.name, required)
 			}
+		}
+	}
+	for _, required := range []string{
+		"API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v2.1.0",
+		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
+		"local dirty-tree audit",
+		"not acceptable before publishing",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing release evidence mode policy text %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -1951,6 +1961,39 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 }
 
+func TestGeneratedUpgradeDefaultRefsStayDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	script := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
+	defaultRefs := generatedUpgradeDefaultRefs(t, script)
+
+	for _, source := range []struct {
+		name string
+		text string
+		re   *regexp.Regexp
+	}{
+		{
+			name: "docs/release-runbook.md",
+			text: readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md")),
+			re:   regexp.MustCompile("`GENERATED_UPGRADE_COMPAT_REFS` defaulting to `([^`]+)`"),
+		},
+		{
+			name: "docs/reference-service.md",
+			text: readText(t, filepath.Join(repoRoot, "docs", "reference-service.md")),
+			re:   regexp.MustCompile("By default this checks `([^`]+)` and `([^`]+)`"),
+		},
+		{
+			name: "docs/release-notes.md",
+			text: readText(t, filepath.Join(repoRoot, "docs", "release-notes.md")),
+			re:   regexp.MustCompile("defaults to checking both `([^`]+)` and\\s+`([^`]+)`"),
+		},
+	} {
+		got := documentedGeneratedUpgradeRefs(t, source.name, source.text, source.re)
+		if !reflect.DeepEqual(got, defaultRefs) {
+			t.Fatalf("%s generated-upgrade default refs = %v, want %v from scripts/generated_upgrade_compat_check.sh", source.name, got, defaultRefs)
+		}
+	}
+}
+
 func TestContribModuleRemainsInstallableByVersion(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	goMod := readText(t, filepath.Join(repoRoot, "contrib", "go.mod"))
@@ -2712,8 +2755,8 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence",
+		"Current supported v3 API baseline: see `docs/release-runbook.md`.",
+		"Release readiness and publication evidence require an explicit `API_BASE_REF`",
 		"API_BASE_REF=v2.1.0",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
@@ -3685,6 +3728,35 @@ func readText(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func generatedUpgradeDefaultRefs(t *testing.T, script string) []string {
+	t.Helper()
+
+	re := regexp.MustCompile(`(?m)^else\s*\n\s*generator_refs="([^"]+)"\s*\nfi$`)
+	matches := re.FindAllStringSubmatch(script, -1)
+	if len(matches) != 1 {
+		t.Fatalf("scripts/generated_upgrade_compat_check.sh must have one default generator_refs assignment, found %d", len(matches))
+	}
+	refs := strings.Fields(matches[0][1])
+	if len(refs) == 0 {
+		t.Fatal("scripts/generated_upgrade_compat_check.sh default generator_refs assignment is empty")
+	}
+	return refs
+}
+
+func documentedGeneratedUpgradeRefs(t *testing.T, name, text string, re *regexp.Regexp) []string {
+	t.Helper()
+
+	match := re.FindStringSubmatch(text)
+	if match == nil {
+		t.Fatalf("%s missing generated-upgrade default refs in expected wording", name)
+	}
+	var refs []string
+	for _, value := range match[1:] {
+		refs = append(refs, strings.Fields(value)...)
+	}
+	return refs
 }
 
 func loadTSVRecords(t *testing.T, path string) []map[string]string {

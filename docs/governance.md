@@ -33,7 +33,8 @@ assets verify.
 
 The first v3 release line may compare against `v2.1.0` only when recording the
 intentional v2 to v3 major-version breakage evidence. v3 patch and minor
-releases compare against the latest published v3 tag, currently `v3.1.1`.
+releases compare against the latest published v3 tag named by
+`docs/release-runbook.md`.
 When GitHub repository settings are accessible, reviewers should attach
 `make github-governance-check` output as optional publication-review evidence.
 
