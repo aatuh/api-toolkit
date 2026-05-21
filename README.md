@@ -77,7 +77,10 @@ api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
 generated SaaS/API services. It is not a universal backend platform for every
 transport, streaming workload, provider workflow, or organization-specific
 operating model. Use [docs/production-readiness.md](docs/production-readiness.md)
-as the readiness matrix before standardizing on a package or generated profile.
+as the readiness matrix and adapter maturity review before standardizing on a
+package or generated profile. Generated code is app-owned; api-toolkit
+standardizes infrastructure defaults without becoming your product or provider
+framework.
 
 | Area | Readiness | Notes |
 | --- | --- | --- |
@@ -85,7 +88,7 @@ as the readiness matrix before standardizing on a package or generated profile.
 | Supported contrib adapters | Supported adapter tier | Direct tests, docs, drift coverage, and behavior contracts are required; supported-adapter incompatible drift is gate-enforced and does not make contrib stable. |
 | Experimental contrib packages | Maintained but unstable | Use only with app-owned compatibility expectations until promoted with evidence. |
 | `saas-api` scaffold | Lean service starter | Keeps production-safe HTTP defaults without forcing persistence or membership models. |
-| `saas-api-full` scaffold | Production reference scaffold | Includes Postgres, Redis, tenancy, API keys, async/outbox, audit, webhooks, OpenAPI 3.1, clients, and deployment starters. |
+| `saas-api-full` scaffold | Production reference scaffold | Includes Postgres, Redis, tenancy, API keys, async/outbox, audit, webhooks, OpenAPI 3.1, clients, and deployment starters. Generated code is app-owned. |
 | Streaming, SSE, WebSockets, and large downloads | Explicit caveat | Use route-level opt-outs; do not apply hard-timeout response buffering, response validation, or idempotency response capture globally. |
 
 Streaming routes, server-sent events, websocket upgrades, and large downloads

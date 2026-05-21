@@ -307,6 +307,9 @@ func TestDatabaseCheckerFailsClosedWhenPoolMissing(t *testing.T) {
 func TestDatabaseCheckerAcceptsNilContext(t *testing.T) {
 	pool := &stubDatabasePool{}
 	checker := NewDatabaseChecker(pool)
+	if checker.Name() != "database" {
+		t.Fatalf("checker name = %q, want database", checker.Name())
+	}
 
 	assertNoPanic(t, "DatabaseChecker.Check nil context", func() {
 		result := checker.Check(nilContext())
@@ -374,9 +377,112 @@ func TestHTTPCheckerAcceptsNilContext(t *testing.T) {
 	})
 }
 
+func TestHTTPCheckerOptionsAndFailureStatus(t *testing.T) {
+	var gotMethod string
+	var gotHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	checker := NewHTTPChecker(
+		"dependency",
+		server.URL,
+		WithHTTPMethod("post"),
+		WithHTTPHeader("X-One", "1"),
+		WithHTTPHeaders(map[string]string{"X-Two": "2"}),
+		WithHTTPTimeout(time.Second),
+		WithHTTPSuccessStatuses(http.StatusAccepted),
+		WithHTTPFailureStatus(ports.HealthStatusDegraded),
+	)
+	if checker.Name() != "dependency" {
+		t.Fatalf("checker name = %q, want dependency", checker.Name())
+	}
+	result := checker.Check(context.Background())
+	if result.Status != ports.HealthStatusHealthy {
+		t.Fatalf("status = %q, want healthy; message=%q", result.Status, result.Message)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want POST", gotMethod)
+	}
+	if gotHeaders.Get("X-One") != "1" || gotHeaders.Get("X-Two") != "2" {
+		t.Fatalf("headers = %#v, want configured headers", gotHeaders)
+	}
+
+	failing := NewHTTPChecker(
+		"dependency",
+		server.URL,
+		WithHTTPSuccessStatuses(http.StatusNoContent),
+		WithHTTPFailureStatus(ports.HealthStatusDegraded),
+	)
+	result = failing.Check(context.Background())
+	if result.Status != ports.HealthStatusDegraded {
+		t.Fatalf("failure status = %q, want degraded", result.Status)
+	}
+	if !strings.Contains(result.Message, "unexpected status 202") {
+		t.Fatalf("failure message = %q, want unexpected status", result.Message)
+	}
+}
+
+func TestHTTPCheckerReportsUnknownWhenURLMissing(t *testing.T) {
+	checker := NewHTTPChecker("dependency", "")
+
+	result := checker.Check(context.Background())
+
+	if result.Status != ports.HealthStatusUnknown {
+		t.Fatalf("status = %q, want unknown", result.Status)
+	}
+}
+
+func TestCompositeCheckerAggregatesStatuses(t *testing.T) {
+	empty := NewCompositeChecker("dependencies")
+	if empty.Name() != "dependencies" {
+		t.Fatalf("checker name = %q, want dependencies", empty.Name())
+	}
+	result := empty.Check(context.Background())
+	if result.Status != ports.HealthStatusUnknown {
+		t.Fatalf("empty status = %q, want unknown", result.Status)
+	}
+
+	composite := NewCompositeChecker(
+		"dependencies",
+		fixedChecker{name: "cache", status: ports.HealthStatusHealthy, message: "cache ok"},
+		fixedChecker{name: "queue", status: ports.HealthStatusDegraded, message: "queue slow"},
+	)
+	result = composite.Check(context.Background())
+	if result.Status != ports.HealthStatusDegraded {
+		t.Fatalf("degraded status = %q, want degraded", result.Status)
+	}
+	if !strings.Contains(result.Message, "queue slow") {
+		t.Fatalf("degraded message = %q, want queue detail", result.Message)
+	}
+
+	composite = NewCompositeChecker(
+		"dependencies",
+		fixedChecker{name: "cache", status: ports.HealthStatusHealthy, message: "cache ok"},
+		fixedChecker{name: "database", status: ports.HealthStatusUnhealthy, message: "database down"},
+	)
+	result = composite.Check(context.Background())
+	if result.Status != ports.HealthStatusUnhealthy {
+		t.Fatalf("unhealthy status = %q, want unhealthy", result.Status)
+	}
+	if !strings.Contains(result.Message, "database down") {
+		t.Fatalf("unhealthy message = %q, want database detail", result.Message)
+	}
+}
+
 func TestPaymentProviderCheckerAcceptsNilContext(t *testing.T) {
 	provider := &stubPaymentProvider{}
-	checker := NewPaymentProviderChecker(provider)
+	checker := NewPaymentProviderChecker(
+		provider,
+		WithPaymentProviderName("billing"),
+		WithPaymentProviderFailureStatus(ports.HealthStatusDegraded),
+	)
+	if checker.Name() != "billing" {
+		t.Fatalf("checker name = %q, want billing", checker.Name())
+	}
 
 	assertNoPanic(t, "PaymentProviderChecker.Check nil context", func() {
 		result := checker.Check(nilContext())
@@ -387,6 +493,69 @@ func TestPaymentProviderCheckerAcceptsNilContext(t *testing.T) {
 
 	if provider.calls.Load() != 1 {
 		t.Fatalf("expected one provider call, got %d", provider.calls.Load())
+	}
+}
+
+func TestPaymentProviderCheckerFailureStatusAndMissingProvider(t *testing.T) {
+	missing := NewPaymentProviderChecker(nil)
+	result := missing.Check(context.Background())
+	if result.Status != ports.HealthStatusUnknown {
+		t.Fatalf("missing provider status = %q, want unknown", result.Status)
+	}
+
+	provider := &stubPaymentProvider{err: errors.New("provider unavailable")}
+	checker := NewPaymentProviderChecker(provider, WithPaymentProviderFailureStatus(ports.HealthStatusDegraded))
+	result = checker.Check(context.Background())
+	if result.Status != ports.HealthStatusDegraded {
+		t.Fatalf("provider failure status = %q, want degraded", result.Status)
+	}
+	if !strings.Contains(result.Message, "provider unavailable") {
+		t.Fatalf("provider failure message = %q", result.Message)
+	}
+}
+
+func TestHealthSchedulerRunsUpdatesAndStatusChanges(t *testing.T) {
+	manager := &stubRefreshManager{
+		results: []ports.DetailedHealthResponse{
+			{Status: ports.HealthStatusHealthy, Timestamp: time.Now()},
+			{Status: ports.HealthStatusUnhealthy, Timestamp: time.Now()},
+		},
+	}
+	var updates atomic.Int32
+	var changes atomic.Int32
+	scheduler := NewScheduler(manager, SchedulerConfig{
+		Interval: 10 * time.Millisecond,
+		Logger:   ports.NopLogger{},
+		OnUpdate: func(context.Context, ports.DetailedHealthResponse) {
+			updates.Add(1)
+		},
+		OnStatusChange: func(context.Context, ports.HealthStatus, ports.HealthStatus, ports.DetailedHealthResponse) {
+			changes.Add(1)
+		},
+	})
+
+	scheduler.runOnce(context.Background())
+	scheduler.runOnce(context.Background())
+
+	if updates.Load() != 2 {
+		t.Fatalf("updates = %d, want 2", updates.Load())
+	}
+	if changes.Load() != 1 {
+		t.Fatalf("changes = %d, want 1", changes.Load())
+	}
+}
+
+func TestHealthSchedulerStartHonorsCancellationAndNilInputs(t *testing.T) {
+	var nilScheduler *Scheduler
+	nilScheduler.Start(context.Background())
+	NewScheduler(nil, SchedulerConfig{}).Start(context.Background())
+
+	manager := &stubRefreshManager{results: []ports.DetailedHealthResponse{{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	NewScheduler(manager, SchedulerConfig{Interval: time.Millisecond}).Start(ctx)
+	if manager.calls.Load() != 1 {
+		t.Fatalf("refresh calls = %d, want initial run before cancellation", manager.calls.Load())
 	}
 }
 
@@ -439,6 +608,12 @@ type stubDatabasePool struct {
 
 type stubPaymentProvider struct {
 	calls atomic.Int32
+	err   error
+}
+
+type stubRefreshManager struct {
+	calls   atomic.Int32
+	results []ports.DetailedHealthResponse
 }
 
 func (s *stubDatabasePool) Ping(context.Context) error {
@@ -472,7 +647,18 @@ func (s *stubPaymentProvider) ListPrices(ctx context.Context) ([]compatbilling.P
 		return nil, errors.New("context is nil")
 	}
 	s.calls.Add(1)
+	if s.err != nil {
+		return nil, s.err
+	}
 	return []compatbilling.Price{{ID: "price_1"}}, nil
+}
+
+func (s *stubRefreshManager) RefreshAll(context.Context) ports.DetailedHealthResponse {
+	call := int(s.calls.Add(1)) - 1
+	if call < len(s.results) {
+		return s.results[call]
+	}
+	return s.results[len(s.results)-1]
 }
 
 func assertNoPanic(t *testing.T, name string, fn func()) {

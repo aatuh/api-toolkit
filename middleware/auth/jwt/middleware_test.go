@@ -15,6 +15,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/aatuh/api-toolkit/v3/authorization"
 	"github.com/aatuh/api-toolkit/v3/httpx/identity"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
@@ -48,6 +49,139 @@ func TestHandlerReturnsUnauthorizedWhenAuthorizationHeaderMalformed(t *testing.T
 	}
 }
 
+func TestHandlerAcceptsValidTokenAndStoresSubject(t *testing.T) {
+	kf, privateKey := newTestKeyfunc(t)
+	now := time.Now()
+	mw := &Middleware{
+		cfg: Config{
+			Issuer:   "https://issuer.example",
+			Audience: "example",
+		},
+		jwks:        kf,
+		enabled:     true,
+		log:         ports.NopLogger{},
+		allowedAlgs: []string{"RS256"},
+		claimReq: claimRequirements{
+			requireSubject:    true,
+			requireExpiration: true,
+		},
+	}
+	claims := baseClaims(now)
+	claims["email"] = "user@example.test"
+	token := signToken(t, jwt.SigningMethodRS256, claims, privateKey, "test-kid")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := SubjectFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected subject in context")
+		}
+		if subj.UserID != "user" || subj.Email != "user@example.test" {
+			t.Fatalf("subject = %#v, want user with email", subj)
+		}
+		actor, ok := authorization.ActorFromContext(r.Context())
+		if !ok || actor.UserID != "user" {
+			t.Fatalf("actor = %#v, %v; want user", actor, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+}
+
+func TestHandlerSkipHeaderStillRejectsUntrustedBypass(t *testing.T) {
+	prefixes, err := identity.ParseTrustedProxies([]string{"203.0.113.0/24"})
+	if err != nil {
+		t.Fatalf("parse trusted proxies: %v", err)
+	}
+	mw := &Middleware{
+		cfg: Config{
+			SkipHeaderEnabled:         true,
+			AllowDangerousDevBypasses: true,
+		},
+		enabled:      true,
+		log:          ports.NopLogger{},
+		skipHdr:      "X-Debug-Skip",
+		skipResolver: identity.Resolver{TrustedProxies: prefixes},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("X-Debug-Skip", "true")
+	req.RemoteAddr = netip.MustParseAddr("198.51.100.7").String() + ":443"
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for untrusted skip header")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestHandlerAllowsTrustedSkipHeader(t *testing.T) {
+	prefixes, err := identity.ParseTrustedProxies([]string{"203.0.113.0/24"})
+	if err != nil {
+		t.Fatalf("parse trusted proxies: %v", err)
+	}
+	mw := &Middleware{
+		cfg: Config{
+			SkipHeaderEnabled:         true,
+			AllowDangerousDevBypasses: true,
+		},
+		enabled:      true,
+		log:          ports.NopLogger{},
+		skipHdr:      "X-Debug-Skip",
+		skipResolver: identity.Resolver{TrustedProxies: prefixes},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("X-Debug-Skip", "true")
+	req.RemoteAddr = netip.MustParseAddr("203.0.113.7").String() + ":443"
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+}
+
+func TestNilAndDisabledMiddlewarePassThrough(t *testing.T) {
+	tests := []struct {
+		name string
+		mw   *Middleware
+	}{
+		{name: "nil", mw: nil},
+		{name: "disabled", mw: &Middleware{enabled: false, log: ports.NopLogger{}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+			tt.mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})).ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("handler status = %d, want 204", rec.Code)
+			}
+
+			rec = httptest.NewRecorder()
+			tt.mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusAccepted)
+			})).ServeHTTP(rec, req)
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("optional status = %d, want 202", rec.Code)
+			}
+		})
+	}
+}
+
 func TestParseBearerTokenRejectsMalformedHeaders(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -72,6 +206,16 @@ func TestParseBearerTokenRejectsMalformedHeaders(t *testing.T) {
 				t.Fatalf("expected empty token, got %q", token)
 			}
 		})
+	}
+}
+
+func TestTokenFromRequestRejectsNilRequest(t *testing.T) {
+	token, present, err := tokenFromRequest(nil)
+	if err == nil {
+		t.Fatal("expected nil request error")
+	}
+	if token != "" || present {
+		t.Fatalf("tokenFromRequest(nil) = %q, %v, want empty false", token, present)
 	}
 }
 
@@ -285,6 +429,41 @@ func TestOptionalHandlerAuthFlow(t *testing.T) {
 	}
 }
 
+func TestOptionalHandlerStoresValidSubject(t *testing.T) {
+	kf, privateKey := newTestKeyfunc(t)
+	now := time.Now()
+	mw := &Middleware{
+		cfg: Config{
+			Issuer:   "https://issuer.example",
+			Audience: "example",
+		},
+		jwks:        kf,
+		enabled:     true,
+		log:         ports.NopLogger{},
+		allowedAlgs: []string{"RS256"},
+		claimReq: claimRequirements{
+			requireSubject:    true,
+			requireExpiration: true,
+		},
+	}
+	token := signToken(t, jwt.SigningMethodRS256, baseClaims(now), privateKey, "test-kid")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	mw.OptionalHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subj, ok := SubjectFromContext(r.Context())
+		if !ok || subj.UserID != "user" {
+			t.Fatalf("subject = %#v, %v; want user", subj, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+}
+
 func TestShouldSkipRequiresTrustedProxyAndBypassFlags(t *testing.T) {
 	prefixes, err := identity.ParseTrustedProxies([]string{"203.0.113.0/24"})
 	if err != nil {
@@ -394,6 +573,21 @@ func TestNewMiddlewareValidatesConfiguration(t *testing.T) {
 	}
 }
 
+func TestNewMiddlewareDisabledAndCloseAreSafe(t *testing.T) {
+	mw, err := NewMiddleware(context.Background(), Config{Enabled: false}, nil)
+	if err != nil {
+		t.Fatalf("NewMiddleware() error = %v", err)
+	}
+	if mw == nil {
+		t.Fatal("expected middleware")
+	}
+	mw.Close()
+	mw.Close()
+
+	var nilMiddleware *Middleware
+	nilMiddleware.Close()
+}
+
 func TestNewMiddlewareReportsJWKSSetupFailure(t *testing.T) {
 	mw, err := NewMiddleware(context.Background(), Config{
 		Enabled:  true,
@@ -409,6 +603,69 @@ func TestNewMiddlewareReportsJWKSSetupFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "initializing jwks") {
 		t.Fatalf("error = %q, want initializing jwks", err.Error())
+	}
+}
+
+func TestHealthCheckerReportsJWKSReadiness(t *testing.T) {
+	t.Run("disabled returns nil", func(t *testing.T) {
+		if checker := HealthChecker(Config{Enabled: false, JWKSURL: "https://example.test/jwks"}, nil); checker != nil {
+			t.Fatalf("HealthChecker() = %#v, want nil", checker)
+		}
+	})
+
+	t.Run("healthy", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"keys":[]}`))
+		}))
+		defer server.Close()
+
+		checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL}, server.Client())
+		if checker == nil {
+			t.Fatal("expected checker")
+		}
+		if checker.Name() != "jwt" {
+			t.Fatalf("checker name = %q, want jwt", checker.Name())
+		}
+		result := checker.Check(context.Background())
+		if result.Status != ports.HealthStatusHealthy {
+			t.Fatalf("status = %s, want healthy; message=%q", result.Status, result.Message)
+		}
+	})
+
+	t.Run("non ok status", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "no", http.StatusServiceUnavailable)
+		}))
+		defer server.Close()
+
+		checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL}, server.Client())
+		result := checker.Check(context.Background())
+		if result.Status != ports.HealthStatusDegraded {
+			t.Fatalf("status = %s, want degraded", result.Status)
+		}
+		if !strings.Contains(result.Message, "unexpected status 503") {
+			t.Fatalf("message = %q, want status detail", result.Message)
+		}
+	})
+}
+
+func TestSubjectContextHelpers(t *testing.T) {
+	if _, ok := SubjectFromContext(context.Background()); ok {
+		t.Fatal("expected no subject")
+	}
+	if _, ok := SubjectFromContext(WithSubject(context.Background(), Subject{})); ok {
+		t.Fatal("expected empty subject to be absent")
+	}
+
+	ctx := WithSubject(context.Background(), Subject{UserID: "user_123", Claims: map[string]any{"role": "admin"}})
+	subj, ok := SubjectFromContext(ctx)
+	if !ok || subj.UserID != "user_123" {
+		t.Fatalf("subject = %#v, %v; want user_123", subj, ok)
+	}
+	actor, ok := authorization.ActorFromContext(ctx)
+	if !ok || actor.UserID != "user_123" {
+		t.Fatalf("actor = %#v, %v; want user_123", actor, ok)
 	}
 }
 

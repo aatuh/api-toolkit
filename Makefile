@@ -27,7 +27,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check reference-service-check v3-readiness-check contrib-review-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -64,7 +64,7 @@ contrib-release-notes-check: tools ## Review gate requiring release notes for su
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
 
 full-profile-scaffold-check: ## Generate and validate the saas-api-full scaffold, clients, contracts, resource generator, providers, and web profile
-	@(cd contrib && $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceAddsTenantScopedCRUDToFullProfile|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
+	@(cd contrib && $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
 
 generated-integration-check: ## Opt-in Docker-backed generated saas-api-full integration check
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_integration_check.sh
@@ -75,8 +75,17 @@ generated-integration-check-minio: ## Opt-in generated saas-api-full integration
 generated-upgrade-compat-check: ## Opt-in generated service upgrade compatibility check from the prior v3 baseline
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_upgrade_compat_check.sh
 
+generated-upgrade-compat-contract: ## Run generated upgrade compatibility script contract tests
+	@scripts/generated_upgrade_compat_contract_test.sh
+
 reference-service-check: ## Verify the checked-in reference saas-api-full service without Docker
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(MAKE) -C examples/reference-saas-api test openapi-check contracts-lint contracts-diff client-check asset-check observability-check deploy-check
+
+reference-service-evidence: ## Record non-blocking reference service evidence under .ci-result/reference-service
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/reference_service_evidence.sh
+
+reference-service-evidence-contract: ## Run reference service evidence script contract tests
+	@scripts/reference_service_evidence_contract_test.sh
 
 github-governance-check: ## Optional authenticated GitHub branch/tag protection verification
 	@scripts/github_governance_check.sh
@@ -87,12 +96,21 @@ v3-readiness-check: ## Run compatibility-sensitive v3 readiness guardrails
 contrib-review-contract: ## Run contrib drift/release-note script contract tests
 	@env -u API_BASE_REF -u CONTRIB_API_BASE_REF -u CONTRIB_RELEASE_BASE_REF scripts/contrib_review_contract_test.sh
 
+actions-audit: ## Audit GitHub Actions pins and generated workflow template versions
+	@scripts/actions_audit.sh
+
+actions-audit-contract: ## Run GitHub Actions audit script contract tests
+	@scripts/actions_audit_contract_test.sh
+
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
 	@$(MAKE) api-check-contract
 	@$(MAKE) contrib-review-contract
+	@$(MAKE) actions-audit-contract
 	@$(MAKE) release-artifact-verify-contract
 	@$(MAKE) release-evidence-parser-contract
+	@$(MAKE) generated-upgrade-compat-contract
+	@$(MAKE) reference-service-evidence-contract
 
 fmt: ## Run gofmt and rewrite formatted Go files
 	@set -e; for mod in $(MODULES); do \
@@ -181,6 +199,7 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
+	$(MAKE) actions-audit
 	$(MAKE) docs-check
 	$(MAKE) test
 	$(MAKE) test-race

@@ -36,6 +36,26 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-05-20
 
+### End-game hardening
+
+- `make generated-upgrade-compat-check` now accepts
+  `GENERATED_UPGRADE_COMPAT_REFS` and defaults to checking both `v3.0.0` and
+  `v3.1.0`; `GENERATOR_REF` remains as a source-compatible single-ref alias.
+- Generated upgrade compatibility evidence now writes one log per generator ref
+  plus `.ci-result/generated-upgrade-compat/status.tsv`.
+- Full-profile resource generation tests now prove the generated `project`
+  replacement path with required/default/enum fields, filters, deterministic
+  sorts, OpenAPI/client checks, contract checks, and `resource-check` evidence.
+- Full-profile docs and generated READMEs now state that sample `widgets` are
+  app-owned starter domain code meant to be replaced or complemented by product
+  resources.
+- Added `make reference-service-evidence`, which records non-blocking
+  reference-service proof under `.ci-result/reference-service/`, with optional
+  `REFERENCE_SERVICE_DOCKER=1` and `REFERENCE_SERVICE_MINIO=1` runtime evidence.
+- Added a reference-service adoption evidence template for setup time, upgrade
+  results, OpenAPI/client checks, tenant isolation, idempotency, backup/restore,
+  load-smoke notes, and known pain points.
+
 ### Release proof and reference service
 
 - Removed the temporary `.next_steps.md` release checklist after publishing
@@ -73,6 +93,46 @@ source of truth is `docs/release-runbook.md`.
   upgrade compatibility signal that generates `saas-api-full` from the prior v3
   baseline, replaces toolkit dependencies with the workspace, and runs generated
   tests, OpenAPI, client, and contract checks. This stays outside `finalize`.
+- Raised the JWT middleware package coverage floor after adding behavior tests
+  for valid subject propagation, skip-header enforcement, nil/disabled handler
+  behavior, safe close behavior, and JWKS health checks.
+- Raised the health endpoints package coverage floor after adding behavior
+  tests for public liveness/readiness separation, dependency state transitions,
+  timeout mapping, public detail redaction, admin-only detailed health access,
+  dependency checker options, and scheduler callbacks.
+- Raised the OpenAPI validation middleware coverage floor after adding behavior
+  tests for option constructors, OpenAPI file loading, route failure Problem
+  Details, request validation field mapping, response validation error hooks,
+  streaming opt-outs, large-response bypasses, and response buffering limits.
+- Raised webhook delivery and Postgres webhook delivery adapter coverage floors
+  after adding behavior tests for signing, endpoint policy, retry
+  classification, safe error surfaces, tenant mismatch rejection, replay
+  safety, attempt recording, secret resolution, and readiness health.
+- Raised the pgxpool adapter coverage floor after adding behavior tests for
+  constructor validation, bounded startup contexts, database readiness mapping,
+  plain-value snapshots, legacy stats wrappers, acquire failures, and close
+  idempotence.
+- Added a docscheck gate that every `supported-adapter` contrib package has
+  direct tests, package docs, a behavior-contract row, and release drift
+  coverage before it can retain the supported-adapter classification.
+- Added a manifest-driven adapter maturity review to the production-readiness
+  docs so supported adapters are visible as evidence-complete and experimental
+  packages are clearly not promoted.
+- Updated the release workflow provenance attestation action from the older
+  `actions/attest-build-provenance` generation to a pinned v4.1.0 commit while
+  preserving release artifact verification semantics.
+- Updated generated lean and full scaffold GitHub Actions templates to pinned
+  `actions/checkout` v6.0.2 and `actions/setup-go` v6.4.0 commits.
+- Added `make actions-audit` and contract coverage for pinned GitHub Actions
+  workflow refs, stale action comments, and generated workflow template versions;
+  it runs in `make audit-check` and remains non-mutating.
+- Tightened README and production-readiness positioning so api-toolkit is
+  explicitly scoped to conventional HTTP/JSON API infrastructure, not a
+  universal backend platform, and generated code is app-owned.
+- Aligned the release runbook with end-game proof targets by making
+  `actions-audit`, `coverage-check`, generated upgrade compatibility, generated
+  integration, and reference-service evidence visible to release reviewers while
+  keeping Docker-backed checks opt-in.
 - Tightened the optional GitHub governance verifier so release tag protection
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so

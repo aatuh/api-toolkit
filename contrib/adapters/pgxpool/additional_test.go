@@ -8,13 +8,15 @@ import (
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
-type fakeDatabasePool struct{}
+type fakeDatabasePool struct {
+	pingErr error
+}
 
 func (fakeDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
 	return nil, errors.New("not implemented")
 }
-func (fakeDatabasePool) Ping(context.Context) error { return nil }
-func (fakeDatabasePool) Close()                     {}
+func (p fakeDatabasePool) Ping(context.Context) error { return p.pingErr }
+func (fakeDatabasePool) Close()                       {}
 
 func TestNewWithStartupTimeoutReturnsFactoryPool(t *testing.T) {
 	pool, err := newWithStartupTimeout("postgres://db.example/app", func(ctx context.Context, dsn string) (ports.DatabasePool, error) {

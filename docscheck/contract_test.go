@@ -1697,6 +1697,7 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
 	readiness := readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	codeowners := readText(t, filepath.Join(repoRoot, ".github", "CODEOWNERS"))
 	integration := readText(t, filepath.Join(repoRoot, ".github", "workflows", "integration.yml"))
@@ -1704,6 +1705,8 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	for _, required := range []string{
 		"Production readiness",
 		"docs/production-readiness.md",
+		"not a universal backend platform",
+		"Generated code is app-owned",
 		"Stable core packages",
 		"Supported contrib adapters",
 		"Experimental contrib packages",
@@ -1715,14 +1718,41 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	}
 	for _, required := range []string{
 		"production-credible for conventional Go JSON/HTTP APIs",
+		"not a universal backend platform",
+		"Generated code is app-owned",
 		"Supported-adapter incompatible drift is gate-enforced",
 		"`saas-api-full` scaffold",
 		"`x-api-toolkit-streaming`",
 		"`securityprofile.StreamingRouteOverride`",
+		"## Adapter Maturity Review",
+		"evidence-complete supported adapter set",
+		"intentionally not promoted",
+		"docs/supported-adapter-contracts.tsv",
+		"docs/contrib-api-drift-packages.txt",
 		"Load, soak, and rollback evidence",
+		"reference-service.md#adoption-evidence-template",
 	} {
 		if !strings.Contains(readiness, required) {
 			t.Fatalf("docs/production-readiness.md missing %q", required)
+		}
+	}
+	if !strings.Contains(readme, "adapter maturity review") {
+		t.Fatal("docs/README.md missing adapter maturity review link text")
+	}
+	template := markdownSection(t, referenceService, "## Adoption Evidence Template")
+	for _, required := range []string{
+		"Setup time",
+		"Upgrade result",
+		"OpenAPI/client result",
+		"Tenant isolation notes",
+		"Idempotency notes",
+		"Backup/restore notes",
+		"Load-smoke notes",
+		"Known pain points",
+		"does not replace deployment-owned evidence",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("docs/reference-service.md adoption evidence template missing %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -1798,9 +1828,12 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
 	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
+	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
+	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
 	coverageBacklog := readText(t, filepath.Join(repoRoot, "docs", "coverage-hardening-backlog.md"))
@@ -1809,10 +1842,27 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
 		"generated-upgrade-compat-check:",
+		"reference-service-evidence:",
+		"reference-service-evidence-contract:",
 		"github-governance-check:",
+		"actions-audit:",
+		"actions-audit-contract:",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing optional target %q", required)
+		}
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) actions-audit") {
+		t.Fatal("audit-check must include actions-audit")
+	}
+	for _, required := range []string{
+		"actions/attest-build-provenance v1",
+		"unpinned action ref",
+		"stale generated checkout action",
+		"stale generated setup-go action",
+	} {
+		if !strings.Contains(actionsAuditScript, required) {
+			t.Fatalf("actions audit script missing %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -1837,8 +1887,11 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"GENERATED_UPGRADE_COMPAT_REFS",
 		"GENERATOR_REF",
 		"v3.0.0",
+		"v3.1.0",
+		"status.tsv",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v3=",
 		"make contracts-diff",
@@ -1849,13 +1902,29 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"REFERENCE_SERVICE_DOCKER",
+		"REFERENCE_SERVICE_MINIO",
+		".ci-result/reference-service",
+		"summary.json",
+		"reference-service-check",
+		"make -C \"$repo_root/examples/reference-saas-api\" integration-check",
+	} {
+		if !strings.Contains(referenceEvidenceScript, required) {
+			t.Fatalf("reference service evidence script missing %q", required)
+		}
+	}
+	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-upgrade-compat-check",
+		"make reference-service-evidence",
 		"make github-governance-check",
+		"make actions-audit",
+		"make coverage-check",
+		"docs/coverage-hardening-backlog.md",
 		"not part of `finalize`",
 	} {
-		if !strings.Contains(runbook, required) && !strings.Contains(governance, required) {
+		if !strings.Contains(runbook, required) && !strings.Contains(referenceService, required) && !strings.Contains(governance, required) {
 			t.Fatalf("governance docs missing optional check guidance %q", required)
 		}
 	}
@@ -2006,6 +2075,56 @@ func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) 
 				t.Fatalf("supported adapter contract for %s evidence missing %q: %q", importPath, required, contract.Evidence)
 			}
 		}
+	}
+}
+
+func TestSupportedAdaptersHaveCompleteEvidence(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	contracts := loadSupportedAdapterContracts(t, repoRoot)
+	driftPackages := make(map[string]bool)
+	for _, importPath := range contribDriftManifestPackages(t, repoRoot) {
+		driftPackages[importPath] = true
+	}
+	listedPackages := make(map[string]listedPackage)
+	for _, pkg := range listedGoPackages(t, filepath.Join(repoRoot, "contrib")) {
+		listedPackages[pkg.ImportPath] = pkg
+	}
+
+	var missing []string
+	for _, cls := range classes {
+		if cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		if !inModule(cls.ImportPath, contribModulePath) {
+			missing = append(missing, cls.ImportPath+" is not in the contrib module")
+			continue
+		}
+		if cls.TestStatus != "direct-tests" {
+			missing = append(missing, cls.ImportPath+" has test_status "+cls.TestStatus+", want direct-tests")
+		}
+		if _, ok := contracts[cls.ImportPath]; !ok {
+			missing = append(missing, cls.ImportPath+" is missing from docs/supported-adapter-contracts.tsv")
+		}
+		if !driftPackages[cls.ImportPath] {
+			missing = append(missing, cls.ImportPath+" is missing from docs/contrib-api-drift-packages.txt")
+		}
+		pkg, ok := listedPackages[cls.ImportPath]
+		if !ok {
+			missing = append(missing, cls.ImportPath+" is missing from go list ./...")
+			continue
+		}
+		if pkg.DirectTestFiles == 0 {
+			missing = append(missing, cls.ImportPath+" has no direct test files")
+		}
+		docPath := filepath.Join(contribPackageDir(repoRoot, cls.ImportPath), "doc.go")
+		if _, err := os.Stat(docPath); err != nil {
+			missing = append(missing, cls.ImportPath+" is missing package docs at "+docPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("supported-adapter evidence is incomplete:\n%s", strings.Join(missing, "\n"))
 	}
 }
 
@@ -3957,6 +4076,15 @@ func assertClassifiedPackages(t *testing.T, name string, packages []listedPackag
 
 func inModule(importPath, modulePath string) bool {
 	return importPath == modulePath || strings.HasPrefix(importPath, modulePath+"/")
+}
+
+func contribPackageDir(repoRoot, importPath string) string {
+	rel := strings.TrimPrefix(importPath, contribModulePath)
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		return filepath.Join(repoRoot, "contrib")
+	}
+	return filepath.Join(repoRoot, "contrib", filepath.FromSlash(rel))
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {

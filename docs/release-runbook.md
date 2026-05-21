@@ -28,7 +28,9 @@ change. Do not introduce a second baseline table in another document.
 | Command | Intent | Output |
 | --- | --- | --- |
 | `GOTOOLCHAIN=local make finalize` | Local implementation gate before committing changes; may rewrite formatted Go files and module files. | Pass/fail local quality signal, not release evidence. |
-| `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, not release evidence. |
+| `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, including `make actions-audit` for pinned GitHub Actions and generated workflow templates, not release evidence. |
+| `GOTOOLCHAIN=local make coverage-check` | High-risk package coverage gate. | Pass/fail signal for aggregate coverage and package-specific floors in `scripts/coverage_check.sh`; use `docs/coverage-hardening-backlog.md` before raising JWT, health/readiness, pgxpool, OpenAPI validation, webhook delivery, or other high-risk floors. |
+| `GOTOOLCHAIN=local make actions-audit` | GitHub Actions and generated workflow template audit. | Non-mutating check for pinned `uses:` refs, stale/deprecated action comments, and generated checkout/setup-go template versions. Included in `make audit-check`, not release evidence by itself. |
 | `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
 | `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
@@ -37,8 +39,9 @@ change. Do not introduce a second baseline table in another document.
 | `GOTOOLCHAIN=local make full-profile-scaffold-check` | Focused generated `saas-api-full` release signal. | Generates the full scaffold through the CLI tests, then verifies generated `go test ./...`, contracts lint/diff, OpenAPI 3.1, checked-in typed Go client regeneration, resource generation, provider flags, worker wiring, and generated integration workflow assets. |
 | `GOTOOLCHAIN=local make generated-integration-check` | Optional Docker-backed generated `saas-api-full` integration evidence. | Generates a temporary full scaffold, runs generated tests, contract checks, OpenAPI/client checks, and `make integration-check` with Postgres and Redis. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make generated-integration-check-minio` | Optional Docker-backed generated full scaffold integration evidence with MinIO. | Runs the same generated integration path with the MinIO profile explicitly enabled. Not part of `finalize`. |
-| `GOTOOLCHAIN=local make generated-upgrade-compat-check` | Optional generated-service upgrade compatibility evidence from the prior v3 baseline. | Generates `saas-api-full` from `GENERATOR_REF` defaulting to `v3.0.0`, replaces toolkit modules with the workspace, then runs `go mod tidy`, generated tests, OpenAPI/client checks, contracts lint, and contracts diff. Not part of `finalize`. |
+| `GOTOOLCHAIN=local make generated-upgrade-compat-check` | Optional generated-service upgrade compatibility evidence from published v3 baselines. | Generates `saas-api-full` from `GENERATED_UPGRADE_COMPAT_REFS` defaulting to `v3.0.0 v3.1.0`, replaces toolkit modules with the workspace, then runs `go mod tidy`, generated tests, OpenAPI/client checks, contracts lint, and contracts diff for each ref. `GENERATOR_REF` remains a single-ref alias. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-check` | Optional checked-in reference service evidence. | Verifies `examples/reference-saas-api` as an app-owned `saas-api-full` consumer without Docker. Not part of `finalize`; Docker-backed runtime evidence stays in the service-owned `integration-check`. |
+| `GOTOOLCHAIN=local make reference-service-evidence` | Optional recorded reference service evidence. | Runs `reference-service-check`, writes `.ci-result/reference-service/status`, `.ci-result/reference-service/summary.json`, and logs. Set `REFERENCE_SERVICE_DOCKER=1` to also run the service-owned Docker `integration-check`; set `REFERENCE_SERVICE_MINIO=1` only when object-storage integration evidence is in scope. Not part of `finalize`. |
 | `make github-governance-check` | Optional authenticated GitHub repository settings verification. | Uses `gh api` to verify branch protection, required checks, CODEOWNERS review, force-push/deletion protection, and root `v*` plus contrib `contrib/v*` tag rulesets when `gh` is installed and authenticated; skips cleanly otherwise. |
 | `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, `.ci-result/release-evidence/logs/*.log`, and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
@@ -54,15 +57,16 @@ Use this command sequence before publishing:
 
 1. `GOTOOLCHAIN=local make finalize` before committing implementation work when it is safe to allow formatting and module tidying.
 2. `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
-3. Optionally run `GOTOOLCHAIN=local make generated-integration-check` and, when object storage behavior is in release scope, `GOTOOLCHAIN=local make generated-integration-check-minio`.
-4. Optionally run `GOTOOLCHAIN=local make generated-upgrade-compat-check` when release reviewers want generated-service upgrade evidence from the prior v3 baseline.
-5. Optionally run `GOTOOLCHAIN=local make reference-service-check` when release reviewers want checked-in adoption proof evidence.
-6. Optionally run `make github-governance-check` when `gh` can read repository settings.
-7. `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
-8. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
-9. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
-10. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
-11. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+3. Run `GOTOOLCHAIN=local make coverage-check` when high-risk behavior tests or coverage floors changed; use `docs/coverage-hardening-backlog.md` as the floor-raising checklist.
+4. Optionally run `GOTOOLCHAIN=local make generated-integration-check` and, when object storage behavior is in release scope, `GOTOOLCHAIN=local make generated-integration-check-minio`.
+5. Optionally run `GOTOOLCHAIN=local make generated-upgrade-compat-check` when release reviewers want generated-service upgrade evidence from published v3 baselines.
+6. Optionally run `GOTOOLCHAIN=local make reference-service-check` or `GOTOOLCHAIN=local make reference-service-evidence` when release reviewers want checked-in adoption proof evidence.
+7. Optionally run `make github-governance-check` when `gh` can read repository settings.
+8. `API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
+9. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
+10. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
+11. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.0 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+12. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
