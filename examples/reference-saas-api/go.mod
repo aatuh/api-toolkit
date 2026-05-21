@@ -3,8 +3,8 @@ module example.com/reference-saas-api
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/contrib/v3 v3.0.2
-	github.com/aatuh/api-toolkit/v3 v3.1.0
+	github.com/aatuh/api-toolkit/contrib/v3 v3.1.1
+	github.com/aatuh/api-toolkit/v3 v3.1.1
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/jackc/pgx/v5 v5.9.0
 	github.com/redis/go-redis/v9 v9.19.0

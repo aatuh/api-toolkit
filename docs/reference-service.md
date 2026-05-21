@@ -45,8 +45,8 @@ need evidence that published generator output can move to the current workspace:
 GOWORK=off GOTOOLCHAIN=local make generated-upgrade-compat-check
 ```
 
-By default this checks `v3.0.0` and `v3.1.0`. Set
-`GENERATED_UPGRADE_COMPAT_REFS="v3.1.0 vX.Y.Z"` to choose a matrix, or
+By default this checks `v3.0.0` and `v3.1.1`. Set
+`GENERATED_UPGRADE_COMPAT_REFS="v3.1.1 vX.Y.Z"` to choose a matrix, or
 `GENERATOR_REF=vX.Y.Z` for the older single-ref path. Results are written under
 `.ci-result/generated-upgrade-compat/` with one log per generator ref.
 

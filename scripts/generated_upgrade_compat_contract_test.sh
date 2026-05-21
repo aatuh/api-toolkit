@@ -107,23 +107,23 @@ run_contract() {
 make_fake_tools "$tmp/bin"
 
 default_output="$(require_success default-refs run_contract default env -u GENERATED_UPGRADE_COMPAT_REFS -u GENERATOR_REF)"
-for required in "generated upgrade compatibility check passed for v3.0.0" "generated upgrade compatibility check passed for v3.1.0"; do
+for required in "generated upgrade compatibility check passed for v3.0.0" "generated upgrade compatibility check passed for v3.1.1"; do
   case "$default_output" in
     *"$required"*) ;;
     *) printf 'default matrix output missing %q:\n%s\n' "$required" "$default_output" >&2; exit 1 ;;
   esac
 done
 default_status="$tmp/default/repo/.ci-result/default/status.tsv"
-for required in $'v3.0.0\tpassed\t.ci-result/default/upgrade-compat-v3.0.0.log' $'v3.1.0\tpassed\t.ci-result/default/upgrade-compat-v3.1.0.log'; do
+for required in $'v3.0.0\tpassed\t.ci-result/default/upgrade-compat-v3.0.0.log' $'v3.1.1\tpassed\t.ci-result/default/upgrade-compat-v3.1.1.log'; do
   if ! grep -Fqx "$required" "$default_status"; then
     printf 'default status missing %q:\n%s\n' "$required" "$(cat "$default_status")" >&2
     exit 1
   fi
 done
 
-explicit_output="$(require_success explicit-refs run_contract explicit env GENERATED_UPGRADE_COMPAT_REFS="v3.1.0")"
+explicit_output="$(require_success explicit-refs run_contract explicit env GENERATED_UPGRADE_COMPAT_REFS="v3.1.1")"
 case "$explicit_output" in
-  *"v3.1.0"* ) ;;
+  *"v3.1.1"* ) ;;
   *) printf 'explicit refs output changed unexpectedly:\n%s\n' "$explicit_output" >&2; exit 1 ;;
 esac
 if grep -q "v3.0.0" "$tmp/explicit/repo/.ci-result/explicit/status.tsv"; then
@@ -136,7 +136,7 @@ case "$alias_output" in
   *"v3.0.0"* ) ;;
   *) printf 'GENERATOR_REF alias output changed unexpectedly:\n%s\n' "$alias_output" >&2; exit 1 ;;
 esac
-if grep -q "v3.1.0" "$tmp/alias/repo/.ci-result/alias/status.tsv"; then
+if grep -q "v3.1.1" "$tmp/alias/repo/.ci-result/alias/status.tsv"; then
   printf 'GENERATOR_REF alias should not include default refs:\n%s\n' "$(cat "$tmp/alias/repo/.ci-result/alias/status.tsv")" >&2
   exit 1
 fi

@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/MicahParks/jwkset v0.11.0
 	github.com/MicahParks/keyfunc/v3 v3.8.0
-	github.com/aatuh/api-toolkit/v3 v3.1.0
+	github.com/aatuh/api-toolkit/v3 v3.1.1
 	github.com/aatuh/envvar/v2 v2.1.5
 	github.com/aatuh/validate/v3 v3.0.7
 	github.com/alicebob/miniredis/v2 v2.37.0
