@@ -64,6 +64,11 @@ source of truth is `docs/release-runbook.md`.
   `httpx/recover`, `middleware/json`, `middleware/maxbody`,
   `middleware/querylimits`, and `securityprofile`, then added
   package-specific coverage floors for those stable HTTP/security surfaces.
+- Added direct response-recorder behavior tests for `contrib/middleware/metrics`,
+  `contrib/middleware/oteltrace`, and `contrib/middleware/requestlog`, including
+  informational statuses, committed-state behavior, optional response-writer
+  interface forwarding, and unsupported interface fallbacks. Coverage floors now
+  protect those observability middleware packages.
 - `make coverage-check` now writes `.ci-result/coverage/summary.md` so CI can
   append root/contrib coverage totals to the GitHub job summary without making
   aggregate coverage the test-quality score.

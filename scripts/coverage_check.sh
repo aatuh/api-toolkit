@@ -128,8 +128,9 @@ if [[ "$check" -eq 1 ]]; then
   check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres")" "${CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN:-93.0}"
   check_min "github.com/aatuh/api-toolkit/contrib/v3/bootstrap" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/bootstrap")" "${CONTRIB_BOOTSTRAP_COVERAGE_MIN:-71.5}"
   check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc")" "${CONTRIB_AUTH_OIDC_COVERAGE_MIN:-76.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics")" "${CONTRIB_METRICS_COVERAGE_MIN:-74.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics")" "${CONTRIB_METRICS_COVERAGE_MIN:-82.0}"
   check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi")" "${CONTRIB_OPENAPI_COVERAGE_MIN:-85.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog")" "${CONTRIB_REQUESTLOG_COVERAGE_MIN:-69.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace")" "${CONTRIB_OTELTRACE_COVERAGE_MIN:-90.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog")" "${CONTRIB_REQUESTLOG_COVERAGE_MIN:-81.0}"
   check_min "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery")" "${CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN:-88.0}"
 fi
