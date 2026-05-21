@@ -1988,6 +1988,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"github-governance-check:",
 		"actions-audit:",
 		"actions-audit-contract:",
+		"timeout-determinism-check:",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing optional target %q", required)
@@ -1995,6 +1996,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) actions-audit") {
 		t.Fatal("audit-check must include actions-audit")
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) timeout-determinism-check") {
+		t.Fatal("audit-check must include timeout-determinism-check")
 	}
 	for _, required := range []string{
 		"actions/attest-build-provenance v1",
@@ -2073,6 +2077,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"make reference-service-coverage",
 		"make github-governance-check",
 		"make actions-audit",
+		"make timeout-determinism-check",
 		"make coverage-check",
 		"docs/coverage-hardening-backlog.md",
 		"not part of `finalize`",
@@ -2261,6 +2266,76 @@ func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) 
 			if !strings.Contains(strings.ToLower(contract.Evidence), required) {
 				t.Fatalf("supported adapter contract for %s evidence missing %q: %q", importPath, required, contract.Evidence)
 			}
+		}
+	}
+}
+
+func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	realism := loadSupportedAdapterRealism(t, repoRoot)
+
+	var missing []string
+	for _, cls := range classes {
+		if cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		if _, ok := realism[cls.ImportPath]; !ok {
+			missing = append(missing, cls.ImportPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("supported-adapter packages missing from docs/supported-adapter-test-realism.tsv:\n%s", strings.Join(missing, "\n"))
+	}
+
+	var stale []string
+	for importPath, row := range realism {
+		if classes[importPath].APIStatus != "supported-adapter" {
+			stale = append(stale, importPath)
+		}
+		if !strings.Contains(strings.ToLower(row.DefaultPREvidence), "tests") {
+			stale = append(stale, importPath+" default PR evidence must mention tests")
+		}
+		if !containsAny(row.ScheduledManualEvidence, []string{
+			"not_applicable",
+			"generated-integration-check",
+			"reference-service-evidence",
+			"provider-live-check",
+			"manual",
+		}) {
+			stale = append(stale, importPath+" scheduled/manual evidence must identify the external-evidence path")
+		}
+		for _, token := range strings.Split(row.RealismStatus, "+") {
+			if !map[string]bool{
+				"direct-unit":               true,
+				"fake-db":                   true,
+				"hermetic-fixture":          true,
+				"hermetic-provider-fixture": true,
+				"manual-real-service":       true,
+				"miniredis":                 true,
+				"scheduled-real-service":    true,
+			}[token] {
+				stale = append(stale, importPath+" has unknown realism status token "+token)
+			}
+		}
+	}
+	sort.Strings(stale)
+	if len(stale) > 0 {
+		t.Fatalf("docs/supported-adapter-test-realism.tsv has invalid rows:\n%s", strings.Join(stale, "\n"))
+	}
+
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"docs/README.md", readText(t, filepath.Join(repoRoot, "docs", "README.md"))},
+		{"docs/production-readiness.md", readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))},
+		{"docs/release-manifests.md", readText(t, filepath.Join(repoRoot, "docs", "release-manifests.md"))},
+		{"docs/release-runbook.md", readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))},
+	} {
+		if !strings.Contains(source.text, "docs/supported-adapter-test-realism.tsv") {
+			t.Fatalf("%s missing docs/supported-adapter-test-realism.tsv", source.name)
 		}
 	}
 }
@@ -4162,6 +4237,13 @@ type supportedAdapterContract struct {
 	Evidence   string
 }
 
+type supportedAdapterRealism struct {
+	ImportPath              string
+	DefaultPREvidence       string
+	ScheduledManualEvidence string
+	RealismStatus           string
+}
+
 func loadPackageClassifications(t *testing.T, repoRoot string) map[string]packageClassification {
 	t.Helper()
 
@@ -4258,6 +4340,40 @@ func loadSupportedAdapterContracts(t *testing.T, repoRoot string) map[string]sup
 	return contracts
 }
 
+func loadSupportedAdapterRealism(t *testing.T, repoRoot string) map[string]supportedAdapterRealism {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "supported-adapter-test-realism.tsv"))
+	rows := make(map[string]supportedAdapterRealism)
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 4 {
+			t.Fatalf("docs/supported-adapter-test-realism.tsv:%d: expected 4 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		row := supportedAdapterRealism{
+			ImportPath:              strings.TrimSpace(cols[0]),
+			DefaultPREvidence:       strings.TrimSpace(cols[1]),
+			ScheduledManualEvidence: strings.TrimSpace(cols[2]),
+			RealismStatus:           strings.TrimSpace(cols[3]),
+		}
+		if row.ImportPath == "" || row.DefaultPREvidence == "" || row.ScheduledManualEvidence == "" || row.RealismStatus == "" {
+			t.Fatalf("docs/supported-adapter-test-realism.tsv:%d: empty realism field", lineNo+1)
+		}
+		if _, exists := rows[row.ImportPath]; exists {
+			t.Fatalf("docs/supported-adapter-test-realism.tsv:%d: duplicate import path %s", lineNo+1, row.ImportPath)
+		}
+		rows[row.ImportPath] = row
+	}
+	if len(rows) == 0 {
+		t.Fatal("docs/supported-adapter-test-realism.tsv has no rows")
+	}
+	return rows
+}
+
 func moduleGoDirective(t *testing.T, path string) string {
 	t.Helper()
 
@@ -4327,6 +4443,15 @@ func contribDriftManifestPackages(t *testing.T, repoRoot string) []string {
 func containsString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAny(value string, wants []string) bool {
+	for _, want := range wants {
+		if strings.Contains(value, want) {
 			return true
 		}
 	}

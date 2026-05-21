@@ -27,7 +27,10 @@ The adapter maturity review is manifest-driven. Packages classified as
 `supported-adapter` in `docs/package-classification.tsv` are the
 evidence-complete supported adapter set: they must have direct tests, package
 docs, a behavior contract in `docs/supported-adapter-contracts.tsv`, and release
-drift coverage in `docs/contrib-api-drift-packages.txt`.
+drift coverage in `docs/contrib-api-drift-packages.txt`. Test-realism evidence
+is tracked separately in `docs/supported-adapter-test-realism.tsv` so reviewers
+can tell direct-unit, fake DB, miniredis, hermetic fixture, and scheduled/manual
+real-service evidence apart without treating all adapter tests as equivalent.
 
 Packages classified as `experimental` are intentionally not promoted. They can
 be useful and maintained, but remain outside the supported-adapter tier until

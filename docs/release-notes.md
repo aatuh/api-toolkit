@@ -72,6 +72,14 @@ source of truth is `docs/release-runbook.md`.
 - Replaced direct sleep-based assertions in timeout, security-profile,
   outbound HTTP retry, and transaction cleanup tests with context deadlines or
   channel synchronization so the same behavior is checked with less timing risk.
+- Hardened the hard-timeout capture path so handler writes are rejected as soon
+  as the request deadline channel is closed, then added
+  `make timeout-determinism-check` for repeated normal and race evidence around
+  late-write rejection.
+- Added `docs/supported-adapter-test-realism.tsv` and docscheck coverage so
+  every supported adapter declares default PR evidence, scheduled/manual
+  evidence, and whether that evidence is direct-unit, fake DB, miniredis,
+  hermetic fixture, or real-service-backed.
 - `make coverage-check` now writes `.ci-result/coverage/summary.md` so CI can
   append root/contrib coverage totals to the GitHub job summary without making
   aggregate coverage the test-quality score.

@@ -172,7 +172,7 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), m.Timeout)
 		defer cancel()
 
-		capture := newHardTimeoutCapture(m.captureLimit())
+		capture := newHardTimeoutCapture(m.captureLimit(), ctx.Done())
 		done := make(chan hardTimeoutResult, 1)
 		go func() {
 			result := hardTimeoutResult{}
@@ -187,6 +187,11 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 
 		select {
 		case result := <-done:
+			if capture.timedOutOrDeadlineReached() {
+				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
+				httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
+				return
+			}
 			if capture.overflowed() {
 				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeCaptureOverflow, defaultHardTimeoutCaptureOverflowStatus)
 				httpx.WriteProblem(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem)
@@ -274,10 +279,15 @@ type hardTimeoutCapture struct {
 	committed bool
 	maxBytes  int64
 	overflow  bool
+	timeoutCh <-chan struct{}
 }
 
-func newHardTimeoutCapture(maxBytes int64) *hardTimeoutCapture {
-	return &hardTimeoutCapture{header: make(http.Header), maxBytes: hardTimeoutCaptureLimit(maxBytes)}
+func newHardTimeoutCapture(maxBytes int64, timeoutCh <-chan struct{}) *hardTimeoutCapture {
+	return &hardTimeoutCapture{
+		header:    make(http.Header),
+		maxBytes:  hardTimeoutCaptureLimit(maxBytes),
+		timeoutCh: timeoutCh,
+	}
 }
 
 func (c *hardTimeoutCapture) Header() http.Header {
@@ -287,7 +297,7 @@ func (c *hardTimeoutCapture) Header() http.Header {
 func (c *hardTimeoutCapture) WriteHeader(status int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.timedOut || c.wrote {
+	if c.deadlineReachedLocked() || c.wrote {
 		return
 	}
 	c.status = status
@@ -297,7 +307,7 @@ func (c *hardTimeoutCapture) WriteHeader(status int) {
 func (c *hardTimeoutCapture) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.timedOut {
+	if c.deadlineReachedLocked() {
 		return 0, http.ErrHandlerTimeout
 	}
 	if !c.wrote {
@@ -321,6 +331,28 @@ func (c *hardTimeoutCapture) timeout() {
 	c.timedOut = true
 }
 
+func (c *hardTimeoutCapture) timedOutOrDeadlineReached() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.deadlineReachedLocked()
+}
+
+func (c *hardTimeoutCapture) deadlineReachedLocked() bool {
+	if c.timedOut {
+		return true
+	}
+	if c.timeoutCh == nil {
+		return false
+	}
+	select {
+	case <-c.timeoutCh:
+		c.timedOut = true
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *hardTimeoutCapture) overflowed() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -330,7 +362,7 @@ func (c *hardTimeoutCapture) overflowed() bool {
 func (c *hardTimeoutCapture) flushTo(w http.ResponseWriter) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.timedOut || c.committed {
+	if c.deadlineReachedLocked() || c.committed {
 		return
 	}
 	c.committed = true

@@ -85,17 +85,15 @@ func TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse(t *testing.T) {
 		t.Fatalf("new hard timeout: %v", err)
 	}
 
-	done := make(chan struct{})
+	writeErr := make(chan error, 1)
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := r.Context().Deadline(); !ok {
 			t.Error("expected request deadline")
 		}
 		<-r.Context().Done()
 		w.Header().Set("X-Late", "true")
-		if _, err := w.Write([]byte("late")); err == nil {
-			t.Error("expected late write to fail after hard timeout")
-		}
-		close(done)
+		_, err := w.Write([]byte("late"))
+		writeErr <- err
 	}))
 
 	rec := httptest.NewRecorder()
@@ -118,7 +116,9 @@ func TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse(t *testing.T) {
 	if body["status"] != float64(http.StatusGatewayTimeout) {
 		t.Fatalf("problem status = %#v, want 504", body["status"])
 	}
-	<-done
+	if err := <-writeErr; !errors.Is(err, http.ErrHandlerTimeout) {
+		t.Fatalf("late write error = %v, want %v", err, http.ErrHandlerTimeout)
+	}
 }
 
 func TestHardTimeoutPreservesFastHandlerStatusHeadersAndBody(t *testing.T) {

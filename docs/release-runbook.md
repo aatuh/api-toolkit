@@ -31,6 +31,7 @@ change. Do not introduce a second baseline table in another document.
 | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, including `make actions-audit` for pinned GitHub Actions and generated workflow templates, not release evidence. |
 | `GOTOOLCHAIN=local make coverage-check` | High-risk package coverage gate. | Pass/fail signal for aggregate coverage and package-specific floors in `scripts/coverage_check.sh`; use `docs/coverage-hardening-backlog.md` before raising JWT, health/readiness, pgxpool, OpenAPI validation, webhook delivery, or other high-risk floors. |
 | `GOTOOLCHAIN=local make actions-audit` | GitHub Actions and generated workflow template audit. | Non-mutating check for pinned `uses:` refs, stale/deprecated action comments, and generated checkout/setup-go template versions. Included in `make audit-check`, not release evidence by itself. |
+| `GOTOOLCHAIN=local make timeout-determinism-check` | Focused timeout determinism gate. | Repeats the hard-timeout late-write test under normal and race runs, then runs the root timeout/idempotency/rate-limit/scheduler race subset. Included in `make audit-check`, not release evidence by itself. |
 | `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
 | `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
@@ -58,16 +59,17 @@ Use this command sequence before publishing:
 
 1. `GOTOOLCHAIN=local make finalize` before committing implementation work when it is safe to allow formatting and module tidying.
 2. `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make reviewer-gate` for non-mutating reviewer checks in a shared or dirty worktree.
-3. Run `GOTOOLCHAIN=local make coverage-check` when high-risk behavior tests or coverage floors changed; use `docs/coverage-hardening-backlog.md` as the floor-raising checklist. Use `GOTOOLCHAIN=local make reference-service-coverage` when reviewers need generated-service coverage as separate adoption evidence.
+3. Run `GOTOOLCHAIN=local make coverage-check` when high-risk behavior tests or coverage floors changed; use `docs/coverage-hardening-backlog.md` as the floor-raising checklist. Use `GOTOOLCHAIN=local make timeout-determinism-check` when timeout middleware behavior or race evidence changed. Use `GOTOOLCHAIN=local make reference-service-coverage` when reviewers need generated-service coverage as separate adoption evidence.
 4. Optionally run `GOTOOLCHAIN=local make generated-integration-check` and, when object storage behavior is in release scope, `GOTOOLCHAIN=local make generated-integration-check-minio`.
 5. Optionally run `GOTOOLCHAIN=local make generated-upgrade-compat-check` when release reviewers want generated-service upgrade evidence from published v3 baselines.
-6. Optionally run `GOTOOLCHAIN=local make reference-service-check`, `GOTOOLCHAIN=local make reference-service-coverage`, or `GOTOOLCHAIN=local make reference-service-evidence` when release reviewers want checked-in adoption proof evidence.
-7. Optionally run `make github-governance-check` when `gh` can read repository settings.
-8. `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
-9. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
-10. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
-11. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
-12. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+6. Review `docs/supported-adapter-test-realism.tsv` when supported adapter behavior changes, especially when the default evidence is fake DB, miniredis, hermetic fixture, or scheduled/manual real-service evidence rather than direct live-service checks.
+7. Optionally run `GOTOOLCHAIN=local make reference-service-check`, `GOTOOLCHAIN=local make reference-service-coverage`, or `GOTOOLCHAIN=local make reference-service-evidence` when release reviewers want checked-in adoption proof evidence.
+8. Optionally run `make github-governance-check` when `gh` can read repository settings.
+9. `API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
+10. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
+11. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
+12. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
+13. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the

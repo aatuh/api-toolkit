@@ -29,7 +29,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -173,6 +173,11 @@ test-race: ## Run unit tests with race detector
 		(cd $$mod && $(GO) test ./... -race -count=1); \
 	done
 
+timeout-determinism-check: ## Run repeated timeout middleware determinism and race checks
+	@$(GO) test ./middleware/timeout -count=50 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/timeout -race -count=20 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/idempotency ./middleware/timeout ./middleware/ratelimit ./scheduler -race -count=1
+
 fuzz: ## Run fuzz smoke tests
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
@@ -208,6 +213,7 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 	$(MAKE) docs-check
 	$(MAKE) test
 	$(MAKE) test-race
+	$(MAKE) timeout-determinism-check
 	$(MAKE) fuzz
 
 reviewer-gate: ## Run non-mutating reviewer checks plus release evidence policy preflight

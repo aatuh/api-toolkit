@@ -116,6 +116,7 @@ identifies the installed generator and contract tool.
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
+| `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Machine-readable default and scheduled/manual test-realism evidence for each supported contrib adapter. |
 
 ## Release and evidence
 
@@ -128,6 +129,7 @@ identifies the installed generator and contract tool.
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
 | `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Required supported-adapter behavior contracts with direct-test and release-drift evidence. |
+| `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Required supported-adapter realism rows that distinguish direct-unit, fake DB, miniredis, hermetic fixture, and scheduled/manual real-service evidence. |
 | `docs/contrib-api-drift-dispositions.tsv` | Release reviewers and automation | Owner, status, review date, expiry, and acknowledgement for current contrib drift. |
 | `docs/vulnerability-dispositions.tsv` | Release reviewers and automation | Owner, review, expiry, and upgrade trigger rows for imported-only vulnerability IDs when present. |
 | `release-check-summary.json` | Release reviewers | Generated local release evidence summary; only clean publication evidence is publishable. |
@@ -142,6 +144,7 @@ Use the narrowest check that matches the change:
 | V3 cleanup readiness | `GOTOOLCHAIN=local make v3-readiness-check` | Runs focused compatibility-sensitive surface guardrails for major-version cleanup planning and release-note requirements. |
 | Docs plus ordinary code changes | `GOTOOLCHAIN=local make fast-check` | Runs `docs-check` and unit tests without rewriting files. |
 | Reference service coverage | `GOTOOLCHAIN=local make reference-service-coverage` | Records non-Docker generated-service coverage under `.ci-result/coverage/` without folding app-owned code into toolkit coverage thresholds. |
+| Timeout determinism | `GOTOOLCHAIN=local make timeout-determinism-check` | Repeats the hard-timeout late-write test under normal and race runs, then runs the root timeout/idempotency/rate-limit/scheduler race subset. |
 | Reviewer or audit pass | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer gate with lint, vuln, gosec, build smoke, GitHub Actions pin audit, docs contracts, tests, race, and fuzz smoke. |
 | Generated files, examples, scripts, package docs, or repo-wide contracts | `GOTOOLCHAIN=local make finalize` when practical | Installs tools and may rewrite Go formatting and module files through `fmt` and `tidy`; avoid it in shared dirty worktrees unless that mutation is intended. |
 
@@ -166,6 +169,7 @@ important public docs disappear from navigation:
 `docs/dependency-boundary.md`, `docs/dependency-risk.md`,
 `docs/package-doc-standard.md`, `docs/full-service-scaffold.md`,
 `docs/package-classification.tsv`, `docs/supported-adapter-contracts.tsv`,
+`docs/supported-adapter-test-realism.tsv`,
 `docs/contrib-api-drift-packages.txt`,
 `docs/contrib-api-drift-dispositions.tsv`,
 `docs/vulnerability-dispositions.tsv`, `contrib/examples/README.md`,
