@@ -8,7 +8,7 @@ require (
 	github.com/aatuh/api-toolkit/v3 v3.1.2
 	github.com/aatuh/envvar/v2 v2.1.5
 	github.com/aatuh/validate/v3 v3.0.7
-	github.com/alicebob/miniredis/v2 v2.37.0
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cedar-policy/cedar-go v1.4.0
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/getkin/kin-openapi v0.133.0
