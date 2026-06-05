@@ -4375,6 +4375,62 @@ func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
 	}
 }
 
+func TestDeadCodeTODOGateIsWired(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "dead_code_todo_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "dead_code_todo_contract_test.sh"))
+	exceptions := readText(t, filepath.Join(repoRoot, "docs", "todo-exceptions.tsv"))
+	golangci := readText(t, filepath.Join(repoRoot, ".golangci.yml"))
+
+	for _, required := range []string{
+		"dead-code-todo-check:",
+		"dead-code-todo-contract:",
+		"scripts/dead_code_todo_check.sh",
+		"scripts/dead_code_todo_contract_test.sh",
+		"dead-code-todo-check",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing dead-code/TODO gate wiring %q", required)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "dead-code-todo-contract") {
+		t.Fatal("docs-check target must include dead-code-todo-contract")
+	}
+	for _, required := range []string{
+		"docs/package-classification.tsv",
+		"docs/todo-exceptions.tsv",
+		"stable",
+		"compatibility-only",
+		"TODO|FIXME",
+		"missing linked issue",
+		"missing non-blocking exception row",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("scripts/dead_code_todo_check.sh missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"TODO_GATE_REPO_ROOT",
+		"missing linked issue",
+		"missing non-blocking exception row",
+		"non-blocking",
+		"dead code TODO gate contract tests passed",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("scripts/dead_code_todo_contract_test.sh missing %q", required)
+		}
+	}
+	if !strings.Contains(exceptions, "path\tmarker\tissue\tclassification\treason") {
+		t.Fatal("docs/todo-exceptions.tsv missing required header")
+	}
+	for _, required := range []string{"staticcheck", "unused"} {
+		if !strings.Contains(golangci, "- "+required) {
+			t.Fatalf(".golangci.yml missing dead-code linter %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP1APIDesignOperationalDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

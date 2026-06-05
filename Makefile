@@ -29,7 +29,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -66,6 +66,12 @@ api-inventory-check: ## Verify docs/api-inventory.md is current
 
 api-additions-check: ## Require evidence for new stable exported identifiers
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/api_additions_check.sh
+
+dead-code-todo-check: ## Reject unclassified TODO/FIXME in stable packages
+	@scripts/dead_code_todo_check.sh
+
+dead-code-todo-contract: ## Run stable TODO gate contract tests
+	@scripts/dead_code_todo_contract_test.sh
 
 contrib-api-drift-report: tools ## Check selected contrib API drift without making contrib stable
 	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
@@ -132,6 +138,7 @@ docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
 	@$(MAKE) api-inventory-check
 	@$(MAKE) api-additions-check
+	@$(MAKE) dead-code-todo-contract
 	@$(MAKE) api-check-contract
 	@$(MAKE) contrib-review-contract
 	@$(MAKE) actions-audit-contract
@@ -152,6 +159,7 @@ lint: tools ## Run golangci-lint
 		echo "==> $$mod"; \
 		(cd $$mod && golangci-lint run ./...); \
 	done
+	@$(MAKE) dead-code-todo-check
 
 vuln: tools ## Run govulncheck
 	@set -e; for mod in $(MODULES); do \
