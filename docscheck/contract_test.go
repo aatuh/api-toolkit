@@ -2663,7 +2663,9 @@ func TestStableAndSupportedAdapterPackageDocsMeetMinimumDepth(t *testing.T) {
 	var weak []string
 
 	for _, cls := range classes {
-		if cls.APIStatus != "stable" && cls.APIStatus != "supported-adapter" {
+		needsDepth := cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only" || cls.APIStatus == "supported-adapter"
+		needsCoreFields := cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only"
+		if !needsDepth && !needsCoreFields {
 			continue
 		}
 		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
@@ -2673,13 +2675,30 @@ func TestStableAndSupportedAdapterPackageDocsMeetMinimumDepth(t *testing.T) {
 		}
 		docPath := filepath.Join(dir, "doc.go")
 		comment := packageDocCommentText(t, docPath)
-		if len(strings.Fields(comment)) < 25 {
+		if needsDepth && len(strings.Fields(comment)) < 25 {
 			weak = append(weak, slashRel(repoRoot, docPath)+" has package docs below the minimum depth for "+cls.APIStatus)
+		}
+		if !needsCoreFields {
+			continue
+		}
+		normalized := strings.ToLower(normalizeWhitespace(comment))
+		for field, accepted := range map[string][]string{
+			"purpose":      {"purpose:"},
+			"install":      {"import:", "install:"},
+			"example":      {"example:"},
+			"errors":       {"errors:"},
+			"concurrency":  {"concurrency:"},
+			"stability":    {"stability:"},
+			"when-not-use": {"when not to use:"},
+		} {
+			if !containsAny(normalized, accepted) {
+				weak = append(weak, slashRel(repoRoot, docPath)+" missing "+field+" package-doc field for "+cls.APIStatus)
+			}
 		}
 	}
 	sort.Strings(weak)
 	if len(weak) > 0 {
-		t.Fatalf("stable and supported-adapter package docs below minimum depth:\n%s", strings.Join(weak, "\n"))
+		t.Fatalf("package docs do not meet the package-doc standard:\n%s", strings.Join(weak, "\n"))
 	}
 }
 
