@@ -2262,8 +2262,10 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
+	upgradeSmokeScript := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_check.sh"))
 	referenceCoverageScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_coverage.sh"))
 	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
 	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
@@ -2274,6 +2276,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
 		"generated-upgrade-compat-check:",
+		"upgrade-smoke-check:",
+		"upgrade-smoke-contract:",
 		"reference-service-evidence:",
 		"reference-service-coverage:",
 		"reference-service-evidence-contract:",
@@ -2291,6 +2295,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) timeout-determinism-check") {
 		t.Fatal("audit-check must include timeout-determinism-check")
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) upgrade-smoke-contract") {
+		t.Fatal("docs-check must include upgrade-smoke-contract")
 	}
 	for _, required := range []string{
 		"actions/attest-build-provenance v1",
@@ -2339,6 +2346,28 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"UPGRADE_SMOKE_BASE_REF",
+		"v3.1.2",
+		"go get \"github.com/aatuh/api-toolkit/v3@$base_ref\"",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
+		"go test ./...",
+		".ci-result/upgrade-smoke",
+		"status.tsv",
+	} {
+		if !strings.Contains(upgradeSmokeScript, required) {
+			t.Fatalf("upgrade smoke script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Downstream upgrade smoke",
+		"UPGRADE_SMOKE_BASE_REF: v3.1.2",
+		"make upgrade-smoke-check",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing upgrade smoke CI text %q", required)
+		}
+	}
+	for _, required := range []string{
 		"REFERENCE_SERVICE_DOCKER",
 		"REFERENCE_SERVICE_MINIO",
 		".ci-result/reference-service",
@@ -2365,6 +2394,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-upgrade-compat-check",
+		"make upgrade-smoke-check",
 		"make reference-service-evidence",
 		"make reference-service-coverage",
 		"make github-governance-check",

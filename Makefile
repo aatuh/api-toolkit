@@ -29,7 +29,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -92,6 +92,12 @@ generated-upgrade-compat-check: ## Opt-in generated service upgrade compatibilit
 generated-upgrade-compat-contract: ## Run generated upgrade compatibility script contract tests
 	@scripts/generated_upgrade_compat_contract_test.sh
 
+upgrade-smoke-check: ## Verify a small downstream module pinned to the prior v3 tag works after replacing to this checkout
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK=off scripts/upgrade_smoke_check.sh
+
+upgrade-smoke-contract: ## Run upgrade smoke script contract tests
+	@scripts/upgrade_smoke_contract_test.sh
+
 reference-service-check: ## Verify the checked-in reference saas-api-full service without Docker
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(MAKE) -C examples/reference-saas-api test openapi-check contracts-lint contracts-diff client-check asset-check observability-check deploy-check
 
@@ -128,6 +134,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) release-artifact-verify-contract
 	@$(MAKE) release-evidence-parser-contract
 	@$(MAKE) generated-upgrade-compat-contract
+	@$(MAKE) upgrade-smoke-contract
 	@$(MAKE) reference-service-evidence-contract
 
 fmt: ## Run gofmt and rewrite formatted Go files

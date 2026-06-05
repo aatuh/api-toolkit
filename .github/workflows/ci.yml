@@ -108,6 +108,10 @@ jobs:
       - name: API compatibility check (initial push)
         if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
         run: echo "Skipping API compatibility check because this push has no previous commit baseline."
+      - name: Downstream upgrade smoke
+        env:
+          UPGRADE_SMOKE_BASE_REF: v3.1.2
+        run: make upgrade-smoke-check
   fuzz:
     runs-on: ubuntu-latest
     steps:
