@@ -13,13 +13,26 @@ and `docs/stable-core.md`.
 - Protect `master` and release branches.
 - Require pull requests before merge.
 - Require CODEOWNERS review using `.github/CODEOWNERS`.
-- Require the `ci`, `codeql`, and `scorecard` workflow results that apply to
-  the change.
-- Require `make docs-check`, `make coverage-check`, `make test-race`, and the
-  API compatibility check from CI before merge.
+- Require the CI jobs that apply to the change:
+  - `ci / test`, including `make coverage-check`, `make test-race`, and
+    `make vuln`.
+  - `ci / lint`, including `make lint`.
+  - `ci / governance`, including `make docs-check`,
+    `make v3-readiness-check`, and pull-request contrib drift/release-note
+    checks.
+  - `ci / api-check`, including `make release-api-check` against the pull
+    request base or push predecessor.
+  - `ci / fuzz`, including `make fuzz`.
+  - `codeql` and `scorecard` workflow results when those workflows are enabled
+    for the repository.
 - Protect `v*` release tags and contrib module `contrib/v*` release tags so
   only release maintainers can create or update them.
 - Do not publish a release from local dirty-tree audit evidence.
+
+Settings that are not visible in the repository must be treated as external
+state. Maintainers should verify them with the GitHub UI or
+`make github-governance-check` before publication review, and attach the output
+when repository settings are accessible.
 
 Maintainers can run the optional authenticated verifier with
 `make github-governance-check`. The command uses `gh api` when available to

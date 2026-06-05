@@ -46,6 +46,26 @@ package_coverage() {
   ' "$log" | tail -1
 }
 
+coverage_floor() {
+  local env_name="$1"
+  local default_value="$2"
+  printf '%s' "${!env_name:-$default_value}"
+}
+
+coverage_row() {
+  local module="$1"
+  local log="$2"
+  local pkg="$3"
+  local env_name="$4"
+  local default_floor="$5"
+  local observed
+  observed="$(package_coverage "$log" "$pkg")"
+  if [[ -z "$observed" ]]; then
+    observed="not-reported"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\n' "$module" "$pkg" "$env_name" "$(coverage_floor "$env_name" "$default_floor")" "$observed"
+}
+
 check_min() {
   local label="$1"
   local got="$2"
@@ -70,9 +90,56 @@ run_module contrib contrib
 
 root_total="$(coverage_total "$out_dir/root.func")"
 contrib_total="$(coverage_total "$out_dir/contrib.func")"
+package_summary="$out_dir/package-summary.tsv"
 
 echo "coverage-summary: root total ${root_total}%"
 echo "coverage-summary: contrib total ${contrib_total}%"
+
+{
+  printf 'module\tpackage\tfloor_env\tfloor_percent\tobserved_percent\n'
+  printf 'root\t(aggregate)\tROOT_COVERAGE_MIN\t%s\t%s\n' "$(coverage_floor ROOT_COVERAGE_MIN "$root_min")" "$root_total"
+  printf 'contrib\t(aggregate)\tCONTRIB_COVERAGE_MIN\t%s\t%s\n' "$(coverage_floor CONTRIB_COVERAGE_MIN "$contrib_min")" "$contrib_total"
+
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apiclient" "APICLIENT_COVERAGE_MIN" "80.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apitest" "APITEST_COVERAGE_MIN" "75.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/oauth2" "OAUTH2_COVERAGE_MIN" "85.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/upload" "UPLOAD_COVERAGE_MIN" "85.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/contracttest" "CONTRACTTEST_COVERAGE_MIN" "83.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/docs" "ENDPOINTS_DOCS_COVERAGE_MIN" "70.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/health" "HEALTH_COVERAGE_MIN" "80.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/identity" "HTTPX_IDENTITY_COVERAGE_MIN" "70.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/recover" "HTTPX_RECOVER_COVERAGE_MIN" "55.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey" "AUTH_APIKEY_COVERAGE_MIN" "79.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/authz" "AUTH_AUTHZ_COVERAGE_MIN" "77.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt" "AUTH_JWT_COVERAGE_MIN" "90.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/tenant" "AUTH_TENANT_COVERAGE_MIN" "84.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/idempotency" "IDEMPOTENCY_COVERAGE_MIN" "71.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/json" "JSON_MIDDLEWARE_COVERAGE_MIN" "70.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/maxbody" "MAXBODY_COVERAGE_MIN" "80.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/querylimits" "QUERYLIMITS_COVERAGE_MIN" "90.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/ratelimit" "RATELIMIT_COVERAGE_MIN" "68.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/routecontracts" "ROUTECONTRACTS_COVERAGE_MIN" "83.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/securityprofile" "SECURITYPROFILE_COVERAGE_MIN" "80.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/specs" "SPECS_COVERAGE_MIN" "82.0"
+  coverage_row root "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/webhooks" "WEBHOOKS_COVERAGE_MIN" "80.0"
+
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres" "CONTRIB_AUDITPOSTGRES_COVERAGE_MIN" "90.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis" "CONTRIB_CACHEREDIS_COVERAGE_MIN" "74.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis" "CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN" "68.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3" "CONTRIB_OBJECTSTORES3_COVERAGE_MIN" "75.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres" "CONTRIB_OPERATIONPOSTGRES_COVERAGE_MIN" "80.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres" "CONTRIB_OUTBOXPOSTGRES_COVERAGE_MIN" "86.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool" "CONTRIB_PGXPOOL_COVERAGE_MIN" "71.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis" "CONTRIB_RATELIMITREDIS_COVERAGE_MIN" "65.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres" "CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN" "93.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/bootstrap" "CONTRIB_BOOTSTRAP_COVERAGE_MIN" "71.5"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc" "CONTRIB_AUTH_OIDC_COVERAGE_MIN" "76.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics" "CONTRIB_METRICS_COVERAGE_MIN" "82.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi" "CONTRIB_OPENAPI_COVERAGE_MIN" "85.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace" "CONTRIB_OTELTRACE_COVERAGE_MIN" "90.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog" "CONTRIB_REQUESTLOG_COVERAGE_MIN" "81.0"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery" "CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN" "88.0"
+} >"$package_summary"
 
 cat >"$out_dir/summary.md" <<EOF_SUMMARY
 ## Coverage summary
@@ -88,6 +155,7 @@ Detailed function summaries:
 
 - \`${out_dir}/root.func\`
 - \`${out_dir}/contrib.func\`
+- \`${package_summary}\`
 EOF_SUMMARY
 
 if [[ "$check" -eq 1 ]]; then

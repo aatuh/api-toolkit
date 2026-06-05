@@ -233,6 +233,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) full-profile-scaffold-check
 	$(MAKE) v3-readiness-check
 	$(MAKE) docs-check
+	$(MAKE) coverage-check
 	$(MAKE) test
 	$(MAKE) test-race
 	$(MAKE) fuzz

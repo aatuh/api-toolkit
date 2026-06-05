@@ -29,7 +29,7 @@ change. Do not introduce a second baseline table in another document.
 | --- | --- | --- |
 | `GOTOOLCHAIN=local make finalize` | Local implementation gate before committing changes; may rewrite formatted Go files and module files. | Pass/fail local quality signal, not release evidence. |
 | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer/audit gate. | Pass/fail review signal, including `make actions-audit` for pinned GitHub Actions and generated workflow templates, not release evidence. |
-| `GOTOOLCHAIN=local make coverage-check` | High-risk package coverage gate. | Pass/fail signal for aggregate coverage and package-specific floors in `scripts/coverage_check.sh`; use `docs/coverage-hardening-backlog.md` before raising JWT, health/readiness, pgxpool, OpenAPI validation, webhook delivery, or other high-risk floors. |
+| `GOTOOLCHAIN=local make coverage-check` | High-risk package coverage gate. | Pass/fail signal for aggregate coverage and package-specific floors in `scripts/coverage_check.sh`; writes `.ci-result/coverage/summary.md` and `.ci-result/coverage/package-summary.tsv`; use `docs/coverage-hardening-backlog.md` before raising JWT, health/readiness, pgxpool, OpenAPI validation, webhook delivery, or other high-risk floors. |
 | `GOTOOLCHAIN=local make actions-audit` | GitHub Actions and generated workflow template audit. | Non-mutating check for pinned `uses:` refs, stale/deprecated action comments, and generated checkout/setup-go template versions. Included in `make audit-check`, not release evidence by itself. |
 | `GOTOOLCHAIN=local make timeout-determinism-check` | Focused timeout determinism gate. | Repeats the hard-timeout late-write test under normal and race runs, then runs the root timeout/idempotency/rate-limit/scheduler race subset. Included in `make audit-check`, not release evidence by itself. |
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
@@ -96,8 +96,8 @@ counts before accepting local publication evidence.
 - The command fails immediately if `API_BASE_REF` does not resolve to a local or fetched supported baseline.
 - The command compares all stable packages listed in `VERSIONING.md` through `scripts/apicheck.sh`.
 - The command also runs linting, vulnerability checks, gosec, build smoke tests,
-  v3 readiness guardrails, docs contracts, unit tests, race tests, fuzz smoke
-  tests, and cleanup.
+  v3 readiness guardrails, docs contracts, coverage-check, unit tests, race
+  tests, fuzz smoke tests, and cleanup.
 - The command includes `make contrib-release-notes-check`, so incompatible
   report-only contrib drift must have release-note acknowledgement before
   publication evidence can pass.

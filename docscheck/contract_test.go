@@ -3271,6 +3271,97 @@ func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
 	}
 }
 
+func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	for _, required := range []string{
+		"ci / test",
+		"make coverage-check",
+		"make test-race",
+		"make vuln",
+		"ci / lint",
+		"ci / governance",
+		"make docs-check",
+		"make v3-readiness-check",
+		"ci / api-check",
+		"make release-api-check",
+		"ci / fuzz",
+		"codeql",
+		"scorecard",
+		"make github-governance-check",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing required branch protection evidence %q", required)
+		}
+	}
+
+	dependencyRisk := readText(t, filepath.Join(repoRoot, "docs", "dependency-risk.md"))
+	for _, required := range []string{
+		"Dependency PR SLA",
+		"Dependabot is configured weekly",
+		"Security update, critical or high",
+		"Routine update open 14 days",
+		"Routine update open 30 days",
+		"owner and next review date",
+	} {
+		if !strings.Contains(dependencyRisk, required) {
+			t.Fatalf("docs/dependency-risk.md missing dependency SLA text %q", required)
+		}
+	}
+
+	coverageDoc := readText(t, filepath.Join(repoRoot, "docs", "test-coverage.md"))
+	for _, required := range []string{
+		"GOTOOLCHAIN=local make coverage-check",
+		".ci-result/coverage/",
+		"package-summary.tsv",
+		"ROOT_COVERAGE_MIN",
+		"CONTRIB_COVERAGE_MIN",
+		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence",
+	} {
+		if !strings.Contains(coverageDoc, required) {
+			t.Fatalf("docs/test-coverage.md missing coverage evidence text %q", required)
+		}
+	}
+
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readme},
+		{"docs/README.md", docsIndex},
+	} {
+		if !strings.Contains(source.text, "docs/test-coverage.md") && !strings.Contains(source.text, "test-coverage.md") {
+			t.Fatalf("%s missing docs/test-coverage.md link", source.name)
+		}
+	}
+
+	coverageScript := readText(t, filepath.Join(repoRoot, "scripts", "coverage_check.sh"))
+	for _, required := range []string{
+		"package-summary.tsv",
+		"coverage_row root",
+		"coverage_row contrib",
+		"floor_env",
+		"observed_percent",
+	} {
+		if !strings.Contains(coverageScript, required) {
+			t.Fatalf("scripts/coverage_check.sh missing package coverage summary text %q", required)
+		}
+	}
+
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	releaseCheckTargets := makeSubtargets(t, makefile, "release-check")
+	if !containsString(releaseCheckTargets, "coverage-check") {
+		t.Fatalf("release-check target must include coverage-check: %v", releaseCheckTargets)
+	}
+	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	if !strings.Contains(summaryScript, "\"coverage-check\"") || !strings.Contains(summaryScript, "\"make coverage-check\"") {
+		t.Fatal("release evidence summary script must record coverage-check")
+	}
+}
+
 func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))

@@ -182,6 +182,7 @@ if err != nil {
 - Metrics naming and labels: [docs/metrics.md](docs/metrics.md)
 - Dependency boundary: [docs/dependency-boundary.md](docs/dependency-boundary.md)
 - Dependency risk disposition: [docs/dependency-risk.md](docs/dependency-risk.md)
+- Test coverage evidence: [docs/test-coverage.md](docs/test-coverage.md)
 - Vulnerability disposition manifest: `docs/vulnerability-dispositions.tsv`
 
 ## Stability

@@ -51,3 +51,27 @@ findings in contrib dependencies remain release-review risks, not stable API
 compatibility signals. If future evidence reports imported-only IDs again,
 restore non-expired manifest rows with owner, review date, expiry date, and an
 upgrade trigger before accepting release evidence.
+
+## Dependency PR SLA
+
+Dependabot is configured weekly for root Go modules, contrib Go modules, and
+GitHub Actions. The SLA for dependency PRs is:
+
+| PR age or type | Required action |
+| --- | --- |
+| Security update, critical or high | Review immediately; merge, replace, or document a blocker before the next release evidence run. |
+| Security update, medium or low | Triage within 7 days; merge when tests pass or document why the advisory is not called. |
+| Routine update open 14 days | Add an owner and a short disposition: merge window, blocked reason, replacement plan, or close rationale. |
+| Routine update open 30 days | Refresh or close; do not let stale dependency PRs accumulate without an owner decision. |
+
+Required triage notes:
+
+- affected module and package,
+- whether the dependency is root, contrib, tooling, or generated-service-only,
+- test command run or failing check,
+- release impact,
+- owner and next review date.
+
+Use `docs/vulnerability-dispositions.tsv` only for current imported-but-not-called
+vulnerability IDs. Normal version-bump PRs should carry their disposition in the
+PR and, when release-relevant, in `docs/release-notes.md`.
