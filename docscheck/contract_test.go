@@ -3443,6 +3443,106 @@ func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 	}
 }
 
+func TestQualityAuditP1AdoptionPathDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, path := range []string{
+		"docs/library-first.md",
+		"docs/minimal-core.md",
+		"docs/core-package-guide.md",
+		"docs/scaffold-first.md",
+		"docs/contrib-adapters.md",
+	} {
+		if !strings.Contains(readme, path) {
+			t.Fatalf("README.md missing adoption-path link %s", path)
+		}
+		short := strings.TrimPrefix(path, "docs/")
+		if !strings.Contains(docsIndex, short) {
+			t.Fatalf("docs/README.md missing adoption-path link %s", short)
+		}
+	}
+	if !strings.Contains(readme, "Differentiator: production guardrails for conventional Go JSON APIs") {
+		t.Fatal("README.md missing one-sentence differentiator")
+	}
+
+	libraryFirst := readText(t, filepath.Join(repoRoot, "docs", "library-first.md"))
+	for _, required := range []string{
+		"`net/http`, chi",
+		"app-owned router service",
+		"Do not start with the scaffold for this path",
+		"Five-minute adoption",
+		"minimal-core.md",
+		"contrib-adapters.md",
+	} {
+		if !strings.Contains(libraryFirst, required) {
+			t.Fatalf("docs/library-first.md missing %q", required)
+		}
+	}
+
+	minimalCore := readText(t, filepath.Join(repoRoot, "docs", "minimal-core.md"))
+	for _, required := range []string{
+		"`httpx`",
+		"`binding`",
+		"`middleware/maxbody`",
+		"`middleware/timeout`",
+		"It does not use contrib",
+		"generated scaffolds",
+		"provider adapters",
+		"business ports.",
+	} {
+		if !strings.Contains(minimalCore, required) {
+			t.Fatalf("docs/minimal-core.md missing %q", required)
+		}
+	}
+
+	coreGuide := readText(t, filepath.Join(repoRoot, "docs", "core-package-guide.md"))
+	for _, required := range []string{
+		"| Package | Use case | Use when | Do not use when | Stability | Dependency note | Example |",
+		"`middleware/auth/jwt`",
+		"auth/JWK",
+		"`compat/billing`",
+		"compatibility-only",
+		"[example](../binding/example_test.go)",
+	} {
+		if !strings.Contains(coreGuide, required) {
+			t.Fatalf("docs/core-package-guide.md missing %q", required)
+		}
+	}
+
+	scaffoldFirst := readText(t, filepath.Join(repoRoot, "docs", "scaffold-first.md"))
+	gettingStarted := readText(t, filepath.Join(repoRoot, "docs", "getting-started.md"))
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"docs/scaffold-first.md", scaffoldFirst},
+		{"docs/getting-started.md", gettingStarted},
+	} {
+		for _, required := range []string{
+			"app-owned generated code",
+			"library-first.md",
+		} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing %q", source.name, required)
+			}
+		}
+	}
+
+	contribAdapters := readText(t, filepath.Join(repoRoot, "docs", "contrib-adapters.md"))
+	for _, required := range []string{
+		"Contrib is outside the stable core API promise",
+		"`supported-adapter`",
+		"`docs/package-classification.tsv`",
+		"Generated scaffold code is app-owned",
+	} {
+		if !strings.Contains(contribAdapters, required) {
+			t.Fatalf("docs/contrib-adapters.md missing %q", required)
+		}
+	}
+}
+
 func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))

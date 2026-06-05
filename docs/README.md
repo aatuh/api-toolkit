@@ -7,9 +7,14 @@ without scanning the root README.
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
+| [Library-first path](library-first.md) | Existing-service users | Add the smallest useful root package set to a `net/http`, chi, or app-owned router service. |
+| [Minimal core path](minimal-core.md) | Existing-service users | Use only `httpx`, `binding`, `middleware/maxbody`, and `middleware/timeout` without contrib or generators. |
+| [Core package decision guide](core-package-guide.md) | Adopters and reviewers | Choose packages by use case, when-not-to-use guidance, stability tier, dependency note, and example link. |
+| [Scaffold-first path](scaffold-first.md) | New service teams | Generate app-owned service code and understand what the toolkit owns versus what the generated app owns. |
+| [Contrib adapter path](contrib-adapters.md) | Adapter adopters | Decide when to add supported contrib adapters, integrations, examples, or generator tooling. |
 | [Stable core charter](stable-core.md) | New users and maintainers | Decide which root packages are the recommended small-core dependency surface and what evidence stable packages need. |
 | [Alternatives](alternatives.md) | Evaluators | Decide when to use `api-toolkit` instead of `net/http`, chi, oapi-codegen, Goa, Connect, or app-owned helpers. |
-| [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
+| [Getting started](getting-started.md) | Scaffold users | Generate, run, and verify the production-oriented app-owned service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
@@ -165,7 +170,9 @@ running root and contrib gates.
 These literal paths are kept here so docs index coverage checks can detect when
 important public docs disappear from navigation:
 
-`README.md`, `docs/getting-started.md`, `docs/cookbook.md`,
+`README.md`, `docs/library-first.md`, `docs/minimal-core.md`,
+`docs/core-package-guide.md`, `docs/scaffold-first.md`,
+`docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/security.md`, `SECURITY.md`, `docs/metrics.md`,
 `VERSIONING.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,

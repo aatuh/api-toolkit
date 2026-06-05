@@ -7,6 +7,9 @@ without adopting a full framework.
 Target user: Go developers building conventional JSON/HTTP APIs with `net/http`,
 chi, or app-owned routers.
 
+Differentiator: production guardrails for conventional Go JSON APIs, not a
+router or full framework.
+
 Non-goals: not a router, persistence framework, billing framework, universal auth
 platform, RPC framework, streaming middleware suite, or replacement for
 app-owned business ports.
@@ -52,8 +55,12 @@ Go 1.25.x.
 
 ## Start Here
 
-- Add the core library to an existing service: [docs/stable-core.md](docs/stable-core.md)
-- Generate a new service scaffold: [docs/getting-started.md](docs/getting-started.md)
+- Add the core library to an existing service: [docs/library-first.md](docs/library-first.md)
+- Use the smallest root-only path: [docs/minimal-core.md](docs/minimal-core.md)
+- Choose a core package: [docs/core-package-guide.md](docs/core-package-guide.md)
+- Generate a new app-owned service scaffold: [docs/scaffold-first.md](docs/scaffold-first.md)
+- Wire supported adapters: [docs/contrib-adapters.md](docs/contrib-adapters.md)
+- Review the stable-core charter: [docs/stable-core.md](docs/stable-core.md)
 - Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
 - Review benchmark baselines: [docs/performance.md](docs/performance.md)
@@ -82,7 +89,11 @@ before publication.
 
 ## Package Map
 
-Recommended small-core starting points:
+Recommended small-core starting points are mapped in
+[docs/core-package-guide.md](docs/core-package-guide.md). The minimum
+root-only adoption path is documented in [docs/minimal-core.md](docs/minimal-core.md).
+
+Common first packages:
 
 - HTTP responses and errors: `httpx`, `fielderrors`.
 - Request parsing and bounds: `binding`, `queryparams`, `upload`,

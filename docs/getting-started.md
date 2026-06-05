@@ -1,7 +1,13 @@
-# Getting Started (10 minutes)
+# Getting Started (Scaffold, 10 minutes)
 
-Audience: new users who want a runnable production-oriented API skeleton with
-the standard service wiring already in place.
+Audience: scaffold users who want a runnable production-oriented API skeleton
+with the standard service wiring already in place.
+
+This is the scaffold-first path. Generated services are app-owned generated code.
+Review the diff, own product-specific edits, and do not treat regeneration as a
+managed-framework upgrade. Existing services should start with
+[library-first.md](library-first.md) or [minimal-core.md](minimal-core.md)
+instead.
 
 ## Prerequisites
 
