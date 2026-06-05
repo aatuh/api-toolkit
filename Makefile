@@ -1,6 +1,8 @@
 MODULES := . contrib
 GO ?= go
 GOWORK ?= off
+FUZZTIME ?= 10s
+BENCHTIME ?= 1x
 export GOWORK
 
 # Standard tools.
@@ -29,7 +31,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -219,9 +221,12 @@ timeout-determinism-check: ## Run repeated timeout middleware determinism and ra
 	@$(GO) test ./middleware/idempotency ./middleware/timeout ./middleware/ratelimit ./scheduler -race -count=1
 
 fuzz: ## Run fuzz smoke tests
+	@GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
+
+benchmark-smoke: ## Run package benchmark smoke without performance claims
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) test ./... -run=^$ -fuzz=Fuzz -fuzztime=10s); \
+		(cd $$mod && $(GO) test ./... -run='^$$' -bench='Benchmark' -benchmem -benchtime=$(BENCHTIME)); \
 	done
 
 clean: ## Clean test cache

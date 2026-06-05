@@ -25,6 +25,9 @@ and `docs/stable-core.md`.
   - `ci / fuzz`, including `make fuzz`.
   - `codeql` and `scorecard` workflow results when those workflows are enabled
     for the repository.
+- Keep the scheduled `nightly` workflow enabled for longer fuzzing, generated
+  scaffold integration, dependency vulnerability checks, and benchmark smoke.
+  It is production-readiness evidence, not a required pull-request gate.
 - Protect `v*` release tags and contrib module `contrib/v*` release tags so
   only release maintainers can create or update them.
 - Do not publish a release from local dirty-tree audit evidence.

@@ -4023,6 +4023,85 @@ func TestNegativePathTestMatrixReferencesExecutableTests(t *testing.T) {
 	}
 }
 
+func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	targets := []struct {
+		file string
+		name string
+	}{
+		{filepath.Join("binding", "binding_fuzz_test.go"), "FuzzDecodeJSONAndQuery"},
+		{filepath.Join("queryparams", "queryparams_fuzz_test.go"), "FuzzParseCollectionQuery"},
+		{filepath.Join("negotiation", "negotiation_fuzz_test.go"), "FuzzParseAcceptAndContentType"},
+		{filepath.Join("upload", "upload_fuzz_test.go"), "FuzzDecodeMultipartMetadata"},
+		{filepath.Join("webhooks", "webhooks_fuzz_test.go"), "FuzzHMACVerifierSignatures"},
+	}
+	readiness := readText(t, filepath.Join(repoRoot, "docs", "core-readiness.md"))
+	for _, target := range targets {
+		source := readText(t, filepath.Join(repoRoot, target.file))
+		if !strings.Contains(source, "func "+target.name+"(") {
+			t.Fatalf("%s missing fuzz target %s", target.file, target.name)
+		}
+		if !strings.Contains(readiness, "`"+target.name+"` smoke") {
+			t.Fatalf("docs/core-readiness.md missing fuzz readiness entry for %s", target.name)
+		}
+	}
+
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"FUZZTIME ?= 10s",
+		`GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)`,
+		"benchmark-smoke:",
+		"-bench='Benchmark'",
+		"-benchtime=$(BENCHTIME)",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing parser fuzz or benchmark smoke wiring %q", required)
+		}
+	}
+	fuzzScript := readText(t, filepath.Join(repoRoot, "scripts", "fuzz_check.sh"))
+	for _, required := range []string{
+		"test_files=",
+		"grep -hoE",
+		"func Fuzz",
+		`-fuzz="^${fuzzer}$"`,
+		`-fuzztime="$fuzztime"`,
+	} {
+		if !strings.Contains(fuzzScript, required) {
+			t.Fatalf("scripts/fuzz_check.sh missing per-target fuzz wiring %q", required)
+		}
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	if !strings.Contains(ci, "Fuzz smoke") || !strings.Contains(ci, "make fuzz") {
+		t.Fatal(".github/workflows/ci.yml must keep make fuzz wired as CI smoke")
+	}
+
+	nightly := readText(t, filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"))
+	for _, required := range []string{
+		"schedule:",
+		"FUZZTIME=60s make fuzz",
+		"make generated-integration-check",
+		"make vuln",
+		"BENCHTIME=1x make benchmark-smoke",
+	} {
+		if !strings.Contains(nightly, required) {
+			t.Fatalf(".github/workflows/nightly.yml missing deep test wiring %q", required)
+		}
+	}
+
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	for _, required := range []string{
+		"scheduled `nightly` workflow",
+		"longer fuzzing",
+		"benchmark smoke",
+		"not a required pull-request gate",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing nightly workflow governance text %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 
