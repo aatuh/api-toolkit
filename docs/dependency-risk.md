@@ -75,3 +75,24 @@ Required triage notes:
 Use `docs/vulnerability-dispositions.tsv` only for current imported-but-not-called
 vulnerability IDs. Normal version-bump PRs should carry their disposition in the
 PR and, when release-relevant, in `docs/release-notes.md`.
+
+## Current dependency PR triage snapshot
+
+Reviewed on: `2026-06-05`.
+
+Open Dependabot PRs at review time:
+
+| PR | Created | Labels | Disposition |
+| ---: | --- | --- | --- |
+| `#16` | `2026-05-22` | `dependencies`, `github_actions` | Routine GitHub Actions update. Under the 14-day SLA at review time; review after this branch lands because release evidence is being refreshed in the same window. |
+| `#17` | `2026-05-22` | `dependencies`, `go` | Routine contrib Go dependency update. Under the 14-day SLA at review time; run contrib tests and drift/release-note checks before merge. |
+| `#18` | `2026-05-22` | `dependencies`, `github_actions` | Routine GitHub Actions update. Under the 14-day SLA at review time; verify actions audit and release workflow behavior before merge. |
+| `#19` | `2026-05-22` | `dependencies`, `go` | Superseded by the local contrib `golang.org/x/net` floor update required by govulncheck in this backlog pass; close or let Dependabot rebase after this branch lands. |
+| `#20` | `2026-05-22` | `dependencies`, `go` | Routine contrib test dependency update. Under the 14-day SLA at review time; run contrib tests before merge. |
+| `#21` | `2026-05-22` | `dependencies`, `go` | Routine contrib Markdown dependency update. Under the 14-day SLA at review time; run contrib email/markdown tests and `make vuln` before merge. |
+| `#22` | `2026-05-22` | `dependencies`, `go` | Superseded by the local contrib `golang.org/x/text` update pulled by the `x/net` security floor; close or let Dependabot rebase after this branch lands. |
+| `#23` | `2026-05-29` | `dependencies`, `github_actions` | Routine CodeQL action update. Under the 14-day SLA at review time; verify actions audit and code scanning workflow behavior before merge. |
+
+No open dependency PR was older than 14 days at review time. All open
+dependency PRs had ecosystem labels. Re-check this snapshot before the next
+release because it records external GitHub state, not a repository invariant.
