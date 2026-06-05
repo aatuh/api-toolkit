@@ -1248,7 +1248,17 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 			Status                    string `json:"status"`
 			Message                   string `json:"message"`
 		} `json:"provenance_policy"`
-		APIBaseRef          string `json:"api_base_ref"`
+		APIBaseRef       string `json:"api_base_ref"`
+		APICompatibility struct {
+			PreviousTag             string   `json:"previous_tag"`
+			PreviousRef             string   `json:"previous_ref"`
+			CheckedPackageCount     int      `json:"checked_package_count"`
+			CheckedPackages         []string `json:"checked_packages"`
+			IncompatibleChangeCount *int     `json:"incompatible_change_count"`
+			IgnoredExceptionCount   int      `json:"ignored_exception_count"`
+			GeneratedReportPath     string   `json:"generated_report_path"`
+			LogAvailable            bool     `json:"log_available"`
+		} `json:"api_compatibility"`
 		QualityCommand      string `json:"quality_command"`
 		EvidenceCommand     string `json:"evidence_command"`
 		Status              string `json:"status"`
@@ -1451,6 +1461,27 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	}
 	if summary.APIBaseRef != "v2.1.0" {
 		t.Fatalf("api_base_ref = %q, want v2.1.0", summary.APIBaseRef)
+	}
+	if summary.APICompatibility.PreviousTag != summary.APIBaseRef || summary.APICompatibility.PreviousRef != summary.APIBaseRef {
+		t.Fatalf("api_compatibility previous ref/tag = %q/%q, want api_base_ref %q", summary.APICompatibility.PreviousRef, summary.APICompatibility.PreviousTag, summary.APIBaseRef)
+	}
+	wantAPIPackages := stablePackagesFromAPICheck(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
+	assertStringSlicesEqual(t, "api_compatibility checked packages", uniqueSorted(summary.APICompatibility.CheckedPackages), wantAPIPackages)
+	if summary.APICompatibility.CheckedPackageCount != len(wantAPIPackages) {
+		t.Fatalf("api_compatibility checked_package_count = %d, want %d", summary.APICompatibility.CheckedPackageCount, len(wantAPIPackages))
+	}
+	if summary.APICompatibility.IgnoredExceptionCount != 0 {
+		t.Fatalf("api_compatibility ignored_exception_count = %d, want 0", summary.APICompatibility.IgnoredExceptionCount)
+	}
+	if summary.APICompatibility.GeneratedReportPath != ".ci-result/release-evidence/logs/release-api-check.log" {
+		t.Fatalf("api_compatibility report metadata invalid: %+v", summary.APICompatibility)
+	}
+	if summary.APICompatibility.LogAvailable {
+		if summary.APICompatibility.IncompatibleChangeCount == nil || *summary.APICompatibility.IncompatibleChangeCount < 0 {
+			t.Fatalf("api_compatibility incompatible_change_count = %v, want non-negative when log is available", summary.APICompatibility.IncompatibleChangeCount)
+		}
+	} else if summary.APICompatibility.IncompatibleChangeCount != nil {
+		t.Fatalf("api_compatibility incompatible_change_count = %v, want null when log is unavailable", summary.APICompatibility.IncompatibleChangeCount)
 	}
 	if summary.Commit == "" || summary.GitState.Commit != summary.Commit {
 		t.Fatalf("git_state commit = %q, want top-level commit %q", summary.GitState.Commit, summary.Commit)

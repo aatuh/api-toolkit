@@ -146,6 +146,25 @@ if not summary_api_base_ref:
 if expected_api_base_ref and summary_api_base_ref != expected_api_base_ref:
     fail(f"api_base_ref={summary_api_base_ref!r}, want {expected_api_base_ref!r}")
 
+api_compatibility = summary.get("api_compatibility") or {}
+if api_compatibility.get("previous_tag") != summary_api_base_ref:
+    fail(f"api_compatibility.previous_tag={api_compatibility.get('previous_tag')!r}, want {summary_api_base_ref!r}")
+if api_compatibility.get("previous_ref") != summary_api_base_ref:
+    fail(f"api_compatibility.previous_ref={api_compatibility.get('previous_ref')!r}, want {summary_api_base_ref!r}")
+checked_packages = api_compatibility.get("checked_packages")
+if not isinstance(checked_packages, list) or not checked_packages:
+    fail("api_compatibility.checked_packages must be a non-empty array")
+if api_compatibility.get("checked_package_count") != len(checked_packages):
+    fail("api_compatibility.checked_package_count must match checked_packages length")
+if not isinstance(api_compatibility.get("incompatible_change_count"), int) or api_compatibility.get("incompatible_change_count") < 0:
+    fail("api_compatibility.incompatible_change_count must be a non-negative integer")
+if api_compatibility.get("ignored_exception_count") != 0:
+    fail("api_compatibility.ignored_exception_count must be 0 until an exception manifest exists")
+if api_compatibility.get("generated_report_path") != ".ci-result/release-evidence/logs/release-api-check.log":
+    fail("api_compatibility.generated_report_path must point at the release-api-check log")
+if api_compatibility.get("log_available") is not True:
+    fail("api_compatibility.log_available must be true for publication evidence")
+
 provenance = summary.get("provenance_policy") or {}
 if provenance.get("status") != "passed":
     fail(f"provenance_policy.status={provenance.get('status')!r}, want passed")

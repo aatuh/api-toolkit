@@ -260,6 +260,78 @@ extract_report_count() {
   fi
 }
 
+api_check_packages() {
+  local api_script="$repo_root/scripts/apicheck.sh"
+
+  if [ ! -f "$api_script" ]; then
+    return 0
+  fi
+  awk '
+    /^packages=\(/ { in_packages = 1; next }
+    in_packages && /^\)/ { exit }
+    in_packages {
+      if (match($0, /"github\.com\/aatuh\/api-toolkit\/v3[^"]+"/)) {
+        print substr($0, RSTART + 1, RLENGTH - 2)
+      }
+    }
+  ' "$api_script"
+}
+
+api_check_packages_json() {
+  local first=true
+  local pkg
+
+  printf '['
+  while IFS= read -r pkg; do
+    if [ -z "$pkg" ]; then
+      continue
+    fi
+    if [ "$first" = true ]; then
+      first=false
+    else
+      printf ','
+    fi
+    json_string "$pkg"
+  done < <(api_check_packages)
+  printf ']'
+}
+
+api_check_package_count() {
+  api_check_packages | awk 'NF { count++ } END { print count + 0 }'
+}
+
+api_incompatible_change_count() {
+  local log_path="$1"
+  local log_abs="$repo_root/$log_path"
+
+  if [ "$run_checks" != true ] || [ ! -f "$log_abs" ]; then
+    printf 'null'
+    return 0
+  fi
+  awk '/^Incompatible API changes detected in / { count++ } END { print count + 0 }' "$log_abs"
+}
+
+api_compatibility_json() {
+  local log_path="$1"
+  local log_abs="$repo_root/$log_path"
+  local log_available=false
+
+  if [ "$run_checks" = true ] && [ -f "$log_abs" ]; then
+    log_available=true
+  fi
+
+  printf '{'
+  printf '"previous_tag":'; json_string "$api_base_ref"; printf ','
+  printf '"previous_ref":'; json_string "$api_base_ref"; printf ','
+  printf '"checked_package_count":%s,' "$(api_check_package_count)"
+  printf '"checked_packages":'; api_check_packages_json; printf ','
+  printf '"incompatible_change_count":%s,' "$(api_incompatible_change_count "$log_path")"
+  printf '"ignored_exception_count":0,'
+  printf '"generated_report_path":'; json_string "$log_path"; printf ','
+  printf '"log_available":%s' "$log_available"
+  printf '}'
+}
+
 contrib_drift_json() {
   local status="$1"
   local exit_code="$2"
@@ -1125,6 +1197,7 @@ if [ "$allow_dirty_release_evidence" = true ]; then
 else
   printf '  "evidence_command": '; json_string "API_BASE_REF=$api_base_ref GOTOOLCHAIN=$gotoolchain make release-evidence"; printf ',\n'
 fi
+printf '  "api_compatibility": '; api_compatibility_json "$log_dir/release-api-check.log"; printf ',\n'
 printf '  "status": '; json_string "$overall_status"; printf ',\n'
 printf '  "publication_eligible": %s,\n' "$publication_eligible"
 printf '  "checks": [\n'
