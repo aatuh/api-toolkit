@@ -4431,6 +4431,57 @@ func TestDeadCodeTODOGateIsWired(t *testing.T) {
 	}
 }
 
+func TestGoPackageNamesStayConventional(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	fset := token.NewFileSet()
+	var violations []string
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".audits", ".trash", ".ci-result", ".tools", "vendor", "node_modules":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.PackageClauseOnly)
+		if err != nil {
+			return err
+		}
+		name := file.Name.Name
+		baseName := name
+		if strings.HasSuffix(name, "_test") {
+			if !strings.HasSuffix(path, "_test.go") {
+				violations = append(violations, sourceViolation(repoRoot, path, fset, file.Name.Pos(), "uses _test suffix outside a test file"))
+				return nil
+			}
+			baseName = strings.TrimSuffix(name, "_test")
+		}
+		switch {
+		case baseName == "":
+			violations = append(violations, sourceViolation(repoRoot, path, fset, file.Name.Pos(), "has empty package name before _test suffix"))
+		case !regexp.MustCompile(`^[a-z][a-z0-9]*$`).MatchString(baseName):
+			violations = append(violations, sourceViolation(repoRoot, path, fset, file.Name.Pos(), "must be lower-case ASCII letters or digits without underscores"))
+		case len(baseName) > 24:
+			violations = append(violations, sourceViolation(repoRoot, path, fset, file.Name.Pos(), "must stay short at 24 characters or fewer"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Go package names: %v", err)
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("Go package names do not match repository conventions:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestQualityAuditP1APIDesignOperationalDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
