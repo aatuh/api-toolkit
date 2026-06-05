@@ -2878,6 +2878,63 @@ func TestStableOptionsStructAuditCoversExportedOptions(t *testing.T) {
 	}
 }
 
+func TestStableGlobalStateAuditCoversPackageVars(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	audit := readText(t, filepath.Join(repoRoot, "docs", "global-state-audit.md"))
+
+	if !strings.Contains(docsIndex, "global-state-audit.md") {
+		t.Fatal("docs/README.md missing global-state-audit.md")
+	}
+	for _, required := range []string{
+		"package-level `var` declarations",
+		"stable` or `compatibility-only`",
+		"Exported preset vars are retained",
+		"Mutation Policy",
+		"Concurrency Evidence",
+	} {
+		if !strings.Contains(audit, required) {
+			t.Fatalf("docs/global-state-audit.md missing %q", required)
+		}
+	}
+
+	rows := globalStateAuditRows(t, audit)
+	want := stablePackageVarRefs(t, repoRoot)
+	wantSet := map[string]bool{}
+	var missing []string
+	for _, ref := range want {
+		key := packageVarKey(ref.ImportPath, ref.Name)
+		wantSet[key] = true
+		row, ok := rows[key]
+		if !ok {
+			missing = append(missing, ref.ImportPath+" "+ref.Name+" missing global-state audit row")
+			continue
+		}
+		for _, field := range []string{"classification", "mutation", "concurrency"} {
+			value := row[field]
+			if strings.TrimSpace(value) == "" {
+				missing = append(missing, ref.ImportPath+" "+ref.Name+" has empty "+field+" audit cell")
+			}
+			lower := strings.ToLower(value)
+			if strings.Contains(lower, "tbd") || strings.Contains(lower, "todo") {
+				missing = append(missing, ref.ImportPath+" "+ref.Name+" has placeholder "+field+" audit cell")
+			}
+		}
+		if !validGlobalStateClassification(row["classification"]) {
+			missing = append(missing, ref.ImportPath+" "+ref.Name+" has invalid global-state classification "+row["classification"])
+		}
+	}
+	for key := range rows {
+		if !wantSet[key] {
+			missing = append(missing, "docs/global-state-audit.md has stale or non-stable row "+key)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("stable global-state audit is incomplete:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
 func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -6361,6 +6418,134 @@ func trimMarkdownCode(value string) string {
 
 func optionStructKey(importPath, typeName string) string {
 	return importPath + "\t" + typeName
+}
+
+type packageVarRef struct {
+	ImportPath string
+	Name       string
+}
+
+func stablePackageVarRefs(t *testing.T, repoRoot string) []packageVarRef {
+	t.Helper()
+
+	classes := loadPackageClassifications(t, repoRoot)
+	var refs []packageVarRef
+	for _, cls := range classes {
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
+			continue
+		}
+		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
+		if dir == "" {
+			t.Fatalf("%s has unsupported import path for global-state audit", cls.ImportPath)
+		}
+		for _, name := range packageVarNamesInDir(t, dir) {
+			refs = append(refs, packageVarRef{ImportPath: cls.ImportPath, Name: name})
+		}
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].ImportPath == refs[j].ImportPath {
+			return refs[i].Name < refs[j].Name
+		}
+		return refs[i].ImportPath < refs[j].ImportPath
+	})
+	return refs
+}
+
+func packageVarNamesInDir(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read package dir %s: %v", dir, err)
+	}
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for _, name := range valueSpec.Names {
+					if name != nil {
+						seen[name.Name] = true
+					}
+				}
+			}
+		}
+	}
+	var names []string
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func globalStateAuditRows(t *testing.T, content string) map[string]map[string]string {
+	t.Helper()
+
+	rows := map[string]map[string]string{}
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v3") {
+			continue
+		}
+		cols := markdownTableColumns(line)
+		if len(cols) != 5 {
+			t.Fatalf("docs/global-state-audit.md row has %d columns, want 5: %s", len(cols), line)
+		}
+		importPath := trimMarkdownCode(cols[0])
+		name := trimMarkdownCode(cols[1])
+		key := packageVarKey(importPath, name)
+		if rows[key] != nil {
+			t.Fatalf("docs/global-state-audit.md has duplicate row for %s", key)
+		}
+		rows[key] = map[string]string{
+			"classification": strings.TrimSpace(cols[2]),
+			"mutation":       cols[3],
+			"concurrency":    cols[4],
+		}
+	}
+	if len(rows) == 0 {
+		t.Fatal("docs/global-state-audit.md has no audited global-state rows")
+	}
+	return rows
+}
+
+func validGlobalStateClassification(value string) bool {
+	switch value {
+	case "sentinel-error",
+		"immutable-default",
+		"private-default-registry",
+		"precompiled-template",
+		"precompiled-regexp",
+		"embedded-fs",
+		"synchronized-registry",
+		"test-hook",
+		"atomic-counter":
+		return true
+	default:
+		return false
+	}
+}
+
+func packageVarKey(importPath, name string) string {
+	return importPath + "\t" + name
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {

@@ -143,6 +143,7 @@ identifies the installed generator and contract tool.
 | [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
 | [Interface ownership](interface-ownership.md) | Maintainers | Document whether exported interfaces are user-implemented, adapter-owned, test-only, or compatibility-sensitive. |
 | [Options struct audit](options-structs.md) | Maintainers | Review defaults, validation behavior, zero-value behavior, and example evidence for stable exported options structs. |
+| [Global state audit](global-state-audit.md) | Maintainers | Review package-level globals in stable packages and the limited mutable-state exceptions. |
 | [Context and cancellation](context-cancellation.md) | Maintainers and adopters | Apply context propagation and bounded cleanup rules across HTTP, auth, idempotency, scheduler, and client APIs. |
 | [Error taxonomy](errors.md) | Maintainers and API consumers | Match sentinel, typed, field, wrapped, configuration, and Problem Details errors safely. |
 | [Concurrency safety](concurrency.md) | API consumers and maintainers | Decide which values are immutable, request-scoped, synchronized, or implementation-owned. |
