@@ -20,7 +20,7 @@ The command writes coverage evidence under `.ci-result/coverage/`:
 | Artifact | Purpose |
 | --- | --- |
 | `summary.md` | Aggregate root and contrib totals; CI appends this to the GitHub step summary. |
-| `package-summary.tsv` | Package-level floor environment variable, configured floor, and observed coverage for every enforced package floor. |
+| `package-summary.tsv` | Stable-package dashboard plus enforced contrib floor rows. Columns include `api_status`, `test_status`, `floor_env`, `floor_percent`, `observed_percent`, and `branch_notes`. |
 | `root.func` | Function-level root module coverage from `go tool cover -func`. |
 | `contrib.func` | Function-level contrib module coverage from `go tool cover -func`. |
 | `root.log` | Root package test coverage output used for package floor extraction. |
@@ -46,3 +46,26 @@ run; `docs/coverage-hardening-backlog.md` explains when a floor may be raised.
 Do not raise a floor just to improve the number. Raise it only after behavior
 tests covering the relevant risk are merged and the focused package test plus
 `make coverage-check` pass with the new threshold.
+
+## Package Coverage Dashboard
+
+`package-summary.tsv` is generated from `docs/package-classification.tsv` for
+every root package classified as `stable` or `compatibility-only`. Each row
+reports:
+
+| Column | Meaning |
+| --- | --- |
+| `module` | `root`, `contrib`, or aggregate row source. |
+| `package` | Import path, or `(aggregate)` for module totals. |
+| `api_status` | Stability classification from `docs/package-classification.tsv`. |
+| `test_status` | Test classification from `docs/package-classification.tsv`. |
+| `floor_env` | Environment variable controlling the package floor, or `not-enforced`. |
+| `floor_percent` | Active floor percentage, or `not-enforced`. |
+| `observed_percent` | Statement coverage from `go test -cover`, `no-statements`, `no-test-files`, or `not-reported`. |
+| `branch_notes` | Branch-relevant review prompt for the package risk area. |
+
+Rows with `floor_env=not-enforced` are still visible in release evidence, but
+they are not release-blocking coverage floors. Branch notes are prompts for
+reviewing negative paths and risk-specific behavior; they do not replace direct
+tests for malformed input, auth failures, size limits, lifecycle failures, or
+other branch behavior.

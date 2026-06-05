@@ -3902,6 +3902,12 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 		"GOTOOLCHAIN=local make coverage-check",
 		".ci-result/coverage/",
 		"package-summary.tsv",
+		"Package Coverage Dashboard",
+		"docs/package-classification.tsv",
+		"api_status",
+		"test_status",
+		"branch_notes",
+		"not-enforced",
 		"ROOT_COVERAGE_MIN",
 		"CONTRIB_COVERAGE_MIN",
 		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence",
@@ -3928,15 +3934,26 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	coverageScript := readText(t, filepath.Join(repoRoot, "scripts", "coverage_check.sh"))
 	for _, required := range []string{
 		"package-summary.tsv",
+		"docs/package-classification.tsv",
+		"stable_root_coverage_rows",
+		"coverage_branch_notes",
 		"coverage_row root",
 		"coverage_row contrib",
+		"api_status",
+		"test_status",
 		"floor_env",
 		"observed_percent",
+		"branch_notes",
+		"compatibility-only",
+		"not-enforced",
+		"no-statements",
+		"no-test-files",
 	} {
 		if !strings.Contains(coverageScript, required) {
 			t.Fatalf("scripts/coverage_check.sh missing package coverage summary text %q", required)
 		}
 	}
+	stableRootPackagesFromClassification(t, repoRoot)
 
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
 	releaseCheckTargets := makeSubtargets(t, makefile, "release-check")
