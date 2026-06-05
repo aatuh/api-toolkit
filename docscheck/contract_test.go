@@ -228,6 +228,134 @@ func TestRootModuleDependencyBoundaryExcludesContribAdapters(t *testing.T) {
 	}
 }
 
+func TestStableCoreDependencyBoundariesExcludeContribProvidersAndGeneratedApps(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	rootV3Module := rootModulePath + "/v3"
+	forbiddenPrefixes := []string{
+		contribModulePath,
+		rootModulePath + "/contrib",
+		rootV3Module + "/contrib",
+		rootV3Module + "/examples",
+		"github.com/alicebob/miniredis",
+		"github.com/aws/aws-sdk-go",
+		"github.com/aws/aws-sdk-go-v2",
+		"github.com/cedar-policy/",
+		"github.com/clerkinc/",
+		"github.com/go-chi/chi",
+		"github.com/golang-migrate/migrate",
+		"github.com/google/uuid",
+		"github.com/jackc/pgx",
+		"github.com/minio/minio-go",
+		"github.com/oklog/ulid",
+		"github.com/open-policy-agent/opa",
+		"github.com/redis/",
+		"github.com/resend/resend-go",
+		"github.com/rs/cors",
+		"github.com/stripe/stripe-go",
+		"go.opentelemetry.io/otel",
+		"go.uber.org/zap",
+	}
+	forbiddenExact := map[string]bool{
+		"github.com/aatuh/api-toolkit/contrib": true,
+		"github.com/redis/go-redis/v9":         true,
+	}
+
+	var violations []string
+	for _, cls := range classes {
+		if !inModule(cls.ImportPath, rootV3Module) {
+			continue
+		}
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
+			continue
+		}
+		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read package dir %s: %v", slashRel(repoRoot, dir), err)
+		}
+		fset := token.NewFileSet()
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			path := filepath.Join(dir, name)
+			file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatalf("parse imports from %s: %v", slashRel(repoRoot, path), err)
+			}
+			for _, imp := range file.Imports {
+				importPath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					t.Fatalf("parse import path in %s: %v", slashRel(repoRoot, path), err)
+				}
+				if forbiddenExact[importPath] {
+					violations = append(violations, sourceViolation(repoRoot, path, fset, imp.Pos(), "stable core imports forbidden dependency "+importPath))
+					continue
+				}
+				for _, prefix := range forbiddenPrefixes {
+					if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+						violations = append(violations, sourceViolation(repoRoot, path, fset, imp.Pos(), "stable core imports forbidden dependency "+importPath))
+						break
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("stable core dependency boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestArchitectureAndDependencyBoundaryDocsAreExecutable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	architecture := readText(t, filepath.Join(repoRoot, "docs", "architecture.md"))
+	boundaryDocs := readText(t, filepath.Join(repoRoot, "docs", "dependency-boundary.md"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "dependency_boundary_check.sh"))
+
+	for _, required := range []string{
+		"## Boundary Map",
+		"Stable core packages",
+		"Contrib adapters and integrations",
+		"CLI and generators",
+		"Generated application code",
+		"Examples and reference apps",
+		"## Forbidden Dependency Directions",
+		"must not import contrib, scaffold-only packages, provider SDKs, database drivers, router adapters, generated application code",
+		"make dependency-boundary-check",
+	} {
+		if !strings.Contains(architecture, required) {
+			t.Fatalf("docs/architecture.md missing architecture boundary text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"GOTOOLCHAIN=local make dependency-boundary-check",
+		"`scripts/dependency_boundary_check.sh`",
+		"`TestStableCoreDependencyBoundariesExcludeContribProvidersAndGeneratedApps`",
+		"stable or compatibility-only root package imports contrib",
+		"provider SDKs",
+		"generated app code",
+		".github/workflows/ci.yml",
+	} {
+		if !strings.Contains(boundaryDocs, required) {
+			t.Fatalf("docs/dependency-boundary.md missing executable boundary text %q", required)
+		}
+	}
+	if !strings.Contains(makefile, "dependency-boundary-check:") {
+		t.Fatal("Makefile missing dependency-boundary-check target")
+	}
+	if !strings.Contains(ci, "make dependency-boundary-check") {
+		t.Fatal(".github/workflows/ci.yml missing dependency-boundary-check step")
+	}
+	if !strings.Contains(script, "TestStableCoreDependencyBoundariesExcludeContribProvidersAndGeneratedApps") {
+		t.Fatal("scripts/dependency_boundary_check.sh must run the stable core dependency boundary test")
+	}
+}
+
 func TestHealthDocsShowSafeDetailedHealthMounting(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

@@ -9,24 +9,33 @@ This repository follows hexagonal (ports and adapters) architecture:
 - Adapters implement ports for real integrations.
 - Bootstrap wires middleware and adapters into a runnable service.
 
-## Layer Map
+## Boundary Map
 
-Core (stable):
-- `ports`: interfaces for logging, storage, policy engines, etc.
-- `httpx`: HTTP helpers (problem details, responses).
-- `middleware`: request/response middleware with stable defaults.
-- `endpoints`: small HTTP handlers (health, docs, version).
-- `authorization`, `securityprofile`: authz policy and security profiles.
+| Surface | Location | API promise | May depend on | Must not depend on |
+| --- | --- | --- | --- | --- |
+| Stable core packages | root packages listed as `stable` or `compatibility-only` in `docs/package-classification.tsv` | v3 SemVer compatibility for exported APIs | stdlib, allowed root module dependencies, and other stable root packages | contrib, provider SDKs, database drivers, router adapters, scaffold-only packages, generated app code, examples, or reference apps |
+| Core implementation-sharing packages | root packages listed as `experimental`, `test-only`, `tooling`, or `excluded` | No stable API promise unless promoted | root packages and package-local helpers | contrib runtime adapters unless the package is explicitly tooling/test-only and excluded from the stable API surface |
+| Contrib adapters and integrations | `contrib/adapters/*`, `contrib/integrations/*`, `contrib/middleware/*`, and related contrib packages | Supported-adapter or experimental policy from package classification | core ports/contracts, provider SDKs, database drivers, router adapters, and contrib test contracts | generated app internals or reference-service internals |
+| Bootstrap composition | `contrib/bootstrap` | Supported-adapter policy | stable core, supported contrib adapters, and service-supplied options | app business logic, generated app internals, or provider-specific secrets in source |
+| CLI and generators | `contrib/cmd/api-toolkit` | Tooling policy, not stable root API | templates, contrib tooling helpers, and generated-fixture tests | stable core internals that would make generated app code a hidden root dependency |
+| Generated application code | generated service output and `examples/reference-saas-api` | App-owned generated code | stable core, selected contrib adapters, and application packages | stable core package internals or assumptions that generated app code is part of the root API promise |
+| Examples and reference apps | `contrib/examples/*` and `examples/reference-saas-api` | Runnable adoption evidence | stable core, contrib adapters, and local app code | package internals that would teach unsupported coupling |
 
-Adapters (contrib):
-- `contrib/adapters/*`: db pools, validators, loggers, id generators, http clients.
-- `contrib/integrations/*`: convenience wrappers around adapters.
+## Forbidden Dependency Directions
 
-Bootstrap:
-- `contrib/bootstrap`: default profiles and hardened server wiring.
-
-Examples:
-- `contrib/examples/*`: runnable recipes and patterns.
+- Stable core packages must not import contrib, scaffold-only packages, provider
+  SDKs, database drivers, router adapters, generated application code,
+  reference-service code, or example code.
+- In review shorthand: stable core packages must not import contrib, scaffold-only packages, provider SDKs, database drivers, router adapters, generated application code, reference-service code, or example code.
+- Contrib packages may import stable core packages, but stable core packages may
+  not import contrib packages.
+- Generated application code may import stable core and selected contrib
+  adapters, but core and contrib packages must not import generated application
+  internals.
+- Examples may import public packages, but public packages must not import
+  examples.
+- Provider-specific contracts belong in contrib or application code unless a
+  stable-core design note proves broad adapter-neutral reuse.
 
 ## Diagram
 
@@ -47,6 +56,9 @@ flowchart LR
   end
 
   Bootstrap[bootstrap.ProfileStrictAPI]
+  CLI[contrib/cmd/api-toolkit]
+  Generated[Generated app code]
+  Examples[Examples and reference apps]
   App[Your service]
 
   App --> Ports
@@ -56,6 +68,10 @@ flowchart LR
   Adapters -->|implement| Ports
   Bootstrap -->|wires| Adapters
   Bootstrap -->|wires| Middleware
+  CLI -->|emits| Generated
+  Generated -->|imports| Ports
+  Generated -->|imports| Adapters
+  Examples -->|demonstrate| App
   Bootstrap --> App
 ```
 
@@ -67,6 +83,8 @@ flowchart LR
 4. Keep business logic in handlers/services, not in adapters.
 
 This keeps the core stable while allowing integrations to change independently.
+The executable boundary guardrail is `make dependency-boundary-check`; CI runs
+it through the governance workflow and `make docs-check`.
 
 ## Stable Boundary Clarifications
 

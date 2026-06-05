@@ -2,6 +2,24 @@
 
 The root module is the stable core surface. It should stay free of contrib and adapter-only dependencies so consumers can import core middleware, endpoints, and ports without inheriting Redis or contrib test adapters.
 
+## Executable guardrail
+
+Run:
+
+```sh
+GOTOOLCHAIN=local make dependency-boundary-check
+```
+
+The target runs `scripts/dependency_boundary_check.sh`, which executes the
+docscheck contract
+`TestStableCoreDependencyBoundariesExcludeContribProvidersAndGeneratedApps`.
+The check fails if a stable or compatibility-only root package imports contrib,
+scaffold-only packages, provider SDKs, database drivers, router adapters,
+generated app code, reference-service code, or example code.
+
+GitHub Actions runs this target in `.github/workflows/ci.yml` as part of the
+governance job, and `make docs-check` also covers the same docscheck package.
+
 ## Root module direct requirements
 
 - `github.com/MicahParks/jwkset`: required by core JWT key handling.
@@ -16,6 +34,19 @@ These dependencies belong in `contrib/go.mod`, not root `go.mod`:
 - `github.com/aatuh/api-toolkit/contrib/v3`
 - `github.com/alicebob/miniredis/v2`
 - `github.com/redis/go-redis/v9`
+
+Stable core packages must also stay free of provider or adapter SDK imports,
+including:
+
+- `github.com/stripe/stripe-go`
+- `github.com/resend/resend-go`
+- `github.com/jackc/pgx`
+- `github.com/go-chi/chi`
+- `go.opentelemetry.io/otel`
+
+When a package genuinely needs one of these dependencies, it belongs in contrib,
+generated application code, or a future module split rather than in the stable
+root API surface.
 
 ## Test ownership
 

@@ -167,6 +167,7 @@ Use the narrowest check that matches the change:
 | Change type | Preferred command | Notes |
 | --- | --- | --- |
 | Documentation-only edits | `GOTOOLCHAIN=local make docs-check` | Runs documentation contracts, getting-started build extraction, API/docs policy checks, and release evidence parser contracts. |
+| Architecture or dependency-boundary edits | `GOTOOLCHAIN=local make dependency-boundary-check` | Runs the stable-core import boundary check before the broader docs gate. |
 | V3 cleanup readiness | `GOTOOLCHAIN=local make v3-readiness-check` | Runs focused compatibility-sensitive surface guardrails for major-version cleanup planning and release-note requirements. |
 | Docs plus ordinary code changes | `GOTOOLCHAIN=local make fast-check` | Runs `docs-check` and unit tests without rewriting files. |
 | Reference service coverage | `GOTOOLCHAIN=local make reference-service-coverage` | Records non-Docker generated-service coverage under `.ci-result/coverage/` without folding app-owned code into toolkit coverage thresholds. |
