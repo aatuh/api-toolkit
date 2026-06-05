@@ -1,0 +1,357 @@
+{
+  "openapi_metadata": {
+    "components": {
+      "responses": {
+        "BadRequestProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Bad Request"
+        },
+        "ConflictProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Conflict"
+        },
+        "ForbiddenProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Forbidden"
+        },
+        "InternalErrorProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Internal Server Error"
+        },
+        "NotAcceptableProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Not Acceptable"
+        },
+        "NotFoundProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Not Found"
+        },
+        "PayloadTooLargeProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Request Entity Too Large"
+        },
+        "RateLimitExceededProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Too Many Requests"
+        },
+        "ServiceUnavailableProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Service Unavailable"
+        },
+        "UnauthorizedProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Unauthorized"
+        },
+        "UnsupportedMediaTypeProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Unsupported Media Type"
+        },
+        "ValidationErrorProblemResponse": {
+          "content": {
+            "application/problem+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Problem"
+              }
+            }
+          },
+          "description": "Bad Request"
+        }
+      },
+      "schemas": {
+        "Problem": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "documentation_url": {
+              "format": "uri",
+              "type": "string"
+            },
+            "instance": {
+              "type": "string"
+            },
+            "log_level": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "status": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "format": "uri",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "ValidationProblem": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "documentation_url": {
+              "format": "uri",
+              "type": "string"
+            },
+            "errors": {
+              "items": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "instance": {
+              "type": "string"
+            },
+            "log_level": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "status": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "format": "uri",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "securitySchemes": {
+        "ApiKeyAuth": {
+          "in": "header",
+          "name": "X-API-Key",
+          "type": "apiKey"
+        }
+      }
+    },
+    "info": {
+      "description": "Golden-tested stable metadata",
+      "title": "Runtime Compatibility API",
+      "version": "1.2.3"
+    },
+    "openapi": "3.0.0",
+    "paths": {
+      "/widgets": {
+        "post": {
+          "description": "Creates a widget.",
+          "operationId": "createWidget",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Widget payload",
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Widget"
+                  }
+                }
+              },
+              "description": "Widget created"
+            },
+            "400": {
+              "$ref": "#/components/responses/ValidationProblemResponse"
+            }
+          },
+          "security": [
+            {
+              "ApiKeyAuth": [
+                "widgets:write"
+              ]
+            }
+          ],
+          "summary": "Create widget",
+          "tags": [
+            "widgets"
+          ]
+        }
+      }
+    }
+  },
+  "responses": {
+    "hard_timeout_problem_response": {
+      "status": 504,
+      "header": {
+        "Content-Type": [
+          "application/problem+json"
+        ]
+      },
+      "json": {
+        "detail": "request timed out",
+        "status": 504,
+        "title": "Gateway Timeout",
+        "type": "https://api-toolkit.dev/problems/timeout"
+      }
+    },
+    "health_detailed_disabled": {
+      "status": 404,
+      "header": {
+        "Content-Type": [
+          "application/problem+json"
+        ]
+      },
+      "json": {
+        "detail": "detailed health is disabled",
+        "status": 404,
+        "title": "Not Found",
+        "type": "https://api-toolkit.dev/problems/not-found"
+      }
+    },
+    "httpx_write_json": {
+      "status": 202,
+      "header": {
+        "Content-Type": [
+          "application/json"
+        ]
+      },
+      "json": {
+        "status": "accepted"
+      }
+    },
+    "httpx_write_problem": {
+      "status": 400,
+      "header": {
+        "Content-Type": [
+          "application/problem+json"
+        ]
+      },
+      "json": {
+        "detail": "validation failed",
+        "status": 400,
+        "title": "Bad Request",
+        "type": "https://api-toolkit.dev/problems/validation-error"
+      }
+    },
+    "json_middleware_rejection": {
+      "status": 415,
+      "header": {
+        "Content-Type": [
+          "application/problem+json"
+        ]
+      },
+      "json": {
+        "detail": "Content-Type must be application/json",
+        "status": 415,
+        "title": "Unsupported Media Type",
+        "type": "https://api-toolkit.dev/problems/unsupported-media-type"
+      }
+    },
+    "version_endpoint": {
+      "status": 200,
+      "header": {
+        "Content-Type": [
+          "application/json"
+        ]
+      },
+      "json": {
+        "commit": "abc123",
+        "date": "2026-01-02T03:04:05Z",
+        "version": "1.2.3"
+      }
+    }
+  }
+}

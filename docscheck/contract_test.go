@@ -4860,6 +4860,43 @@ func TestSafetyAndCoreReadinessDocsAreComplete(t *testing.T) {
 	}
 }
 
+func TestRuntimeCompatibilityGoldenCoversStableHTTPContracts(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	testSource := readText(t, filepath.Join(repoRoot, "contracttest", "runtime_compat_test.go"))
+	golden := readText(t, filepath.Join(repoRoot, "contracttest", "testdata", "golden", "runtime_compatibility.json"))
+
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(golden), &decoded); err != nil {
+		t.Fatalf("runtime compatibility golden is not valid JSON: %v", err)
+	}
+	for _, required := range []string{
+		"UPDATE_RUNTIME_COMPAT_GOLDEN=1",
+		"timeout.NewHard",
+		"specs.RegisterProblemCatalog",
+		"runtimeCompatJSONMiddlewareRejection",
+		"runtimeCompatDetailedHealthDisabled",
+	} {
+		if !strings.Contains(testSource, required) {
+			t.Fatalf("contracttest/runtime_compat_test.go missing runtime compatibility coverage anchor %q", required)
+		}
+	}
+	for _, required := range []string{
+		`"httpx_write_json"`,
+		`"httpx_write_problem"`,
+		`"json_middleware_rejection"`,
+		`"version_endpoint"`,
+		`"health_detailed_disabled"`,
+		`"hard_timeout_problem_response"`,
+		`"openapi_metadata"`,
+		`"application/problem+json"`,
+		`"operationId": "createWidget"`,
+	} {
+		if !strings.Contains(golden, required) {
+			t.Fatalf("runtime compatibility golden missing %q", required)
+		}
+	}
+}
+
 func TestMigrationAndTroubleshootingGuidesCoverCommonAdoptionFailures(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
