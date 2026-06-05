@@ -4102,6 +4102,51 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	}
 }
 
+func TestRaceCoverageCoversSharedMiddlewareState(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	targets := []struct {
+		file    string
+		name    string
+		anchors []string
+	}{
+		{filepath.Join("middleware", "ratelimit", "ratelimit_race_test.go"), "TestMiddlewareConcurrentInMemoryBucketsRace", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
+		{filepath.Join("middleware", "idempotency", "idempotency_race_test.go"), "TestMiddlewareConcurrentSameKeyRace", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
+		{filepath.Join("scheduler", "scheduler_race_test.go"), "TestRunnerConcurrentStartAndRecorderFailureHandlerRace", []string{"sync.WaitGroup", "go func", "SetRecorderFailureHandler"}},
+		{filepath.Join("middleware", "auth", "jwt", "middleware_race_test.go"), "TestMiddlewareConcurrentTokenValidationUsesSharedKeyfuncSafely", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
+	}
+	for _, target := range targets {
+		source := readText(t, filepath.Join(repoRoot, target.file))
+		if !strings.Contains(source, "func "+target.name+"(") {
+			t.Fatalf("%s missing race coverage target %s", target.file, target.name)
+		}
+		for _, required := range target.anchors {
+			if !strings.Contains(source, required) {
+				t.Fatalf("%s missing shared-state race test anchor %q", target.file, required)
+			}
+		}
+	}
+
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"test-race:",
+		"$(GO) test ./... -race -count=1",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing race gate wiring %q", required)
+		}
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"Race tests",
+		"make test-race",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing race gate wiring %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 
