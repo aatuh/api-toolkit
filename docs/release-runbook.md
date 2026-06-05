@@ -36,6 +36,7 @@ change. Do not introduce a second baseline table in another document.
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make reviewer-gate` | Non-mutating reviewer gate plus release evidence policy preflight. | Runs `make audit-check` and fails the release evidence policy preflight on a dirty tree unless local-audit override is intentionally used outside publication review. |
 | `make api-check` | Local compatibility helper with fallback base selection. | Pass/fail or skip local compatibility signal. |
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-api-check` | Release API compatibility only; fails closed without an explicit supported baseline. | API compatibility evidence for the stable core package list. |
+| `API_ADDITIONS_BASE_REF=v3.1.2 GOTOOLCHAIN=local make api-additions-check` | Review gate for new stable exported identifiers. | Fails when additions lack source doc comments, current API inventory entries, compile-checked examples or exact exceptions, and package-tied release notes. |
 | `GOTOOLCHAIN=local make v3-readiness-check` | Focused compatibility-sensitive surface guardrails. | Verifies the v3 roadmap, replacement guidance, docs/examples, and release-note requirements for known cleanup surfaces. |
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-check` | Full release readiness. | Pass/fail release-readiness evidence. |
 | `GOTOOLCHAIN=local make full-profile-scaffold-check` | Focused generated `saas-api-full` release signal. | Generates the full scaffold through the CLI tests, then verifies generated `go test ./...`, contracts lint/diff, OpenAPI 3.1, checked-in typed Go client regeneration, resource generation, provider flags, worker wiring, and generated integration workflow assets. |
@@ -100,6 +101,10 @@ counts before accepting local publication evidence.
 - The command also runs linting, vulnerability checks, gosec, build smoke tests,
   v3 readiness guardrails, docs contracts, coverage-check, unit tests, race
   tests, fuzz smoke tests, and cleanup.
+- The docs contracts include `make api-additions-check`, so newly exported
+  stable identifiers need doc comments, API inventory rows, compile-checked
+  examples or exact exceptions, and package-tied release notes before release
+  evidence can pass.
 - The command includes `make contrib-release-notes-check`, so incompatible
   report-only contrib drift must have release-note acknowledgement before
   publication evidence can pass.

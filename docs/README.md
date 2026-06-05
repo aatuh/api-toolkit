@@ -139,6 +139,7 @@ identifies the installed generator and contract tool.
 | [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
 | [API reference index](api-reference.md) | API consumers | Jump from each stable or compatibility-only root package to pkg.go.dev and its compile-checked example. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
+| [API addition example exceptions](api-addition-exceptions.tsv) | Maintainers | Record exact symbol exceptions when a new stable exported identifier has a doc comment and release note but a compile-checked example would mislead. |
 | [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
 | [Interface ownership](interface-ownership.md) | Maintainers | Document whether exported interfaces are user-implemented, adapter-owned, test-only, or compatibility-sensitive. |
 | [Context and cancellation](context-cancellation.md) | Maintainers and adopters | Apply context propagation and bounded cleanup rules across HTTP, auth, idempotency, scheduler, and client APIs. |

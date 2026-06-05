@@ -21,6 +21,8 @@ Public API review artifacts:
 
 - generated inventory: `docs/api-inventory.md`
 - review checklist: `docs/api-review-checklist.md`
+- example-exception manifest for new stable exports:
+  `docs/api-addition-exceptions.tsv`
 - deprecation policy and register: `docs/deprecations.md`
 
 ## Stable API surface (core module)

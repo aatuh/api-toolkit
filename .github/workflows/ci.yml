@@ -100,11 +100,21 @@ jobs:
         run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" --depth=1
           make release-api-check
+      - name: API additions are forever gate (pull request base)
+        if: github.event_name == 'pull_request'
+        env:
+          API_ADDITIONS_BASE_REF: origin/${{ github.base_ref }}
+        run: make api-additions-check
       - name: API compatibility check (push previous commit)
         if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
         env:
           API_BASE_REF: ${{ github.event.before }}
         run: make release-api-check
+      - name: API additions are forever gate (push previous commit)
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          API_ADDITIONS_BASE_REF: ${{ github.event.before }}
+        run: make api-additions-check
       - name: API compatibility check (initial push)
         if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
         run: echo "Skipping API compatibility check because this push has no previous commit baseline."

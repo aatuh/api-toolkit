@@ -4041,6 +4041,7 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	for _, path := range []string{
 		"docs/api-inventory.md",
 		"docs/api-review-checklist.md",
+		"docs/api-addition-exceptions.tsv",
 		"docs/deprecations.md",
 	} {
 		if !strings.Contains(readme, path) && !strings.Contains(docsIndex, strings.TrimPrefix(path, "docs/")) {
@@ -4076,9 +4077,24 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 		"Return types",
 		"Exported interface necessity",
 		"GOTOOLCHAIN=local make api-inventory-check",
+		"GOTOOLCHAIN=local make api-additions-check",
+		"API Additions Are Forever",
+		"docs/api-addition-exceptions.tsv",
+		"compile-checked Go example",
 	} {
 		if !strings.Contains(checklist, required) {
 			t.Fatalf("docs/api-review-checklist.md missing %q", required)
+		}
+	}
+
+	exceptions := readText(t, filepath.Join(repoRoot, "docs", "api-addition-exceptions.tsv"))
+	for _, required := range []string{
+		"import_path\tsymbol\trationale\towner\treviewed_on",
+		"docs/api-inventory.md entry",
+		"package-tied release note",
+	} {
+		if !strings.Contains(exceptions, required) {
+			t.Fatalf("docs/api-addition-exceptions.tsv missing %q", required)
 		}
 	}
 
@@ -4099,8 +4115,10 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	for _, required := range []string{
 		"api-inventory:",
 		"api-inventory-check:",
+		"api-additions-check:",
 		"internal/tools/apiinventory",
 		"scripts/api_inventory_check.sh",
+		"scripts/api_additions_check.sh",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing API inventory target text %q", required)
@@ -4108,6 +4126,79 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	}
 	if !containsString(makeSubtargets(t, makefile, "docs-check"), "api-inventory-check") {
 		t.Fatal("docs-check target must include api-inventory-check")
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "api-additions-check") {
+		t.Fatal("docs-check target must include api-additions-check")
+	}
+}
+
+func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	script := readText(t, filepath.Join(repoRoot, "scripts", "api_additions_check.sh"))
+	tool := readText(t, filepath.Join(repoRoot, "internal", "tools", "apiadditions", "main.go"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	prTemplate := readText(t, filepath.Join(repoRoot, ".github", "pull_request_template.md"))
+	issueTemplate := readText(t, filepath.Join(repoRoot, ".github", "ISSUE_TEMPLATE", "api_change.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+
+	for _, required := range []string{
+		"API_ADDITIONS_BASE_REF",
+		"API_BASE_REF",
+		"GITHUB_BASE_REF",
+		"git worktree add",
+		"go run ./internal/tools/apiadditions",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("scripts/api_additions_check.sh missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"missing source doc comment",
+		"missing compile-checked example",
+		"missing package-tied release note",
+		"docs/api-addition-exceptions.tsv",
+		"releaseNotesMentionSymbol",
+	} {
+		if !strings.Contains(tool, required) {
+			t.Fatalf("internal/tools/apiadditions/main.go missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"API additions are forever gate (pull request base)",
+		"API_ADDITIONS_BASE_REF: origin/${{ github.base_ref }}",
+		"API additions are forever gate (push previous commit)",
+		"API_ADDITIONS_BASE_REF: ${{ github.event.before }}",
+		"make api-additions-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/ci.yml missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"New stable exported identifiers have doc comments",
+		"examples or exact exception rows",
+		"release notes",
+	} {
+		if !strings.Contains(prTemplate, required) {
+			t.Fatalf(".github/pull_request_template.md missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Example or exact exception",
+		"Release note or changelog entry",
+	} {
+		if !strings.Contains(issueTemplate, required) {
+			t.Fatalf(".github/ISSUE_TEMPLATE/api_change.md missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"API_ADDITIONS_BASE_REF=v3.1.2 GOTOOLCHAIN=local make api-additions-check",
+		"stable identifiers need doc comments",
+		"compile-checked examples or exact exceptions",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing %q", required)
+		}
 	}
 }
 

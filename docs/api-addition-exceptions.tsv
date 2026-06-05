@@ -1,0 +1,5 @@
+# import_path	symbol	rationale	owner	reviewed_on
+# Exact exceptions for newly added stable or compatibility-only exported
+# identifiers when a compile-checked example would be misleading or redundant.
+# The API additions gate still requires a source doc comment, current
+# docs/api-inventory.md entry, and package-tied release note for every symbol.

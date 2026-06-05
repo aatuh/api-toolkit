@@ -25,15 +25,32 @@ docs, and compatibility story are stable enough.
 | Examples and docs | Is there an example or an explicit exception, package docs, and a docs/api-inventory.md update? |
 | Compatibility | Does the change preserve same-import-path compatibility or document a major-version-only migration? |
 | Release notes | Does `docs/release-notes.md` mention behavior, compatibility, security, dependency, or generated scaffold impact? |
+| API additions gate | Does every new stable or compatibility-only exported identifier have a doc comment, inventory entry, compile-checked example or exception, and package-tied release note? |
 
 ## Required Evidence
 
 - `GOTOOLCHAIN=local make api-inventory-check`
+- `GOTOOLCHAIN=local make api-additions-check`
 - `GOTOOLCHAIN=local make docs-check`
 - package tests for owned behavior
 - compatibility check when stable API changes are in scope
 - benchmark or benchmark-deferred rationale for hot paths
 - dependency report when imports change
+
+## API Additions Are Forever
+
+`make api-additions-check` compares the current generated stable API inventory
+with `API_ADDITIONS_BASE_REF`, `API_BASE_REF`, `GITHUB_BASE_REF`, or `HEAD~1`.
+For every new exported identifier in a `stable` or `compatibility-only` root
+package, the gate requires all of these:
+
+- a source doc comment on the exported identifier, field, method, const, or var;
+- a current `docs/api-inventory.md` row from `make api-inventory`;
+- a compile-checked Go example in the package or an exact
+  `docs/api-addition-exceptions.tsv` row explaining why an example would be
+  misleading or redundant;
+- a package-tied `docs/release-notes.md` entry naming the symbol or
+  package-qualified symbol.
 
 ## Review Outcomes
 

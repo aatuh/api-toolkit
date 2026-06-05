@@ -10,6 +10,8 @@ Name the package and import path.
 - Behavior change:
 - Deprecation:
 - Breaking change:
+- Example or exact exception:
+- Release note or changelog entry:
 
 ## Compatibility Evidence
 

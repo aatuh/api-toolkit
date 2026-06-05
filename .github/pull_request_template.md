@@ -18,6 +18,8 @@ Describe the change and why it is needed.
 
 - [ ] No stable API impact.
 - [ ] Stable API impact is documented and allowed.
+- [ ] New stable exported identifiers have doc comments, inventory entries,
+      examples or exact exception rows, and release notes.
 - [ ] Contrib drift is documented where relevant.
 
 # Security impact
