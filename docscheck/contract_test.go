@@ -4596,6 +4596,10 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/migration/v3.md",
 		"docs/troubleshooting.md",
 		"docs/security.md",
+		"docs/auth.md",
+		"docs/idempotency.md",
+		"docs/operations.md",
+		"docs/openapi-workflow.md",
 		"docs/safe-defaults.md",
 		"docs/middleware-safety.md",
 		"SECURITY.md",
@@ -4777,6 +4781,103 @@ func TestMigrationAndTroubleshootingGuidesCoverCommonAdoptionFailures(t *testing
 	} {
 		if !strings.Contains(troubleshooting, required) {
 			t.Fatalf("docs/troubleshooting.md missing troubleshooting guidance %q", required)
+		}
+	}
+}
+
+func TestFeatureProductionGuidesCoverCriticalContracts(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	idempotency := readText(t, filepath.Join(repoRoot, "docs", "idempotency.md"))
+	auth := readText(t, filepath.Join(repoRoot, "docs", "auth.md"))
+	operations := readText(t, filepath.Join(repoRoot, "docs", "operations.md"))
+	openapiWorkflow := readText(t, filepath.Join(repoRoot, "docs", "openapi-workflow.md"))
+
+	for _, required := range []string{
+		"docs/auth.md",
+		"docs/idempotency.md",
+		"docs/operations.md",
+		"docs/openapi-workflow.md",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing feature production guide %s", required)
+		}
+	}
+	for _, required := range []string{
+		"## Security-Sensitive Production Settings",
+		"Auth",
+		"Tenant",
+		"Admin endpoints",
+		"Pprof",
+		"Metrics",
+		"Idempotency",
+		"Webhooks",
+		"OpenAPI validation",
+	} {
+		if !strings.Contains(security, required) {
+			t.Fatalf("docs/security.md missing security-sensitive production setting %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Storage Contract",
+		"## TTL and Locking",
+		"## Redis Example",
+		"## Postgres Example",
+		"`middleware/idempotency.Options.RequireKey`",
+		"`idempotency.TenantScopedStorageKeyFunc()`",
+		"request hash",
+		"conflict",
+		"replay",
+		"tenant A cannot replay tenant B's key",
+	} {
+		if !strings.Contains(idempotency, required) {
+			t.Fatalf("docs/idempotency.md missing production guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## API Keys",
+		"## JWT, OIDC, and Clerk",
+		"## Tenant and Role Authorization",
+		"JWK rotation",
+		"Clock skew",
+		"wrong audience",
+		"wrong tenant",
+		"dev bypass disabled in production",
+	} {
+		if !strings.Contains(auth, required) {
+			t.Fatalf("docs/auth.md missing production guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Endpoint Split",
+		"## Safe Mounting",
+		"## Network Policy",
+		"## Fail-Closed Checks",
+		"`pprof.RegisterAdminRoutes`",
+		"`bootstrap.MountSystemEndpointsToWithAdmin`",
+		"public `/livez`",
+		"public `/readyz`",
+	} {
+		if !strings.Contains(operations, required) {
+			t.Fatalf("docs/operations.md missing operations guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Route Metadata",
+		"## Local Workflow",
+		"## Runtime Validation",
+		"## Drift Handling",
+		"`routecontracts`",
+		"`specs`",
+		"`x-api-toolkit-streaming`",
+		"`openapi.ResponseValidationOptions.ShouldValidate`",
+		"api-toolkit contracts lint",
+		"api-toolkit contracts diff",
+	} {
+		if !strings.Contains(openapiWorkflow, required) {
+			t.Fatalf("docs/openapi-workflow.md missing workflow guidance %q", required)
 		}
 	}
 }

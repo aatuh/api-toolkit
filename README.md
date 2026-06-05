@@ -218,6 +218,10 @@ if err != nil {
 ## Security and operations
 
 - Security posture and dangerous-bypass configuration: [docs/security.md](docs/security.md)
+- Auth production guide: [docs/auth.md](docs/auth.md)
+- Idempotency production guide: [docs/idempotency.md](docs/idempotency.md)
+- Health and admin operations: [docs/operations.md](docs/operations.md)
+- OpenAPI contract workflow: [docs/openapi-workflow.md](docs/openapi-workflow.md)
 - Safe defaults audit: [docs/safe-defaults.md](docs/safe-defaults.md)
 - Middleware safety matrix: [docs/middleware-safety.md](docs/middleware-safety.md)
 - Vulnerability reporting policy: [SECURITY.md](SECURITY.md)

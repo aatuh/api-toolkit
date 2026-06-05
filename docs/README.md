@@ -112,6 +112,10 @@ identifies the installed generator and contract tool.
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [Security posture](security.md) | Developers and operators | Configure secure defaults, dangerous bypasses, trusted proxies, health detail, and docs surfaces. |
+| [Auth production guide](auth.md) | Developers and operators | Configure API-key, JWT, tenant, role, JWK rotation, clock skew, failure modes, and auth tests. |
+| [Idempotency production guide](idempotency.md) | Developers and operators | Configure storage, locking, TTL, replay semantics, request hashes, tenant scoping, conflicts, and Redis/Postgres ownership. |
+| [Health and admin operations](operations.md) | Operators and developers | Split public probes from detailed health, metrics, pprof, admin auth, network policy, and fail-closed checks. |
+| [OpenAPI contract workflow](openapi-workflow.md) | Maintainers and application teams | Run route metadata, golden diff, contract tests, generated docs, validation, and drift handling. |
 | [Safe defaults audit](safe-defaults.md) | Developers and reviewers | Check fail-open and fail-closed behavior for root and contrib middleware before broad rollout. |
 | [Middleware safety matrix](middleware-safety.md) | Developers and reviewers | Decide which middleware is safe globally, route-specific, forbidden for streaming, or requires opt-outs. |
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
@@ -194,7 +198,8 @@ important public docs disappear from navigation:
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/migration/v3.md`, `docs/troubleshooting.md`,
-`docs/security.md`, `docs/safe-defaults.md`,
+`docs/security.md`, `docs/auth.md`, `docs/idempotency.md`,
+`docs/operations.md`, `docs/openapi-workflow.md`, `docs/safe-defaults.md`,
 `docs/middleware-safety.md`, `SECURITY.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,

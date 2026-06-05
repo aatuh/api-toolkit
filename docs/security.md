@@ -108,6 +108,19 @@ in `docs/cookbook.md`; scaffold-specific setup and operations live in
 `docs/full-service-scaffold.md`, `docs/reference-service.md`, and
 `examples/reference-saas-api/`.
 
+## Security-Sensitive Production Settings
+
+| Surface | Required production setting | Canonical guide |
+| --- | --- | --- |
+| Auth | Configure API-key, JWT, OIDC, or Clerk issuer/audience/JWKS values from trusted operator config; disable dangerous bypasses in production. | `docs/auth.md` |
+| Tenant | Require authenticated tenant scope and compare required path/header/token sources before handlers run. | `docs/auth.md` |
+| Admin endpoints | Keep detailed health, metrics, and pprof behind admin auth or internal network policy. | `docs/operations.md` |
+| Pprof | Use `pprof.RegisterAdminRoutes` or `bootstrap.MountSystemEndpointsToWithAdmin`; do not mount pprof on public routers. | `docs/operations.md` |
+| Metrics | Use bounded route-pattern labels and keep tenant IDs, user IDs, API keys, admin keys, idempotency keys, raw paths, and provider payloads out of labels. | `docs/metrics.md` |
+| Idempotency | Require `Idempotency-Key` on unsafe writes, use durable storage in multi-instance services, hash tenant-scoped storage keys, and exclude streaming responses. | `docs/idempotency.md` |
+| Webhooks | Verify signatures before trusting payloads, cap request bodies, add replay protection, and keep signing secrets out of responses, logs, metrics, and OpenAPI examples. | `docs/cookbook.md#webhook-receiver-with-signature-verification` |
+| OpenAPI validation | Keep request validation on when contracts are complete; route-filter response validation for finite responses only. | `docs/openapi-workflow.md` |
+
 ## OWASP Mapping (Resource Consumption)
 
 The toolkit provides concrete controls for resource limits:
