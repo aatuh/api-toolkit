@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -1864,6 +1867,38 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated full-profile service client check failed:\n%s\nerror: %v", output, err)
+	}
+}
+
+func TestGeneratedScaffoldArchitectureBoundaries(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tests := []struct {
+		profile       string
+		requireDomain bool
+	}{
+		{profile: scaffoldProfileSaaSAPI},
+		{profile: scaffoldProfileSaaSAPIFull, requireDomain: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.profile, func(t *testing.T) {
+			serviceDir := filepath.Join(t.TempDir(), tt.profile)
+			if err := generateService(scaffoldConfig{
+				Module:         "example.com/my-api",
+				Dir:            serviceDir,
+				Profile:        tt.profile,
+				AuthMode:       scaffoldAuthAPIKey,
+				CoreReplace:    repoRoot,
+				ContribReplace: filepath.Join(repoRoot, "contrib"),
+			}); err != nil {
+				t.Fatalf("generate %s service: %v", tt.profile, err)
+			}
+
+			assertGeneratedDomainArchitecture(t, serviceDir, "example.com/my-api", tt.requireDomain)
+			if tt.profile == scaffoldProfileSaaSAPI {
+				assertGeneratedPathAbsent(t, serviceDir, "internal/adapters")
+			}
+		})
 	}
 }
 
@@ -3978,6 +4013,102 @@ func assertGeneratedEnvDocumentsTelemetryConfig(t *testing.T, env string) {
 		if !strings.Contains(env, want) {
 			t.Fatalf("generated .env.example missing telemetry config %q:\n%s", want, env)
 		}
+	}
+}
+
+func assertGeneratedDomainArchitecture(t *testing.T, serviceDir, modulePath string, requireDomain bool) {
+	t.Helper()
+	domainDir := filepath.Join(serviceDir, "internal", "domain")
+	info, err := os.Stat(domainDir)
+	if err != nil {
+		if os.IsNotExist(err) && !requireDomain {
+			return
+		}
+		t.Fatalf("stat generated domain dir: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("generated domain path is not a directory: %s", domainDir)
+	}
+
+	var violations []string
+	err = filepath.WalkDir(domainDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(serviceDir, path)
+		if err != nil {
+			rel = path
+		}
+		for _, imp := range file.Imports {
+			importPath, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if !generatedDomainForbiddenImport(modulePath, importPath) {
+				continue
+			}
+			pos := fset.Position(imp.Pos())
+			violations = append(violations, rel+":"+strconv.Itoa(pos.Line)+" imports infrastructure package "+importPath)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan generated domain imports: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Fatalf("generated domain package imports infrastructure:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func generatedDomainForbiddenImport(modulePath, importPath string) bool {
+	for _, exact := range []string{
+		"database/sql",
+		"net/http",
+	} {
+		if importPath == exact {
+			return true
+		}
+	}
+	for _, prefix := range []string{
+		modulePath + "/internal/app",
+		modulePath + "/internal/adapters",
+		modulePath + "/internal/httpapi",
+		modulePath + "/internal/client",
+		"github.com/aatuh/api-toolkit/v3",
+		"github.com/aatuh/api-toolkit/contrib/v3",
+		"github.com/aws/aws-sdk-go",
+		"github.com/aws/aws-sdk-go-v2",
+		"github.com/jackc/pgx",
+		"github.com/redis/go-redis",
+		"github.com/resend/resend-go",
+		"github.com/stripe/stripe-go",
+		"go.opentelemetry.io/otel",
+	} {
+		if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func assertGeneratedPathAbsent(t *testing.T, serviceDir, rel string) {
+	t.Helper()
+	path := filepath.Join(serviceDir, rel)
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("generated lean scaffold unexpectedly contains %s", rel)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat generated path %s: %v", rel, err)
 	}
 }
 
