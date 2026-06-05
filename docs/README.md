@@ -19,6 +19,8 @@ without scanning the root README.
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
+| [V3 migration guide](migration/v3.md) | Application teams upgrading dependencies | Upgrade root, contrib, and generated-service adoption paths within the v3 line. |
+| [Troubleshooting](troubleshooting.md) | Application developers and maintainers | Diagnose Go version, contrib tier, timeout buffering, health, idempotency, auth, and generated-service issues. |
 | [Test coverage evidence](test-coverage.md) | Maintainers and release reviewers | Read the coverage gate outputs, package-level floor summary, and release-evidence relationship. |
 | [Benchmark baselines](performance.md) | Maintainers and release reviewers | Run and interpret package-level benchmark baselines before performance-sensitive changes or releases. |
 | [Coverage hardening backlog](coverage-hardening-backlog.md) | Maintainers | Track behavior-test prerequisites before raising high-risk package coverage floors. |
@@ -191,7 +193,8 @@ important public docs disappear from navigation:
 `README.md`, `docs/library-first.md`, `docs/minimal-core.md`,
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
-`docs/architecture.md`, `docs/security.md`, `docs/safe-defaults.md`,
+`docs/architecture.md`, `docs/migration/v3.md`, `docs/troubleshooting.md`,
+`docs/security.md`, `docs/safe-defaults.md`,
 `docs/middleware-safety.md`, `SECURITY.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,

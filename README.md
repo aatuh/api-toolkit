@@ -71,6 +71,8 @@ Go 1.25.x.
 - Review safe defaults: [docs/safe-defaults.md](docs/safe-defaults.md)
 - Review middleware placement: [docs/middleware-safety.md](docs/middleware-safety.md)
 - Review core readiness: [docs/core-readiness.md](docs/core-readiness.md)
+- Upgrade within v3: [docs/migration/v3.md](docs/migration/v3.md)
+- Troubleshoot adoption issues: [docs/troubleshooting.md](docs/troubleshooting.md)
 
 ## Modules
 
@@ -244,6 +246,8 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 - Concurrency safety: [docs/concurrency.md](docs/concurrency.md)
 - Resource lifecycle: [docs/resource-lifecycle.md](docs/resource-lifecycle.md)
 - Stable core readiness matrix: [docs/core-readiness.md](docs/core-readiness.md)
+- V3 migration guide: [docs/migration/v3.md](docs/migration/v3.md)
+- Troubleshooting guide: [docs/troubleshooting.md](docs/troubleshooting.md)
 - Latest published release line: `v3.1.2` and `contrib/v3.1.2`.
 - `master` may contain unreleased changes after the latest tag; release
   consumers should use tags and release notes instead of assuming `master` is

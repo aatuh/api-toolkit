@@ -4593,6 +4593,8 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/getting-started.md",
 		"docs/cookbook.md",
 		"docs/architecture.md",
+		"docs/migration/v3.md",
+		"docs/troubleshooting.md",
 		"docs/security.md",
 		"docs/safe-defaults.md",
 		"docs/middleware-safety.md",
@@ -4722,6 +4724,59 @@ func TestSafetyAndCoreReadinessDocsAreComplete(t *testing.T) {
 	} {
 		if !strings.Contains(productionReadiness, required) {
 			t.Fatalf("docs/production-readiness.md missing package checklist text %q", required)
+		}
+	}
+}
+
+func TestMigrationAndTroubleshootingGuidesCoverCommonAdoptionFailures(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	migration := readText(t, filepath.Join(repoRoot, "docs", "migration", "v3.md"))
+	troubleshooting := readText(t, filepath.Join(repoRoot, "docs", "troubleshooting.md"))
+
+	for _, required := range []string{
+		"docs/migration/v3.md",
+		"docs/troubleshooting.md",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing adoption guide %s", required)
+		}
+	}
+	for _, required := range []string{
+		"`v3.1.2`",
+		"`github.com/aatuh/api-toolkit/v3`",
+		"`github.com/aatuh/api-toolkit/contrib/v3`",
+		"go get github.com/aatuh/api-toolkit/v3@v3.1.2",
+		"go get github.com/aatuh/api-toolkit/contrib/v3@v3.1.2",
+		"go mod tidy",
+		"GOTOOLCHAIN=local make docs-check",
+		"`VERSIONING.md`",
+		"`docs/release-notes.md`",
+		"`docs/api-reference.md`",
+		"`docs/deprecations.md`",
+		"Generated services are app-owned generated code",
+		"streaming, SSE, websocket, and large-download",
+	} {
+		if !strings.Contains(migration, required) {
+			t.Fatalf("docs/migration/v3.md missing migration guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Go version mismatch",
+		"Contrib instability surprise",
+		"Timeout buffering breaks streaming",
+		"Missing health checks",
+		"Idempotency storage confusion",
+		"Auth config fails closed",
+		"`GOTOOLCHAIN=local`",
+		"`securityprofile.StreamingRouteOverride`",
+		"`openapi.ResponseValidationOptions.ShouldValidate`",
+		"`GOTOOLCHAIN=local make dependency-boundary-check`",
+		"Generated services are app-owned code",
+	} {
+		if !strings.Contains(troubleshooting, required) {
+			t.Fatalf("docs/troubleshooting.md missing troubleshooting guidance %q", required)
 		}
 	}
 }
