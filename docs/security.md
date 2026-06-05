@@ -33,7 +33,9 @@ Core defaults aim to be safe, deterministic, and explicit:
 
 For a per-middleware fail-open and fail-closed matrix, use
 `docs/safe-defaults.md`. For global versus route-specific placement, streaming
-opt-outs, and response-buffering caveats, use `docs/middleware-safety.md`.
+opt-outs, and response-buffering caveats, use `docs/middleware-safety.md`. For
+header, body, JSON, query, multipart, replay-capture, and hard-timeout capture
+sizes, use `docs/input-size-threat-review.md`.
 
 ## Bypass and Dev-Only Controls
 
@@ -134,6 +136,11 @@ The toolkit provides concrete controls for resource limits:
 - Query limits: `securityprofile.WithQueryLimits` and `querylimits.Options`
 - Rate limits: `securityprofile.WithRateLimitOptions` and `RouteOverride.RateLimit`
 - Header limits: `httpx.HeaderLimitsBalanced` + server `MaxHeaderBytes`
+
+The detailed input-size map lives in
+[input-size-threat-review.md](input-size-threat-review.md). Review it before
+changing route body limits, query limits, multipart bounds, idempotency replay
+capture sizes, or hard-timeout capture sizes.
 
 `securityprofile.WithTimeout` does not force a timeout response or stop handlers
 that ignore `ctx.Done()`. Use `securityprofile.WithHardTimeout`,

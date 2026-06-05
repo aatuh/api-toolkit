@@ -4666,6 +4666,211 @@ func TestSecurityDocsCoverHardTimeoutCaptureAndPanicProfileOptions(t *testing.T)
 	}
 }
 
+func TestInputSizeThreatReviewCoversStableLimits(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "input-size-threat-review.md"))
+	normalizedReview := normalizeWhitespace(review)
+
+	if !strings.Contains(docsIndex, "input-size-threat-review.md") {
+		t.Fatal("docs/README.md missing input-size-threat-review.md")
+	}
+	if !strings.Contains(security, "docs/input-size-threat-review.md") ||
+		!strings.Contains(security, "input-size-threat-review.md") {
+		t.Fatal("docs/security.md missing input-size-threat-review.md")
+	}
+
+	for _, required := range []string{
+		"request headers",
+		"request bodies",
+		"JSON decoding",
+		"query parameters",
+		"multipart uploads",
+		"idempotency replay capture",
+		"hard-timeout response capture",
+		"Source Anchors",
+	} {
+		if !strings.Contains(normalizedReview, required) {
+			t.Fatalf("docs/input-size-threat-review.md missing %q", required)
+		}
+	}
+
+	rows := markdownTableRows(markdownSection(t, review, "## Limit Matrix"))
+	rowBySurface := map[string]string{}
+	for _, row := range rows {
+		if len(row) != 5 {
+			t.Fatalf("docs/input-size-threat-review.md limit row has %d columns, want 5: %v", len(row), row)
+		}
+		surface := trimMarkdownCode(row[0])
+		if rowBySurface[surface] != "" {
+			t.Fatalf("docs/input-size-threat-review.md has duplicate row for %s", surface)
+		}
+		rowBySurface[surface] = strings.Join(row, " ")
+	}
+
+	wantRows := map[string][]string{
+		"httpx.HeaderLimits": {
+			"HeaderLimitsStrict",
+			"32 KiB",
+			"HeaderLimitsBalanced",
+			"64 KiB",
+			"HeaderLimitsRelaxed",
+			"1 MiB",
+			"MaxHeaderBytes",
+			"HeaderBytes",
+			"HeaderCount",
+		},
+		"middleware/maxbody.Options.MaxBytes": {
+			"greater than zero",
+			"http.MaxBytesReader",
+			"before JSON",
+		},
+		"binding.JSONConfig.MaxBytes": {
+			"io.LimitReader",
+			"too_large",
+			"Zero leaves body size uncapped",
+		},
+		"middleware/json.StrictDecoder": {
+			"DisallowUnknownFields",
+			"neither path caps body bytes",
+			"media-type policy only",
+		},
+		"middleware/querylimits.Options": {
+			"MaxParams=100",
+			"MaxKeyLength=100",
+			"MaxValueLength=2048",
+			"LimitParam=limit",
+			"MaxLimit=100",
+		},
+		"upload.Config": {
+			"MaxRequestBytes",
+			"32 MiB",
+			"MaxMemory",
+			"MaxFileBytes",
+			"AllowedContentTypes",
+		},
+		"middleware/idempotency.Options": {
+			"MaxBodyBytes",
+			"MaxResponseBytes",
+			"1 MiB",
+			"413",
+			"503",
+		},
+		"middleware/timeout.Options.MaxCaptureBytes": {
+			"Zero defaults to 1 MiB",
+			"Negative values fail",
+			"streaming",
+		},
+	}
+	for surface, tokens := range wantRows {
+		row := rowBySurface[surface]
+		if row == "" {
+			t.Fatalf("docs/input-size-threat-review.md missing limit row for %s", surface)
+		}
+		lowerRow := strings.ToLower(row)
+		if strings.Contains(lowerRow, "tbd") || strings.Contains(lowerRow, "todo") {
+			t.Fatalf("docs/input-size-threat-review.md row for %s contains placeholder text", surface)
+		}
+		for _, token := range tokens {
+			if !strings.Contains(row, token) {
+				t.Fatalf("docs/input-size-threat-review.md row for %s missing %q", surface, token)
+			}
+		}
+	}
+
+	sourceChecks := []struct {
+		path   string
+		tokens []string
+	}{
+		{
+			path: "httpx/header_limits.go",
+			tokens: []string{
+				"HeaderLimitsStrict   = HeaderLimits{MaxBytes: 32 << 10, MaxCount: 40}",
+				"HeaderLimitsBalanced = HeaderLimits{MaxBytes: 64 << 10, MaxCount: 100}",
+				"HeaderLimitsRelaxed  = HeaderLimits{MaxBytes: 1 << 20, MaxCount: 200}",
+				"s.MaxHeaderBytes = l.MaxBytes",
+			},
+		},
+		{
+			path: "middleware/maxbody/maxbody.go",
+			tokens: []string{
+				"max body bytes must be greater than zero",
+				"r.Body = http.MaxBytesReader(w, r.Body, m.MaxBytes)",
+			},
+		},
+		{
+			path: "binding/binding.go",
+			tokens: []string{
+				"MaxBytes           int64",
+				"reader = io.LimitReader(reader, cfg.MaxBytes+1)",
+				`fieldError("body", "too_large", "request body exceeds maximum size")`,
+			},
+		},
+		{
+			path: "middleware/json/json.go",
+			tokens: []string{
+				"StrictDecoder",
+				"dec.DisallowUnknownFields()",
+			},
+		},
+		{
+			path: "middleware/querylimits/querylimits.go",
+			tokens: []string{
+				"opts.MaxParams = 100",
+				"opts.MaxKeyLength = 100",
+				"opts.MaxValueLength = 2048",
+				`opts.LimitParam = "limit"`,
+				"opts.MaxLimit = 100",
+			},
+		},
+		{
+			path: "upload/upload.go",
+			tokens: []string{
+				"defaultMaxMemory       int64 = 32 << 20",
+				"defaultMaxRequestBytes int64 = 32 << 20",
+				"MaxFileBytes        int64",
+				"AllowedContentTypes []string",
+			},
+		},
+		{
+			path: "middleware/idempotency/idempotency.go",
+			tokens: []string{
+				"opts.MaxBodyBytes = 1 << 20",
+				"opts.MaxResponseBytes = 1 << 20",
+				"return nil, errBodyTooLarge",
+				"writeAmbiguousResponseTooLarge",
+			},
+		},
+		{
+			path: "middleware/idempotency/capture.go",
+			tokens: []string{
+				"func newLimitedResponseCapture(maxBytes int64)",
+				"overflowed  bool",
+			},
+		},
+		{
+			path: "middleware/timeout/timeout.go",
+			tokens: []string{
+				"const defaultHardTimeoutMaxCaptureBytes int64 = 1 << 20",
+				"max capture bytes must be greater than or equal to zero",
+				"ErrHardTimeoutCaptureLimitExceeded",
+			},
+		},
+	}
+	for _, check := range sourceChecks {
+		source := readText(t, filepath.Join(repoRoot, filepath.FromSlash(check.path)))
+		if !strings.Contains(review, check.path) {
+			t.Fatalf("docs/input-size-threat-review.md missing source anchor %s", check.path)
+		}
+		for _, token := range check.tokens {
+			if !strings.Contains(source, token) {
+				t.Fatalf("%s missing source token %q used by input-size threat review", check.path, token)
+			}
+		}
+	}
+}
+
 func TestPanicPolicyCoversStablePanicSites(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	policy := readText(t, filepath.Join(repoRoot, "PANIC_POLICY.md"))

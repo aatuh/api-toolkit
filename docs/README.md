@@ -122,6 +122,7 @@ identifies the installed generator and contract tool.
 | [Adapter maturity matrix](adapter-maturity.md) | Contrib adopters | Review supported/tested/experimental posture for Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, validation, and related adapters. |
 | [Safe defaults audit](safe-defaults.md) | Developers and reviewers | Check fail-open and fail-closed behavior for root and contrib middleware before broad rollout. |
 | [Middleware safety matrix](middleware-safety.md) | Developers and reviewers | Decide which middleware is safe globally, route-specific, forbidden for streaming, or requires opt-outs. |
+| [Input-size threat review](input-size-threat-review.md) | Developers, reviewers, and operators | Review header, body, JSON, query, multipart, replay-capture, and timeout-capture size limits before changing route contracts. |
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
 | [Panic policy](../PANIC_POLICY.md) | Maintainers and API designers | Decide when panics are allowed and how HTTP recovery behaves. |
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |
@@ -210,7 +211,7 @@ important public docs disappear from navigation:
 `docs/operations.md`, `docs/openapi-workflow.md`, `docs/configuration.md`,
 `docs/observability.md`, `docs/scaffold-support.md`,
 `docs/adapter-maturity.md`, `docs/safe-defaults.md`,
-`docs/middleware-safety.md`, `SECURITY.md`, `docs/metrics.md`,
+`docs/middleware-safety.md`, `docs/input-size-threat-review.md`, `SECURITY.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
