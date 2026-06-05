@@ -13,7 +13,12 @@ import (
 
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/endpoints/version"
+	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v3/httpcache"
 	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/idempotent"
+	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v3/middleware/deprecation"
 	jsonmw "github.com/aatuh/api-toolkit/v3/middleware/json"
 	"github.com/aatuh/api-toolkit/v3/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v3/ports"
@@ -23,12 +28,19 @@ import (
 func TestRuntimeCompatibilityGolden(t *testing.T) {
 	snapshot := map[string]any{
 		"responses": map[string]responseSnapshot{
+			"api_key_auth_failure":          runtimeCompatAPIKeyAuthFailure(t),
+			"cache_not_modified":            runtimeCompatCacheNotModified(t),
+			"cache_precondition_failed":     runtimeCompatCachePreconditionFailed(t),
+			"deprecation_headers":           runtimeCompatDeprecationHeaders(t),
+			"health_readiness":              runtimeCompatReadiness(t),
 			"httpx_write_json":              runtimeCompatWriteJSON(t),
 			"httpx_write_problem":           runtimeCompatWriteProblem(t),
+			"idempotency_conflict":          runtimeCompatIdempotencyConflict(t),
 			"json_middleware_rejection":     runtimeCompatJSONMiddlewareRejection(t),
 			"version_endpoint":              runtimeCompatVersionEndpoint(t),
 			"health_detailed_disabled":      runtimeCompatDetailedHealthDisabled(t),
 			"hard_timeout_problem_response": runtimeCompatHardTimeout(t),
+			"validation_problem":            runtimeCompatValidationProblem(t),
 		},
 		"openapi_metadata": runtimeCompatOpenAPI(t),
 	}
@@ -80,6 +92,21 @@ func runtimeCompatWriteProblem(t *testing.T) responseSnapshot {
 	return snapshotResponse(t, rec)
 }
 
+func runtimeCompatValidationProblem(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	httpx.WriteProblemWithFieldErrors(rec, http.StatusBadRequest, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeValidation),
+		Title:  http.StatusText(http.StatusBadRequest),
+		Detail: "validation failed",
+	}, fielderrors.FieldErrors{
+		{Field: "name", Code: "required", Message: "name is required"},
+		{Field: "quantity", Code: "min", Message: "quantity must be at least 1"},
+	})
+	return snapshotResponse(t, rec)
+}
+
 func runtimeCompatJSONMiddlewareRejection(t *testing.T) responseSnapshot {
 	t.Helper()
 
@@ -123,6 +150,16 @@ func runtimeCompatDetailedHealthDisabled(t *testing.T) responseSnapshot {
 	return snapshotResponse(t, rec)
 }
 
+func runtimeCompatReadiness(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	handler := health.NewHandler(runtimeCompatHealthManager{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil)
+	handler.ReadinessHandler(rec, req)
+	return snapshotResponse(t, rec)
+}
+
 func runtimeCompatHardTimeout(t *testing.T) responseSnapshot {
 	t.Helper()
 
@@ -145,6 +182,83 @@ func runtimeCompatHardTimeout(t *testing.T) responseSnapshot {
 		t.Fatal("late timeout write unexpectedly succeeded")
 	}
 	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatIdempotencyConflict(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	idempotent.WriteConflict(rec, "idempotency key was reused with a different request")
+	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatAPIKeyAuthFailure(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	mw, err := apikey.NewMiddleware(apikey.Config{
+		Verifier: apikey.VerifierFunc(func(context.Context, apikey.PresentedKey) (apikey.Principal, error) {
+			return apikey.Principal{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new API key middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for invalid API key")
+	}))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/secure", nil)
+	req.Header.Set("X-API-Key", "invalid")
+	handler.ServeHTTP(rec, req)
+	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatDeprecationHeaders(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	mw, err := deprecation.New(deprecation.Config{
+		DeprecatedAt: time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC),
+		SunsetAt:     time.Date(2026, 7, 2, 8, 0, 0, 0, time.UTC),
+		Links: []deprecation.Link{{
+			URL:   "https://docs.example.test/deprecations/widgets",
+			Rel:   "deprecation",
+			Type:  "text/html",
+			Title: "Widget deprecation",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("new deprecation middleware: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/deprecated", nil)
+	handler.ServeHTTP(rec, req)
+	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatCacheNotModified(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	httpcache.WriteNotModified(rec, runtimeCompatCacheValidators())
+	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatCachePreconditionFailed(t *testing.T) responseSnapshot {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	httpcache.WritePreconditionFailed(rec)
+	return snapshotResponse(t, rec)
+}
+
+func runtimeCompatCacheValidators() httpcache.Validators {
+	return httpcache.Validators{
+		ETag:         httpcache.StrongETag("widgets-v1"),
+		LastModified: time.Date(2026, 5, 2, 8, 30, 15, 900, time.UTC),
+	}
 }
 
 func runtimeCompatOpenAPI(t *testing.T) any {
@@ -208,6 +322,11 @@ func snapshotResponse(t *testing.T, rec *httptest.ResponseRecorder) responseSnap
 		Status: rec.Code,
 		Header: selectedHeaders(rec.Header(),
 			"Content-Type",
+			"Deprecation",
+			"ETag",
+			"Last-Modified",
+			"Link",
+			"Sunset",
 			"X-Content-Type-Options",
 			"X-Frame-Options",
 			"X-Late",
@@ -234,9 +353,60 @@ func selectedHeaders(header http.Header, names ...string) map[string][]string {
 			continue
 		}
 		copied := append([]string(nil), values...)
-		out[http.CanonicalHeaderKey(name)] = copied
+		out[name] = copied
 	}
 	return out
+}
+
+type runtimeCompatHealthManager struct{}
+
+func (runtimeCompatHealthManager) RegisterChecker(ports.HealthChecker) {}
+
+func (runtimeCompatHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+
+func (runtimeCompatHealthManager) GetLiveness(context.Context) ports.HealthResult {
+	return ports.HealthResult{
+		Status:    ports.HealthStatusHealthy,
+		Message:   "live",
+		Timestamp: runtimeCompatHealthTimestamp(),
+	}
+}
+
+func (runtimeCompatHealthManager) GetReadiness(context.Context) ports.HealthResult {
+	return ports.HealthResult{
+		Status:    ports.HealthStatusHealthy,
+		Message:   "ready",
+		Timestamp: runtimeCompatHealthTimestamp(),
+	}
+}
+
+func (runtimeCompatHealthManager) GetHealth(context.Context) ports.HealthResponse {
+	return ports.HealthResponse{
+		Status:    ports.HealthStatusHealthy,
+		Message:   "healthy",
+		Timestamp: runtimeCompatHealthTimestamp(),
+	}
+}
+
+func (runtimeCompatHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
+	check := ports.HealthResult{
+		Status:    ports.HealthStatusHealthy,
+		Message:   "ready",
+		Timestamp: runtimeCompatHealthTimestamp(),
+	}
+	return ports.DetailedHealthResponse{
+		Status:    ports.HealthStatusHealthy,
+		Timestamp: runtimeCompatHealthTimestamp(),
+		Checks:    map[string]ports.HealthResult{"readiness": check},
+		Summary: ports.HealthSummary{
+			Total:   1,
+			Healthy: 1,
+		},
+	}
+}
+
+func runtimeCompatHealthTimestamp() time.Time {
+	return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 }
 
 func mustMarshalGolden(t *testing.T, value any) []byte {

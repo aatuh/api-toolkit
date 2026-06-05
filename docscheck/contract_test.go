@@ -5712,23 +5712,43 @@ func TestRuntimeCompatibilityGoldenCoversStableHTTPContracts(t *testing.T) {
 		"UPDATE_RUNTIME_COMPAT_GOLDEN=1",
 		"timeout.NewHard",
 		"specs.RegisterProblemCatalog",
+		"runtimeCompatAPIKeyAuthFailure",
+		"runtimeCompatCacheNotModified",
+		"runtimeCompatCachePreconditionFailed",
+		"runtimeCompatDeprecationHeaders",
 		"runtimeCompatJSONMiddlewareRejection",
 		"runtimeCompatDetailedHealthDisabled",
+		"runtimeCompatIdempotencyConflict",
+		"runtimeCompatReadiness",
+		"runtimeCompatValidationProblem",
 	} {
 		if !strings.Contains(testSource, required) {
 			t.Fatalf("contracttest/runtime_compat_test.go missing runtime compatibility coverage anchor %q", required)
 		}
 	}
 	for _, required := range []string{
+		`"api_key_auth_failure"`,
+		`"cache_not_modified"`,
+		`"cache_precondition_failed"`,
+		`"deprecation_headers"`,
+		`"errors"`,
+		`"ETag"`,
+		`"Last-Modified"`,
+		`"health_readiness"`,
 		`"httpx_write_json"`,
 		`"httpx_write_problem"`,
+		`"idempotency_conflict"`,
 		`"json_middleware_rejection"`,
+		`"Link"`,
+		`"Sunset"`,
 		`"version_endpoint"`,
 		`"health_detailed_disabled"`,
 		`"hard_timeout_problem_response"`,
 		`"openapi_metadata"`,
 		`"application/problem+json"`,
+		`"conditional request precondition failed"`,
 		`"operationId": "createWidget"`,
+		`"validation_problem"`,
 	} {
 		if !strings.Contains(golden, required) {
 			t.Fatalf("runtime compatibility golden missing %q", required)
