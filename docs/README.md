@@ -154,6 +154,7 @@ identifies the installed generator and contract tool.
 | [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review stable package readiness by docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveat. |
 | [Module-boundary ADR](adr/0001-module-boundaries.md) | Maintainers | Record the v3 decision to keep root and contrib modules while deferring deeper splits to v4 planning. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
+| `docs/package-owners.tsv` | Maintainers and automation | Machine-readable maintainer owner, test owner, stability tier, and release-blocker status for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
 | `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Machine-readable default and scheduled/manual test-realism evidence for each supported contrib adapter. |
 

@@ -662,6 +662,58 @@ func TestContribPackageClassificationAndCompatibilityPolicy(t *testing.T) {
 	}
 }
 
+func TestPackageOwnersManifestMatchesClassification(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	ownerRows := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "package-owners.tsv"))
+	owners := recordsByField(t, ownerRows, "import_path")
+	if len(owners) != len(classes) {
+		t.Fatalf("docs/package-owners.tsv has %d rows, want %d package classification rows", len(owners), len(classes))
+	}
+
+	var missing []string
+	for importPath, cls := range classes {
+		row, ok := owners[importPath]
+		if !ok {
+			missing = append(missing, importPath+" missing owner row")
+			continue
+		}
+		for _, field := range []string{"maintainer_owner", "stability_tier", "test_owner", "release_blocker_status"} {
+			if strings.TrimSpace(row[field]) == "" {
+				missing = append(missing, importPath+" has empty "+field)
+			}
+		}
+		if got := row["stability_tier"]; got != cls.APIStatus {
+			missing = append(missing, importPath+" stability_tier = "+got+", want "+cls.APIStatus)
+		}
+		if got, want := row["release_blocker_status"], releaseBlockerStatusForAPIStatus(cls.APIStatus); got != want {
+			missing = append(missing, importPath+" release_blocker_status = "+got+", want "+want)
+		}
+	}
+	for importPath := range owners {
+		if _, ok := classes[importPath]; !ok {
+			missing = append(missing, "stale owner row "+importPath)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("docs/package-owners.tsv does not match package classification:\n%s", strings.Join(missing, "\n"))
+	}
+
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readText(t, filepath.Join(repoRoot, "README.md"))},
+		{"docs/README.md", readText(t, filepath.Join(repoRoot, "docs", "README.md"))},
+		{"docs/release-manifests.md", readText(t, filepath.Join(repoRoot, "docs", "release-manifests.md"))},
+	} {
+		if !strings.Contains(source.text, "docs/package-owners.tsv") {
+			t.Fatalf("%s missing docs/package-owners.tsv", source.name)
+		}
+	}
+}
+
 func TestListedGoPackagesParserIgnoresGoDownloadChatter(t *testing.T) {
 	packages := parseListedGoPackagesOutput(t, []byte(strings.Join([]string{
 		"go: downloading golang.org/x/crypto v0.50.0",
@@ -5733,6 +5785,31 @@ func recordsByField(t *testing.T, records []map[string]string, field string) map
 		out[value] = record
 	}
 	return out
+}
+
+func releaseBlockerStatusForAPIStatus(apiStatus string) string {
+	switch apiStatus {
+	case "stable", "compatibility-only":
+		return "release-blocking-stable"
+	case "supported-adapter":
+		return "release-blocking-supported-adapter"
+	case "wrapper-only":
+		return "touch-scoped-wrapper"
+	case "experimental":
+		return "non-blocking-experimental"
+	case "tooling":
+		return "touch-scoped-tooling"
+	case "generated":
+		return "generated-evidence"
+	case "example-only":
+		return "example-smoke"
+	case "test-only":
+		return "test-support"
+	case "excluded":
+		return "repo-governance"
+	default:
+		return "release-blocker-review-required"
+	}
 }
 
 func requireISODate(t *testing.T, field, value string) {

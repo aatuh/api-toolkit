@@ -8,6 +8,7 @@ machine-readable manifests that support release and documentation checks.
 | Manifest | Owner | Review expectation |
 | --- | --- | --- |
 | `docs/package-classification.tsv` | Maintainers of public API and test posture. | Every root and contrib Go package has one row with API status, test status, and a rationale note. Stable and compatibility-only root packages must match `VERSIONING.md` and `scripts/apicheck.sh`. |
+| `docs/package-owners.tsv` | Maintainers of package ownership metadata. | Every package classified in `docs/package-classification.tsv` has a matching maintainer owner, test owner, stability tier, and release-blocker status. |
 | `docs/supported-adapter-contracts.tsv` | Contrib maintainers and package owners. | Every package classified as `supported-adapter` has an explicit behavior contract and evidence path for direct tests, package docs, and release drift coverage. |
 | `docs/supported-adapter-test-realism.tsv` | Contrib maintainers and release reviewers. | Every package classified as `supported-adapter` has a row that distinguishes default PR evidence from scheduled/manual evidence and labels whether tests are direct-unit, fake DB, miniredis, hermetic fixture, or real-service-backed. |
 | `docs/contrib-api-drift-packages.txt` | Contrib maintainers. | Lists selected high-use contrib packages reviewed by `make contrib-api-drift-report`; supported-adapter incompatible drift is gate-enforced, experimental and wrapper-only drift remains report-only review evidence, and this does not make contrib stable. |

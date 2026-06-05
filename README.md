@@ -127,9 +127,10 @@ bootstrap composition, generated service tooling, and runnable examples. Contrib
 supported-adapter incompatible drift is gate-enforced and does not make contrib
 stable.
 
-For API and test-status ownership, use `docs/package-classification.tsv`, the
-rendered guide in [docs/package-classification.md](docs/package-classification.md),
-and the human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
+For API, owner, and test-status metadata, use
+`docs/package-classification.tsv`, `docs/package-owners.tsv`, the rendered
+guide in [docs/package-classification.md](docs/package-classification.md), and
+the human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
 Package maturity tier badges use the TSV-backed labels `[stable]`,
 `[compatibility-only]`, `[supported-adapter]`, `[experimental]`, `[generated]`,
 and `[tooling]`; do not treat a package as a different tier unless the TSV row
