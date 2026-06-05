@@ -3731,6 +3731,101 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	}
 }
 
+func TestQualityAuditP1APIDesignOperationalDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, path := range []string{
+		"docs/interface-ownership.md",
+		"docs/context-cancellation.md",
+		"docs/errors.md",
+		"docs/concurrency.md",
+		"docs/resource-lifecycle.md",
+	} {
+		if !strings.Contains(readme, path) && !strings.Contains(docsIndex, strings.TrimPrefix(path, "docs/")) {
+			t.Fatalf("README.md or docs/README.md missing API design operations link %s", path)
+		}
+	}
+
+	interfaces := readText(t, filepath.Join(repoRoot, "docs", "interface-ownership.md"))
+	for _, required := range []string{
+		"`authorization.Owner`",
+		"`compat/billing.BillingProvider`",
+		"`middleware/auth/apikey.Verifier`",
+		"`oauth2.Validator`",
+		"`ports.DatabasePool`",
+		"`ports.IdempotencyStore`",
+		"`ports.PolicyEngine`",
+		"`routecontracts.Router`",
+		"`scheduler.Recorder`",
+		"`webhooks.Verifier`",
+		"Challenge any new exported interface with fewer than two real implementations",
+	} {
+		if !strings.Contains(interfaces, required) {
+			t.Fatalf("docs/interface-ownership.md missing %q", required)
+		}
+	}
+
+	contextDocs := readText(t, filepath.Join(repoRoot, "docs", "context-cancellation.md"))
+	for _, required := range []string{
+		"incoming request work uses `r.Context()`",
+		"provider, store, validator, scheduler, and client boundaries accept",
+		"`middleware/timeout.NewPropagator`",
+		"`middleware/timeout.NewHard`",
+		"bounded cleanup context",
+		"httptest.NewRequestWithContext",
+	} {
+		if !strings.Contains(contextDocs, required) {
+			t.Fatalf("docs/context-cancellation.md missing %q", required)
+		}
+	}
+
+	errorDocs := readText(t, filepath.Join(repoRoot, "docs", "errors.md"))
+	for _, required := range []string{
+		"Sentinel errors",
+		"`httpx.ErrUnauthorized`",
+		"`httpx.HTTPError`",
+		"`fielderrors.FieldErrors`",
+		"Use `errors.Is`",
+		"Use `errors.As`",
+		"Problem Details",
+		"Do not expose secrets",
+	} {
+		if !strings.Contains(errorDocs, required) {
+			t.Fatalf("docs/errors.md missing %q", required)
+		}
+	}
+
+	concurrency := readText(t, filepath.Join(repoRoot, "docs", "concurrency.md"))
+	for _, required := range []string{
+		"construct middleware, registries, codecs, and adapters",
+		"during startup",
+		"`middleware/ratelimit` in-process state",
+		"`middleware/idempotency`",
+		"`routecontracts.Registry` and `specs.Registry`",
+		"Run `make test-race`",
+	} {
+		if !strings.Contains(concurrency, required) {
+			t.Fatalf("docs/concurrency.md missing %q", required)
+		}
+	}
+
+	lifecycle := readText(t, filepath.Join(repoRoot, "docs", "resource-lifecycle.md"))
+	for _, required := range []string{
+		"`ports.DatabasePool`, `ports.DatabaseConnection`, `ports.DatabaseRows`, `ports.Migrator`",
+		"`middleware/auth/jwt.Middleware`",
+		"`middleware/ratelimit` in-process limiter",
+		"`apiclient` transports",
+		"Generated services",
+		"Every new package that opens network connections, files, timers, goroutines",
+	} {
+		if !strings.Contains(lifecycle, required) {
+			t.Fatalf("docs/resource-lifecycle.md missing %q", required)
+		}
+	}
+}
+
 func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))

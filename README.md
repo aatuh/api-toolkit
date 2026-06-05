@@ -208,6 +208,11 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 - Public API inventory: [docs/api-inventory.md](docs/api-inventory.md)
 - API review checklist: [docs/api-review-checklist.md](docs/api-review-checklist.md)
 - Deprecation policy: [docs/deprecations.md](docs/deprecations.md)
+- Interface ownership: [docs/interface-ownership.md](docs/interface-ownership.md)
+- Context and cancellation: [docs/context-cancellation.md](docs/context-cancellation.md)
+- Error taxonomy: [docs/errors.md](docs/errors.md)
+- Concurrency safety: [docs/concurrency.md](docs/concurrency.md)
+- Resource lifecycle: [docs/resource-lifecycle.md](docs/resource-lifecycle.md)
 - Latest published release line: `v3.1.2` and `contrib/v3.1.2`.
 - `master` may contain unreleased changes after the latest tag; release
   consumers should use tags and release notes instead of assuming `master` is

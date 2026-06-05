@@ -126,6 +126,11 @@ identifies the installed generator and contract tool.
 | [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
 | [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
+| [Interface ownership](interface-ownership.md) | Maintainers | Document whether exported interfaces are user-implemented, adapter-owned, test-only, or compatibility-sensitive. |
+| [Context and cancellation](context-cancellation.md) | Maintainers and adopters | Apply context propagation and bounded cleanup rules across HTTP, auth, idempotency, scheduler, and client APIs. |
+| [Error taxonomy](errors.md) | Maintainers and API consumers | Match sentinel, typed, field, wrapped, configuration, and Problem Details errors safely. |
+| [Concurrency safety](concurrency.md) | API consumers and maintainers | Decide which values are immutable, request-scoped, synchronized, or implementation-owned. |
+| [Resource lifecycle](resource-lifecycle.md) | Maintainers and adopters | Track ownership for close, shutdown, timers, goroutines, stores, adapters, and generated service resources. |
 | [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify compatibility-sensitive port history and preferred replacements. |
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
@@ -184,7 +189,9 @@ important public docs disappear from navigation:
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
-`docs/deprecations.md`, `docs/release-runbook.md`, `docs/release-review.md`,
+`docs/deprecations.md`, `docs/interface-ownership.md`,
+`docs/context-cancellation.md`, `docs/errors.md`, `docs/concurrency.md`,
+`docs/resource-lifecycle.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
 `docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,
 `docs/governance.md`, `docs/performance.md`,
