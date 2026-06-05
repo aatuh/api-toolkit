@@ -123,6 +123,9 @@ identifies the installed generator and contract tool.
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [Versioning](../VERSIONING.md) | API consumers and maintainers | Define the stable core API surface and contrib compatibility policy. |
+| [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
+| [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
+| [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
 | [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify compatibility-sensitive port history and preferred replacements. |
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
@@ -180,7 +183,8 @@ important public docs disappear from navigation:
 `docs/architecture.md`, `docs/security.md`, `SECURITY.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
-`VERSIONING.md`, `docs/release-runbook.md`, `docs/release-review.md`,
+`VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
+`docs/deprecations.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
 `docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,
 `docs/governance.md`, `docs/performance.md`,

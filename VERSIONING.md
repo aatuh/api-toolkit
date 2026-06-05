@@ -17,6 +17,12 @@ HTTP API building blocks first, optional scaffold and contrib adapters second.
 Some packages below are stable because v3 already promises compatibility, but
 they are not all recommended as new generic abstractions.
 
+Public API review artifacts:
+
+- generated inventory: `docs/api-inventory.md`
+- review checklist: `docs/api-review-checklist.md`
+- deprecation policy and register: `docs/deprecations.md`
+
 ## Stable API surface (core module)
 
 All exported identifiers in these packages are considered stable:

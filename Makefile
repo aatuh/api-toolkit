@@ -29,7 +29,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract contrib-api-drift-report contrib-release-notes-check dependency-report full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check contrib-api-drift-report contrib-release-notes-check dependency-report full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -57,6 +57,12 @@ release-api-check: tools ## Run fail-closed API compatibility check; requires AP
 
 api-check-contract: ## Run API compatibility script mode contract tests
 	@env -u API_BASE_REF -u API_CHECK_REQUIRE_BASE -u GITHUB_BASE_REF scripts/apicheck_contract_test.sh
+
+api-inventory: ## Regenerate docs/api-inventory.md from stable package source
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(GO) run ./internal/tools/apiinventory
+
+api-inventory-check: ## Verify docs/api-inventory.md is current
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/api_inventory_check.sh
 
 contrib-api-drift-report: tools ## Check selected contrib API drift without making contrib stable
 	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
@@ -112,6 +118,7 @@ actions-audit-contract: ## Run GitHub Actions audit script contract tests
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) api-inventory-check
 	@$(MAKE) api-check-contract
 	@$(MAKE) contrib-review-contract
 	@$(MAKE) actions-audit-contract
