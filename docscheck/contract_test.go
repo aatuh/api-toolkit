@@ -2763,6 +2763,69 @@ func TestStableAndSupportedAdapterPackageDocsMeetMinimumDepth(t *testing.T) {
 	}
 }
 
+func TestStableOptionsStructAuditCoversExportedOptions(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	audit := readText(t, filepath.Join(repoRoot, "docs", "options-structs.md"))
+
+	for name, text := range map[string]string{
+		"README.md/docs/README.md": readme + "\n" + docsIndex,
+		"VERSIONING.md":            versioning,
+	} {
+		if !strings.Contains(text, "docs/options-structs.md") && !strings.Contains(text, "options-structs.md") {
+			t.Fatalf("%s missing docs/options-structs.md", name)
+		}
+	}
+	for _, required := range []string{
+		"Defaults",
+		"Validation Behavior",
+		"Zero-Value Behavior",
+		"Example Evidence",
+		"docs/package-classification.tsv",
+	} {
+		if !strings.Contains(audit, required) {
+			t.Fatalf("docs/options-structs.md missing %q", required)
+		}
+	}
+
+	rows := optionsAuditRows(t, audit)
+	want := stableOptionStructs(t, repoRoot)
+	wantSet := map[string]bool{}
+	var missing []string
+	for _, ref := range want {
+		key := optionStructKey(ref.ImportPath, ref.TypeName)
+		wantSet[key] = true
+		row, ok := rows[key]
+		if !ok {
+			missing = append(missing, ref.ImportPath+" "+ref.TypeName)
+			continue
+		}
+		for _, field := range []string{"defaults", "validation", "zero", "example"} {
+			value := row[field]
+			if strings.TrimSpace(value) == "" {
+				missing = append(missing, ref.ImportPath+" "+ref.TypeName+" has empty "+field+" audit cell")
+			}
+			if strings.Contains(strings.ToLower(value), "tbd") || strings.Contains(strings.ToLower(value), "todo") {
+				missing = append(missing, ref.ImportPath+" "+ref.TypeName+" has placeholder "+field+" audit cell")
+			}
+		}
+		if example := row["example"]; !strings.Contains(example, ".go") && !strings.Contains(example, ".md") {
+			missing = append(missing, ref.ImportPath+" "+ref.TypeName+" example evidence must cite a Go file or markdown guide")
+		}
+	}
+	for key := range rows {
+		if !wantSet[key] {
+			missing = append(missing, "docs/options-structs.md has stale or non-stable row "+key)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("stable options-struct audit is incomplete:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
 func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -4042,6 +4105,7 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 		"docs/api-inventory.md",
 		"docs/api-review-checklist.md",
 		"docs/api-addition-exceptions.tsv",
+		"docs/options-structs.md",
 		"docs/deprecations.md",
 	} {
 		if !strings.Contains(readme, path) && !strings.Contains(docsIndex, strings.TrimPrefix(path, "docs/")) {
@@ -6101,6 +6165,125 @@ func packageDocCommentText(t *testing.T, path string) string {
 		t.Fatalf("%s missing package doc comment", path)
 	}
 	return file.Doc.Text()
+}
+
+type optionStructRef struct {
+	ImportPath string
+	TypeName   string
+}
+
+func stableOptionStructs(t *testing.T, repoRoot string) []optionStructRef {
+	t.Helper()
+
+	classes := loadPackageClassifications(t, repoRoot)
+	var refs []optionStructRef
+	for _, cls := range classes {
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
+			continue
+		}
+		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
+		if dir == "" {
+			t.Fatalf("%s has unsupported import path for options audit", cls.ImportPath)
+		}
+		for _, typeName := range exportedOptionsStructsInDir(t, dir) {
+			refs = append(refs, optionStructRef{ImportPath: cls.ImportPath, TypeName: typeName})
+		}
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].ImportPath == refs[j].ImportPath {
+			return refs[i].TypeName < refs[j].TypeName
+		}
+		return refs[i].ImportPath < refs[j].ImportPath
+	})
+	return refs
+}
+
+func exportedOptionsStructsInDir(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read package dir %s: %v", dir, err)
+	}
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || typeSpec.Name == nil || !typeSpec.Name.IsExported() {
+					continue
+				}
+				typeName := typeSpec.Name.Name
+				if typeName != "Options" && !strings.HasSuffix(typeName, "Options") {
+					continue
+				}
+				if _, ok := typeSpec.Type.(*ast.StructType); !ok {
+					continue
+				}
+				seen[typeName] = true
+			}
+		}
+	}
+	var names []string
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func optionsAuditRows(t *testing.T, content string) map[string]map[string]string {
+	t.Helper()
+
+	rows := map[string]map[string]string{}
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v3") {
+			continue
+		}
+		cols := markdownTableColumns(line)
+		if len(cols) != 6 {
+			t.Fatalf("docs/options-structs.md row has %d columns, want 6: %s", len(cols), line)
+		}
+		importPath := trimMarkdownCode(cols[0])
+		typeName := trimMarkdownCode(cols[1])
+		key := optionStructKey(importPath, typeName)
+		if rows[key] != nil {
+			t.Fatalf("docs/options-structs.md has duplicate row for %s", key)
+		}
+		rows[key] = map[string]string{
+			"defaults":   cols[2],
+			"validation": cols[3],
+			"zero":       cols[4],
+			"example":    cols[5],
+		}
+	}
+	if len(rows) == 0 {
+		t.Fatal("docs/options-structs.md has no options rows")
+	}
+	return rows
+}
+
+func trimMarkdownCode(value string) string {
+	return strings.Trim(strings.TrimSpace(value), "`")
+}
+
+func optionStructKey(importPath, typeName string) string {
+	return importPath + "\t" + typeName
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {

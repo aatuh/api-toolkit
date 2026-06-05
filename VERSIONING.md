@@ -23,6 +23,7 @@ Public API review artifacts:
 - review checklist: `docs/api-review-checklist.md`
 - example-exception manifest for new stable exports:
   `docs/api-addition-exceptions.tsv`
+- options-struct defaults and zero-value review: `docs/options-structs.md`
 - deprecation policy and register: `docs/deprecations.md`
 
 ## Stable API surface (core module)
