@@ -326,6 +326,41 @@ func TestStableAPISurfaceMatchesAPICheckPackages(t *testing.T) {
 	assertStringSlicesEqual(t, "VERSIONING.md stable API surface vs docs/package-classification.tsv", versioningPackages, manifestPackages)
 }
 
+func TestStableAPIPackagesHaveCompileCheckedExamples(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	packages := stablePackagesFromAPICheck(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
+	examplePattern := regexp.MustCompile(`(?m)^func Example[A-Za-z0-9_]*\(`)
+
+	var missing []string
+	for _, importPath := range packages {
+		rel := strings.TrimPrefix(importPath, rootModulePath+"/v3")
+		rel = strings.TrimPrefix(rel, "/")
+		dir := filepath.Join(repoRoot, rel)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read package dir %s: %v", slashRel(repoRoot, dir), err)
+		}
+		hasExample := false
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			content := readText(t, filepath.Join(dir, name))
+			if examplePattern.MatchString(content) {
+				hasExample = true
+				break
+			}
+		}
+		if !hasExample {
+			missing = append(missing, importPath)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("stable API packages missing compile-checked examples: %v", missing)
+	}
+}
+
 func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	classes := loadPackageClassifications(t, repoRoot)
