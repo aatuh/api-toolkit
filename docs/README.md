@@ -123,6 +123,7 @@ identifies the installed generator and contract tool.
 | [Safe defaults audit](safe-defaults.md) | Developers and reviewers | Check fail-open and fail-closed behavior for root and contrib middleware before broad rollout. |
 | [Middleware safety matrix](middleware-safety.md) | Developers and reviewers | Decide which middleware is safe globally, route-specific, forbidden for streaming, or requires opt-outs. |
 | [Input-size threat review](input-size-threat-review.md) | Developers, reviewers, and operators | Review header, body, JSON, query, multipart, replay-capture, and timeout-capture size limits before changing route contracts. |
+| [Negative-path test matrix](negative-path-test-matrix.tsv) | Maintainers and release reviewers | Verify stable-package tests for malformed input, missing headers, bad content types, invalid auth, invalid tenant, oversized bodies, and invalid query limits. |
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
 | [Panic policy](../PANIC_POLICY.md) | Maintainers and API designers | Decide when panics are allowed and how HTTP recovery behaves. |
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |

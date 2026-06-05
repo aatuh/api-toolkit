@@ -3947,6 +3947,82 @@ func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	}
 }
 
+func TestNegativePathTestMatrixReferencesExecutableTests(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	requiredCategories := map[string]bool{
+		"malformed_input":      true,
+		"missing_headers":      true,
+		"bad_content_types":    true,
+		"invalid_auth":         true,
+		"invalid_tenant":       true,
+		"oversized_bodies":     true,
+		"invalid_query_limits": true,
+	}
+	seenCategories := make(map[string]bool)
+
+	matrixPath := filepath.Join(repoRoot, "docs", "negative-path-test-matrix.tsv")
+	rows := 0
+	for lineNo, raw := range strings.Split(readText(t, matrixPath), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 5 {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: expected 5 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		category := strings.TrimSpace(cols[0])
+		importPath := strings.TrimSpace(cols[1])
+		testFile := strings.TrimSpace(cols[2])
+		testFunction := strings.TrimSpace(cols[3])
+		evidence := strings.TrimSpace(cols[4])
+		if !requiredCategories[category] {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: unknown category %q", lineNo+1, category)
+		}
+		seenCategories[category] = true
+		cls, ok := classes[importPath]
+		if !ok {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s missing from package classification", lineNo+1, importPath)
+		}
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s is %s, want stable or compatibility-only", lineNo+1, importPath, cls.APIStatus)
+		}
+		if !inModule(importPath, rootModulePath+"/v3") {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s must be a root stable package", lineNo+1, importPath)
+		}
+		if filepath.IsAbs(testFile) || strings.Contains(testFile, "..") || !strings.HasSuffix(testFile, "_test.go") {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: invalid test file path %q", lineNo+1, testFile)
+		}
+		pkgRel := strings.TrimPrefix(importPath, rootModulePath+"/v3")
+		pkgRel = strings.TrimPrefix(pkgRel, "/")
+		if pkgRel != "" && !strings.HasPrefix(testFile, pkgRel+"/") {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: test file %q is outside package %s", lineNo+1, testFile, importPath)
+		}
+		if testFunction == "" || evidence == "" {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: empty test function or evidence", lineNo+1)
+		}
+		testText := readText(t, filepath.Join(repoRoot, filepath.FromSlash(testFile)))
+		if !strings.Contains(testText, "func "+testFunction+"(") {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s missing function %s", lineNo+1, testFile, testFunction)
+		}
+		rows++
+	}
+	if rows == 0 {
+		t.Fatal("docs/negative-path-test-matrix.tsv has no evidence rows")
+	}
+	for category := range requiredCategories {
+		if !seenCategories[category] {
+			t.Fatalf("docs/negative-path-test-matrix.tsv missing required category %s", category)
+		}
+	}
+
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	if !strings.Contains(docsIndex, "negative-path-test-matrix.tsv") {
+		t.Fatal("docs/README.md must link to docs/negative-path-test-matrix.tsv")
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 

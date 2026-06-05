@@ -1,0 +1,21 @@
+# Stable-package negative-path test evidence.
+# Columns: category	import_path	test_file	test_function	evidence
+# Required categories:
+# malformed_input, missing_headers, bad_content_types, invalid_auth,
+# invalid_tenant, oversized_bodies, invalid_query_limits.
+malformed_input	github.com/aatuh/api-toolkit/v3/binding	binding/binding_test.go	TestDecodeJSONValidatesShapeUnknownFieldsAndRequiredFields	Rejects non-object JSON, unknown fields, and missing required fields.
+malformed_input	github.com/aatuh/api-toolkit/v3/upload	upload/upload_additional_test.go	TestDecodeMultipartRejectsInvalidRequests	Rejects nil requests, malformed multipart bodies, and unsupported upload request shapes.
+missing_headers	github.com/aatuh/api-toolkit/v3/middleware/auth/apikey	middleware/auth/apikey/apikey_test.go	TestHandlerRejectsMissingMalformedAndInvalidKeys	Missing API key header returns 401; malformed or conflicting auth headers return 400.
+missing_headers	github.com/aatuh/api-toolkit/v3/webhooks	webhooks/webhooks_test.go	TestHMACVerifierRejectsMissingMalformedAndWrongSignatures	Missing webhook signature is rejected before payload trust.
+bad_content_types	github.com/aatuh/api-toolkit/v3/middleware/json	middleware/json/json_test.go	TestHandlerRejectsInvalidJSONContentType	Body-bearing JSON routes reject invalid content types with Problem Details.
+bad_content_types	github.com/aatuh/api-toolkit/v3/middleware/json	middleware/json/json_test.go	TestHandlerRejectsMissingContentTypeForBodyBearingWriteRequests	Body-bearing JSON write requests reject missing content type with Problem Details.
+bad_content_types	github.com/aatuh/api-toolkit/v3/upload	upload/upload_additional_test.go	TestDecodeMultipartRejectsInvalidRequests	Multipart decoder rejects non-multipart upload content types.
+invalid_auth	github.com/aatuh/api-toolkit/v3/middleware/auth/apikey	middleware/auth/apikey/apikey_test.go	TestHandlerRejectsMissingMalformedAndInvalidKeys	Invalid API key fails closed without running the protected handler.
+invalid_auth	github.com/aatuh/api-toolkit/v3/middleware/auth/jwt	middleware/auth/jwt/middleware_test.go	TestSubjectFromTokenRejectsInvalidRegisteredClaimsAndKeyMisses	Rejects wrong issuer, wrong audience, expired token, not-yet-valid token, missing subject, and key miss.
+invalid_tenant	github.com/aatuh/api-toolkit/v3/middleware/auth/tenant	middleware/auth/tenant/tenant_test.go	TestTenantMiddlewareMismatch	Rejects mismatched tenant header and authenticated tenant context.
+invalid_tenant	github.com/aatuh/api-toolkit/v3/middleware/idempotency	middleware/idempotency/idempotency_test.go	TestIdempotencyRejectsReplayAcrossDifferentTenants	Rejects same replay key across different tenant scopes without running the handler.
+oversized_bodies	github.com/aatuh/api-toolkit/v3/middleware/maxbody	middleware/maxbody/maxbody_test.go	TestMiddlewareAdapterWrapsHandler	Oversized request body read fails through MaxBytesReader and returns 413 in the handler.
+oversized_bodies	github.com/aatuh/api-toolkit/v3/upload	upload/upload_additional_test.go	TestDecodeMultipartRejectsInvalidRequests	Multipart request exceeding MaxRequestBytes is rejected before parsing trust.
+oversized_bodies	github.com/aatuh/api-toolkit/v3/webhooks	webhooks/webhooks_test.go	TestReceiverWritesProblemDetailsForFailureCases	Oversized webhook payload returns 413 Problem Details.
+invalid_query_limits	github.com/aatuh/api-toolkit/v3/middleware/querylimits	middleware/querylimits/querylimits_test.go	TestQueryLimitsRejectsLongKeyValueAndInvalidLimits	Rejects long query keys, long values, invalid limits, zero limits, and limits above maximum.
+invalid_query_limits	github.com/aatuh/api-toolkit/v3/endpoints/list	endpoints/list/list_test.go	TestParseListQueryReturnsFieldErrorsForInvalidPagination	Stable list endpoint parser returns field errors for invalid pagination input.
