@@ -56,6 +56,7 @@ Go 1.25.x.
 - Generate a new service scaffold: [docs/getting-started.md](docs/getting-started.md)
 - Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
+- Review benchmark baselines: [docs/performance.md](docs/performance.md)
 - Review contributor rules: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Use the PR checklist: [.github/pull_request_template.md](.github/pull_request_template.md)
 - Use the documentation map: [docs/README.md](docs/README.md)

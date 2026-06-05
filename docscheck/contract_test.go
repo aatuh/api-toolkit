@@ -3362,6 +3362,52 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	}
 }
 
+func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	performance := readText(t, filepath.Join(repoRoot, "docs", "performance.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, required := range []string{
+		"GOWORK=off GOTOOLCHAIN=local go test",
+		"-bench 'Benchmark'",
+		"-benchmem",
+		"BenchmarkBindingDecodeJSON",
+		"BenchmarkBindingDecodeQuery",
+		"BenchmarkQueryParamsParseRequestShape",
+		"BenchmarkRegistryOpenAPI100Operations",
+		"BenchmarkRouteContractsRegisterAndValidate",
+		"BenchmarkMaxBodyWithinLimit",
+		"BenchmarkPropagatorSuccess",
+		"BenchmarkHardTimeoutSuccess",
+		"BenchmarkIdempotencyNew",
+		"BenchmarkIdempotencyReplay",
+		"BenchmarkRateLimit",
+		"BenchmarkOpenAPIRequestValidation",
+		"BenchmarkOpenAPIResponseValidation",
+		"BenchmarkRequestLog",
+		"BenchmarkRequestLogWithHeaders",
+		"BenchmarkNewServiceSaaSAPIGeneration",
+		"Generated service scaffold",
+		"benchmark temp directories only",
+	} {
+		if !strings.Contains(performance, required) {
+			t.Fatalf("docs/performance.md missing benchmark baseline text %q", required)
+		}
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readme},
+		{"docs/README.md", docsIndex},
+	} {
+		if !strings.Contains(source.text, "docs/performance.md") && !strings.Contains(source.text, "performance.md") {
+			t.Fatalf("%s missing docs/performance.md link", source.name)
+		}
+	}
+}
+
 func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
@@ -3913,6 +3959,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/release-manifests.md",
 		"docs/ports-surface.md",
 		"docs/v3-compatibility-roadmap.md",
+		"docs/performance.md",
 		"docs/response-writer-inventory.md",
 		"docs/dependency-boundary.md",
 		"docs/dependency-risk.md",

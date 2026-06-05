@@ -14,6 +14,7 @@ without scanning the root README.
 | [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
 | [Test coverage evidence](test-coverage.md) | Maintainers and release reviewers | Read the coverage gate outputs, package-level floor summary, and release-evidence relationship. |
+| [Benchmark baselines](performance.md) | Maintainers and release reviewers | Run and interpret package-level benchmark baselines before performance-sensitive changes or releases. |
 | [Coverage hardening backlog](coverage-hardening-backlog.md) | Maintainers | Track behavior-test prerequisites before raising high-risk package coverage floors. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
@@ -169,7 +170,7 @@ important public docs disappear from navigation:
 `VERSIONING.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
 `docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,
-`docs/governance.md`,
+`docs/governance.md`, `docs/performance.md`,
 `docs/dependency-boundary.md`, `docs/dependency-risk.md`,
 `docs/package-doc-standard.md`, `docs/full-service-scaffold.md`,
 `docs/package-classification.tsv`, `docs/supported-adapter-contracts.tsv`,
