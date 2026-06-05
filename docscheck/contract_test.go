@@ -3601,6 +3601,30 @@ func TestAlternativesComparisonExamplesAndReleaseNoteCategories(t *testing.T) {
 	}
 }
 
+func TestReadmeMinimalExampleMatchesTestedSnippet(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	section := markdownSection(t, readme, "Minimal existing-service example")
+	blocks := markdownCodeBlocks(section)
+	if len(blocks) == 0 {
+		t.Fatal("README.md minimal existing-service example missing Go code block")
+	}
+
+	snippetPath := filepath.Join(repoRoot, "examples", "snippets", "minimal-existing-service", "main.go")
+	snippet := readText(t, snippetPath)
+	if strings.TrimSpace(blocks[0]) != strings.TrimSpace(snippet) {
+		t.Fatal("README.md minimal existing-service example drifted from examples/snippets/minimal-existing-service/main.go")
+	}
+	if !strings.Contains(section, "examples/snippets/minimal-existing-service/main.go") {
+		t.Fatal("README.md minimal existing-service example must link to its tested source file")
+	}
+
+	out, err := runGoCmd(filepath.Dir(snippetPath), "test", ".")
+	if err != nil {
+		t.Fatalf("minimal existing-service snippet does not compile:\n%s\nerror: %v", out, err)
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 

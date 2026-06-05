@@ -20,7 +20,8 @@ Core-only install:
 go get github.com/aatuh/api-toolkit/v3
 ```
 
-Minimal existing-service example:
+Minimal existing-service example
+([source](examples/snippets/minimal-existing-service/main.go)):
 
 ```go
 package main
