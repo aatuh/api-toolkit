@@ -489,6 +489,104 @@ func TestStableAPIPackagesHaveCompileCheckedExamples(t *testing.T) {
 	}
 }
 
+func TestAPIReferenceTrustProofAndMaturityBadgesMatchClassification(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	classes := loadPackageClassifications(t, repoRoot)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.md"))
+	apiReference := readText(t, filepath.Join(repoRoot, "docs", "api-reference.md"))
+
+	for _, required := range []string{
+		"## Trust Proof",
+		"`make coverage-check`",
+		"`make test-race`",
+		"`make vuln`",
+		"`make docs-check`",
+		"`make v3-readiness-check`",
+		"`make release-api-check`",
+		"`make fuzz`",
+		"`docs/package-classification.tsv`",
+		"SBOM assets",
+		"signatures",
+		"provenance/attestation policy",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing trust proof text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"docs/api-reference.md",
+		"[stable]",
+		"[compatibility-only]",
+		"[supported-adapter]",
+		"[experimental]",
+		"[generated]",
+		"[tooling]",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing API reference or maturity badge text %q", required)
+		}
+	}
+
+	seenStatuses := map[string]bool{}
+	for _, cls := range classes {
+		seenStatuses[cls.APIStatus] = true
+	}
+	for status := range seenStatuses {
+		if !strings.Contains(classification, "["+status+"]") {
+			t.Fatalf("docs/package-classification.md missing maturity badge for api_status=%s", status)
+		}
+		if !strings.Contains(classification, "`"+status+"`") {
+			t.Fatalf("docs/package-classification.md missing status definition for api_status=%s", status)
+		}
+	}
+	for _, required := range []string{
+		"## Maturity Tier Badges",
+		"package-specific badges must match the TSV",
+		"`docs/api-reference.md` renders the `[stable]` and `[compatibility-only]`",
+		"The TSV remains the",
+	} {
+		if !strings.Contains(classification, required) {
+			t.Fatalf("docs/package-classification.md missing maturity-tier guidance %q", required)
+		}
+	}
+
+	for _, importPath := range stableRootPackagesFromClassification(t, repoRoot) {
+		cls, ok := classes[importPath]
+		if !ok {
+			t.Fatalf("stable package %s missing from classification map", importPath)
+		}
+		if !strings.Contains(apiReference, "https://pkg.go.dev/"+importPath) {
+			t.Fatalf("docs/api-reference.md missing pkg.go.dev link for %s", importPath)
+		}
+		if !strings.Contains(apiReference, "["+cls.APIStatus+"]") {
+			t.Fatalf("docs/api-reference.md missing maturity badge [%s] for %s", cls.APIStatus, importPath)
+		}
+		dir := classifiedPackageDir(repoRoot, importPath)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read package dir %s: %v", slashRel(repoRoot, dir), err)
+		}
+		var examplePath string
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, "_test.go") || !strings.Contains(name, "example") {
+				continue
+			}
+			examplePath = filepath.Join(dir, name)
+			break
+		}
+		if examplePath == "" {
+			t.Fatalf("%s has no example test file for API reference", importPath)
+		}
+		expectedLink := "../" + slashRel(repoRoot, examplePath)
+		if !strings.Contains(apiReference, "]("+expectedLink+")") {
+			t.Fatalf("docs/api-reference.md missing tested example link %s for %s", expectedLink, importPath)
+		}
+	}
+}
+
 func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	classes := loadPackageClassifications(t, repoRoot)
@@ -4505,6 +4603,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/release-review.md",
 		"docs/release-notes.md",
 		"docs/release-manifests.md",
+		"docs/api-reference.md",
 		"docs/core-readiness.md",
 		"docs/ports-surface.md",
 		"docs/v3-compatibility-roadmap.md",

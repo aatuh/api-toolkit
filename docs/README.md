@@ -127,6 +127,7 @@ identifies the installed generator and contract tool.
 | --- | --- | --- |
 | [Versioning](../VERSIONING.md) | API consumers and maintainers | Define the stable core API surface and contrib compatibility policy. |
 | [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
+| [API reference index](api-reference.md) | API consumers | Jump from each stable or compatibility-only root package to pkg.go.dev and its compile-checked example. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
 | [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
 | [Interface ownership](interface-ownership.md) | Maintainers | Document whether exported interfaces are user-implemented, adapter-owned, test-only, or compatibility-sensitive. |
@@ -195,7 +196,7 @@ important public docs disappear from navigation:
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
-`docs/core-readiness.md`, `docs/deprecations.md`, `docs/interface-ownership.md`,
+`docs/api-reference.md`, `docs/core-readiness.md`, `docs/deprecations.md`, `docs/interface-ownership.md`,
 `docs/context-cancellation.md`, `docs/errors.md`, `docs/concurrency.md`,
 `docs/resource-lifecycle.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,

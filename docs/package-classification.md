@@ -9,18 +9,31 @@ turning the TSV into prose-only data.
 
 ## API Statuses
 
-| Status | Meaning |
-| --- | --- |
-| `stable` | Covered by the core v3 API compatibility promise and release API gate. |
-| `compatibility-only` | Preserved for v3 compatibility, but not recommended as a new generic abstraction. |
-| `supported-adapter` | Maintained contrib runtime adapter with direct tests, drift review, and behavior evidence; still outside stable core. |
-| `experimental` | Maintained but not protected by stable or supported-adapter compatibility policy. |
-| `wrapper-only` | Thin convenience wrapper where behavior belongs to the delegated adapter or dependency. |
-| `test-only` | Test support package, not a public runtime API promise. |
-| `example-only` | Runnable example package, build-smoke checked but not behavior-complete API. |
-| `generated` | Generated example or scaffold code, validated by generation checks. |
-| `tooling` | CLI or repository tooling package. |
-| `excluded` | Internal or repository-only package outside public API classification. |
+| Badge | Status | Meaning |
+| --- | --- | --- |
+| [stable] | `stable` | Covered by the core v3 API compatibility promise and release API gate. |
+| [compatibility-only] | `compatibility-only` | Preserved for v3 compatibility, but not recommended as a new generic abstraction. |
+| [supported-adapter] | `supported-adapter` | Maintained contrib runtime adapter with direct tests, drift review, and behavior evidence; still outside stable core. |
+| [experimental] | `experimental` | Maintained but not protected by stable or supported-adapter compatibility policy. |
+| [wrapper-only] | `wrapper-only` | Thin convenience wrapper where behavior belongs to the delegated adapter or dependency. |
+| [test-only] | `test-only` | Test support package, not a public runtime API promise. |
+| [example-only] | `example-only` | Runnable example package, build-smoke checked but not behavior-complete API. |
+| [generated] | `generated` | Generated example or scaffold code, validated by generation checks. |
+| [tooling] | `tooling` | CLI or repository tooling package. |
+| [excluded] | `excluded` | Internal or repository-only package outside public API classification. |
+
+## Maturity Tier Badges
+
+Use the badge labels above in README package maps, API reference indexes, and
+release notes whenever a package tier is shown. Do not invent new labels outside
+`docs/package-classification.tsv`; package-specific badges must match the TSV
+row for that import path.
+
+`docs/api-reference.md` renders the `[stable]` and `[compatibility-only]` root
+packages with pkg.go.dev links and tested example links. The TSV remains the
+per-package map for `[supported-adapter]`, `[experimental]`, `[wrapper-only]`,
+`[test-only]`, `[example-only]`, `[generated]`, `[tooling]`, and `[excluded]`
+rows.
 
 ## Test Statuses
 

@@ -58,6 +58,7 @@ Go 1.25.x.
 - Add the core library to an existing service: [docs/library-first.md](docs/library-first.md)
 - Use the smallest root-only path: [docs/minimal-core.md](docs/minimal-core.md)
 - Choose a core package: [docs/core-package-guide.md](docs/core-package-guide.md)
+- Browse stable API references: [docs/api-reference.md](docs/api-reference.md)
 - Generate a new app-owned service scaffold: [docs/scaffold-first.md](docs/scaffold-first.md)
 - Wire supported adapters: [docs/contrib-adapters.md](docs/contrib-adapters.md)
 - Review the stable-core charter: [docs/stable-core.md](docs/stable-core.md)
@@ -126,6 +127,27 @@ stable.
 For API and test-status ownership, use `docs/package-classification.tsv`, the
 rendered guide in [docs/package-classification.md](docs/package-classification.md),
 and the human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
+Package maturity tier badges use the TSV-backed labels `[stable]`,
+`[compatibility-only]`, `[supported-adapter]`, `[experimental]`, `[generated]`,
+and `[tooling]`; do not treat a package as a different tier unless the TSV row
+changes in the same review.
+
+## Trust Proof
+
+Current repository trust signals:
+
+- CI runs `make coverage-check`, `make test-race`, `make vuln`, `make docs-check`,
+  `make v3-readiness-check`, `make release-api-check`, and `make fuzz`.
+- Stable SemVer policy is enforced by `VERSIONING.md`, `scripts/apicheck.sh`,
+  `docs/api-inventory.md`, and release API compatibility checks.
+- Package status is machine-owned by `docs/package-classification.tsv` and
+  rendered in `docs/package-classification.md`.
+- Release review covers dependency footprint, contrib drift, vulnerability
+  dispositions, SBOM assets, signatures, and provenance/attestation policy
+  through `docs/release-runbook.md`, `docs/release-review.md`, and
+  `release-check-summary.json`.
+- Governance docs publish required checks, CODEOWNERS expectations, tag policy,
+  and branch-protection evidence boundaries.
 
 ## Production readiness
 
@@ -213,6 +235,7 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 `scripts/apicheck.sh` must cover the same package list.
 
 - Public API inventory: [docs/api-inventory.md](docs/api-inventory.md)
+- API reference index: [docs/api-reference.md](docs/api-reference.md)
 - API review checklist: [docs/api-review-checklist.md](docs/api-review-checklist.md)
 - Deprecation policy: [docs/deprecations.md](docs/deprecations.md)
 - Interface ownership: [docs/interface-ownership.md](docs/interface-ownership.md)
