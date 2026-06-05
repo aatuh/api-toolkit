@@ -1,9 +1,11 @@
 package securityprofile
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -244,8 +246,8 @@ func TestStreamingRouteOverrideDisablesHardTimeoutBuffering(t *testing.T) {
 
 	handler := wrapProfile(profile, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/events" {
-			_, hasFlusher := w.(http.Flusher)
-			w.Header().Set("X-Has-Flusher", strconv.FormatBool(hasFlusher))
+			writeOptionalResponseWriterEvidence(w)
+			return
 		} else {
 			<-r.Context().Done()
 		}
@@ -260,13 +262,14 @@ func TestStreamingRouteOverrideDisablesHardTimeoutBuffering(t *testing.T) {
 	}
 
 	streamReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/events", nil)
-	streamRec := httptest.NewRecorder()
+	streamRec := newOptionalResponseWriter()
 	handler.ServeHTTP(streamRec, streamReq)
-	if streamRec.Code != http.StatusOK {
-		t.Fatalf("expected streaming route to bypass hard timeout, got %d", streamRec.Code)
+	if streamRec.Status() != http.StatusOK {
+		t.Fatalf("expected streaming route to bypass hard timeout, got %d", streamRec.Status())
 	}
-	if got := streamRec.Header().Get("X-Has-Flusher"); got != "true" {
-		t.Fatalf("expected streaming route to preserve flusher, got %q", got)
+	assertOptionalResponseWriterPreserved(t, streamRec)
+	if streamRec.Body() != "stream-response" {
+		t.Fatalf("expected streaming body through original writer, got %q", streamRec.Body())
 	}
 }
 
@@ -475,4 +478,112 @@ func wrapProfile(profile Profile, next http.Handler) http.Handler {
 
 func ptrInt64(v int64) *int64 {
 	return &v
+}
+
+type optionalResponseWriter struct {
+	header        http.Header
+	status        int
+	body          strings.Builder
+	flushed       bool
+	pushedTargets []string
+	readFromCalls int
+}
+
+func newOptionalResponseWriter() *optionalResponseWriter {
+	return &optionalResponseWriter{header: make(http.Header)}
+}
+
+func (w *optionalResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *optionalResponseWriter) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.body.Write(p)
+}
+
+func (w *optionalResponseWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+}
+
+func (w *optionalResponseWriter) Flush() {
+	w.flushed = true
+}
+
+func (w *optionalResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return nil, nil, net.ErrClosed
+}
+
+func (w *optionalResponseWriter) Push(target string, _ *http.PushOptions) error {
+	w.pushedTargets = append(w.pushedTargets, target)
+	return nil
+}
+
+func (w *optionalResponseWriter) ReadFrom(r io.Reader) (int64, error) {
+	w.readFromCalls++
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return io.Copy(&w.body, r)
+}
+
+func (w *optionalResponseWriter) Status() int {
+	if w.status == 0 {
+		return http.StatusOK
+	}
+	return w.status
+}
+
+func (w *optionalResponseWriter) Body() string {
+	return w.body.String()
+}
+
+func writeOptionalResponseWriterEvidence(w http.ResponseWriter) {
+	flusher, hasFlusher := w.(http.Flusher)
+	_, hasHijacker := w.(http.Hijacker)
+	pusher, hasPusher := w.(http.Pusher)
+	readerFrom, hasReaderFrom := w.(io.ReaderFrom)
+	w.Header().Set("X-Has-Flusher", strconv.FormatBool(hasFlusher))
+	w.Header().Set("X-Has-Hijacker", strconv.FormatBool(hasHijacker))
+	w.Header().Set("X-Has-Pusher", strconv.FormatBool(hasPusher))
+	w.Header().Set("X-Has-ReaderFrom", strconv.FormatBool(hasReaderFrom))
+	w.WriteHeader(http.StatusOK)
+	if hasFlusher {
+		flusher.Flush()
+	}
+	if hasPusher {
+		_ = pusher.Push("/events/next", nil)
+	}
+	if hasReaderFrom {
+		_, _ = readerFrom.ReadFrom(strings.NewReader("stream-response"))
+		return
+	}
+	_, _ = w.Write([]byte("stream-response"))
+}
+
+func assertOptionalResponseWriterPreserved(t *testing.T, w *optionalResponseWriter) {
+	t.Helper()
+	for name, value := range map[string]string{
+		"X-Has-Flusher":    "true",
+		"X-Has-Hijacker":   "true",
+		"X-Has-Pusher":     "true",
+		"X-Has-ReaderFrom": "true",
+	} {
+		if got := w.Header().Get(name); got != value {
+			t.Fatalf("%s = %q, want %q", name, got, value)
+		}
+	}
+	if !w.flushed {
+		t.Fatal("expected streaming route to call Flush on original writer")
+	}
+	if len(w.pushedTargets) != 1 || w.pushedTargets[0] != "/events/next" {
+		t.Fatalf("pushed targets = %v, want [/events/next]", w.pushedTargets)
+	}
+	if w.readFromCalls != 1 {
+		t.Fatalf("ReadFrom calls = %d, want 1", w.readFromCalls)
+	}
 }
