@@ -1,4 +1,5 @@
 # Public package classification manifest.
+# Rendered guide: docs/package-classification.md.
 # Columns: import_path	api_status	test_status	notes
 # api_status values:
 # stable, compatibility-only, experimental, wrapper-only, test-only, example-only,
@@ -59,10 +60,10 @@ github.com/aatuh/api-toolkit/v3/queryparams	stable	direct-tests	Stable collectio
 github.com/aatuh/api-toolkit/v3/routecontracts	stable	direct-tests	Stable route and OpenAPI contract registration helpers.
 github.com/aatuh/api-toolkit/v3/routepolicy	stable	direct-tests	Stable operation-derived runtime policy middleware helpers.
 github.com/aatuh/api-toolkit/v3/scheduler	stable	direct-tests	Stable scheduler abstractions.
-github.com/aatuh/api-toolkit/v3/scheduler/migrations	stable	direct-tests	Stable scheduler migration helpers.
+github.com/aatuh/api-toolkit/v3/scheduler/migrations	compatibility-only	direct-tests	Stable for v3 migration compatibility; new apps should keep migration orchestration app-owned or adapter-owned.
 github.com/aatuh/api-toolkit/v3/securityprofile	stable	direct-tests	Stable security profile defaults.
 github.com/aatuh/api-toolkit/v3/specs	stable	direct-tests	Stable spec registry helpers.
-github.com/aatuh/api-toolkit/v3/swagstub	stable	direct-tests	Stable swagger stub helpers.
+github.com/aatuh/api-toolkit/v3/swagstub	compatibility-only	direct-tests	Stable for v3 tooling compatibility; not a recommended runtime abstraction.
 github.com/aatuh/api-toolkit/v3/upload	stable	direct-tests	Stable multipart upload decoding and validation helpers.
 github.com/aatuh/api-toolkit/v3/webhooks	stable	direct-tests	Stable webhook verification and receiver helpers.
 github.com/aatuh/api-toolkit/v3/testutil/authtest	test-only	test-support	Root test support package; not stable public API.

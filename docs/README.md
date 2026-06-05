@@ -7,6 +7,8 @@ without scanning the root README.
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
+| [Stable core charter](stable-core.md) | New users and maintainers | Decide which root packages are the recommended small-core dependency surface and what evidence stable packages need. |
+| [Alternatives](alternatives.md) | Evaluators | Decide when to use `api-toolkit` instead of `net/http`, chi, oapi-codegen, Goa, Connect, or app-owned helpers. |
 | [Getting started](getting-started.md) | New users | Generate, run, and verify the production-oriented service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
@@ -114,6 +116,7 @@ identifies the installed generator and contract tool.
 | [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify compatibility-sensitive port history and preferred replacements. |
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
+| [Package classification guide](package-classification.md) | Maintainers and adopters | Read the rendered status glossary before using the TSV source of truth. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
 | `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Machine-readable default and scheduled/manual test-realism evidence for each supported contrib adapter. |

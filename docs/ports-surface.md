@@ -38,6 +38,13 @@ design, not current invitations to widen generic core ports.
 
 - Do not add provider-specific billing fields or driver-specific database
   counters to generic `ports`.
+- No new `ports` export is accepted without an accepted design note proving
+  adapter neutrality, at least two real implementations, and why the application
+  should not own the interface. The design note must explicitly answer why the
+  application should not own the interface.
+- If only one package consumes an interface, define it in that package. If the
+  behavior is business-specific or provider-specific, the application or contrib
+  adapter should own it.
 - New examples must use `compat/billing` for the existing hosted-checkout model
   or define an app-owned port for provider-neutral billing.
 - New database examples must prefer `DatabasePoolSnapshotProvider`,

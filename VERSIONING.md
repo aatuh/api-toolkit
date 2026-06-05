@@ -12,6 +12,11 @@ do not over-claim genericity. `docs/package-classification.tsv` classifies every
 root and contrib package so new public packages cannot appear without an
 explicit API and test-coverage classification.
 
+The recommended adoption identity is defined in `docs/stable-core.md`: small Go
+HTTP API building blocks first, optional scaffold and contrib adapters second.
+Some packages below are stable because v3 already promises compatibility, but
+they are not all recommended as new generic abstractions.
+
 ## Stable API surface (core module)
 
 All exported identifiers in these packages are considered stable:
@@ -70,6 +75,12 @@ model for new generic boundary design:
 - `github.com/aatuh/api-toolkit/v3/compat/billing` keeps the hosted-checkout
   and invoicing compatibility model explicit. New applications should prefer
   app-owned billing ports unless this model is exactly what they need.
+- `github.com/aatuh/api-toolkit/v3/scheduler/migrations` remains stable for v3
+  migration compatibility. New applications should keep migration orchestration
+  app-owned or adapter-owned unless this package's exact model is needed.
+- `github.com/aatuh/api-toolkit/v3/swagstub` remains stable for v3 tooling
+  compatibility. It is not a recommended runtime abstraction for new
+  application code.
 - `github.com/aatuh/api-toolkit/v3/ports` database snapshot contracts are the
   generic observability path. Driver-shaped counters belong in adapters or
   compatibility packages, not generic `ports`.
@@ -80,6 +91,10 @@ Compatibility-sensitive means:
   requires otherwise.
 - New design work should prefer narrower, plain-value, or app-owned contracts
   instead of widening these surfaces further.
+- No new `ports` export is accepted without an accepted design note proving
+  adapter neutrality, at least two real implementations, and why the application
+  should not own the interface. The design note must explicitly answer why the
+  application should not own the interface.
 - For the existing hosted-checkout and invoicing model, new code should import
   `github.com/aatuh/api-toolkit/v3/compat/billing` or use app-owned ports.
 - The repository should document the migration path before any future major

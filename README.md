@@ -1,75 +1,116 @@
 # api-toolkit
 
-Reusable building blocks for Go HTTP APIs that enforce Dependency Inversion. Your
-application depends on stable `ports` interfaces, while this toolkit ships
-adapters for popular libraries in a separate contrib module.
+`api-toolkit` provides small, composable Go HTTP API building blocks for teams
+that already own their service architecture and want production guardrails
+without adopting a full framework.
 
-Audience: Go service developers evaluating the toolkit, maintainers checking the
-stable surface, and release reviewers looking for the canonical docs path.
+Target user: Go developers building conventional JSON/HTTP APIs with `net/http`,
+chi, or app-owned routers.
+
+Non-goals: not a router, persistence framework, billing framework, universal auth
+platform, RPC framework, streaming middleware suite, or replacement for
+app-owned business ports.
+
+Core-only install:
+
+```sh
+go get github.com/aatuh/api-toolkit/v3
+```
+
+Minimal existing-service example:
+
+```go
+package main
+
+import (
+	"net/http"
+
+	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
+)
+
+func main() {
+	bodyLimit, err := maxbody.New(maxbody.Options{MaxBytes: 1 << 20})
+	if err != nil {
+		panic(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+
+	if err := http.ListenAndServe(":8080", bodyLimit.Handler(mux)); err != nil {
+		panic(err)
+	}
+}
+```
+
+Stable core package list: `VERSIONING.md` is the source of truth, and
+`scripts/apicheck.sh` must cover the same package list. Root and contrib target
+Go 1.25.x.
+
+## Start Here
+
+- Add the core library to an existing service: [docs/stable-core.md](docs/stable-core.md)
+- Generate a new service scaffold: [docs/getting-started.md](docs/getting-started.md)
+- Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)
+- Find task recipes: [docs/cookbook.md](docs/cookbook.md)
+- Review contributor rules: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Use the PR checklist: [.github/pull_request_template.md](.github/pull_request_template.md)
+- Use the documentation map: [docs/README.md](docs/README.md)
 
 ## Modules
 
 | Module | Import path | Use for |
 | --- | --- | --- |
-| Core | `github.com/aatuh/api-toolkit/v3` | Stable ports, middleware, `httpx`, endpoint helpers, scheduler, and v3 API-gated production primitives. |
-| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, examples, and tooling outside the stable core API promise. |
+| Core | `github.com/aatuh/api-toolkit/v3` | Stable HTTP/API primitives, middleware, helpers, route contracts, and compatibility-gated root packages. |
+| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, runnable examples, and generator tooling outside the stable core API promise. |
 
-Install both when following the getting-started guide:
+Install contrib only when you need maintained adapters, generated scaffolds, or
+contrib examples:
 
 ```sh
-go get github.com/aatuh/api-toolkit/v3
 go get github.com/aatuh/api-toolkit/contrib/v3
 ```
 
 Supported development and CI toolchain policy: root and contrib target Go 1.25.x.
-Local and release gates should run with `GOTOOLCHAIN=local` so drift
-between module `go` directives, GitHub Actions setup, and release evidence is
-visible before publication.
+Local and release gates should run with `GOTOOLCHAIN=local` so drift between
+module `go` directives, GitHub Actions setup, and release evidence is visible
+before publication.
 
-## Start here
+## Package Map
 
-- Tutorial: [docs/getting-started.md](docs/getting-started.md)
-- Task recipes: [docs/cookbook.md](docs/cookbook.md)
-- Full documentation map: [docs/README.md](docs/README.md)
-- Runnable examples: [contrib/examples/README.md](contrib/examples/README.md)
+Recommended small-core starting points:
 
-## Package map
+- HTTP responses and errors: `httpx`, `fielderrors`.
+- Request parsing and bounds: `binding`, `queryparams`, `upload`,
+  `middleware/maxbody`, `middleware/querylimits`, and `middleware/json`.
+- Runtime guardrails: `middleware/timeout`, `middleware/secure`,
+  `middleware/deprecation`, `middleware/trace`, and selected auth middleware.
+- API contracts: `routecontracts`, `routepolicy`, `specs`, and
+  `endpoints/health`, `endpoints/version`, `endpoints/docs`.
+- App-owned integration boundaries: `idempotent`, `webhooks`, and small
+  package-local interfaces where the consuming package owns the shape.
 
-Core packages:
+Stable but not the default adoption story:
 
-- `ports` defines toolkit-wide boundary contracts.
-- `compat/billing` is the explicit compatibility package for the current hosted-checkout and invoicing model.
-- Runtime middleware: `middleware/*` covers JSON enforcement, timeouts,
-  body/query limits, rate limiting, idempotency, secure headers, tracing,
-  tenant context, deprecation headers, API key auth, JWT auth, and role authz.
-- Request and response helpers: `binding`, `queryparams`, `upload`,
-  `httpcache`, `negotiation`, `httpx`, `httpx/identity`, `httpx/recover`, and
-  `fielderrors` cover validation, collection queries, multipart uploads,
-  conditional requests, content negotiation, JSON responses, Problem Details,
-  request identity, panic recovery, and field errors.
-- Contract and OpenAPI workflow: `routecontracts`, `routepolicy`, `specs`,
-  `contracttest`, `swagstub`, and `authorization` keep runtime route
-  registration, policy metadata, generated OpenAPI, tests, and authorization
-  context aligned.
-- Operations and integrations primitives: `endpoints/*`, `operations`,
-  `idempotent`, `webhooks`, `oauth2`, `securityprofile`, `scheduler`,
-  `scheduler/migrations`, and `email` cover system endpoints, pagination,
-  async operation contracts, idempotent HTTP contracts, webhook contracts,
-  OAuth2 scope helpers, security profiles, jobs, migrations, and email ports.
-- Testing and client helpers: `apitest` and `apiclient` provide application
-  test assertions and small client-side helpers without becoming a generated
-  SDK.
+- `ports` remains a v3 compatibility commitment, but new app design should
+  prefer package-local or app-owned interfaces unless a shared root abstraction
+  is proven.
+- `compat/billing`, migration-shaped packages, scaffolding support, test
+  helpers, and client helpers are stable where listed in `VERSIONING.md`, but
+  they are not the recommended minimal path for a new library user.
 
-Contrib packages:
+Contrib packages provide routers, logging, validation, Postgres, Redis, Stripe,
+Resend, OpenTelemetry, CORS, OpenAPI validation, request logging, config,
+bootstrap composition, generated service tooling, and runnable examples. Contrib
+supported-adapter incompatible drift is gate-enforced and does not make contrib
+stable.
 
-- `adapters/*` provides concrete implementations for routers, logging, validation, Postgres, Redis, Stripe, Resend, outbound HTTP, IDs, clocks, and policy engines.
-- `middleware/*` provides CORS, request logging, metrics, OpenAPI validation, OpenTelemetry tracing, Clerk auth, and development-only auth headers.
-- `integrations/*` provides convenience wrappers around selected adapters.
-- `bootstrap`, `config`, `telemetry`, `migrator`, `countrycodes`, and contrib email helpers support application wiring.
-- `cmd/api-toolkit` provides developer tooling for generating production-oriented SaaS API and web skeletons, generated Go/TypeScript clients, OpenAPI contract artifacts, observability bundles, and deployment starters.
-
-For API and test-status ownership, use `docs/package-classification.tsv` and the
-human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
+For API and test-status ownership, use `docs/package-classification.tsv`, the
+rendered guide in [docs/package-classification.md](docs/package-classification.md),
+and the human guide in [docs/package-doc-standard.md](docs/package-doc-standard.md).
 
 ## Production readiness
 
@@ -148,6 +189,10 @@ if err != nil {
 Stable core package list: `VERSIONING.md` is the source of truth, and
 `scripts/apicheck.sh` must cover the same package list.
 
+- Latest published release line: `v3.1.2` and `contrib/v3.1.2`.
+- `master` may contain unreleased changes after the latest tag; release
+  consumers should use tags and release notes instead of assuming `master` is
+  published evidence.
 - Versioning and stable API policy: [VERSIONING.md](VERSIONING.md)
 - Compatibility-sensitive ports: [docs/ports-surface.md](docs/ports-surface.md)
 - V3 compatibility record: [docs/v3-compatibility-roadmap.md](docs/v3-compatibility-roadmap.md)

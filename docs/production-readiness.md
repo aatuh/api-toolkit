@@ -10,6 +10,10 @@ operating model. Generated code is app-owned; api-toolkit standardizes the
 HTTP/API infrastructure foundation while product logic, provider workflows, and
 deployment evidence stay with each service.
 
+For new library adopters, prefer the small stable core described in
+`docs/stable-core.md`. Treat generated scaffolds and contrib adapters as
+intentional adoption choices, not prerequisites for using the root module.
+
 | Area | Status | What is covered | Caveats |
 | --- | --- | --- | --- |
 | Stable core packages | Stable SemVer surface | Ports, HTTP helpers, middleware, health, errors, idempotency, pagination, route contracts, OpenAPI helpers, webhooks, and tests listed in `VERSIONING.md`. | Breaking exported API changes require a future major version. Runtime behavior still needs release-note review. |

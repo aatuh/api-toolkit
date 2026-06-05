@@ -3,6 +3,11 @@
 Audience: maintainers configuring repository protections, release approvals,
 and ownership rules for api-toolkit.
 
+The repository identity is small Go HTTP/API building blocks first. Scaffold and
+contrib adapter work is optional and must not expand the stable root promise
+without the API review and compatibility evidence required by `VERSIONING.md`
+and `docs/stable-core.md`.
+
 ## Required Protections
 
 - Protect `master` and release branches.

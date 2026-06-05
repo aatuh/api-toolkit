@@ -1206,6 +1206,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"ARG BUILD_COMMIT=unknown",
 		"ARG BUILD_DATE=unknown",
 		"CGO_ENABLED=0 GOOS=linux go build",
+		"-buildvcs=false",
 		"-X main.appVersion=${VERSION}",
 		"-X main.buildCommit=${BUILD_COMMIT}",
 		"-X main.buildDate=${BUILD_DATE}",
@@ -1645,7 +1646,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Makefile: %v", err)
 	}
-	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "resource-check:", "migrate-up:", "migrate-status:", "migrate-check:", "--style typed", "$(GO) build -trimpath -o bin/migrate ./cmd/migrate", "$(GO) build -trimpath -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
+	for _, want := range []string{"deps:", "mod tidy", "openapi-check:", "contracts-lint:", "contracts-diff:", "integration-check:", "client-check:", "resource-check:", "migrate-up:", "migrate-status:", "migrate-check:", "--style typed", "$(GO) build -trimpath -buildvcs=false -o bin/migrate ./cmd/migrate", "$(GO) build -trimpath -buildvcs=false -o bin/worker ./cmd/worker", "bash scripts/integration_check.sh"} {
 		if !strings.Contains(string(generatedMakefile), want) {
 			t.Fatalf("generated full-profile Makefile missing %q", want)
 		}
@@ -1747,7 +1748,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated full-profile Dockerfile: %v", err)
 	}
-	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath -o /out/api ./cmd/api", "go build -trimpath -o /out/worker ./cmd/worker", "go build -trimpath -o /out/migrate ./cmd/migrate", "COPY --from=build /out/worker /worker", "COPY --from=build /out/migrate /migrate", "COPY migrations /migrations"} {
+	for _, want := range []string{"go mod tidy", "go test ./...", "go build -trimpath -buildvcs=false -o /out/api ./cmd/api", "go build -trimpath -buildvcs=false -o /out/worker ./cmd/worker", "go build -trimpath -buildvcs=false -o /out/migrate ./cmd/migrate", "COPY --from=build /out/worker /worker", "COPY --from=build /out/migrate /migrate", "COPY migrations /migrations"} {
 		if !strings.Contains(string(generatedDockerfile), want) {
 			t.Fatalf("generated full-profile Dockerfile missing %q:\n%s", want, generatedDockerfile)
 		}

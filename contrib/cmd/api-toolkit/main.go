@@ -9081,7 +9081,7 @@ test:
 	$(GO) test ./...
 
 build:
-	$(GO) build -trimpath -o bin/web ./cmd/web
+	$(GO) build -trimpath -buildvcs=false -o bin/web ./cmd/web
 
 finalize: test build
 `
@@ -22649,9 +22649,9 @@ fmt:
 	$(GO) fmt ./...
 
 build: deps
-	$(GO) build -trimpath -o bin/api ./cmd/api
-	$(GO) build -trimpath -o bin/worker ./cmd/worker
-	$(GO) build -trimpath -o bin/migrate ./cmd/migrate
+	$(GO) build -trimpath -buildvcs=false -o bin/api ./cmd/api
+	$(GO) build -trimpath -buildvcs=false -o bin/worker ./cmd/worker
+	$(GO) build -trimpath -buildvcs=false -o bin/migrate ./cmd/migrate
 
 openapi-check: deps
 	$(GO) test ./internal/httpapi -run TestOpenAPIGolden
@@ -23665,9 +23665,9 @@ RUN go mod download
 COPY . .
 RUN go mod tidy
 RUN go test ./...
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/worker ./cmd/worker
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/migrate ./cmd/migrate
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -o /out/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -o /out/worker ./cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -o /out/migrate ./cmd/migrate
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
@@ -25791,7 +25791,7 @@ fmt:
 	$(GO) fmt ./...
 
 build:
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/api .
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o bin/api .
 
 coverage:
 	$(GO) test ./... -coverprofile=coverage.out
@@ -25939,7 +25939,7 @@ RUN go test ./...
 ARG VERSION=dev
 ARG BUILD_COMMIT=unknown
 ARG BUILD_DATE=unknown
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.appVersion=${VERSION} -X main.buildCommit=${BUILD_COMMIT} -X main.buildDate=${BUILD_DATE}" -o /out/api .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w -X main.appVersion=${VERSION} -X main.buildCommit=${BUILD_COMMIT} -X main.buildDate=${BUILD_DATE}" -o /out/api .
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /

@@ -2716,6 +2716,17 @@ func markdownFilesUnder(t *testing.T, root string) []string {
 	return paths
 }
 
+func firstLines(text string, maxLines int) string {
+	if maxLines <= 0 {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	if len(lines) <= maxLines {
+		return text
+	}
+	return strings.Join(lines[:maxLines], "\n")
+}
+
 func markdownCodeBlocks(markdown string) []string {
 	var blocks []string
 	var current []string
@@ -3138,6 +3149,125 @@ func TestREADMEStabilitySummaryUsesVersioningSourceOfTruth(t *testing.T) {
 	}
 	if strings.Contains(section, "- Stable (core):") {
 		t.Fatal("README stability section reintroduced an independent stable core package summary")
+	}
+}
+
+func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	firstSixtyLines := firstLines(readme, 60)
+	for _, required := range []string{
+		"small, composable Go HTTP API building blocks",
+		"Target user:",
+		"Non-goals:",
+		"go get github.com/aatuh/api-toolkit/v3",
+		"func main()",
+		"Stable core package list: `VERSIONING.md` is the source of truth",
+	} {
+		if !strings.Contains(firstSixtyLines, required) {
+			t.Fatalf("README first 60 lines missing adoption-first text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"docs/alternatives.md",
+		"docs/stable-core.md",
+		"CONTRIBUTING.md",
+		".github/pull_request_template.md",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README missing adoption/process link %q", required)
+		}
+	}
+
+	alternatives := readText(t, filepath.Join(repoRoot, "docs", "alternatives.md"))
+	for _, required := range []string{
+		"Use `net/http` or chi",
+		"Use oapi-codegen",
+		"Use Goa",
+		"Use Connect",
+	} {
+		if !strings.Contains(alternatives, required) {
+			t.Fatalf("docs/alternatives.md missing %q", required)
+		}
+	}
+
+	stableCore := readText(t, filepath.Join(repoRoot, "docs", "stable-core.md"))
+	for _, required := range []string{
+		"small Go HTTP API building blocks",
+		"Stable Core Packages",
+		"Compatibility-Only Packages",
+		"docs",
+		"direct tests",
+		"examples",
+		"benchmark decision",
+		"compatibility notes",
+	} {
+		if !strings.Contains(stableCore, required) {
+			t.Fatalf("docs/stable-core.md missing %q", required)
+		}
+	}
+
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	portsSurface := readText(t, filepath.Join(repoRoot, "docs", "ports-surface.md"))
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"VERSIONING.md", versioning},
+		{"docs/ports-surface.md", portsSurface},
+	} {
+		normalized := normalizeWhitespace(source.text)
+		for _, required := range []string{
+			"No new `ports` export",
+			"at least two real implementations",
+			"the application should not own the interface",
+		} {
+			if !strings.Contains(normalized, required) {
+				t.Fatalf("%s missing ports freeze requirement %q", source.name, required)
+			}
+		}
+	}
+
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	for _, required := range []string{
+		"Local setup",
+		"make docs-check",
+		"make fast-check",
+		"make finalize",
+		"API compatibility",
+		"Documentation policy",
+		"Security reports",
+		"Pull request review",
+	} {
+		if !strings.Contains(contributing, required) {
+			t.Fatalf("CONTRIBUTING.md missing %q", required)
+		}
+	}
+
+	for _, rel := range []string{
+		".github/ISSUE_TEMPLATE/bug_report.md",
+		".github/ISSUE_TEMPLATE/feature_request.md",
+		".github/ISSUE_TEMPLATE/docs.md",
+		".github/ISSUE_TEMPLATE/api_change.md",
+		".github/ISSUE_TEMPLATE/security.md",
+		".github/pull_request_template.md",
+	} {
+		if _, err := os.Stat(filepath.Join(repoRoot, rel)); err != nil {
+			t.Fatalf("missing GitHub template %s: %v", rel, err)
+		}
+	}
+
+	prTemplate := readText(t, filepath.Join(repoRoot, ".github", "pull_request_template.md"))
+	for _, required := range []string{
+		"Tests",
+		"Documentation",
+		"Compatibility impact",
+		"Security impact",
+		"Benchmark impact",
+	} {
+		if !strings.Contains(prTemplate, required) {
+			t.Fatalf("pull request template missing %q", required)
+		}
 	}
 }
 
