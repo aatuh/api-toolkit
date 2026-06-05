@@ -4600,6 +4600,10 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/idempotency.md",
 		"docs/operations.md",
 		"docs/openapi-workflow.md",
+		"docs/configuration.md",
+		"docs/observability.md",
+		"docs/scaffold-support.md",
+		"docs/adapter-maturity.md",
 		"docs/safe-defaults.md",
 		"docs/middleware-safety.md",
 		"SECURITY.md",
@@ -4878,6 +4882,86 @@ func TestFeatureProductionGuidesCoverCriticalContracts(t *testing.T) {
 	} {
 		if !strings.Contains(openapiWorkflow, required) {
 			t.Fatalf("docs/openapi-workflow.md missing workflow guidance %q", required)
+		}
+	}
+}
+
+func TestSupportConfigurationAdapterAndObservabilityGuidesCoverRuntimeCompleteness(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	scaffold := readText(t, filepath.Join(repoRoot, "docs", "scaffold-support.md"))
+	adapter := readText(t, filepath.Join(repoRoot, "docs", "adapter-maturity.md"))
+	config := readText(t, filepath.Join(repoRoot, "docs", "configuration.md"))
+	observability := readText(t, filepath.Join(repoRoot, "docs", "observability.md"))
+
+	for _, required := range []string{
+		"docs/scaffold-support.md",
+		"docs/adapter-maturity.md",
+		"docs/configuration.md",
+		"docs/observability.md",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing runtime completeness guide %s", required)
+		}
+	}
+	for _, required := range []string{
+		"Generated services are app-owned generated code",
+		"## Support Matrix",
+		"## What Breaks On Regeneration",
+		"## Migration Expectations",
+		"temporary generation directory",
+		"Generated CI and Makefile",
+	} {
+		if !strings.Contains(scaffold, required) {
+			t.Fatalf("docs/scaffold-support.md missing scaffold support guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Maturity Matrix",
+		"Postgres",
+		"Redis",
+		"Stripe",
+		"Resend",
+		"Clerk and OIDC",
+		"OpenTelemetry",
+		"CORS",
+		"Validation",
+		"supported-adapter",
+		"experimental",
+	} {
+		if !strings.Contains(adapter, required) {
+			t.Fatalf("docs/adapter-maturity.md missing adapter maturity guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Production Variables",
+		"## Unsafe Development Defaults",
+		"## Startup Validation",
+		"`DATABASE_URL`",
+		"`REDIS_ADDR`",
+		"`API_KEY_PEPPER`",
+		"`WEBHOOK_SECRET_KEY`",
+		"`OTEL_EXPORTER_OTLP_ENDPOINT`",
+		"Production startup should fail closed",
+	} {
+		if !strings.Contains(config, required) {
+			t.Fatalf("docs/configuration.md missing runtime configuration guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Metrics",
+		"## Logs",
+		"## Traces",
+		"## Correlation IDs",
+		"## Dashboards and Alerts",
+		"route patterns, not raw paths",
+		"tenant IDs, user IDs, API keys",
+		"`OTEL_TRACING_ENABLED=true`",
+		"Keep span attributes low-cardinality",
+	} {
+		if !strings.Contains(observability, required) {
+			t.Fatalf("docs/observability.md missing observability guidance %q", required)
 		}
 	}
 }
