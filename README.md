@@ -201,13 +201,14 @@ endpoints directly. If you mount pprof outside the bootstrap helper, use
 `pprof.RegisterAdminRoutes`. If you split routers manually, use
 `healthHandler.RegisterPublicRoutesTo(publicRouter)` for public probes and
 `healthHandler.RegisterAdminDetailedHealthRoute(adminRouter, requireAdmin)` for
-operator detail.
+operator detail. The bootstrap snippet below is compile checked in
+[contrib/bootstrap/example_test.go](contrib/bootstrap/example_test.go).
 
 ```go
 err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
 	Health:  healthHandler,
 	Metrics: bootstrap.PrometheusMetricsHandler(),
-	Pprof:   pprof.Handler(),
+	Pprof:   http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 }, bootstrap.SystemEndpointAdminOptions{
 	RequireAdmin: requireAdmin,
 	EnablePprof:  true,

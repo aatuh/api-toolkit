@@ -146,7 +146,7 @@ access to operator-only endpoints.
 err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
 	Health:  healthHandler,
 	Metrics: bootstrap.PrometheusMetricsHandler(),
-	Pprof:   pprof.Handler(),
+	Pprof:   http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 }, bootstrap.SystemEndpointAdminOptions{
 	RequireAdmin: requireAdmin,
 	EnablePprof:  true,

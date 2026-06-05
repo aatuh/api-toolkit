@@ -13,7 +13,7 @@
 //
 //	bootstrap.MountSystemEndpointsToWithProfile(router, bootstrap.SystemEndpoints{
 //		Health:  health.NewHandler(nil),
-//		Pprof:   pprof.Handler(),
+//		Pprof:   http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 //		Version: version.NewHandler(version.Config{}),
 //	}, "development")
 //
@@ -21,7 +21,7 @@
 //
 //	bootstrap.MountSystemEndpointsToWithProfile(router, bootstrap.SystemEndpoints{
 //		Health: health.NewHandler(nil),
-//		Pprof:  pprof.Handler(),
+//		Pprof:  http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 //	}, "production")
 //
 // Admin wiring example:
@@ -29,7 +29,7 @@
 //	err := bootstrap.MountSystemEndpointsToWithAdmin(router, bootstrap.SystemEndpoints{
 //		Health:  healthHandler,
 //		Metrics: bootstrap.PrometheusMetricsHandler(),
-//		Pprof:   pprof.Handler(),
+//		Pprof:   http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 //	}, bootstrap.SystemEndpointAdminOptions{
 //		RequireAdmin: requireAdmin,
 //		EnablePprof:  true,

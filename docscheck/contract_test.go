@@ -3,6 +3,7 @@ package docscheck
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -3240,18 +3241,46 @@ func firstLines(text string, maxLines int) string {
 	return strings.Join(lines[:maxLines], "\n")
 }
 
+func normalizeLeadingCodeIndent(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimLeft(line, " \t")
+	}
+	return strings.Join(lines, "\n")
+}
+
 func markdownCodeBlocks(markdown string) []string {
+	fencedBlocks := markdownFencedCodeBlocks(markdown)
 	var blocks []string
+	for _, block := range fencedBlocks {
+		blocks = append(blocks, block.Text)
+	}
+	return blocks
+}
+
+type markdownFencedCodeBlock struct {
+	Info string
+	Text string
+}
+
+func markdownFencedCodeBlocks(markdown string) []markdownFencedCodeBlock {
+	var blocks []markdownFencedCodeBlock
 	var current []string
 	inBlock := false
+	info := ""
 	for _, line := range strings.Split(markdown, "\n") {
 		if strings.HasPrefix(line, "```") {
 			if inBlock {
-				blocks = append(blocks, strings.Join(current, "\n"))
+				blocks = append(blocks, markdownFencedCodeBlock{
+					Info: info,
+					Text: strings.Join(current, "\n"),
+				})
 				current = nil
 				inBlock = false
+				info = ""
 			} else {
 				inBlock = true
+				info = strings.TrimSpace(strings.TrimPrefix(line, "```"))
 			}
 			continue
 		}
@@ -3855,6 +3884,66 @@ func TestReadmeMinimalExampleMatchesTestedSnippet(t *testing.T) {
 	out, err := runGoCmd(filepath.Dir(snippetPath), "test", ".")
 	if err != nil {
 		t.Fatalf("minimal existing-service snippet does not compile:\n%s\nerror: %v", out, err)
+	}
+}
+
+func TestReadmeGoSnippetsMatchTestedSources(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	testedSources := []string{
+		normalizeLeadingCodeIndent(readText(t, filepath.Join(repoRoot, "examples", "snippets", "minimal-existing-service", "main.go"))),
+		normalizeLeadingCodeIndent(readText(t, filepath.Join(repoRoot, "contrib", "bootstrap", "example_test.go"))),
+	}
+
+	var unmatched []string
+	for index, block := range markdownFencedCodeBlocks(readme) {
+		info := strings.Fields(block.Info)
+		if len(info) == 0 || info[0] != "go" {
+			continue
+		}
+		body := normalizeLeadingCodeIndent(block.Text)
+		if body == "" {
+			continue
+		}
+		matched := false
+		for _, source := range testedSources {
+			if strings.Contains(source, body) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			unmatched = append(unmatched, fmt.Sprintf("Go block %d:\n%s", index+1, firstLines(body, 8)))
+		}
+	}
+	if len(unmatched) > 0 {
+		t.Fatalf("README.md Go snippets must live in compile-checked source files:\n%s", strings.Join(unmatched, "\n\n"))
+	}
+}
+
+func TestExampleCompileGateIsWiredToCI(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"example-compile-check:",
+		"$(GO) test ./... -run '^Example'",
+		"TestReadmeGoSnippetsMatchTestedSources",
+		"TestStableAPIPackagesHaveCompileCheckedExamples",
+		"TestExampleOnlyPackagesBuildSmoke",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing example compile gate text %q", required)
+		}
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"Example compile gate",
+		"make example-compile-check",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing example compile gate text %q", required)
+		}
 	}
 }
 

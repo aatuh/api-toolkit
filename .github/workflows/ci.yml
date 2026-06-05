@@ -18,6 +18,8 @@ jobs:
           check-latest: true
       - name: Unit tests and coverage
         run: make coverage-check
+      - name: Example compile gate
+        run: make example-compile-check
       - name: Coverage summary
         if: always()
         run: |

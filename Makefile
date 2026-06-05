@@ -29,7 +29,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -189,6 +189,13 @@ test: ## Run unit tests
 		(cd $$mod && $(GO) test ./...); \
 	done
 
+example-compile-check: ## Compile package examples and tested README snippets
+	@set -e; for mod in $(MODULES); do \
+		echo "==> $$mod examples"; \
+		(cd $$mod && $(GO) test ./... -run '^Example'); \
+	done
+	@$(GO) test ./docscheck -count=1 -run 'TestReadmeGoSnippetsMatchTestedSources|TestStableAPIPackagesHaveCompileCheckedExamples|TestExampleOnlyPackagesBuildSmoke'
+
 coverage: ## Run unit tests with coverage reporting
 	@GO="$(GO)" scripts/coverage_check.sh
 
@@ -197,6 +204,7 @@ coverage-check: ## Run unit tests with coverage thresholds
 
 fast-check: ## Run non-installing local checks without rewriting files
 	@$(MAKE) docs-check
+	@$(MAKE) example-compile-check
 	@$(MAKE) test
 
 test-race: ## Run unit tests with race detector
@@ -243,6 +251,7 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 	$(MAKE) ci-build-smoke
 	$(MAKE) actions-audit
 	$(MAKE) docs-check
+	$(MAKE) example-compile-check
 	$(MAKE) test
 	$(MAKE) test-race
 	$(MAKE) timeout-determinism-check
@@ -266,6 +275,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) full-profile-scaffold-check
 	$(MAKE) v3-readiness-check
 	$(MAKE) docs-check
+	$(MAKE) example-compile-check
 	$(MAKE) coverage-check
 	$(MAKE) test
 	$(MAKE) test-race
