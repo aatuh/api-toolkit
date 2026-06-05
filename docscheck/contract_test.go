@@ -3532,6 +3532,56 @@ func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
 	}
 }
 
+func TestAlternativesComparisonExamplesAndReleaseNoteCategories(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	alternatives := readText(t, filepath.Join(repoRoot, "docs", "alternatives.md"))
+	comparison := markdownSection(t, alternatives, "## Comparison Examples")
+	comparisonText := normalizeWhitespace(comparison)
+
+	for _, required := range []string{
+		"### Plain chi version",
+		"### api-toolkit library version",
+		"### Generated scaffold version",
+		"http.MaxBytesReader",
+		"binding.DecodeJSON",
+		"binding.WriteValidationProblem",
+		"httpx.WriteJSON",
+		"github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service",
+		"Existing services should start with the library version",
+	} {
+		if !strings.Contains(comparisonText, required) {
+			t.Fatalf("docs/alternatives.md comparison examples missing %q", required)
+		}
+	}
+
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	categorySection := markdownSection(t, releaseNotes, "## Release Note Categories")
+	for _, required := range []string{
+		"Breaking",
+		"Behavior",
+		"Security",
+		"Docs",
+		"Dependencies",
+		"Generated scaffold",
+		"Migration",
+	} {
+		if !strings.Contains(categorySection, required) {
+			t.Fatalf("docs/release-notes.md release category taxonomy missing %q", required)
+		}
+	}
+
+	checklist := markdownSection(t, releaseNotes, "## Release checklist")
+	for _, required := range []string{
+		"Choose one or more release note categories",
+		"breaking, behavior, security",
+		"dependency, generated scaffold, or migration impact",
+	} {
+		if !strings.Contains(checklist, required) {
+			t.Fatalf("docs/release-notes.md release checklist missing category discipline %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 

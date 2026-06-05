@@ -78,3 +78,86 @@ go get github.com/aatuh/api-toolkit/v3
 
 Add contrib only when you intentionally need maintained adapters, integrations,
 examples, or generated service tooling.
+
+## Comparison Examples
+
+Each example below exposes the same `POST /widgets` intent at a different
+adoption level. Use the smallest version that matches the work your service
+needs to own.
+
+### Plain chi version
+
+Choose this when the service only needs routing and application-owned request
+helpers.
+
+```go
+r := chi.NewRouter()
+
+r.Post("/widgets", func(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var input createWidgetRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	widget, err := app.CreateWidget(r.Context(), input)
+	if err != nil {
+		http.Error(w, "create widget failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(widget)
+})
+```
+
+### api-toolkit library version
+
+Choose this when the app keeps its router and architecture, but wants shared
+transport guardrails such as bounded JSON decoding, validation Problem Details,
+and buffered JSON responses.
+
+```go
+r := chi.NewRouter()
+
+r.Post("/widgets", func(w http.ResponseWriter, r *http.Request) {
+	input, err := binding.DecodeJSON[createWidgetRequest](r, binding.JSONConfig{
+		MaxBytes:      1 << 20,
+		RequireObject: true,
+	})
+	if err != nil {
+		binding.WriteValidationProblem(w, err)
+		return
+	}
+
+	widget, err := app.CreateWidget(r.Context(), input)
+	if err != nil {
+		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			Title: "Create widget failed",
+		})
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusCreated, widget)
+})
+```
+
+### Generated scaffold version
+
+Choose this when the team wants an app-owned starter service with chi routing,
+OpenAPI checks, generated client assets, auth/idempotency wiring, deployment
+starters, and repeatable local quality gates.
+
+```sh
+go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service \
+  --module example.com/widgets-api \
+  --profile saas-api \
+  --dir widgets-api
+```
+
+The scaffold is intentionally broader than the library. Existing services should
+start with the library version unless they also want generated project structure
+and operational assets.

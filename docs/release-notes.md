@@ -13,12 +13,30 @@ upgrade notes, and package-tied compatibility acknowledgements.
 | Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |
 | Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.2`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
 
+## Release Note Categories
+
+Every dated release entry should use one or more of these categories when the
+change is present:
+
+| Category | Use when the release includes |
+| --- | --- |
+| Breaking | Source-incompatible API, module, config, generated-file, or runtime contract changes. |
+| Behavior | User-visible runtime behavior, response shape, validation, persistence, or default changes. |
+| Security | Security fixes, hardening, bypass removal, vulnerability disposition, or sensitive default changes. |
+| Docs | Documentation-only changes that affect adoption, upgrade, release, or operations guidance. |
+| Dependencies | Dependency upgrades, removals, replacements, vulnerability-driven changes, or imported-only risk dispositions. |
+| Generated scaffold | Generator CLI behavior, templates, scaffold runtime assets, generated Makefile targets, or reference-service compatibility. |
+| Migration | Upgrade steps, compatibility notes, deprecations, replacement paths, or required operator action. |
+
 ## Release checklist
 
 For stable surface changes, deprecations, or compatibility-sensitive updates,
 keep this file focused on user-visible behavior and upgrade notes. The command
 source of truth is `docs/release-runbook.md`.
 
+- Choose one or more release note categories from the taxonomy above before
+  adding the dated entry; do not bury breaking, behavior, security,
+  dependency, generated scaffold, or migration impact under generic prose.
 - Update `VERSIONING.md`, public docs, and package docs that describe the affected stability contract.
 - Update `scripts/apicheck.sh` and docscheck coverage when the stable package list or compatibility-sensitive manifest changes.
 - Update `docs/ports-surface.md`, `docs/v3-compatibility-roadmap.md`, release notes, and upgrade notes when compatibility-sensitive ports or legacy stable surfaces change.
