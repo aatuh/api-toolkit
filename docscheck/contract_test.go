@@ -4666,6 +4666,57 @@ func TestSecurityDocsCoverHardTimeoutCaptureAndPanicProfileOptions(t *testing.T)
 	}
 }
 
+func TestPanicPolicyCoversStablePanicSites(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	policy := readText(t, filepath.Join(repoRoot, "PANIC_POLICY.md"))
+
+	for _, required := range []string{
+		"## Stable Package Panic Audit",
+		"`panic`",
+		"`recover`",
+		"`template.Must`",
+		"`regexp.MustCompile`",
+		"request input",
+	} {
+		if !strings.Contains(policy, required) {
+			t.Fatalf("PANIC_POLICY.md missing %q", required)
+		}
+	}
+
+	rows := panicPolicyRows(t, policy)
+	want := stablePanicRefs(t, repoRoot)
+	wantSet := map[string]bool{}
+	var missing []string
+	for _, ref := range want {
+		key := panicRefKey(ref.Source, ref.Behavior)
+		wantSet[key] = true
+		row, ok := rows[key]
+		if !ok {
+			missing = append(missing, ref.Source+" "+ref.Behavior+" missing panic-policy row")
+			continue
+		}
+		for _, field := range []string{"policy", "evidence"} {
+			value := row[field]
+			if strings.TrimSpace(value) == "" {
+				missing = append(missing, ref.Source+" "+ref.Behavior+" has empty "+field+" cell")
+			}
+			lower := strings.ToLower(value)
+			if strings.Contains(lower, "tbd") || strings.Contains(lower, "todo") {
+				missing = append(missing, ref.Source+" "+ref.Behavior+" has placeholder "+field+" cell")
+			}
+		}
+	}
+	for key := range rows {
+		if !wantSet[key] {
+			missing = append(missing, "PANIC_POLICY.md has stale or non-stable panic row "+key)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("stable panic policy audit is incomplete:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
 func TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	metrics := readText(t, filepath.Join(repoRoot, "docs", "metrics.md"))
@@ -6546,6 +6597,138 @@ func validGlobalStateClassification(value string) bool {
 
 func packageVarKey(importPath, name string) string {
 	return importPath + "\t" + name
+}
+
+type panicRef struct {
+	Source   string
+	Behavior string
+}
+
+func stablePanicRefs(t *testing.T, repoRoot string) []panicRef {
+	t.Helper()
+
+	classes := loadPackageClassifications(t, repoRoot)
+	seen := map[string]panicRef{}
+	for _, cls := range classes {
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
+			continue
+		}
+		dir := classifiedPackageDir(repoRoot, cls.ImportPath)
+		if dir == "" {
+			t.Fatalf("%s has unsupported import path for panic audit", cls.ImportPath)
+		}
+		for _, ref := range panicRefsInDir(t, repoRoot, dir) {
+			seen[panicRefKey(ref.Source, ref.Behavior)] = ref
+		}
+	}
+	var refs []panicRef
+	for _, ref := range seen {
+		refs = append(refs, ref)
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].Source == refs[j].Source {
+			return refs[i].Behavior < refs[j].Behavior
+		}
+		return refs[i].Source < refs[j].Source
+	})
+	return refs
+}
+
+func panicRefsInDir(t *testing.T, repoRoot, dir string) []panicRef {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read package dir %s: %v", dir, err)
+	}
+	var refs []panicRef
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		behaviors := map[string]bool{}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				switch fun.Name {
+				case "panic":
+					behaviors["panic"] = true
+				case "recover":
+					behaviors["recover"] = true
+				}
+			case *ast.SelectorExpr:
+				if panicMustCall(fun) {
+					behaviors["must"] = true
+				}
+			}
+			return true
+		})
+		if len(behaviors) == 0 {
+			continue
+		}
+		source := slashRel(repoRoot, path)
+		for behavior := range behaviors {
+			refs = append(refs, panicRef{Source: source, Behavior: behavior})
+		}
+	}
+	return refs
+}
+
+func panicMustCall(sel *ast.SelectorExpr) bool {
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	return (ident.Name == "template" && sel.Sel.Name == "Must") ||
+		(ident.Name == "regexp" && sel.Sel.Name == "MustCompile")
+}
+
+func panicPolicyRows(t *testing.T, content string) map[string]map[string]string {
+	t.Helper()
+
+	rows := map[string]map[string]string{}
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		cols := markdownTableColumns(line)
+		if len(cols) != 4 {
+			continue
+		}
+		source := trimMarkdownCode(cols[0])
+		if !strings.HasSuffix(source, ".go") {
+			continue
+		}
+		behavior := trimMarkdownCode(cols[1])
+		key := panicRefKey(source, behavior)
+		if rows[key] != nil {
+			t.Fatalf("PANIC_POLICY.md has duplicate row for %s", key)
+		}
+		rows[key] = map[string]string{
+			"policy":   cols[2],
+			"evidence": cols[3],
+		}
+	}
+	if len(rows) == 0 {
+		t.Fatal("PANIC_POLICY.md has no stable panic audit rows")
+	}
+	return rows
+}
+
+func panicRefKey(source, behavior string) string {
+	return source + "\t" + behavior
 }
 
 func makeTargetRecipe(t *testing.T, makefile, target string) string {
