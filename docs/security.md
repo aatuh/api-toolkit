@@ -31,6 +31,10 @@ Core defaults aim to be safe, deterministic, and explicit:
 - Migration reruns fail closed when a previous commit outcome is uncertain, so
   non-idempotent DDL is not retried blindly.
 
+For a per-middleware fail-open and fail-closed matrix, use
+`docs/safe-defaults.md`. For global versus route-specific placement, streaming
+opt-outs, and response-buffering caveats, use `docs/middleware-safety.md`.
+
 ## Bypass and Dev-Only Controls
 
 Some features include explicit bypasses for local development only:

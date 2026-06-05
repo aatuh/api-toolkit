@@ -4368,6 +4368,8 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/cookbook.md",
 		"docs/architecture.md",
 		"docs/security.md",
+		"docs/safe-defaults.md",
+		"docs/middleware-safety.md",
 		"SECURITY.md",
 		"docs/metrics.md",
 		"VERSIONING.md",
@@ -4375,6 +4377,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/release-review.md",
 		"docs/release-notes.md",
 		"docs/release-manifests.md",
+		"docs/core-readiness.md",
 		"docs/ports-surface.md",
 		"docs/v3-compatibility-roadmap.md",
 		"docs/performance.md",
@@ -4398,6 +4401,100 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 	} {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("README.md or docs/README.md must link or name high-centrality document %s", required)
+		}
+	}
+}
+
+func TestSafetyAndCoreReadinessDocsAreComplete(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	safeDefaults := readText(t, filepath.Join(repoRoot, "docs", "safe-defaults.md"))
+	middlewareSafety := readText(t, filepath.Join(repoRoot, "docs", "middleware-safety.md"))
+	coreReadiness := readText(t, filepath.Join(repoRoot, "docs", "core-readiness.md"))
+	productionReadiness := readText(t, filepath.Join(repoRoot, "docs", "production-readiness.md"))
+
+	for _, required := range []string{
+		"docs/safe-defaults.md",
+		"docs/middleware-safety.md",
+		"docs/core-readiness.md",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing safety/readiness document %s", required)
+		}
+	}
+
+	for _, required := range []string{
+		"fail-open",
+		"fail-closed",
+		"Evidence",
+		"tested",
+		"middleware/timeout",
+		"middleware/idempotency",
+		"contrib/v3/middleware/openapi",
+	} {
+		if !strings.Contains(safeDefaults, required) {
+			t.Fatalf("docs/safe-defaults.md missing %q", required)
+		}
+	}
+
+	classes := loadPackageClassifications(t, repoRoot)
+	for _, cls := range classes {
+		if !strings.Contains(cls.ImportPath, "/middleware/") {
+			continue
+		}
+		if cls.APIStatus != "stable" && cls.APIStatus != "supported-adapter" {
+			continue
+		}
+		if !strings.Contains(safeDefaults, "`"+cls.ImportPath+"`") {
+			t.Fatalf("docs/safe-defaults.md missing middleware default posture row for %s", cls.ImportPath)
+		}
+	}
+
+	for _, required := range []string{
+		"safe global middleware",
+		"route-specific middleware",
+		"forbidden for streaming",
+		"required opt-outs",
+		"`middleware/timeout`",
+		"`middleware/idempotency`",
+		"`openapi.ResponseValidationOptions.ShouldValidate`",
+		"`securityprofile.StreamingRouteOverride`",
+		"streaming, SSE, websocket, and large-download",
+	} {
+		if !strings.Contains(middlewareSafety, required) {
+			t.Fatalf("docs/middleware-safety.md missing %q", required)
+		}
+	}
+
+	for _, required := range []string{
+		"Docs",
+		"Examples",
+		"Tests",
+		"Fuzz",
+		"Benchmark",
+		"Compatibility",
+		"Security review",
+		"Production caveat",
+	} {
+		if !strings.Contains(coreReadiness, required) {
+			t.Fatalf("docs/core-readiness.md missing readiness column %q", required)
+		}
+	}
+	for _, pkg := range stableRootPackagesFromClassification(t, repoRoot) {
+		if !strings.Contains(coreReadiness, "`"+pkg+"`") {
+			t.Fatalf("docs/core-readiness.md missing stable package row for %s", pkg)
+		}
+	}
+	for _, required := range []string{
+		"`docs/core-readiness.md`",
+		"package-specific production checklist",
+		"fuzz decision",
+		"benchmark decision",
+		"security review notes",
+	} {
+		if !strings.Contains(productionReadiness, required) {
+			t.Fatalf("docs/production-readiness.md missing package checklist text %q", required)
 		}
 	}
 }

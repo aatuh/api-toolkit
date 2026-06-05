@@ -13,6 +13,7 @@ without scanning the root README.
 | [Scaffold-first path](scaffold-first.md) | New service teams | Generate app-owned service code and understand what the toolkit owns versus what the generated app owns. |
 | [Contrib adapter path](contrib-adapters.md) | Adapter adopters | Decide when to add supported contrib adapters, integrations, examples, or generator tooling. |
 | [Stable core charter](stable-core.md) | New users and maintainers | Decide which root packages are the recommended small-core dependency surface and what evidence stable packages need. |
+| [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveats for each stable package. |
 | [Alternatives](alternatives.md) | Evaluators | Decide when to use `api-toolkit` instead of `net/http`, chi, oapi-codegen, Goa, Connect, or app-owned helpers. |
 | [Getting started](getting-started.md) | Scaffold users | Generate, run, and verify the production-oriented app-owned service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
@@ -109,6 +110,8 @@ identifies the installed generator and contract tool.
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [Security posture](security.md) | Developers and operators | Configure secure defaults, dangerous bypasses, trusted proxies, health detail, and docs surfaces. |
+| [Safe defaults audit](safe-defaults.md) | Developers and reviewers | Check fail-open and fail-closed behavior for root and contrib middleware before broad rollout. |
+| [Middleware safety matrix](middleware-safety.md) | Developers and reviewers | Decide which middleware is safe globally, route-specific, forbidden for streaming, or requires opt-outs. |
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
 | [Panic policy](../PANIC_POLICY.md) | Maintainers and API designers | Decide when panics are allowed and how HTTP recovery behaves. |
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |
@@ -135,6 +138,7 @@ identifies the installed generator and contract tool.
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | [Package classification guide](package-classification.md) | Maintainers and adopters | Read the rendered status glossary before using the TSV source of truth. |
+| [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review stable package readiness by docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveat. |
 | [Module-boundary ADR](adr/0001-module-boundaries.md) | Maintainers | Record the v3 decision to keep root and contrib modules while deferring deeper splits to v4 planning. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
@@ -185,11 +189,12 @@ important public docs disappear from navigation:
 `README.md`, `docs/library-first.md`, `docs/minimal-core.md`,
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
-`docs/architecture.md`, `docs/security.md`, `SECURITY.md`, `docs/metrics.md`,
+`docs/architecture.md`, `docs/security.md`, `docs/safe-defaults.md`,
+`docs/middleware-safety.md`, `SECURITY.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
-`docs/deprecations.md`, `docs/interface-ownership.md`,
+`docs/core-readiness.md`, `docs/deprecations.md`, `docs/interface-ownership.md`,
 `docs/context-cancellation.md`, `docs/errors.md`, `docs/concurrency.md`,
 `docs/resource-lifecycle.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,

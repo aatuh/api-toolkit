@@ -89,3 +89,7 @@ Each stable package should have:
 
 The machine-readable status lives in `docs/package-classification.tsv`; the
 rendered companion is `docs/package-classification.md`.
+
+The per-package readiness companion is `docs/core-readiness.md`. It records the
+docs, examples, tests, fuzz, benchmark, compatibility, security review, and
+production caveat status for each stable or compatibility-only root package.

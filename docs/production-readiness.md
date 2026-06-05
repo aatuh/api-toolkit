@@ -13,6 +13,8 @@ deployment evidence stay with each service.
 For new library adopters, prefer the small stable core described in
 `docs/stable-core.md`. Treat generated scaffolds and contrib adapters as
 intentional adoption choices, not prerequisites for using the root module.
+Use `docs/core-readiness.md` as the package-specific production checklist before
+standardizing on any stable root package.
 
 | Area | Status | What is covered | Caveats |
 | --- | --- | --- | --- |
@@ -24,6 +26,25 @@ intentional adoption choices, not prerequisites for using the root module.
 | `examples/reference-saas-api` | Checked-in adoption proof | A separate generated `saas-api-full` application module verified by `make reference-service-check` and optional Docker integration. | This is release-context evidence, not a substitute for each downstream service's own load, backup/restore, incident-response, and rollout evidence. |
 | Streaming, SSE, WebSockets, and large downloads | Explicit caveat | Route metadata and security profile opt-outs exist for streaming and large-response paths. | Do not apply hard-timeout response buffering, response validation, or idempotency response capture globally to these routes. Use `x-api-toolkit-streaming`, `securityprofile.StreamingRouteOverride`, and route-level middleware opt-outs. server-sent events, websocket upgrades, and custom `http.ResponseWriter` interfaces need route-specific wiring. |
 | Release evidence | Publication-grade path | Clean `make release-evidence`, artifact verification, SBOMs, signatures, provenance, and release-review docs. | Dirty-tree evidence is local audit evidence only. Scheduled generated-scaffold integration is release evidence context, not a default PR blocker. |
+
+## Package-Specific Production Checklist
+
+The package-specific checklist source is `docs/core-readiness.md`. For each
+stable or compatibility-only root package, reviewers must check:
+
+- package docs and public guide links,
+- compile-checked examples,
+- direct tests and any package-specific coverage notes,
+- fuzz decision for parsers, signatures, request metadata, or header logic,
+- benchmark decision for hot paths or response buffering,
+- compatibility status in `VERSIONING.md` and `docs/api-inventory.md`,
+- security review notes for auth, tenant, replay, streaming, observability, and
+  operator-only surfaces,
+- production caveats that remain application-owned.
+
+Do not treat a package as production-standardized for a service until its row in
+`docs/core-readiness.md` has been reviewed against that service's route shape,
+provider integrations, storage model, and deployment evidence.
 
 ## Adapter Maturity Review
 

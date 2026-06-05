@@ -67,6 +67,9 @@ Go 1.25.x.
 - Review contributor rules: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Use the PR checklist: [.github/pull_request_template.md](.github/pull_request_template.md)
 - Use the documentation map: [docs/README.md](docs/README.md)
+- Review safe defaults: [docs/safe-defaults.md](docs/safe-defaults.md)
+- Review middleware placement: [docs/middleware-safety.md](docs/middleware-safety.md)
+- Review core readiness: [docs/core-readiness.md](docs/core-readiness.md)
 
 ## Modules
 
@@ -133,7 +136,9 @@ operating model. Use [docs/production-readiness.md](docs/production-readiness.md
 as the readiness matrix and adapter maturity review before standardizing on a
 package or generated profile. Generated code is app-owned; api-toolkit
 standardizes infrastructure defaults without becoming your product or provider
-framework.
+framework. Use [docs/core-readiness.md](docs/core-readiness.md) as the
+package-specific production checklist and [docs/middleware-safety.md](docs/middleware-safety.md)
+before applying request or response middleware globally.
 
 | Area | Readiness | Notes |
 | --- | --- | --- |
@@ -189,6 +194,8 @@ if err != nil {
 ## Security and operations
 
 - Security posture and dangerous-bypass configuration: [docs/security.md](docs/security.md)
+- Safe defaults audit: [docs/safe-defaults.md](docs/safe-defaults.md)
+- Middleware safety matrix: [docs/middleware-safety.md](docs/middleware-safety.md)
 - Vulnerability reporting policy: [SECURITY.md](SECURITY.md)
 - Panic policy: [PANIC_POLICY.md](PANIC_POLICY.md)
 - Metrics naming and labels: [docs/metrics.md](docs/metrics.md)
@@ -213,6 +220,7 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 - Error taxonomy: [docs/errors.md](docs/errors.md)
 - Concurrency safety: [docs/concurrency.md](docs/concurrency.md)
 - Resource lifecycle: [docs/resource-lifecycle.md](docs/resource-lifecycle.md)
+- Stable core readiness matrix: [docs/core-readiness.md](docs/core-readiness.md)
 - Latest published release line: `v3.1.2` and `contrib/v3.1.2`.
 - `master` may contain unreleased changes after the latest tag; release
   consumers should use tags and release notes instead of assuming `master` is
