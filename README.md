@@ -192,8 +192,11 @@ if err != nil {
 - Vulnerability reporting policy: [SECURITY.md](SECURITY.md)
 - Panic policy: [PANIC_POLICY.md](PANIC_POLICY.md)
 - Metrics naming and labels: [docs/metrics.md](docs/metrics.md)
+- Go and platform support policy: [docs/support-policy.md](docs/support-policy.md)
 - Dependency boundary: [docs/dependency-boundary.md](docs/dependency-boundary.md)
+- Dependency policy: [docs/dependency-policy.md](docs/dependency-policy.md)
 - Dependency risk disposition: [docs/dependency-risk.md](docs/dependency-risk.md)
+- Dependency footprint report: [docs/dependency-footprint.md](docs/dependency-footprint.md)
 - Test coverage evidence: [docs/test-coverage.md](docs/test-coverage.md)
 - Vulnerability disposition manifest: `docs/vulnerability-dispositions.tsv`
 

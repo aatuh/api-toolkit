@@ -3543,6 +3543,114 @@ func TestQualityAuditP1AdoptionPathDocs(t *testing.T) {
 	}
 }
 
+func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	releaseSummary := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	dependencyReport := readText(t, filepath.Join(repoRoot, "scripts", "dependency_report.sh"))
+
+	for _, path := range []string{
+		"docs/dependency-policy.md",
+		"docs/dependency-footprint.md",
+		"docs/support-policy.md",
+		"docs/adr/0001-module-boundaries.md",
+	} {
+		if !strings.Contains(readme, path) && !strings.Contains(docsIndex, strings.TrimPrefix(path, "docs/")) {
+			t.Fatalf("README.md or docs/README.md missing dependency-worthiness link %s", path)
+		}
+	}
+
+	policy := readText(t, filepath.Join(repoRoot, "docs", "dependency-policy.md"))
+	for _, required := range []string{
+		"Allowed Dependency Classes",
+		"Banned Patterns",
+		"Auth, crypto, JWT, and JWK dependencies",
+		"Provider SDKs",
+		"Root stable packages importing contrib packages",
+		"GOTOOLCHAIN=local make dependency-report",
+		"GOTOOLCHAIN=local make vuln",
+		"critical or high security updates are reviewed immediately",
+	} {
+		if !strings.Contains(policy, required) {
+			t.Fatalf("docs/dependency-policy.md missing %q", required)
+		}
+	}
+
+	footprint := readText(t, filepath.Join(repoRoot, "docs", "dependency-footprint.md"))
+	for _, required := range []string{
+		"GOTOOLCHAIN=local make dependency-report",
+		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report",
+		".ci-result/dependencies/",
+		"minimal-core-summary.tsv",
+		"vulnerability_evidence",
+	} {
+		if !strings.Contains(footprint, required) {
+			t.Fatalf("docs/dependency-footprint.md missing %q", required)
+		}
+	}
+
+	support := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
+	for _, required := range []string{
+		"Root and contrib target Go `1.25.x`",
+		"`go 1.25.0`",
+		"`GOTOOLCHAIN=local`",
+		"| Linux | amd64 | Supported |",
+		"macOS",
+		"Windows",
+		"Do not claim broad OS/architecture support",
+	} {
+		if !strings.Contains(support, required) {
+			t.Fatalf("docs/support-policy.md missing %q", required)
+		}
+	}
+
+	adr := readText(t, filepath.Join(repoRoot, "docs", "adr", "0001-module-boundaries.md"))
+	for _, required := range []string{
+		"Status: Accepted",
+		"Keep the current two-module layout for v3",
+		"Root remains the stable API module",
+		"Contrib remains the adapter, integration, example, and tooling module",
+		"v4 plan may split auth-heavy packages",
+		"root JWT/JWK dependency inheritance is accepted for v3",
+	} {
+		if !strings.Contains(adr, required) {
+			t.Fatalf("docs/adr/0001-module-boundaries.md missing %q", required)
+		}
+	}
+
+	for _, required := range []string{
+		"dependency-report:",
+		"scripts/dependency_report.sh",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing dependency-report target text %q", required)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "release-check"), "dependency-report") {
+		t.Fatal("release-check target must include dependency-report")
+	}
+	if !strings.Contains(ci, "Dependency footprint report") || !strings.Contains(ci, "make dependency-report") {
+		t.Fatal(".github/workflows/ci.yml missing dependency footprint report step")
+	}
+	if !strings.Contains(releaseSummary, "\"dependency-report\"") || !strings.Contains(releaseSummary, "\"make dependency-report\"") {
+		t.Fatal("release evidence summary script must record dependency-report")
+	}
+	for _, required := range []string{
+		"minimal-core-summary.tsv",
+		"root.added.modules",
+		"contrib.removed.modules",
+		"API_BASE_REF",
+		"vulnerability_evidence",
+	} {
+		if !strings.Contains(dependencyReport, required) {
+			t.Fatalf("scripts/dependency_report.sh missing %q", required)
+		}
+	}
+}
+
 func TestSecurityDocsMentionDangerousBypassConfiguration(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docs := readText(t, filepath.Join(repoRoot, "docs", "security.md"))

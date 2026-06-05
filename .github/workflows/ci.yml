@@ -28,6 +28,8 @@ jobs:
         run: make test-race
       - name: govulncheck
         run: make vuln
+      - name: Dependency footprint report
+        run: make dependency-report
   toolchain-local:
     runs-on: ubuntu-latest
     env:

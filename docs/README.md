@@ -112,8 +112,11 @@ identifies the installed generator and contract tool.
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
 | [Panic policy](../PANIC_POLICY.md) | Maintainers and API designers | Decide when panics are allowed and how HTTP recovery behaves. |
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |
+| [Support policy](support-policy.md) | Adopters and maintainers | Understand the supported Go line, platform gate, and generated-service ownership limits. |
 | [Dependency boundary](dependency-boundary.md) | Maintainers | Keep root stable code free of contrib adapter dependencies. |
+| [Dependency policy](dependency-policy.md) | Maintainers | Review allowed dependency classes, banned patterns, update SLA, and security-sensitive review gates. |
 | [Dependency risk](dependency-risk.md) | Release reviewers and security maintainers | Review imported-but-not-called vulnerability disposition and ownership. |
+| [Dependency footprint](dependency-footprint.md) | Adopters and release reviewers | Run and interpret root/contrib dependency footprint and base-ref diff reports. |
 
 ## Stability, compatibility, and package docs
 
@@ -124,6 +127,7 @@ identifies the installed generator and contract tool.
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | [Package classification guide](package-classification.md) | Maintainers and adopters | Read the rendered status glossary before using the TSV source of truth. |
+| [Module-boundary ADR](adr/0001-module-boundaries.md) | Maintainers | Record the v3 decision to keep root and contrib modules while deferring deeper splits to v4 planning. |
 | `docs/package-classification.tsv` | Maintainers and automation | Machine-readable API and test-status classification for every package. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Machine-readable behavior contracts and evidence paths for supported contrib adapters. |
 | `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Machine-readable default and scheduled/manual test-realism evidence for each supported contrib adapter. |
@@ -174,6 +178,8 @@ important public docs disappear from navigation:
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/security.md`, `SECURITY.md`, `docs/metrics.md`,
+`docs/support-policy.md`, `docs/dependency-policy.md`,
+`docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/release-runbook.md`, `docs/release-review.md`,
 `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
 `docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,

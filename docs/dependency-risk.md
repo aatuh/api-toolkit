@@ -44,6 +44,7 @@ Evidence locations:
 
 - `release-check-summary.json` `vulnerability_evidence`
 - `.ci-result/release-evidence/logs/vuln.log`
+- `.ci-result/dependencies/summary.md`
 - `docs/vulnerability-dispositions.tsv`
 
 The contrib module owns most third-party integration exposure. Imported-only
