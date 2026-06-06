@@ -55,7 +55,7 @@ scaffold identity:
 | --- | --- | --- |
 | `middleware/auth/jwt`, JWK handling, and OAuth2 helpers | Split to an auth module or keep behind an explicitly imported package boundary that does not affect simple middleware adopters; use `docs/auth-dependency-split.md` as the decision record. | Users of `httpx`, `binding`, or `middleware/maxbody` should not inherit JWT/JWK dependency weight. |
 | CLI and generated scaffolds | Keep in contrib or split to `api-toolkit-cli`; do not present the root module as scaffold-first. | The project remains library-first even when generator tooling is maintained. |
-| Provider adapters and integrations | Keep in contrib or split per provider family. | Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, and router adapters stay outside stable core. |
+| Provider adapters and integrations | Keep in contrib or split per provider family; use `docs/provider-adapter-split.md` as the decision record. | Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, and router adapters stay outside stable core. |
 | Reference service and generated application code | Keep outside root API classification. | Generated apps are adoption evidence and app-owned templates, not root package contracts. |
 | Router-specific helpers | Keep in contrib or examples unless the root interface is tiny and adapter-neutral. | chi, Fiber, Echo, Gin, and other routers should remain optional choices. |
 

@@ -48,6 +48,9 @@ When a package genuinely needs one of these dependencies, it belongs in contrib,
 generated application code, or a future module split rather than in the stable
 root API surface.
 
+`docs/provider-adapter-split.md` records the provider-adapter split decision and
+the future criteria for separate provider-family modules.
+
 ## Test ownership
 
 - `middleware/idempotency` root tests use the package-local in-memory test store for middleware flow, migration recovery, telemetry, and rollout preflight behavior.

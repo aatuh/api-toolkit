@@ -4984,6 +4984,42 @@ func TestAuthDependencySplitDecisionDocumentsV3LimitationAndV4Target(t *testing.
 	}
 }
 
+func TestProviderAdapterSplitDecisionKeepsAdaptersOutsideCore(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	decision := readText(t, filepath.Join(repoRoot, "docs", "provider-adapter-split.md"))
+	boundary := readText(t, filepath.Join(repoRoot, "docs", "dependency-boundary.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	v4Plan := readText(t, filepath.Join(repoRoot, "docs", "v4-plan.md"))
+	combined := decision + "\n" + boundary + "\n" + docsIndex + "\n" + roadmap + "\n" + v4Plan
+
+	for _, required := range []string{
+		"# Provider Adapter Split Decision",
+		"keeps provider adapters outside the root stable core",
+		"github.com/aatuh/api-toolkit/contrib/v3",
+		"Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, chi",
+		"Keep root stable packages free of provider SDKs, database drivers, router",
+		"docs/package-classification.tsv",
+		"docs/supported-adapter-contracts.tsv",
+		"docs/supported-adapter-test-realism.tsv",
+		"docs/contrib-api-drift-packages.txt",
+		"Split high-use provider families into separate modules",
+		"Postgres",
+		"Redis",
+		"Stripe and billing adapters",
+		"Resend and email adapters",
+		"OpenTelemetry, metrics, and logging adapters",
+		"Supported-adapter status does not make the package stable core",
+		"Do not add Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, chi, zap",
+		"docs/provider-adapter-split.md",
+		"[Provider adapter split decision](provider-adapter-split.md)",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("provider adapter split decision missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
