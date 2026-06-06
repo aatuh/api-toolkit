@@ -2516,9 +2516,8 @@ func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 		"dependency review",
 		"License policy",
 		"CODE_OF_CONDUCT",
-		"maintainer availability",
+		"Maintainer availability",
 		"P1-69",
-		"P1-76",
 		"P1-77",
 	} {
 		if !strings.Contains(gapReview, required) {
@@ -3747,6 +3746,55 @@ func TestSecurityPolicyDocumentsVulnerabilityRemediationSLA(t *testing.T) {
 	} {
 		if !strings.Contains(bestPractices, required) {
 			t.Fatalf("docs/openssf-best-practices.md missing security reporting SLA status %q", required)
+		}
+	}
+}
+
+func TestMaintainerAvailabilityAndSupportedVersionsAreDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"Maintenance status:",
+		"single-maintainer project",
+		"acknowledgement and remediation targets",
+		"routine issues, feature requests",
+		"non-security pull requests are handled best effort",
+		"latest release on the default branch",
+		"docs/support-policy.md",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing maintainer availability guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Supported Versions",
+		"latest release on the default branch",
+		"docs/support-policy.md",
+		"## Maintainer Availability",
+		"currently maintained by a single maintainer",
+		"no 24/7 coverage or commercial support guarantee",
+		"best-effort maintainer",
+		"targets for supported versions",
+		"pin a safe release",
+		"temporary fork",
+		"application-level mitigation",
+	} {
+		if !strings.Contains(securityPolicy, required) {
+			t.Fatalf("SECURITY.md missing maintainer availability guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Maintainer availability",
+		"Met locally",
+		"single-maintainer status",
+		"response expectations",
+		"supported versions",
+	} {
+		if !strings.Contains(bestPractices, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing maintainer availability status %q", required)
 		}
 	}
 }

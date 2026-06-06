@@ -2,8 +2,20 @@
 
 ## Supported Versions
 
-We provide security updates for the latest release on the default branch.
-Older versions may receive fixes at our discretion.
+We provide security updates for the latest release on the default branch. Older
+versions may receive fixes at our discretion. The supported Go and platform
+line is documented in `docs/support-policy.md`.
+
+## Maintainer Availability
+
+This project is currently maintained by a single maintainer. Security reports
+are prioritized over routine issues, feature requests, and non-security pull
+requests, but there is no 24/7 coverage or commercial support guarantee.
+
+The acknowledgement and remediation targets below are best-effort maintainer
+targets for supported versions. If the maintainer is unavailable and a fix is
+urgent for your deployment, pin a safe release, apply a temporary fork, or carry
+an application-level mitigation while coordinated disclosure continues.
 
 ## Reporting a Vulnerability
 

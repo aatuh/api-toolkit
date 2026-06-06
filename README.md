@@ -166,6 +166,12 @@ Current repository trust signals:
   thresholds.
 - Governance docs publish required checks, CODEOWNERS expectations, tag policy,
   and branch-protection evidence boundaries.
+- Maintenance status: this is currently a single-maintainer project. Security
+  reports use the acknowledgement and remediation targets in
+  [SECURITY.md](SECURITY.md); routine issues, feature requests, and
+  non-security pull requests are handled best effort. Supported versions are the
+  latest release on the default branch, with Go/platform support documented in
+  [docs/support-policy.md](docs/support-policy.md).
 
 ## Production readiness
 
