@@ -33,6 +33,7 @@ release-review evidence justifies the maintenance cost:
 | More route-contract recipes | The recipe must map to existing stable packages and avoid generated-only assumptions. |
 | V4 scope cleanup | The plan must preserve v3 compatibility while listing keep, demote, split, and remove candidates in `docs/v4-plan.md`. |
 | CLI/scaffold split | The current decision stays in `docs/cli-scaffold-identity.md`; any future `api-toolkit-cli` split must preserve library-first root identity. |
+| Auth dependency split | The current limitation and v4 target stay in `docs/auth-dependency-split.md`; simple-core users should not inherit JWT/JWK modules after the split. |
 | Adapter promotion from experimental to supported-adapter | Direct tests, behavior contracts, docs, drift coverage, owner metadata, and release-note policy must already exist. |
 | Generated scaffold refinements | The generated change must remain app-owned and should not add product-domain assumptions. |
 | Performance-focused hardening | Benchmarks must identify a real hot path and preserve safety behavior. |

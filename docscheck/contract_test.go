@@ -4952,6 +4952,38 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 	}
 }
 
+func TestAuthDependencySplitDecisionDocumentsV3LimitationAndV4Target(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	decision := readText(t, filepath.Join(repoRoot, "docs", "auth-dependency-split.md"))
+	footprint := readText(t, filepath.Join(repoRoot, "docs", "dependency-footprint.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	v4Plan := readText(t, filepath.Join(repoRoot, "docs", "v4-plan.md"))
+	combined := decision + "\n" + footprint + "\n" + docsIndex + "\n" + roadmap + "\n" + v4Plan
+
+	for _, required := range []string{
+		"# Auth Dependency Split Decision",
+		"do not compile against JWT/JWK packages",
+		"module graph still includes JWT/JWK",
+		"github.com/MicahParks/jwkset",
+		"github.com/MicahParks/keyfunc/v3",
+		"github.com/golang-jwt/jwt/v5",
+		"Split JWT/JWK-heavy auth packages into a dedicated auth module",
+		"Remove JWT/JWK direct requirements from the root module",
+		"github.com/aatuh/api-toolkit/v3/middleware/auth/jwt",
+		"github.com/aatuh/api-toolkit/v3/middleware/auth/shared",
+		"root `go.mod` no longer directly requires JWT/JWK",
+		"Do not break v3 import paths",
+		"docs/auth-dependency-split.md",
+		"[Auth dependency split decision](auth-dependency-split.md)",
+		"simple-core users should not inherit JWT/JWK modules after the split",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("auth dependency split decision missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
