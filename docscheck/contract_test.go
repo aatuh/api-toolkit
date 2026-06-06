@@ -2518,10 +2518,55 @@ func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 		"CODE_OF_CONDUCT",
 		"Maintainer availability",
 		"P1-69",
-		"P1-77",
+		"Community conduct",
 	} {
 		if !strings.Contains(gapReview, required) {
 			t.Fatalf("docs/openssf-best-practices.md missing gap review text %q", required)
+		}
+	}
+}
+
+func TestCodeOfConductIsPublishedAndDiscoverable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	conduct := readText(t, filepath.Join(repoRoot, "CODE_OF_CONDUCT.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"CODE_OF_CONDUCT.md",
+		"Community conduct",
+	} {
+		if !strings.Contains(readme+"\n"+contributing+"\n"+index, required) {
+			t.Fatalf("public docs missing code of conduct navigation %q", required)
+		}
+	}
+	for _, required := range []string{
+		"# Code of Conduct",
+		"## Purpose",
+		"## Scope",
+		"## Expected Behavior",
+		"## Unacceptable Behavior",
+		"## Reporting",
+		"## Maintainer Actions",
+		"GitHub issues, pull requests, discussions, reviews, and comments",
+		"Report security issues privately through `SECURITY.md`",
+		"single maintainer",
+	} {
+		if !strings.Contains(conduct, required) {
+			t.Fatalf("CODE_OF_CONDUCT.md missing conduct policy text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Community conduct",
+		"Met locally",
+		"expected behavior",
+		"unacceptable behavior",
+		"maintainer actions",
+	} {
+		if !strings.Contains(bestPractices, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing conduct status %q", required)
 		}
 	}
 }
@@ -6494,6 +6539,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/safe-defaults.md",
 		"docs/middleware-safety.md",
 		"SECURITY.md",
+		"CODE_OF_CONDUCT.md",
 		"docs/metrics.md",
 		"VERSIONING.md",
 		"docs/release-runbook.md",

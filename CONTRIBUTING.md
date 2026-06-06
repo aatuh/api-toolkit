@@ -74,6 +74,11 @@ Do not open public issues for vulnerabilities. Use `SECURITY.md` and GitHub
 private vulnerability reporting. Normal PRs must avoid leaking secrets, tokens,
 PII, raw provider payloads, or internal parser/database errors.
 
+## Conduct
+
+Project spaces follow `CODE_OF_CONDUCT.md`. Keep disagreement technical,
+evidence-based, and focused on the change under review.
+
 ## Pull request review
 
 Every pull request should explain:

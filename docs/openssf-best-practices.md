@@ -16,7 +16,7 @@ the badge URL points to that project ID.
 
 ## Current Evidence
 
-Open gaps: branch protection, MFA, and CODE_OF_CONDUCT.
+Open gaps: branch protection and MFA.
 
 | Area | Status | Evidence or gap |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ Open gaps: branch protection, MFA, and CODE_OF_CONDUCT.
 | Dependency review | Met locally | `.github/workflows/dependency-review.yml` runs the dependency review action with high/critical vulnerability failure and license-policy enforcement from `.github/dependency-review-config.yml`. External branch settings must still require the check. |
 | License policy | Met locally | `docs/license-policy.md` defines allowed dependency licenses, dependency-review enforcement, and the exception review process. |
 | Maintainer availability | Met locally | README and `SECURITY.md` document single-maintainer status, response expectations, and supported versions. |
-| Community conduct | Gap | P1-77 must add `CODE_OF_CONDUCT.md` or document the explicit conduct decision. |
+| Community conduct | Met locally | `CODE_OF_CONDUCT.md` defines expected behavior, unacceptable behavior, reporting, and maintainer actions. |
 
 ## Claiming Rule
 

@@ -263,6 +263,7 @@ if err != nil {
 - Dependency footprint report: [docs/dependency-footprint.md](docs/dependency-footprint.md)
 - Test coverage evidence: [docs/test-coverage.md](docs/test-coverage.md)
 - Vulnerability disposition manifest: `docs/vulnerability-dispositions.tsv`
+- Community conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## Stability
 
