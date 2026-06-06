@@ -6026,6 +6026,65 @@ func TestSafetyAndCoreReadinessDocsAreComplete(t *testing.T) {
 	}
 }
 
+func TestLargeResponseStreamingOptOutEvidenceIsExecutable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	middlewareSafety := readText(t, filepath.Join(repoRoot, "docs", "middleware-safety.md"))
+	timeoutTests := readText(t, filepath.Join(repoRoot, "middleware", "timeout", "timeout_test.go"))
+	idempotencyTests := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "idempotency_test.go"))
+	openapiTests := readText(t, filepath.Join(repoRoot, "contrib", "middleware", "openapi", "openapi_test.go")) + "\n" +
+		readText(t, filepath.Join(repoRoot, "contrib", "middleware", "openapi", "additional_test.go"))
+
+	for _, required := range []string{
+		"## Executable Evidence",
+		"`TestHardTimeoutGlobalCompositionBreaksLargeStreamingRouteAndOptOutPreservesIt`",
+		"`TestShouldHandleOptOutPreservesOptionalResponseWriterInterfaces`",
+		"`TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit`",
+		"`TestResponseValidationCanSkipStreamingRoutes`",
+		"`TestResponseValidationCanBypassLargeStreamingResponses`",
+		"`Options.ShouldHandle`",
+		"`openapi.ResponseValidationOptions.ShouldValidate`",
+		"unsafe global composition",
+		"route-level opt-out",
+	} {
+		if !strings.Contains(middlewareSafety, required) {
+			t.Fatalf("docs/middleware-safety.md missing streaming opt-out evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestHardTimeoutGlobalCompositionBreaksLargeStreamingRouteAndOptOutPreservesIt",
+		"NewHard(Options{Timeout: time.Second, MaxCaptureBytes: 4})",
+		"mw.Handler(largeStreamingRoute)",
+		"mux.Handle(\"/download\", largeStreamingRoute)",
+		"streamRec.Flushed",
+	} {
+		if !strings.Contains(timeoutTests, required) {
+			t.Fatalf("middleware/timeout/timeout_test.go missing large response opt-out evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestShouldHandleOptOutPreservesOptionalResponseWriterInterfaces",
+		"func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit",
+		"ShouldHandle: func(r *http.Request) bool",
+		"MaxResponseBytes: 4",
+		"IdempotencyOutcomeResponseTooLarge",
+	} {
+		if !strings.Contains(idempotencyTests, required) {
+			t.Fatalf("middleware/idempotency/idempotency_test.go missing streaming opt-out evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestResponseValidationCanSkipStreamingRoutes",
+		"func TestResponseValidationCanBypassLargeStreamingResponses",
+		"ShouldValidate: func(r *http.Request) bool",
+		"MaxBodyBytes: 4",
+		"X-API-Toolkit-Streaming",
+	} {
+		if !strings.Contains(openapiTests, required) {
+			t.Fatalf("contrib/middleware/openapi tests missing streaming opt-out evidence %q", required)
+		}
+	}
+}
+
 func TestRuntimeCompatibilityGoldenCoversStableHTTPContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	testSource := readText(t, filepath.Join(repoRoot, "contracttest", "runtime_compat_test.go"))

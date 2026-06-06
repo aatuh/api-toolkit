@@ -1955,10 +1955,14 @@ func TestShouldHandleOptOutPreservesOptionalResponseWriterInterfaces(t *testing.
 
 func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit(t *testing.T) {
 	mem := newMemoryStore()
+	var events []OutcomeEvent
 	mw, err := New(Options{
 		Store:            mem,
 		MaxBodyBytes:     1024,
 		MaxResponseBytes: 4,
+		OnOutcome: func(_ context.Context, event OutcomeEvent) {
+			events = append(events, event)
+		},
 	})
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
@@ -1980,6 +1984,9 @@ func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit(t *testing
 	if got := rec1.Body.String(); !strings.Contains(got, `"detail":"previous idempotent attempt may have completed, but its response exceeded the replay buffer limit"`) {
 		t.Fatalf("expected buffer limit problem detail, got body %q", got)
 	}
+	if len(events) != 1 || events[0].Outcome != IdempotencyOutcomeResponseTooLarge || events[0].Status != http.StatusServiceUnavailable {
+		t.Fatalf("expected response-too-large outcome after oversized response, got %#v", events)
+	}
 	record, found, err := mem.Get(context.Background(), "key-response-limit")
 	if err != nil {
 		t.Fatalf("store get after oversized response: %v", err)
@@ -2000,6 +2007,9 @@ func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit(t *testing
 	}
 	if got := rec2.Body.String(); !strings.Contains(got, `"detail":"idempotency outcome is ambiguous; previous attempt may have completed"`) {
 		t.Fatalf("expected ambiguous outcome detail, got body %q", got)
+	}
+	if len(events) != 2 || events[1].Outcome != IdempotencyOutcomeAmbiguous || events[1].Status != http.StatusServiceUnavailable {
+		t.Fatalf("expected ambiguous outcome after retry, got %#v", events)
 	}
 	if calls != 1 {
 		t.Fatalf("expected ambiguous retry not to execute handler again, got %d calls", calls)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -181,6 +182,56 @@ func TestHardTimeoutRejectsOversizedCapturedResponse(t *testing.T) {
 	}
 	if body["status"] != float64(http.StatusInternalServerError) {
 		t.Fatalf("problem status = %#v, want 500", body["status"])
+	}
+}
+
+func TestHardTimeoutGlobalCompositionBreaksLargeStreamingRouteAndOptOutPreservesIt(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second, MaxCaptureBytes: 4})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+	largeStreamingRoute := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hasFlusher := w.(http.Flusher)
+		w.Header().Set("X-Has-Flusher", strconv.FormatBool(hasFlusher))
+		w.WriteHeader(http.StatusOK)
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		_, _ = w.Write([]byte(strings.Repeat("x", 128)))
+	})
+
+	globalRec := httptest.NewRecorder()
+	mw.Handler(largeStreamingRoute).ServeHTTP(globalRec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/download", nil))
+	if globalRec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected unsafe global hard timeout to fail on large response, got %d", globalRec.Code)
+	}
+	if !strings.Contains(globalRec.Body.String(), "timeout-capture-overflow") {
+		t.Fatalf("expected capture overflow problem, got %q", globalRec.Body.String())
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/finite", mw.Handler(largeStreamingRoute))
+	mux.Handle("/download", largeStreamingRoute)
+
+	finiteRec := httptest.NewRecorder()
+	mux.ServeHTTP(finiteRec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/finite", nil))
+	if finiteRec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected finite route wrapped with hard timeout to fail on oversized response, got %d", finiteRec.Code)
+	}
+
+	streamRec := httptest.NewRecorder()
+	mux.ServeHTTP(streamRec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/download", nil))
+	if streamRec.Code != http.StatusOK {
+		t.Fatalf("expected route-level opt-out to preserve response, got %d", streamRec.Code)
+	}
+	if streamRec.Body.Len() != 128 {
+		t.Fatalf("expected full large response, got %d bytes", streamRec.Body.Len())
+	}
+	if got := streamRec.Header().Get("X-Has-Flusher"); got != "true" {
+		t.Fatalf("expected opt-out route to preserve flusher, got %q", got)
+	}
+	if !streamRec.Flushed {
+		t.Fatal("expected opt-out route to flush through the original writer")
 	}
 }
 

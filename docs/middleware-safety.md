@@ -52,3 +52,20 @@ validation to finish correctly.
 
 Use the exact review label "streaming, SSE, websocket, and large-download" when
 documenting these opt-outs in package or service release notes.
+
+## Executable Evidence
+
+The unsafe global composition cases are test-covered so the guidance does not
+depend on documentation alone:
+
+- `middleware/timeout`: `TestHardTimeoutGlobalCompositionBreaksLargeStreamingRouteAndOptOutPreservesIt`
+  proves hard-timeout buffering is unsafe for large streaming-style responses
+  and that route-level opt-out preserves the original writer.
+- `middleware/idempotency`: `TestShouldHandleOptOutPreservesOptionalResponseWriterInterfaces`
+  and `TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit` prove
+  `Options.ShouldHandle` skips streaming routes and handled oversized replay
+  captures fail closed.
+- `contrib/middleware/openapi`: `TestResponseValidationCanSkipStreamingRoutes`
+  and `TestResponseValidationCanBypassLargeStreamingResponses` prove
+  `openapi.ResponseValidationOptions.ShouldValidate` skips streaming and
+  large-response routes while leaving request validation in place.
