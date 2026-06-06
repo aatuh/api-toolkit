@@ -2328,6 +2328,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	for _, required := range []string{
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
+		"generated-integration-contract:",
 		"generated-upgrade-compat-check:",
 		"upgrade-smoke-check:",
 		"upgrade-smoke-contract:",
@@ -2352,6 +2353,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) upgrade-smoke-contract") {
 		t.Fatal("docs-check must include upgrade-smoke-contract")
 	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-integration-contract") {
+		t.Fatal("docs-check must include generated-integration-contract")
+	}
 	for _, required := range []string{
 		"actions/attest-build-provenance v1",
 		"unpinned action ref",
@@ -2375,6 +2379,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	for _, required := range []string{
 		"--profile saas-api-full",
+		"summary.json",
+		"runtime_contract",
+		"make build",
 		"make integration-check",
 		"INTEGRATION_OBJECT_STORE",
 		".ci-result/generated-integration",
@@ -2482,6 +2489,66 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		if !strings.Contains(coverageBacklog, required) {
 			t.Fatalf("coverage hardening backlog missing %q", required)
 		}
+	}
+}
+
+func TestGeneratedProfileIntegrationCoversRuntimeContract(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	wrapper := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_contract_test.sh"))
+	referenceIntegration := readText(t, filepath.Join(repoRoot, "examples", "reference-saas-api", "scripts", "integration_check.sh"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "integration.yml"))
+
+	for _, required := range []string{
+		"GENERATED_INTEGRATION_REPO_ROOT",
+		"GENERATED_INTEGRATION_RESULT_DIR",
+		"*/../*",
+		"summary.json",
+		"runtime_contract",
+		"make build",
+		"make openapi-check",
+		"make client-check",
+		"make integration-check",
+		"INTEGRATION_OBJECT_STORE",
+	} {
+		if !strings.Contains(wrapper, required) {
+			t.Fatalf("generated integration wrapper missing %q", required)
+		}
+	}
+
+	for _, required := range []string{
+		"run_contract default",
+		"run_contract minio",
+		"FAIL_MAKE_TARGET=build",
+		"GENERATED_INTEGRATION_RESULT_DIR=\"../escape\"",
+		"\"make build\"",
+		"\"GET /docs/openapi.json\"",
+		"\"POST /widgets\"",
+		"\"Idempotency-Replayed\"",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("generated integration contract test missing %q", required)
+		}
+	}
+
+	for _, required := range []string{
+		`wait_for_http "${api_url}"`,
+		`curl -fsS "${api_url}/livez"`,
+		`curl -fsS "${api_url}/docs/openapi.json"`,
+		`curl -fsS -X POST "${api_url}/organizations"`,
+		`curl -fsS -X POST "${api_url}/widgets"`,
+		`-H "Idempotency-Key: integration-managed-key-widget"`,
+		`header_value Idempotency-Replayed`,
+		`"${replay_id}" != "${widget_id}"`,
+		`"${replay_header}" != "true"`,
+	} {
+		if !strings.Contains(referenceIntegration, required) {
+			t.Fatalf("reference service integration script missing runtime contract check %q", required)
+		}
+	}
+
+	if strings.Count(workflow, "Generated build") < 2 {
+		t.Fatal("generated integration workflow must build generated services before Docker runtime checks")
 	}
 }
 
