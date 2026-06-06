@@ -4747,6 +4747,54 @@ func TestReadmeGoSnippetsMatchTestedSources(t *testing.T) {
 	}
 }
 
+func TestNetHTTPMigrationExampleCoversBacklogSurfaces(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	exampleDir := filepath.Join(repoRoot, "examples", "snippets", "nethttp-migration")
+	source := readText(t, filepath.Join(exampleDir, "main.go"))
+	tests := readText(t, filepath.Join(exampleDir, "main_test.go"))
+	catalog := readText(t, filepath.Join(repoRoot, "examples", "snippets", "README.md"))
+
+	for _, required := range []string{
+		"plainNetHTTP",
+		"toolkitNetHTTP",
+		"http.MaxBytesReader",
+		"maxbody.New",
+		"http.Error",
+		"httpx.WriteJSON",
+		"binding.DecodeJSON",
+		"binding.WriteValidationProblem",
+		"health.NewBasicHandler",
+		"timeout.NewHard",
+		"Problem Details",
+		"validation",
+		"body limit",
+		"health",
+		"timeout",
+	} {
+		if !strings.Contains(source+"\n"+catalog, required) {
+			t.Fatalf("net/http migration example missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"TestToolkitNetHTTPRejectsMalformedJSONAsProblemDetails",
+		"TestToolkitNetHTTPRejectsOversizedBodies",
+		"TestToolkitNetHTTPRegistersHealthRoutes",
+		"TestToolkitMiddlewareTimesOutSlowHandlers",
+	} {
+		if !strings.Contains(tests, required) {
+			t.Fatalf("net/http migration example tests missing %q", required)
+		}
+	}
+	if !strings.Contains(catalog, "go test ./examples/snippets/nethttp-migration") {
+		t.Fatal("examples/snippets/README.md must document the migration example validation command")
+	}
+
+	out, err := runGoCmd(exampleDir, "test", ".")
+	if err != nil {
+		t.Fatalf("net/http migration example does not compile and pass tests:\n%s\nerror: %v", out, err)
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
