@@ -13,6 +13,7 @@ without scanning the root README.
 | [Scaffold-first path](scaffold-first.md) | New service teams | Generate app-owned service code and understand what the toolkit owns versus what the generated app owns. |
 | [Contrib adapter path](contrib-adapters.md) | Adapter adopters | Decide when to add supported contrib adapters, integrations, examples, or generator tooling. |
 | [Stable core charter](stable-core.md) | New users and maintainers | Decide which root packages are the recommended small-core dependency surface and what evidence stable packages need. |
+| [Roadmap and non-goals](../ROADMAP.md) | Adopters and contributors | See current direction, candidate work, explicit non-goals, and proposal rules. |
 | [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveats for each stable package. |
 | [Alternatives](alternatives.md) | Evaluators | Decide when to use `api-toolkit` instead of `net/http`, chi, oapi-codegen, Goa, Connect, or app-owned helpers. |
 | [Getting started](getting-started.md) | Scaffold users | Generate, run, and verify the production-oriented app-owned service scaffold. |
@@ -210,7 +211,7 @@ running root and contrib gates.
 These literal paths are kept here so docs index coverage checks can detect when
 important public docs disappear from navigation:
 
-`README.md`, `docs/library-first.md`, `docs/minimal-core.md`,
+`README.md`, `ROADMAP.md`, `docs/library-first.md`, `docs/minimal-core.md`,
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/migration/v3.md`, `docs/troubleshooting.md`,

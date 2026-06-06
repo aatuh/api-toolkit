@@ -65,6 +65,7 @@ Go 1.25.x.
 - Generate a new app-owned service scaffold: [docs/scaffold-first.md](docs/scaffold-first.md)
 - Wire supported adapters: [docs/contrib-adapters.md](docs/contrib-adapters.md)
 - Review the stable-core charter: [docs/stable-core.md](docs/stable-core.md)
+- Review the public roadmap and non-goals: [ROADMAP.md](ROADMAP.md)
 - Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
 - Review benchmark baselines: [docs/performance.md](docs/performance.md)

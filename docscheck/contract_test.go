@@ -4845,6 +4845,41 @@ func TestChiExistingServiceExampleUsesToolkitWithoutContrib(t *testing.T) {
 	}
 }
 
+func TestPublicRoadmapDocumentsNonGoals(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	combined := roadmap + "\n" + readme + "\n" + docsIndex
+
+	for _, required := range []string{
+		"# Roadmap",
+		"## Current Focus",
+		"## Next Candidates",
+		"## Non-Goals",
+		"## Decision Rules",
+		"## How To Propose Changes",
+		"small Go HTTP API guardrail library first",
+		"a router or replacement for chi",
+		"an ORM, persistence framework",
+		"a billing, entitlement, subscription, or payment platform",
+		"a universal auth, identity, session, or user-management platform",
+		"a Protobuf/RPC framework",
+		"a streaming, SSE, WebSocket, or large-download middleware suite",
+		"a place to collect every application boundary in root `ports`",
+		"docs/stable-core.md",
+		"docs/dependency-boundary.md",
+		"docs/scaffold-support.md",
+		"docs/alternatives.md",
+		"[ROADMAP.md](ROADMAP.md)",
+		"[Roadmap and non-goals](../ROADMAP.md)",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("public roadmap coverage missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
