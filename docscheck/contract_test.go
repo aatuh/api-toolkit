@@ -6256,6 +6256,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/migration/v3.md",
 		"docs/troubleshooting.md",
 		"docs/security.md",
+		"docs/threat-model.md",
 		"docs/auth.md",
 		"docs/idempotency.md",
 		"docs/operations.md",
@@ -6743,6 +6744,54 @@ func TestFeatureProductionGuidesCoverCriticalContracts(t *testing.T) {
 	} {
 		if !strings.Contains(openapiWorkflow, required) {
 			t.Fatalf("docs/openapi-workflow.md missing workflow guidance %q", required)
+		}
+	}
+}
+
+func TestSecurityThreatModelCoversRequiredSurfaces(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	threatModel := readText(t, filepath.Join(repoRoot, "docs", "threat-model.md"))
+
+	for _, required := range []string{
+		"docs/threat-model.md",
+		"Security threat model",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing threat model navigation %q", required)
+		}
+	}
+	if !strings.Contains(security, "[Security Threat Model](threat-model.md)") {
+		t.Fatal("docs/security.md missing threat model cross-reference")
+	}
+	for _, required := range []string{
+		"# Security Threat Model",
+		"## Baseline Assumptions",
+		"## Protected Assets",
+		"## Threat Surface Matrix",
+		"## Review Triggers",
+		"## Minimum Verification",
+		"Required mitigations",
+		"Verification evidence",
+		"Auth entrypoints",
+		"JWT/JWK bearer validation",
+		"API keys",
+		"Tenant context and authorization",
+		"Idempotency replay",
+		"Admin endpoints",
+		"Pprof and metrics",
+		"Webhooks and provider callbacks",
+		"Generated scaffolds",
+		"auth.md",
+		"idempotency.md",
+		"operations.md",
+		"security.md",
+		"full-service-scaffold.md",
+	} {
+		if !strings.Contains(threatModel, required) {
+			t.Fatalf("docs/threat-model.md missing required threat model coverage %q", required)
 		}
 	}
 }

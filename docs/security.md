@@ -73,6 +73,10 @@ Do not enable dev bypasses in production environments.
 
 ## Threat Model (Short)
 
+The full review map is [Security Threat Model](threat-model.md). This short
+section keeps the operational assumptions visible inside the security posture
+guide.
+
 Assume:
 
 - Public endpoints are reachable from untrusted networks.
