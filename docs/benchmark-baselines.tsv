@@ -1,0 +1,19 @@
+# Benchmark allocation baselines for stable hot paths.
+# Columns: module	package	benchmark	observed_bytes_per_op	max_bytes_per_op	observed_allocs_per_op	max_allocs_per_op	evidence
+# Keep thresholds intentionally review-oriented, not machine-specific speed promises.
+root	binding	BenchmarkBindingDecodeJSON	12984	20000	97	120	BENCHTIME=1x benchmark-smoke local allocation sample
+root	binding	BenchmarkBindingDecodeQuery	888	2048	22	30	BENCHTIME=1x benchmark-smoke local allocation sample
+root	queryparams	BenchmarkQueryParamsParseRequestShape	2536	4096	37	50	BENCHTIME=1x benchmark-smoke local allocation sample
+root	specs	BenchmarkRegistryOpenAPI100Operations	855856	1100000	11031	13000	BENCHTIME=1x benchmark-smoke local allocation sample
+root	routecontracts	BenchmarkRouteContractsRegisterAndValidate	1544	4096	14	20	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/maxbody	BenchmarkMaxBodyWithinLimit	18344	24000	23	30	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/timeout	BenchmarkPropagatorSuccess	816	2048	10	15	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/timeout	BenchmarkHardTimeoutSuccess	2112	4096	21	30	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/idempotency	BenchmarkIdempotencyNew	10656	16000	58	80	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/idempotency	BenchmarkIdempotencyReplay	7600	12000	37	50	BENCHTIME=1x benchmark-smoke local allocation sample
+root	middleware/ratelimit	BenchmarkRateLimit	448	1024	6	10	BENCHTIME=1x benchmark-smoke local allocation sample
+contrib	middleware/openapi	BenchmarkOpenAPIRequestValidation	448	2048	8	15	BENCHTIME=1x benchmark-smoke local allocation sample
+contrib	middleware/openapi	BenchmarkOpenAPIResponseValidation	7552	12000	67	90	BENCHTIME=1x benchmark-smoke local allocation sample
+contrib	middleware/requestlog	BenchmarkRequestLog	1328	4096	16	25	BENCHTIME=1x benchmark-smoke local allocation sample
+contrib	middleware/requestlog	BenchmarkRequestLogWithHeaders	2912	6000	36	50	BENCHTIME=1x benchmark-smoke local allocation sample
+contrib	cmd/api-toolkit	BenchmarkNewServiceSaaSAPIGeneration	1092088	1500000	15735	20000	BENCHTIME=1x benchmark-smoke local allocation sample

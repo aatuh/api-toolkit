@@ -48,6 +48,19 @@ as comparative evidence.
 | Request logging | `contrib/middleware/requestlog` | `BenchmarkRequestLog`, `BenchmarkRequestLogWithHeaders` |
 | Generated service scaffold | `contrib/cmd/api-toolkit` | `BenchmarkNewServiceSaaSAPIGeneration` |
 
+## Allocation Thresholds
+
+`docs/benchmark-baselines.tsv` is the machine-readable allocation baseline for
+the benchmarks above. Each row records the module, package, benchmark name,
+observed `B/op`, observed `allocs/op`, and the current `max_bytes_per_op` and
+`max_allocs_per_op` review thresholds.
+
+Use the thresholds as a release-review trigger: any benchmark result above
+`max_allocs_per_op`, above `max_bytes_per_op`, or more than 20% above the
+recorded baseline needs an explicit performance note in the pull request or
+release evidence. The note should name the behavior gained, the affected
+benchmark row, and whether the threshold should be raised.
+
 ## Review Rules
 
 - Benchmark output belongs with the change when it touches middleware hot paths,

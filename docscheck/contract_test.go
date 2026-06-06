@@ -4422,6 +4422,10 @@ func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 		"GOWORK=off GOTOOLCHAIN=local go test",
 		"-bench 'Benchmark'",
 		"-benchmem",
+		"docs/benchmark-baselines.tsv",
+		"max_allocs_per_op",
+		"max_bytes_per_op",
+		"20%",
 		"BenchmarkBindingDecodeJSON",
 		"BenchmarkBindingDecodeQuery",
 		"BenchmarkQueryParamsParseRequestShape",
@@ -4455,6 +4459,48 @@ func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 		if !strings.Contains(source.text, "docs/performance.md") && !strings.Contains(source.text, "performance.md") {
 			t.Fatalf("%s missing docs/performance.md link", source.name)
 		}
+	}
+}
+
+func TestBenchmarkBaselineManifestTracksReportAllocs(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	rows := loadBenchmarkBaselines(t, repoRoot)
+	if len(rows) < 10 {
+		t.Fatalf("benchmark baseline manifest has %d rows, want broad hot-path coverage", len(rows))
+	}
+
+	var missing []string
+	seen := map[string]bool{}
+	for _, row := range rows {
+		key := row.Module + "\t" + row.Package + "\t" + row.Benchmark
+		if seen[key] {
+			missing = append(missing, "duplicate benchmark baseline row "+key)
+		}
+		seen[key] = true
+		if row.ObservedBytesPerOp <= 0 || row.MaxBytesPerOp <= 0 || row.ObservedAllocsPerOp <= 0 || row.MaxAllocsPerOp <= 0 {
+			missing = append(missing, key+" has non-positive allocation baseline or threshold")
+		}
+		if row.MaxBytesPerOp < row.ObservedBytesPerOp {
+			missing = append(missing, key+" max_bytes_per_op is below observed baseline")
+		}
+		if row.MaxAllocsPerOp < row.ObservedAllocsPerOp {
+			missing = append(missing, key+" max_allocs_per_op is below observed baseline")
+		}
+		pkgDir := filepath.Join(repoRoot, filepath.FromSlash(row.Package))
+		if row.Module == "contrib" {
+			pkgDir = filepath.Join(repoRoot, "contrib", filepath.FromSlash(row.Package))
+		} else if row.Module != "root" {
+			missing = append(missing, key+" has unknown module "+row.Module)
+			continue
+		}
+		testSource := packageTestSource(t, pkgDir)
+		if !benchmarkFunctionContains(testSource, row.Benchmark, "b.ReportAllocs()") {
+			missing = append(missing, key+" does not call b.ReportAllocs()")
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("benchmark baseline manifest is incomplete:\n%s", strings.Join(missing, "\n"))
 	}
 }
 
@@ -6633,6 +6679,70 @@ func packageTestSource(t *testing.T, dir string) string {
 		t.Fatalf("%s has no package-local test source", dir)
 	}
 	return source.String()
+}
+
+type benchmarkBaseline struct {
+	Module              string
+	Package             string
+	Benchmark           string
+	ObservedBytesPerOp  int
+	MaxBytesPerOp       int
+	ObservedAllocsPerOp int
+	MaxAllocsPerOp      int
+	Evidence            string
+}
+
+func loadBenchmarkBaselines(t *testing.T, repoRoot string) []benchmarkBaseline {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "benchmark-baselines.tsv"))
+	var rows []benchmarkBaseline
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 8 {
+			t.Fatalf("docs/benchmark-baselines.tsv:%d: expected 8 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		rows = append(rows, benchmarkBaseline{
+			Module:              strings.TrimSpace(cols[0]),
+			Package:             strings.TrimSpace(cols[1]),
+			Benchmark:           strings.TrimSpace(cols[2]),
+			ObservedBytesPerOp:  mustAtoi(t, "observed_bytes_per_op", cols[3]),
+			MaxBytesPerOp:       mustAtoi(t, "max_bytes_per_op", cols[4]),
+			ObservedAllocsPerOp: mustAtoi(t, "observed_allocs_per_op", cols[5]),
+			MaxAllocsPerOp:      mustAtoi(t, "max_allocs_per_op", cols[6]),
+			Evidence:            strings.TrimSpace(cols[7]),
+		})
+		if rows[len(rows)-1].Module == "" || rows[len(rows)-1].Package == "" || rows[len(rows)-1].Benchmark == "" || rows[len(rows)-1].Evidence == "" {
+			t.Fatalf("docs/benchmark-baselines.tsv:%d: empty benchmark baseline field", lineNo+1)
+		}
+	}
+	return rows
+}
+
+func benchmarkFunctionContains(source, name, token string) bool {
+	start := strings.Index(source, "func "+name+"(")
+	if start < 0 {
+		return false
+	}
+	body := source[start:]
+	if next := strings.Index(body[len("func "):], "\nfunc Benchmark"); next >= 0 {
+		body = body[:len("func ")+next]
+	}
+	return strings.Contains(body, token)
+}
+
+func mustAtoi(t *testing.T, field, value string) int {
+	t.Helper()
+
+	got, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		t.Fatalf("parse %s=%q as int: %v", field, value, err)
+	}
+	return got
 }
 
 func generatedUpgradeDefaultRefs(t *testing.T, script string) []string {
