@@ -54,7 +54,7 @@ change. Do not introduce a second baseline table in another document.
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
 | `CONTRIB_RELEASE_BASE_REF=v3.1.2 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for supported contrib adapter/integration/middleware/tooling behavior notes. | Fails when behavior files or package-owned runtime assets changed without `docs/release-notes.md`. |
 | `make release-artifact-verify-fixture` | Synthetic local verifier fixture. | Builds a throwaway release asset bundle and runs the local verifier path; this is not publication verification. |
-| `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations. |
+| `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations for every draft release asset. |
 
 ## Clean-worktree release preflight
 
@@ -171,9 +171,9 @@ attestation checks.
 
 GitHub release workflow evidence is the publication tier. The tag-driven
 workflow creates a draft release after clean evidence, SBOMs, signatures, and
-attestations exist; reviewers publish the draft only after inspecting the assets.
-It contains the local summary plus release assets and should be the
-publication-grade source:
+provenance attestations for every draft release asset exist; reviewers publish
+the draft only after inspecting the assets. It contains the local summary plus
+release assets and should be the publication-grade source:
 
 - `sbom-root.spdx.json`
 - `sbom-contrib.spdx.json`
@@ -183,13 +183,15 @@ publication-grade source:
 - `sbom-contrib.spdx.json.pem`
 - `release-evidence-logs.tgz`
 - `release-asset-manifest.tsv`
-- provenance attestations for the summary and SBOMs
+- provenance attestations for every draft release asset
 
 Before publishing, verify the draft release asset names against
 `release-check-summary.json` `publication_artifact_expectations`, verify
 `release-asset-manifest.tsv` checksums, verify SBOM signatures against their
 certificates, inspect the retained log archive, and confirm provenance
-attestations for the summary and both SBOMs. The repository command for this is
+attestations for every subject in
+`publication_artifact_expectations.github_attestation_subjects`. The repository
+command for this is
 `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 Publication mode fails if `RELEASE_TAG` is missing, parses
 `release-check-summary.json` for publication-grade invariants, and confirms

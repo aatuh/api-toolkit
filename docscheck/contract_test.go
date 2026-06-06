@@ -3455,7 +3455,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"failed-summary",
 		"missing-summary-log",
 		"publication-missing-tag",
-		"publication verifier should run three gh attestation checks",
+		"publication verifier should run one gh attestation check per release asset",
 	} {
 		if !strings.Contains(artifactContract, required) {
 			t.Fatalf("release artifact verifier contract missing fixture %q", required)
@@ -3477,6 +3477,73 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	} {
 		if !strings.Contains(parserContract, required) {
 			t.Fatalf("release evidence parser contract missing fixture %q", required)
+		}
+	}
+}
+
+func TestReleaseArtifactAttestationsCoverDraftAssets(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	summaryScript := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	verifier := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify.sh"))
+	artifactContract := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify_contract_test.sh"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+
+	requiredAssets := []string{
+		"release-check-summary.json",
+		"release-evidence-logs.tgz",
+		"release-asset-manifest.tsv",
+		"sbom-root.spdx.json",
+		"sbom-contrib.spdx.json",
+		"sbom-root.spdx.json.sig",
+		"sbom-root.spdx.json.pem",
+		"sbom-contrib.spdx.json.sig",
+		"sbom-contrib.spdx.json.pem",
+	}
+	for _, required := range []string{
+		"attestations: write",
+		"id-token: write",
+		"Attest provenance (release assets)",
+		"actions/attest-build-provenance@",
+		"subject-path:",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/release.yml missing release asset attestation wiring %q", required)
+		}
+	}
+	for _, asset := range requiredAssets {
+		if !strings.Contains(workflow, asset) {
+			t.Fatalf(".github/workflows/release.yml does not attest release asset %s", asset)
+		}
+		if !strings.Contains(summaryScript, asset) {
+			t.Fatalf("scripts/release_check_summary.sh missing release asset expectation %s", asset)
+		}
+		if !strings.Contains(verifier, asset) {
+			t.Fatalf("scripts/release_artifact_verify.sh missing release asset verification %s", asset)
+		}
+		if !strings.Contains(artifactContract, asset) {
+			t.Fatalf("scripts/release_artifact_verify_contract_test.sh missing release asset fixture %s", asset)
+		}
+	}
+	for _, required := range []string{
+		"required_subjects = list(required_assets)",
+		"for subject in \"${required_assets[@]}\"",
+		"asset_path \"$subject\"",
+		"gh attestation verify \"$subject_path\"",
+		"publication verifier should run one gh attestation check per release asset",
+	} {
+		if !strings.Contains(verifier+"\n"+artifactContract, required) {
+			t.Fatalf("release artifact verifier missing all-asset attestation contract %q", required)
+		}
+	}
+	for _, required := range []string{
+		"provenance attestations for every draft release asset",
+		"publication_artifact_expectations.github_attestation_subjects",
+		"online GitHub provenance attestations for every draft release asset",
+	} {
+		if !strings.Contains(runbook+"\n"+review, required) {
+			t.Fatalf("release docs missing all-asset attestation guidance %q", required)
 		}
 	}
 }

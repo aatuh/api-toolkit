@@ -119,13 +119,19 @@ jobs:
             sbom-contrib.spdx.json.sig
             sbom-contrib.spdx.json.pem
 
-      - name: Attest provenance (SBOMs)
+      - name: Attest provenance (release assets)
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # actions/attest-build-provenance v4.1.0
         with:
           subject-path: |
             release-check-summary.json
+            release-evidence-logs.tgz
+            release-asset-manifest.tsv
             sbom-root.spdx.json
             sbom-contrib.spdx.json
+            sbom-root.spdx.json.sig
+            sbom-root.spdx.json.pem
+            sbom-contrib.spdx.json.sig
+            sbom-contrib.spdx.json.pem
 
       - name: Download and verify uploaded draft release assets
         env:

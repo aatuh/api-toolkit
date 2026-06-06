@@ -128,11 +128,7 @@ required_assets = [
     "sbom-contrib.spdx.json.sig",
     "sbom-contrib.spdx.json.pem",
 ]
-required_subjects = [
-    "release-check-summary.json",
-    "sbom-root.spdx.json",
-    "sbom-contrib.spdx.json",
-]
+required_subjects = list(required_assets)
 
 if summary.get("schema") != "github.com/aatuh/api-toolkit/release-check-summary/v2":
     fail(f"schema={summary.get('schema')!r}, want release-check-summary/v2")
@@ -291,9 +287,12 @@ verify_attestations_if_requested() {
     exit 1
   fi
 
-  gh attestation verify "$asset_dir/release-check-summary.json" --repo "$github_repo" --source-ref "refs/tags/$release_tag"
-  gh attestation verify "$asset_dir/sbom-root.spdx.json" --repo "$github_repo" --source-ref "refs/tags/$release_tag"
-  gh attestation verify "$asset_dir/sbom-contrib.spdx.json" --repo "$github_repo" --source-ref "refs/tags/$release_tag"
+  local subject
+  local subject_path
+  for subject in "${required_assets[@]}"; do
+    subject_path="$(asset_path "$subject")"
+    gh attestation verify "$subject_path" --repo "$github_repo" --source-ref "refs/tags/$release_tag"
+  done
 }
 
 required_assets=(

@@ -92,8 +92,10 @@ Verification checklist:
   release workflow and `make release-artifact-verify` use
   `COSIGN_CERTIFICATE_IDENTITY_REGEXP=^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$`
   and `COSIGN_CERTIFICATE_OIDC_ISSUER=https://token.actions.githubusercontent.com`.
-- Confirm GitHub provenance attestations exist for `release-check-summary.json`,
-  `sbom-root.spdx.json`, and `sbom-contrib.spdx.json`.
+- Confirm GitHub provenance attestations exist for every asset listed in
+  `publication_artifact_expectations.github_attestation_subjects`. The release
+  workflow attests every draft release asset, including the evidence summary,
+  retained log archive, manifest, SBOMs, signatures, and certificates.
 - Download `release-evidence-logs.tgz` and confirm it contains the logs named by
   the summary check records. `make release-artifact-verify` now enforces every
   `checks[].log_path` and `contrib_drift.artifact_path` from the summary.

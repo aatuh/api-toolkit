@@ -1087,8 +1087,14 @@ publication_artifact_expectations_json() {
     "sbom-contrib.spdx.json.pem"; printf ','
   printf '"github_attestation_subjects":'; json_string_array \
     "release-check-summary.json" \
+    "release-evidence-logs.tgz" \
+    "release-asset-manifest.tsv" \
     "sbom-root.spdx.json" \
-    "sbom-contrib.spdx.json"; printf ','
+    "sbom-contrib.spdx.json" \
+    "sbom-root.spdx.json.sig" \
+    "sbom-root.spdx.json.pem" \
+    "sbom-contrib.spdx.json.sig" \
+    "sbom-contrib.spdx.json.pem"; printf ','
   printf '"local_generates_signed_sboms":false'
   printf '}'
 }

@@ -199,8 +199,14 @@ summary = {
         ],
         "github_attestation_subjects": [
             "release-check-summary.json",
+            "release-evidence-logs.tgz",
+            "release-asset-manifest.tsv",
             "sbom-root.spdx.json",
             "sbom-contrib.spdx.json",
+            "sbom-root.spdx.json.sig",
+            "sbom-root.spdx.json.pem",
+            "sbom-contrib.spdx.json.sig",
+            "sbom-contrib.spdx.json.pem",
         ],
         "local_generates_signed_sboms": False,
     },
@@ -307,8 +313,8 @@ GH_CALLS="$tmp/gh-calls" require_success publication-verify env \
   RELEASE_TAG=v2.1.0 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
   bash "$repo_root/scripts/release_artifact_verify.sh" "$publication_dir" >/dev/null
-if [ "$(wc -l < "$tmp/gh-calls")" -ne 3 ]; then
-  printf 'publication verifier should run three gh attestation checks, got:\n%s\n' "$(cat "$tmp/gh-calls")" >&2
+if [ "$(wc -l < "$tmp/gh-calls")" -ne 9 ]; then
+  printf 'publication verifier should run one gh attestation check per release asset, got:\n%s\n' "$(cat "$tmp/gh-calls")" >&2
   exit 1
 fi
 
