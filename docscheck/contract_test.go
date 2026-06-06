@@ -2518,13 +2518,88 @@ func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 		"CODE_OF_CONDUCT",
 		"maintainer availability",
 		"P1-69",
-		"P1-74",
 		"P1-75",
 		"P1-76",
 		"P1-77",
 	} {
 		if !strings.Contains(gapReview, required) {
 			t.Fatalf("docs/openssf-best-practices.md missing gap review text %q", required)
+		}
+	}
+}
+
+func TestDependencyReviewWorkflowEnforcesSupplyChainPolicy(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "dependency-review.yml"))
+	config := readText(t, filepath.Join(repoRoot, ".github", "dependency-review-config.yml"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	dependencyPolicy := readText(t, filepath.Join(repoRoot, "docs", "dependency-policy.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"name: dependency-review",
+		"pull_request:",
+		"branches: [master]",
+		"permissions:",
+		"contents: read",
+		"actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+		"persist-credentials: false",
+		"actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+		"actions/dependency-review-action v5.0.0",
+		"config-file: ./.github/dependency-review-config.yml",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/dependency-review.yml missing supply-chain gate wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"vulnerability-check: true",
+		"license-check: true",
+		"warn-only: false",
+		"fail-on-severity: high",
+		"fail-on-scopes:",
+		"- runtime",
+		"- development",
+		"- unknown",
+		"allow-licenses:",
+		"- Apache-2.0",
+		"- BSD-2-Clause",
+		"- BSD-3-Clause",
+		"- ISC",
+		"- MIT",
+		"- MPL-2.0",
+	} {
+		if !strings.Contains(config, required) {
+			t.Fatalf(".github/dependency-review-config.yml missing supply-chain policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"dependency-review / dependency-review",
+		"high or critical vulnerable dependencies",
+		"configured license policy",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing dependency review governance %q", required)
+		}
+	}
+	for _, required := range []string{
+		".github/workflows/dependency-review.yml",
+		".github/dependency-review-config.yml",
+		"high` or `critical`",
+		"license is outside the allowed SPDX list",
+	} {
+		if !strings.Contains(dependencyPolicy, required) {
+			t.Fatalf("docs/dependency-policy.md missing dependency review policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Dependency review",
+		"Met locally",
+		"high/critical vulnerability failure",
+		"license-policy enforcement",
+	} {
+		if !strings.Contains(bestPractices, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing dependency review status %q", required)
 		}
 	}
 }
@@ -4726,6 +4801,7 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 		"ci / api-check",
 		"make release-api-check",
 		"ci / fuzz",
+		"dependency-review / dependency-review",
 		"codeql",
 		"scorecard",
 		"make github-governance-check",

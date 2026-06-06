@@ -50,6 +50,23 @@ Every dependency change must answer:
    `docs/vulnerability-dispositions.tsv` and explained in
    `docs/dependency-risk.md`?
 
+## Pull Request Dependency Review
+
+`.github/workflows/dependency-review.yml` runs GitHub's dependency review action
+on pull requests. The workflow is a required status check in the governance
+policy and uses `.github/dependency-review-config.yml` as the policy source.
+
+The gate fails when a pull request introduces:
+
+- a vulnerable dependency with severity `high` or `critical` in runtime,
+  development, or unknown scopes,
+- a dependency whose detected license is outside the allowed SPDX list in
+  `.github/dependency-review-config.yml`.
+
+Lower-severity advisories still follow the dependency PR SLA below, and license
+exceptions require a documented maintainer decision before the dependency is
+added.
+
 ## Update SLA
 
 Use the active SLA in [dependency-risk.md](dependency-risk.md). In short:

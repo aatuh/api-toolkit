@@ -1,0 +1,19 @@
+vulnerability-check: true
+license-check: true
+warn-only: false
+fail-on-severity: high
+fail-on-scopes:
+  - runtime
+  - development
+  - unknown
+comment-summary-in-pr: never
+show-openssf-scorecard: true
+allow-licenses:
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - ISC
+  - MIT
+  - MPL-2.0
+  - BlueOak-1.0.0
+  - Unlicense

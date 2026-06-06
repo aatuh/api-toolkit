@@ -23,6 +23,9 @@ and `docs/stable-core.md`.
   - `ci / api-check`, including `make release-api-check` against the pull
     request base or push predecessor.
   - `ci / fuzz`, including `make fuzz`.
+  - `dependency-review / dependency-review`, which fails pull requests that
+    introduce high or critical vulnerable dependencies or dependencies outside
+    the configured license policy.
   - `codeql` and `scorecard` workflow results when those workflows are enabled
     for the repository.
 - Keep the scheduled `nightly` workflow enabled for longer fuzzing, generated
