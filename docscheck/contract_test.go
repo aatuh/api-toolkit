@@ -4795,6 +4795,56 @@ func TestNetHTTPMigrationExampleCoversBacklogSurfaces(t *testing.T) {
 	}
 }
 
+func TestChiExistingServiceExampleUsesToolkitWithoutContrib(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	exampleDir := filepath.Join(repoRoot, "examples", "chi-existing-service")
+	goMod := readText(t, filepath.Join(exampleDir, "go.mod"))
+	readme := readText(t, filepath.Join(exampleDir, "README.md"))
+	source := readText(t, filepath.Join(exampleDir, "main.go"))
+	tests := readText(t, filepath.Join(exampleDir, "main_test.go"))
+	combined := goMod + "\n" + readme + "\n" + source + "\n" + tests
+
+	for _, required := range []string{
+		"module example.com/chi-existing-service",
+		"github.com/go-chi/chi/v5",
+		"github.com/aatuh/api-toolkit/v3",
+		"replace github.com/aatuh/api-toolkit/v3 => ../..",
+		"chi.NewRouter",
+		"chi.URLParam",
+		"binding.DecodeJSON",
+		"binding.WriteValidationProblem",
+		"httpx.WriteProblem",
+		"httpx.WriteJSON",
+		"health.NewBasicHandler",
+		"maxbody.New",
+		"timeout.NewHard",
+		"without scaffold",
+		"without contrib",
+		"TestRouterRejectsMalformedJSONAsProblemDetails",
+		"TestRouterRegistersToolkitHealthOnChi",
+		"TestRouterUsesChiPathParameters",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("chi existing-service example missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		"github.com/aatuh/api-toolkit/contrib",
+		"github.com/aatuh/api-toolkit/v3/contrib",
+		"api-toolkit new service",
+		"contrib/v3/adapters/chi",
+	} {
+		if strings.Contains(combined, forbidden) {
+			t.Fatalf("chi existing-service example must avoid %q", forbidden)
+		}
+	}
+
+	out, err := runGoCmd(exampleDir, "test", "./...")
+	if err != nil {
+		t.Fatalf("chi existing-service example does not compile and pass tests:\n%s\nerror: %v", out, err)
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
