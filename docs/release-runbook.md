@@ -93,6 +93,24 @@ Automation must require `status=passed`, `publication_eligible=true`,
 `provenance_policy.status=passed`, `git_state.dirty=false`, and zero dirty
 counts before accepting local publication evidence.
 
+## Signing And Attestation Policy
+
+Release tags, signatures, and attestations have separate meanings:
+
+| Item | Policy | Consumer verification |
+| --- | --- | --- |
+| Git release tag `vX.Y.Z` | Protected by GitHub tag rulesets for `refs/tags/v*`. The release workflow does not currently create a GPG-, SSH-, or Sigstore-signed Git tag, so do not advertise the tag itself as cryptographically signed. | Fetch the tag from GitHub, compare it with the GitHub release target, and rely on the signed and attested release assets below for artifact integrity. |
+| Contrib release tag `contrib/vX.Y.Z` | Protected by GitHub tag rulesets for `refs/tags/contrib/v*`. It is not currently a cryptographically signed Git tag. | Fetch the tag from GitHub and compare it with the contrib release target before using matching release evidence. |
+| SBOM payloads | `sbom-root.spdx.json` and `sbom-contrib.spdx.json` are signed with keyless Sigstore/cosign in the GitHub release workflow. | Run the per-SBOM `cosign verify-blob` commands in `SECURITY.md`, or run publication mode of `make release-artifact-verify`. |
+| SBOM signature and certificate assets | `*.sig` and `*.pem` files are uploaded with the draft release and included in `release-asset-manifest.tsv`. | Verify manifest checksums and then verify the SBOM payloads against their matching signature and certificate. |
+| Release asset manifest | `release-asset-manifest.tsv` records SHA-256 checksums for the uploaded release assets. | Run `sha256sum -c release-asset-manifest.tsv` from the downloaded asset directory or use `make release-artifact-verify`. |
+| GitHub provenance attestations | Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested by the release workflow. | Run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`; it runs `gh attestation verify` for every expected asset. |
+
+If cryptographically signed Git tags are added later, update this section, the
+release workflow, and docscheck contracts in the same change. Until then,
+release trust is based on protected tag creation, clean release evidence,
+manifest checksums, keyless SBOM signatures, and GitHub artifact attestations.
+
 ## Expected release-check behavior
 
 - The command fails immediately if `API_BASE_REF` is missing.

@@ -3759,6 +3759,35 @@ func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 	}
 }
 
+func TestReleaseRunbookDocumentsSigningAndAttestationPolicy(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+
+	for _, required := range []string{
+		"## Signing And Attestation Policy",
+		"Release tags, signatures, and attestations have separate meanings:",
+		"Git release tag `vX.Y.Z`",
+		"Protected by GitHub tag rulesets for `refs/tags/v*`",
+		"does not currently create a GPG-, SSH-, or Sigstore-signed Git tag",
+		"Contrib release tag `contrib/vX.Y.Z`",
+		"Protected by GitHub tag rulesets for `refs/tags/contrib/v*`",
+		"`sbom-root.spdx.json` and `sbom-contrib.spdx.json` are signed with keyless Sigstore/cosign",
+		"`*.sig` and `*.pem` files are uploaded with the draft release",
+		"`release-asset-manifest.tsv` records SHA-256 checksums",
+		"Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested",
+		"gh attestation verify",
+		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"make release-artifact-verify",
+		"If cryptographically signed Git tags are added later",
+		"release trust is based on protected tag creation, clean release evidence,",
+		"keyless SBOM signatures, and GitHub artifact attestations",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing signing/attestation policy %q", required)
+		}
+	}
+}
+
 func TestSecurityPolicyDocumentsVulnerabilityRemediationSLA(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
