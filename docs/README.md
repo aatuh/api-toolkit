@@ -157,6 +157,7 @@ identifies the installed generator and contract tool.
 | [Resource lifecycle](resource-lifecycle.md) | Maintainers and adopters | Track ownership for close, shutdown, timers, goroutines, stores, adapters, and generated service resources. |
 | [Ports surface](ports-surface.md) | Maintainers and advanced API consumers | Identify compatibility-sensitive port history and preferred replacements. |
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
+| [V4 scope cleanup plan](v4-plan.md) | Maintainers and advanced adopters | Plan which root surfaces to keep stable, demote, split, or remove only in a future major release. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | [Package classification guide](package-classification.md) | Maintainers and adopters | Read the rendered status glossary before using the TSV source of truth. |
 | [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review stable package readiness by docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveat. |

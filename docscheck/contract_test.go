@@ -4885,6 +4885,43 @@ func TestPublicRoadmapDocumentsNonGoals(t *testing.T) {
 	}
 }
 
+func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	plan := readText(t, filepath.Join(repoRoot, "docs", "v4-plan.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	combined := plan + "\n" + docsIndex + "\n" + roadmap
+
+	for _, required := range []string{
+		"# V4 Scope Cleanup Plan",
+		"No breaking v3 change",
+		"## Keep Stable",
+		"## Demote Or Narrow In V4",
+		"## Split From Root",
+		"## Remove In V4 Only",
+		"## Required V4 Evidence",
+		"## Not In Scope For V3",
+		"`httpx`, `fielderrors`, `binding`, `queryparams`, `upload`",
+		"`middleware/json`, `middleware/maxbody`, `middleware/querylimits`, `middleware/secure`, `middleware/timeout`, `middleware/trace`, `middleware/deprecation`",
+		"`middleware/idempotency`, `idempotent`, `webhooks`",
+		"`routecontracts`, `routepolicy`, `specs`, `contracttest`, `apitest`",
+		"github.com/aatuh/api-toolkit/v3/ports",
+		"github.com/aatuh/api-toolkit/v3/compat/billing",
+		"github.com/aatuh/api-toolkit/v3/scheduler/migrations",
+		"github.com/aatuh/api-toolkit/v3/swagstub",
+		"`middleware/auth/jwt`, JWK handling, and OAuth2 helpers",
+		"CLI and generated scaffolds",
+		"Provider adapters and integrations",
+		"Deprecated APIs with `// Deprecated:` comments",
+		"docs/v4-plan.md",
+		"[V4 scope cleanup plan](v4-plan.md)",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("v4 scope cleanup plan missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
