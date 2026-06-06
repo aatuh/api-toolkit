@@ -55,6 +55,8 @@ Every dependency change must answer:
 `.github/workflows/dependency-review.yml` runs GitHub's dependency review action
 on pull requests. The workflow is a required status check in the governance
 policy and uses `.github/dependency-review-config.yml` as the policy source.
+The allowed-license list and exception process are documented in
+[license-policy.md](license-policy.md).
 
 The gate fails when a pull request introduces:
 

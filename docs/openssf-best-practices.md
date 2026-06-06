@@ -16,8 +16,7 @@ the badge URL points to that project ID.
 
 ## Current Evidence
 
-Open gaps: branch protection, MFA, license policy, maintainer availability, and
-CODE_OF_CONDUCT.
+Open gaps: branch protection, MFA, maintainer availability, and CODE_OF_CONDUCT.
 
 | Area | Status | Evidence or gap |
 | --- | --- | --- |
@@ -31,7 +30,7 @@ CODE_OF_CONDUCT.
 | Repository branch protection | External gap | P1-69 must document code scanning merge protection and branch/ruleset enforcement. Local files cannot prove GitHub repository settings. |
 | Maintainer MFA | External gap | The Best Practices site may ask about developer MFA. GitHub requires MFA broadly, but project-specific maintainer MFA evidence is external repository/account state. |
 | Dependency review | Met locally | `.github/workflows/dependency-review.yml` runs the dependency review action with high/critical vulnerability failure and license-policy enforcement from `.github/dependency-review-config.yml`. External branch settings must still require the check. |
-| License policy | Gap | P1-75 must define allowed dependency licenses and exception review. |
+| License policy | Met locally | `docs/license-policy.md` defines allowed dependency licenses, dependency-review enforcement, and the exception review process. |
 | Maintainer availability | Gap | P1-76 must document single-maintainer availability, response expectations, and supported versions. |
 | Community conduct | Gap | P1-77 must add `CODE_OF_CONDUCT.md` or document the explicit conduct decision. |
 

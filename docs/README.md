@@ -132,6 +132,7 @@ identifies the installed generator and contract tool.
 | [Support policy](support-policy.md) | Adopters and maintainers | Understand the supported Go line, platform gate, and generated-service ownership limits. |
 | [Dependency boundary](dependency-boundary.md) | Maintainers | Keep root stable code free of contrib adapter dependencies. |
 | [Dependency policy](dependency-policy.md) | Maintainers | Review allowed dependency classes, banned patterns, update SLA, and security-sensitive review gates. |
+| [License policy](license-policy.md) | Maintainers | Review allowed dependency licenses, dependency-review enforcement, and exception handling. |
 | [Dependency risk](dependency-risk.md) | Release reviewers and security maintainers | Review imported-but-not-called vulnerability disposition and ownership. |
 | [Dependency footprint](dependency-footprint.md) | Adopters and release reviewers | Run and interpret root/contrib dependency footprint and base-ref diff reports. |
 
@@ -218,7 +219,7 @@ important public docs disappear from navigation:
 `docs/adapter-maturity.md`, `docs/safe-defaults.md`,
 `docs/middleware-safety.md`, `docs/input-size-threat-review.md`,
 `docs/testing.md`, `SECURITY.md`, `docs/metrics.md`,
-`docs/support-policy.md`, `docs/dependency-policy.md`,
+`docs/support-policy.md`, `docs/dependency-policy.md`, `docs/license-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,
 `docs/api-reference.md`, `docs/core-readiness.md`, `docs/deprecations.md`, `docs/interface-ownership.md`,

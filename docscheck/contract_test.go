@@ -2514,16 +2514,82 @@ func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 		"branch protection",
 		"MFA",
 		"dependency review",
-		"license policy",
+		"License policy",
 		"CODE_OF_CONDUCT",
 		"maintainer availability",
 		"P1-69",
-		"P1-75",
 		"P1-76",
 		"P1-77",
 	} {
 		if !strings.Contains(gapReview, required) {
 			t.Fatalf("docs/openssf-best-practices.md missing gap review text %q", required)
+		}
+	}
+}
+
+func TestDependencyLicensePolicyDocumentsAllowedLicensesAndExceptions(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	index := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	config := readText(t, filepath.Join(repoRoot, ".github", "dependency-review-config.yml"))
+	policy := readText(t, filepath.Join(repoRoot, "docs", "license-policy.md"))
+	dependencyPolicy := readText(t, filepath.Join(repoRoot, "docs", "dependency-policy.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"docs/license-policy.md",
+		"License policy",
+	} {
+		if !strings.Contains(readme+"\n"+index, required) {
+			t.Fatalf("README.md or docs/README.md missing license policy navigation %q", required)
+		}
+	}
+	for _, required := range []string{
+		"# Dependency License Policy",
+		"## Enforcement Source",
+		"## Allowed Licenses",
+		"## Disallowed Without Exception",
+		"## Exception Process",
+		"## Release Review",
+		".github/dependency-review-config.yml",
+		"allow-licenses",
+		"allow-dependencies-licenses",
+		"LicenseRef-clearlydefined-OTHER",
+		"Package name, module path, version, ecosystem, and owning package.",
+		"Expiry or re-review trigger",
+	} {
+		if !strings.Contains(policy, required) {
+			t.Fatalf("docs/license-policy.md missing license policy guidance %q", required)
+		}
+	}
+	for _, license := range []string{
+		"Apache-2.0",
+		"BSD-2-Clause",
+		"BSD-3-Clause",
+		"ISC",
+		"MIT",
+		"MPL-2.0",
+		"BlueOak-1.0.0",
+		"Unlicense",
+	} {
+		if !strings.Contains(config, "- "+license) {
+			t.Fatalf(".github/dependency-review-config.yml missing allowed license %s", license)
+		}
+		if !strings.Contains(policy, "`"+license+"`") {
+			t.Fatalf("docs/license-policy.md missing allowed license %s", license)
+		}
+	}
+	if !strings.Contains(dependencyPolicy, "[license-policy.md](license-policy.md)") {
+		t.Fatal("docs/dependency-policy.md missing license policy link")
+	}
+	for _, required := range []string{
+		"License policy",
+		"Met locally",
+		"allowed dependency licenses",
+		"exception review process",
+	} {
+		if !strings.Contains(bestPractices, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing license policy status %q", required)
 		}
 	}
 }
@@ -6393,6 +6459,7 @@ func TestDocsIndexCoversHighCentralityDocs(t *testing.T) {
 		"docs/performance.md",
 		"docs/response-writer-inventory.md",
 		"docs/dependency-boundary.md",
+		"docs/license-policy.md",
 		"docs/dependency-risk.md",
 		"docs/package-doc-standard.md",
 		"docs/package-classification.tsv",
