@@ -2479,6 +2479,56 @@ func TestOpenSSFScorecardTargetIsPublished(t *testing.T) {
 	}
 }
 
+func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	gapReview := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"OpenSSF Best Practices Badge status",
+		"docs/openssf-best-practices.md",
+		"not claimed",
+		"registered bestpractices.dev project ID",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing OpenSSF Best Practices status text %q", required)
+		}
+	}
+	if strings.Contains(readme, "bestpractices.dev/projects/") {
+		t.Fatal("README.md must not publish an official Best Practices badge before project ID and criteria status are documented")
+	}
+	if !strings.Contains(docsIndex, "[OpenSSF Best Practices gap review](openssf-best-practices.md)") {
+		t.Fatal("docs/README.md missing OpenSSF Best Practices gap review link")
+	}
+	for _, required := range []string{
+		"OpenSSF Best Practices Badge",
+		"https://www.bestpractices.dev",
+		"baseline-1",
+		"passing",
+		"silver",
+		"gold",
+		"not claimed",
+		"bestpractices.dev project ID",
+		"Do not add an official badge",
+		"branch protection",
+		"MFA",
+		"dependency review",
+		"license policy",
+		"CODE_OF_CONDUCT",
+		"maintainer availability",
+		"P1-69",
+		"P1-74",
+		"P1-75",
+		"P1-76",
+		"P1-77",
+	} {
+		if !strings.Contains(gapReview, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing gap review text %q", required)
+		}
+	}
+}
+
 func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))

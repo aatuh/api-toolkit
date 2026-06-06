@@ -156,6 +156,10 @@ Current repository trust signals:
   as a public badge/API report, uploaded SARIF artifact `scorecard-sarif`, and
   code-scanning SARIF. Target `>= 8`; a lower public score requires remediation
   or an explicit release-review disposition before publishing.
+- OpenSSF Best Practices Badge status is documented in
+  [docs/openssf-best-practices.md](docs/openssf-best-practices.md): not claimed
+  until a registered bestpractices.dev project ID exists and the remaining gaps
+  are resolved or explicitly accepted.
 - Governance docs publish required checks, CODEOWNERS expectations, tag policy,
   and branch-protection evidence boundaries.
 
