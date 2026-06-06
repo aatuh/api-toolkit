@@ -1,5 +1,7 @@
 # api-toolkit
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/aatuh/api-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com%2Faatuh%2Fapi-toolkit)
+
 `api-toolkit` provides small, composable Go HTTP API building blocks for teams
 that already own their service architecture and want production guardrails
 without adopting a full framework.
@@ -150,6 +152,10 @@ Current repository trust signals:
   dispositions, SBOM assets, signatures, and provenance/attestation policy
   through `docs/release-runbook.md`, `docs/release-review.md`, and
   `release-check-summary.json`.
+- OpenSSF Scorecard results are published by `.github/workflows/scorecard.yml`
+  as a public badge/API report, uploaded SARIF artifact `scorecard-sarif`, and
+  code-scanning SARIF. Target `>= 8`; a lower public score requires remediation
+  or an explicit release-review disposition before publishing.
 - Governance docs publish required checks, CODEOWNERS expectations, tag policy,
   and branch-protection evidence boundaries.
 

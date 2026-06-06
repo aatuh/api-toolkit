@@ -44,6 +44,15 @@ and deletion protection, and tag rulesets for both `refs/tags/v*` and
 `refs/tags/contrib/v*`. It skips cleanly when `gh` is not installed or
 authenticated, and it is not part of `finalize` or required PR CI.
 
+## OpenSSF Scorecard Target
+
+The `scorecard` workflow publishes OpenSSF Scorecard results for the public README badge,
+API report, SARIF artifact, and code-scanning upload. The
+repository target is Scorecard `>= 8`. A lower public score is a
+supply-chain-governance finding: remediate it before release publication or
+record an explicit release-review disposition that explains why the lower score
+is accepted for that release.
+
 ## Release Approval
 
 Release reviewers use `docs/release-runbook.md` as the command source of truth

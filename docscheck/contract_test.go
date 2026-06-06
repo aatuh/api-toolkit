@@ -2423,6 +2423,62 @@ func TestAuditAndArchiveScratchPolicyIsPublished(t *testing.T) {
 	}
 }
 
+func TestOpenSSFScorecardTargetIsPublished(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "scorecard.yml"))
+
+	for _, required := range []string{
+		"[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/aatuh/api-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com%2Faatuh%2Fapi-toolkit)",
+		".github/workflows/scorecard.yml",
+		"public badge/API report",
+		"`scorecard-sarif`",
+		"Target `>= 8`",
+		"release-review disposition",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing OpenSSF Scorecard trust signal %q", required)
+		}
+	}
+	for _, required := range []string{
+		"OpenSSF Scorecard Target",
+		"public README badge",
+		"SARIF artifact",
+		"code-scanning upload",
+		"Scorecard `>= 8`",
+		"supply-chain-governance finding",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing OpenSSF Scorecard target text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"name: scorecard",
+		"push:",
+		"schedule:",
+		"workflow_dispatch:",
+		"permissions: read-all",
+		"security-events: write",
+		"id-token: write",
+		"contents: read",
+		"ossf/scorecard-action@",
+		"results_file: results.sarif",
+		"results_format: sarif",
+		"publish_results: true",
+		"repo_token: ${{ github.token }}",
+		"actions/upload-artifact@",
+		"name: scorecard-sarif",
+		"path: results.sarif",
+		"github/codeql-action/upload-sarif@",
+		"sarif_file: results.sarif",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/scorecard.yml missing OpenSSF Scorecard wiring %q", required)
+		}
+	}
+}
+
 func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -6743,6 +6799,9 @@ func markdownAnchorSlug(heading string) string {
 }
 
 func forbiddenModuleToken(token string) bool {
+	if token == rootModulePath+"/badge" {
+		return false
+	}
 	if strings.HasPrefix(token, rootModulePath+"-contrib") {
 		return true
 	}
