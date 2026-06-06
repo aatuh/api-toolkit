@@ -2308,6 +2308,90 @@ func TestCoverageCheckIncludesHighRiskPackageFloors(t *testing.T) {
 	}
 }
 
+func TestDeterministicTestingPolicyDocsAreComplete(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	policy := readText(t, filepath.Join(repoRoot, "docs", "testing.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	if !strings.Contains(docsIndex, "[Testing policy](testing.md)") {
+		t.Fatal("docs/README.md missing testing policy link")
+	}
+	for _, required := range []string{
+		"No sleep-flaky tests without fake clocks or bounded retry helper",
+		"Do not use `time.Sleep`",
+		"fake clocks",
+		"`ports.Clock`",
+		"`fixedClock`",
+		"`sequenceClock`",
+		"injected sleep",
+		"`httpclient.Options.Sleep`",
+		"bounded retry",
+		"deadline",
+		"`time.After`",
+		"deadlock guard",
+		"integration_check.sh",
+		"max attempts",
+		"diagnostic",
+	} {
+		if !strings.Contains(policy, required) {
+			t.Fatalf("docs/testing.md missing deterministic test policy text %q", required)
+		}
+	}
+
+	sourceEvidence := []struct {
+		path     string
+		required []string
+	}{
+		{
+			path: filepath.Join("middleware", "idempotency", "idempotency_test.go"),
+			required: []string{
+				"type fixedClock struct",
+				"type sequenceClock struct",
+			},
+		},
+		{
+			path: filepath.Join("contrib", "adapters", "httpclient", "client.go"),
+			required: []string{
+				"Sleep          func(time.Duration)",
+				"opts.Sleep = time.Sleep",
+			},
+		},
+		{
+			path: filepath.Join("contrib", "adapters", "httpclient", "client_test.go"),
+			required: []string{
+				"Sleep: func(time.Duration) {}",
+			},
+		},
+		{
+			path: filepath.Join("contrib", "adapters", "cacheredis", "redis_test.go"),
+			required: []string{
+				"miniredis uses deterministic time",
+				"mini.FastForward(d)",
+			},
+		},
+		{
+			path: filepath.Join("examples", "reference-saas-api", "scripts", "integration_check.sh"),
+			required: []string{
+				"for _ in $(seq 1 60)",
+				"sleep 1",
+				"did not become ready",
+			},
+		},
+	}
+	for _, evidence := range sourceEvidence {
+		source := readText(t, filepath.Join(repoRoot, evidence.path))
+		for _, required := range evidence.required {
+			if !strings.Contains(source, required) {
+				t.Fatalf("%s missing deterministic testing evidence %q", filepath.ToSlash(evidence.path), required)
+			}
+		}
+	}
+
+	if violations := goTestTimeSleepCalls(t, repoRoot); len(violations) > 0 {
+		t.Fatalf("Go test files must not call time.Sleep directly; use fake clocks, injected sleep, or bounded retry helpers:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
@@ -6802,6 +6886,59 @@ func readText(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func goTestTimeSleepCalls(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	var violations []string
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", ".trash", "audit", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "Sleep" {
+				return true
+			}
+			ident, ok := selector.X.(*ast.Ident)
+			if !ok || ident.Name != "time" {
+				return true
+			}
+			rel, relErr := filepath.Rel(repoRoot, path)
+			if relErr != nil {
+				rel = path
+			}
+			pos := fset.Position(selector.Pos())
+			violations = append(violations, fmt.Sprintf("%s:%d", filepath.ToSlash(rel), pos.Line))
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Go test files for time.Sleep calls: %v", err)
+	}
+	sort.Strings(violations)
+	return violations
 }
 
 func packageTestSource(t *testing.T, dir string) string {
