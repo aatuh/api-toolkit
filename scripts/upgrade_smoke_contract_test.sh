@@ -60,7 +60,14 @@ run_contract() {
   local name="$1"
   shift
   local dir="$tmp/$name"
-  mkdir -p "$dir/repo"
+  mkdir -p "$dir/repo/internal/compatfixtures/rootcore"
+  cat >"$dir/repo/internal/compatfixtures/rootcore/upgrade_smoke_test.go" <<'GO'
+package upgradesmoke
+
+import "testing"
+
+func TestStableCoreUpgradeSmoke(t *testing.T) {}
+GO
   FAKE_TOOL_CALLS="$dir/calls" UPGRADE_SMOKE_REPO_ROOT="$dir/repo" UPGRADE_SMOKE_RESULT_DIR=".ci-result/$name" PATH="$tmp/bin:$PATH" "$@" "$script"
 }
 

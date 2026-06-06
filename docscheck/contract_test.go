@@ -2408,6 +2408,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	for _, required := range []string{
 		"UPGRADE_SMOKE_BASE_REF",
 		"v3.1.2",
+		"internal/compatfixtures/rootcore/upgrade_smoke_test.go",
 		"go get \"github.com/aatuh/api-toolkit/v3@$base_ref\"",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
 		"go test ./...",
@@ -2489,6 +2490,50 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		if !strings.Contains(coverageBacklog, required) {
 			t.Fatalf("coverage hardening backlog missing %q", required)
 		}
+	}
+}
+
+func TestCompatibilityFixtureUpgradeSmokeUsesCheckedInFixture(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	fixture := readText(t, filepath.Join(repoRoot, "internal", "compatfixtures", "rootcore", "upgrade_smoke_test.go"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_contract_test.sh"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+
+	for _, required := range []string{
+		"TestStableCoreUpgradeSmoke",
+		"github.com/aatuh/api-toolkit/v3/binding",
+		"github.com/aatuh/api-toolkit/v3/httpx",
+		"github.com/aatuh/api-toolkit/v3/middleware/maxbody",
+		"binding.DecodeJSON",
+		"httpx.WriteJSON",
+		"maxbody.New",
+	} {
+		if !strings.Contains(fixture, required) {
+			t.Fatalf("root-core compatibility fixture missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"internal/compatfixtures/rootcore/upgrade_smoke_test.go",
+		"cp \"$root_core_fixture\" \"$path/upgrade_smoke_test.go\"",
+		"go get \"github.com/aatuh/api-toolkit/v3@$base_ref\"",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=\"$repo_root\"",
+		"GOWORK=off GOTOOLCHAIN=\"$gotoolchain\" go test ./...",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("upgrade smoke script missing checked-in fixture flow %q", required)
+		}
+	}
+	for _, required := range []string{
+		"internal/compatfixtures/rootcore",
+		"TestStableCoreUpgradeSmoke",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("upgrade smoke contract test missing fixture setup %q", required)
+		}
+	}
+	if !strings.Contains(runbook, "internal/compatfixtures/rootcore/upgrade_smoke_test.go") {
+		t.Fatal("release runbook must document the checked-in compatibility fixture path")
 	}
 }
 

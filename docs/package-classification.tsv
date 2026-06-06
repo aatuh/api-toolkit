@@ -39,6 +39,7 @@ github.com/aatuh/api-toolkit/v3/httpx/identity	stable	direct-tests	Stable reques
 github.com/aatuh/api-toolkit/v3/httpx/recover	stable	direct-tests	Stable panic recovery helpers.
 github.com/aatuh/api-toolkit/v3/idempotent	stable	direct-tests	Stable idempotent HTTP contract and response helpers.
 github.com/aatuh/api-toolkit/v3/examples/snippets/minimal-existing-service	example-only	example-only	Copy-paste README snippet source, build-smoke checked by docscheck.
+github.com/aatuh/api-toolkit/v3/internal/compatfixtures/rootcore	excluded	direct-tests	Checked-in root stable API compatibility fixture copied by upgrade-smoke-check; not public API.
 github.com/aatuh/api-toolkit/v3/internal/tools/apiadditions	excluded	direct-tests	Internal review gate for API addition evidence, not public API.
 github.com/aatuh/api-toolkit/v3/internal/tools/apiinventory	excluded	excluded	Internal generator for docs/api-inventory.md, not public API.
 github.com/aatuh/api-toolkit/v3/middleware/auth/apikey	stable	direct-tests	Stable API key authentication and scope middleware.
