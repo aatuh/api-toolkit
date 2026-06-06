@@ -3548,6 +3548,32 @@ func TestReleaseArtifactAttestationsCoverDraftAssets(t *testing.T) {
 	}
 }
 
+func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+
+	for _, required := range []string{
+		"Release SBOMs are signed using Sigstore/cosign via GitHub OIDC.",
+		"TAG=v3.1.2",
+		"cosign verify-blob",
+		"--certificate sbom-root.spdx.json.pem",
+		"--signature sbom-root.spdx.json.sig",
+		"sbom-root.spdx.json",
+		"--certificate sbom-contrib.spdx.json.pem",
+		"--signature sbom-contrib.spdx.json.sig",
+		"sbom-contrib.spdx.json",
+		"--certificate-oidc-issuer https://token.actions.githubusercontent.com",
+		"--certificate-identity \"https://github.com/aatuh/api-toolkit/.github/workflows/release.yml@refs/tags/${TAG}\"",
+		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"GITHUB_REPOSITORY=aatuh/api-toolkit",
+		"make release-artifact-verify",
+	} {
+		if !strings.Contains(securityPolicy, required) {
+			t.Fatalf("SECURITY.md missing SBOM verification guidance %q", required)
+		}
+	}
+}
+
 func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
