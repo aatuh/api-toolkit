@@ -2838,6 +2838,51 @@ func TestSupportedAdaptersHaveCompleteEvidence(t *testing.T) {
 	}
 }
 
+func TestSupportedAdapterSharedContractEvidenceIsExecutable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	contracts := loadSupportedAdapterContracts(t, repoRoot)
+	sharedContractEvidence := regexp.MustCompile(`plus ([a-z]+test) shared contracts`)
+	helperTokens := map[string][]string{
+		"asynctest":       {"asynctest.AssertStoreContract"},
+		"audittest":       {"audittest.AssertRecorderContract"},
+		"cachetest":       {"cachetest.AssertStoreContract"},
+		"healthchecktest": {"healthchecktest.AssertCheckerContract"},
+		"idempotencytest": {"idempotencytest.AssertReservationReleaseContract"},
+		"objectstoretest": {"objectstoretest.AssertStoreContract", "objectstoretest.AssertSignedURLerContract"},
+		"policytest":      {"policytest.AssertEngineContract"},
+		"ratelimittest":   {"ratelimittest.AssertLimiterContract"},
+	}
+
+	var missing []string
+	for importPath, contract := range contracts {
+		if !strings.HasPrefix(importPath, contribModulePath+"/adapters/") {
+			continue
+		}
+		matches := sharedContractEvidence.FindAllStringSubmatch(contract.Evidence, -1)
+		if len(matches) == 0 {
+			continue
+		}
+		testSource := packageTestSource(t, contribPackageDir(repoRoot, importPath))
+		for _, match := range matches {
+			helperName := match[1]
+			tokens, ok := helperTokens[helperName]
+			if !ok {
+				missing = append(missing, importPath+" cites unknown shared contract helper "+helperName)
+				continue
+			}
+			for _, token := range tokens {
+				if !strings.Contains(testSource, token) {
+					missing = append(missing, importPath+" cites "+helperName+" shared contracts but package tests do not call "+token)
+				}
+			}
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Fatalf("supported adapter shared contract evidence is not executable:\n%s", strings.Join(missing, "\n"))
+	}
+}
+
 func TestStableAndSupportedAdapterPackageDocsMeetMinimumDepth(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	classes := loadPackageClassifications(t, repoRoot)
@@ -6522,6 +6567,27 @@ func readText(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func packageTestSource(t *testing.T, dir string) string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read test source directory %s: %v", dir, err)
+	}
+	var source strings.Builder
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		source.WriteString(readText(t, filepath.Join(dir, entry.Name())))
+		source.WriteByte('\n')
+	}
+	if source.Len() == 0 {
+		t.Fatalf("%s has no package-local test source", dir)
+	}
+	return source.String()
 }
 
 func generatedUpgradeDefaultRefs(t *testing.T, script string) []string {

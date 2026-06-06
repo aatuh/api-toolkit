@@ -9,12 +9,30 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v3/objectstore/objectstoretest"
 )
+
+func TestObjectStoreContract(t *testing.T) {
+	t.Parallel()
+
+	server := newContractS3Server(t)
+	store := testStore(t, server.URL)
+
+	objectstoretest.AssertStoreContract(t, func(testing.TB) objectstore.Store {
+		return store
+	})
+	objectstoretest.AssertSignedURLerContract(t, store, objectstore.Ref{
+		Bucket: "tenant-objects",
+		Key:    "org_123/widgets/avatar.png",
+	})
+}
 
 func TestPutSignsAndSendsObject(t *testing.T) {
 	t.Parallel()
@@ -191,4 +209,74 @@ func testStore(t *testing.T, endpoint string) *Store {
 		t.Fatalf("New() error = %v", err)
 	}
 	return store
+}
+
+type contractObject struct {
+	body        []byte
+	contentType string
+	metadata    map[string]string
+}
+
+func newContractS3Server(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	var (
+		mu      sync.Mutex
+		objects = map[string]contractObject{}
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			t.Fatalf("missing Authorization for %s %s", r.Method, r.URL.Path)
+		}
+		if strings.Contains(r.Header.Get("Authorization"), "secret") {
+			t.Fatalf("Authorization leaked secret: %q", r.Header.Get("Authorization"))
+		}
+		key := r.URL.EscapedPath()
+		switch r.Method {
+		case http.MethodPut:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			metadata := map[string]string{}
+			for name, values := range r.Header {
+				canonical := http.CanonicalHeaderKey(name)
+				if !strings.HasPrefix(canonical, "X-Amz-Meta-") || len(values) == 0 {
+					continue
+				}
+				metadata[strings.ToLower(strings.TrimPrefix(canonical, "X-Amz-Meta-"))] = values[0]
+			}
+			mu.Lock()
+			objects[key] = contractObject{
+				body:        append([]byte(nil), body...),
+				contentType: r.Header.Get("Content-Type"),
+				metadata:    metadata,
+			}
+			mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			mu.Lock()
+			obj, ok := objects[key]
+			mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", obj.contentType)
+			w.Header().Set("Content-Length", strconv.Itoa(len(obj.body)))
+			for name, value := range obj.metadata {
+				w.Header().Set("X-Amz-Meta-"+name, value)
+			}
+			_, _ = w.Write(obj.body)
+		case http.MethodDelete:
+			mu.Lock()
+			delete(objects, key)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
