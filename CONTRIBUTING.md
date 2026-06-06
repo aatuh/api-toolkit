@@ -49,6 +49,9 @@ Rules:
 - Breaking stable API changes require a major version.
 - New stable packages or exported identifiers need docs, tests, compatibility
   review, and release-note consideration.
+- New stable root packages or promotions require the stable API review board
+  process in `docs/governance.md`: a public design issue, at least 7 calendar
+  days for comment, and maintainer approval.
 - No new `ports` export is accepted without the design evidence described in
   `docs/stable-core.md` and `docs/ports-surface.md`.
 - Contrib supported-adapter incompatible drift is gate-enforced and does not

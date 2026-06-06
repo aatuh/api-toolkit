@@ -73,6 +73,39 @@ Treat branch review settings as external GitHub state. When repository settings
 are accessible, attach `make github-governance-check` output or GitHub ruleset
 evidence during release review.
 
+## Stable API Review Board
+
+Stable root API growth requires public design review before implementation.
+This applies to:
+
+- adding a new stable root package,
+- promoting an experimental, test-only, tooling, generated, or contrib package
+  to stable root API,
+- moving a compatibility-only package into the recommended stable-core path,
+- adding a new exported interface or broad abstraction that changes the shape
+  of root stable API.
+
+Required process:
+
+1. Open a public GitHub design issue before implementation. The issue must
+   state the user problem, proposed package or symbol shape, alternatives
+   considered, dependency impact, compatibility impact, security impact, and
+   why app-owned or contrib-owned code is not enough.
+2. Leave the issue open for a public comment window of at least 7 calendar days
+   unless the change is an urgent security fix. Security exceptions must be
+   documented in `docs/release-notes.md` and the release review.
+3. Record maintainer approval in the issue after the comment window. Today that
+   is the repository maintainer; if more maintainers are added, approval must
+   include the CODEOWNER for the affected package or docs area.
+4. Merge implementation only after the issue links to the PR or commit and the
+   change updates `VERSIONING.md`, `docs/package-classification.tsv`,
+   `docs/package-owners.tsv`, `docs/api-inventory.md`, docs/examples,
+   release notes, and relevant docscheck coverage.
+
+The review board can reject or defer stable API even when code is correct.
+Accepted alternatives include contrib, app-owned interfaces, experimental
+packages, compatibility-only packages, or no project change.
+
 ## Code Scanning Merge Protection
 
 Repository rulesets must require code scanning results for pull requests into

@@ -21,6 +21,7 @@ Public API review artifacts:
 
 - generated inventory: `docs/api-inventory.md`
 - review checklist: `docs/api-review-checklist.md`
+- stable API review board process: `docs/governance.md`
 - example-exception manifest for new stable exports:
   `docs/api-addition-exceptions.tsv`
 - options-struct defaults and zero-value review: `docs/options-structs.md`
@@ -104,6 +105,10 @@ Compatibility-sensitive means:
   adapter neutrality, at least two real implementations, and why the application
   should not own the interface. The design note must explicitly answer why the
   application should not own the interface.
+- No new stable root package or stable-package promotion is accepted without a
+  public design issue, a public comment window of at least 7 calendar days, and
+  maintainer approval recorded through the stable API review board process in
+  `docs/governance.md`.
 - For the existing hosted-checkout and invoicing model, new code should import
   `github.com/aatuh/api-toolkit/v3/compat/billing` or use app-owned ports.
 - The repository should document the migration path before any future major

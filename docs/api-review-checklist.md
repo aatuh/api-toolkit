@@ -7,6 +7,11 @@ Public API additions are long-lived. The default answer to a new exported
 identifier is "no" until the review proves the package, name, behavior, tests,
 docs, and compatibility story are stable enough.
 
+New stable root packages and promotions into stable root API must first pass the
+stable API review board process in `docs/governance.md`: public design issue,
+at least 7 calendar days for comment, and maintainer approval before
+implementation is accepted.
+
 ## Required Review
 
 | Area | Questions |
@@ -26,6 +31,7 @@ docs, and compatibility story are stable enough.
 | Compatibility | Does the change preserve same-import-path compatibility or document a major-version-only migration? |
 | Release notes | Does `docs/release-notes.md` mention behavior, compatibility, security, dependency, or generated scaffold impact? |
 | API additions gate | Does every new stable or compatibility-only exported identifier have a doc comment, inventory entry, compile-checked example or exception, and package-tied release note? |
+| Stable API review board | For a new stable package or promotion, does the linked design issue show the public comment window and maintainer approval required by governance? |
 
 ## Required Evidence
 

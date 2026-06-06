@@ -5020,6 +5020,37 @@ func TestProviderAdapterSplitDecisionKeepsAdaptersOutsideCore(t *testing.T) {
 	}
 }
 
+func TestStableAPIReviewBoardProcessRequiresDesignIssueCommentWindowAndApproval(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	checklist := readText(t, filepath.Join(repoRoot, "docs", "api-review-checklist.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	combined := governance + "\n" + checklist + "\n" + versioning + "\n" + contributing + "\n" + docsIndex
+
+	for _, required := range []string{
+		"## Stable API Review Board",
+		"adding a new stable root package",
+		"promoting an experimental, test-only, tooling, generated, or contrib package",
+		"Open a public GitHub design issue before implementation",
+		"public comment window of at least 7 calendar days",
+		"Record maintainer approval in the issue",
+		"VERSIONING.md",
+		"docs/package-classification.tsv",
+		"docs/package-owners.tsv",
+		"docs/api-inventory.md",
+		"docs/release-notes.md",
+		"stable API review board process in `docs/governance.md`",
+		"a public design issue, at least 7 calendar",
+		"[Governance](governance.md)",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("stable API review board process missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
