@@ -160,6 +160,10 @@ Current repository trust signals:
   [docs/openssf-best-practices.md](docs/openssf-best-practices.md): not claimed
   until a registered bestpractices.dev project ID exists and the remaining gaps
   are resolved or explicitly accepted.
+- Code scanning merge protection is documented in
+  [docs/governance.md](docs/governance.md): the protected branch ruleset must
+  require CodeQL code scanning results for pull requests with explicit alert
+  thresholds.
 - Governance docs publish required checks, CODEOWNERS expectations, tag policy,
   and branch-protection evidence boundaries.
 

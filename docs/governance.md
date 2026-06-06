@@ -44,6 +44,30 @@ and deletion protection, and tag rulesets for both `refs/tags/v*` and
 `refs/tags/contrib/v*`. It skips cleanly when `gh` is not installed or
 authenticated, and it is not part of `finalize` or required PR CI.
 
+## Code Scanning Merge Protection
+
+Repository rulesets must require code scanning results for pull requests into
+`master`. Configure the branch ruleset with:
+
+| Setting | Required value |
+| --- | --- |
+| Rule | Require code scanning results |
+| Required tool | CodeQL |
+| Alerts threshold | Errors and Warnings or stricter |
+| Security alerts threshold | High or higher or stricter |
+
+This rule is separate from required status checks. The CodeQL workflow in
+`.github/workflows/codeql.yml` enables analysis on `push`, `pull_request`, and
+schedule, uploads results with `security-events: write`, and must stay enabled
+so the ruleset has CodeQL results to evaluate.
+
+Treat code scanning ruleset state as external GitHub settings. Before release
+publication, maintainers must verify the active branch ruleset in GitHub UI or
+via the REST API includes a `code_scanning` rule for CodeQL with at least the
+thresholds above. GitHub documents that ruleset merge protection does not apply
+to merge queue groups or Dependabot pull requests analyzed by default setup, so
+those exceptions require ordinary maintainer review and CI evidence.
+
 ## OpenSSF Scorecard Target
 
 The `scorecard` workflow publishes OpenSSF Scorecard results for the public README badge,

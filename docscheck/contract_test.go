@@ -2529,6 +2529,62 @@ func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 	}
 }
 
+func TestCodeScanningMergeProtectionGovernanceIsDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	codeql := readText(t, filepath.Join(repoRoot, ".github", "workflows", "codeql.yml"))
+
+	for _, required := range []string{
+		"Code scanning merge protection",
+		"docs/governance.md",
+		"require CodeQL code scanning results",
+		"explicit alert",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing code scanning merge protection trust text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Code Scanning Merge Protection",
+		"Repository rulesets must require code scanning results",
+		"`master`",
+		"Require code scanning results",
+		"CodeQL",
+		"Alerts threshold",
+		"Errors and Warnings or stricter",
+		"Security alerts threshold",
+		"High or higher or stricter",
+		"separate from required status checks",
+		".github/workflows/codeql.yml",
+		"security-events: write",
+		"`code_scanning` rule",
+		"merge queue groups",
+		"Dependabot pull requests analyzed by default setup",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing code scanning merge protection text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"name: CodeQL",
+		"push:",
+		"pull_request:",
+		"schedule:",
+		"security-events: write",
+		"github/codeql-action/init@",
+		"languages: go",
+		"go build ./...",
+		"(cd contrib && go build ./...)",
+		"github/codeql-action/analyze@",
+		"upload: always",
+	} {
+		if !strings.Contains(codeql, required) {
+			t.Fatalf(".github/workflows/codeql.yml missing CodeQL merge-protection support %q", required)
+		}
+	}
+}
+
 func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
