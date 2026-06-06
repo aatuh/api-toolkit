@@ -20,6 +20,25 @@ Do not open public issues for suspected vulnerabilities.
 - A remediation plan or request for more details as needed.
 - Coordinated disclosure once a fix is available.
 
+## Remediation Targets
+
+Targets start when the maintainer confirms that the report affects a supported
+version and has enough detail to reproduce or reason about the issue. Targets
+may change for coordinated disclosure, upstream fixes, embargoed dependency
+issues, or incomplete reports.
+
+| Severity | Triage target | Remediation target |
+| --- | --- | --- |
+| Critical | Confirm impact and mitigation path within 1 business day after acknowledgement. | Patch, workaround, or advisory target within 7 calendar days. |
+| High | Confirm impact and mitigation path within 3 business days after acknowledgement. | Patch, workaround, or advisory target within 14 calendar days. |
+| Medium | Confirm impact and mitigation path within 7 business days after acknowledgement. | Patch, workaround, or advisory target within 30 calendar days. |
+| Low | Confirm impact and next release path within 14 business days after acknowledgement. | Fix in the next suitable release, with a 90 calendar day target when a fix is needed. |
+
+Severity is based on exploitability, affected supported versions, reachable
+code paths, confidentiality/integrity/availability impact, and whether a safe
+workaround exists. Reports stay private until a fix, workaround, or coordinated
+publication date is ready.
+
 ## Dependency Updates (Dependabot)
 
 Dependabot is enabled for:

@@ -3574,6 +3574,42 @@ func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 	}
 }
 
+func TestSecurityPolicyDocumentsVulnerabilityRemediationSLA(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"## What to Expect",
+		"Acknowledgement within 3 business days.",
+		"## Remediation Targets",
+		"Targets start when the maintainer confirms that the report affects a supported",
+		"| Severity | Triage target | Remediation target |",
+		"| Critical |",
+		"within 7 calendar days",
+		"| High |",
+		"within 14 calendar days",
+		"| Medium |",
+		"within 30 calendar days",
+		"| Low |",
+		"90 calendar day target",
+		"Severity is based on exploitability",
+		"Reports stay private until a fix, workaround, or coordinated",
+	} {
+		if !strings.Contains(securityPolicy, required) {
+			t.Fatalf("SECURITY.md missing vulnerability remediation SLA guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"severity-based remediation targets",
+		"Security reporting",
+	} {
+		if !strings.Contains(bestPractices, required) {
+			t.Fatalf("docs/openssf-best-practices.md missing security reporting SLA status %q", required)
+		}
+	}
+}
+
 func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)

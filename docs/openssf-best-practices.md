@@ -25,7 +25,7 @@ maintainer availability, and CODE_OF_CONDUCT.
 | Feedback and contribution process | Met locally | `CONTRIBUTING.md`, issue templates, PR template, and `SECURITY.md` exist. |
 | License | Met locally | `LICENSE` is Apache-2.0. |
 | Version control and public source | Met locally | The repository uses Git and publishes source on GitHub. |
-| Security reporting | Met locally | `SECURITY.md` documents private reporting and acknowledgement expectations. P1-73 will add severity remediation targets. |
+| Security reporting | Met locally | `SECURITY.md` documents private reporting, acknowledgement expectations, and severity-based remediation targets. |
 | Automated tests and CI | Met locally | CI, CodeQL, Scorecard, nightly, release, docscheck, race, fuzz, vulnerability, and release-evidence gates exist. |
 | Release and artifact evidence | Met locally with publication review | Release runbook, SBOM signatures, provenance attestations, artifact verifier, and release review docs exist. P1-70 and P1-71 continue hardening. |
 | Repository branch protection | External gap | P1-69 must document code scanning merge protection and branch/ruleset enforcement. Local files cannot prove GitHub repository settings. |
