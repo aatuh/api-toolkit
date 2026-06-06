@@ -166,6 +166,7 @@ identifies the installed generator and contract tool.
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
+| [Audit and scratch archive policy](audits.md) | Maintainers and release reviewers | Keep local `.audits` and `.trash` scratch material out of tracked release evidence. |
 | [Release runbook](release-runbook.md) | Release operators | Command source of truth for local checks, release evidence, artifact verification, and baseline policy. |
 | [Release review checklist](release-review.md) | Release reviewers | Short path through summary fields, manifests, dirty-tree decisions, artifacts, and release notes. |
 | [Governance](governance.md) | Maintainers | Branch protection, CODEOWNERS, tag protection, required checks, and release approval expectations. |
@@ -221,7 +222,7 @@ important public docs disappear from navigation:
 `docs/api-reference.md`, `docs/core-readiness.md`, `docs/deprecations.md`, `docs/interface-ownership.md`,
 `docs/context-cancellation.md`, `docs/errors.md`, `docs/concurrency.md`,
 `docs/resource-lifecycle.md`, `docs/release-runbook.md`, `docs/release-review.md`,
-`docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
+`docs/audits.md`, `docs/release-notes.md`, `docs/release-manifests.md`, `docs/ports-surface.md`,
 `docs/v3-compatibility-roadmap.md`, `docs/production-readiness.md`,
 `docs/governance.md`, `docs/performance.md`,
 `docs/dependency-boundary.md`, `docs/dependency-risk.md`,

@@ -2244,20 +2244,23 @@ func TestReferenceServicePackageTestInventoryIsExplicit(t *testing.T) {
 
 func TestTrashArchiveStaysOutOfActiveDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	archiveReadme := readText(t, filepath.Join(repoRoot, ".trash", "README.md"))
+	policy := readText(t, filepath.Join(repoRoot, "docs", "audits.md"))
 	for _, required := range []string{
 		"not active product documentation",
 		"not active product",
 		"should not link into `.trash/`",
 		"explicit maintainer decision",
 	} {
-		if !strings.Contains(archiveReadme, required) {
-			t.Fatalf(".trash/README.md missing archive policy %q", required)
+		if !strings.Contains(policy, required) {
+			t.Fatalf("docs/audits.md missing archive policy %q", required)
 		}
 	}
 
 	var violations []string
 	for _, path := range docsQualityMarkdownFiles(t, repoRoot) {
+		if slashRel(repoRoot, path) == "docs/audits.md" {
+			continue
+		}
 		content := readText(t, path)
 		if strings.Contains(content, ".trash/") || strings.Contains(content, "../.trash") {
 			violations = append(violations, slashRel(repoRoot, path))
@@ -2389,6 +2392,34 @@ func TestDeterministicTestingPolicyDocsAreComplete(t *testing.T) {
 
 	if violations := goTestTimeSleepCalls(t, repoRoot); len(violations) > 0 {
 		t.Fatalf("Go test files must not call time.Sleep directly; use fake clocks, injected sleep, or bounded retry helpers:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestAuditAndArchiveScratchPolicyIsPublished(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	policy := readText(t, filepath.Join(repoRoot, "docs", "audits.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	if !strings.Contains(docsIndex, "[Audit and scratch archive policy](audits.md)") {
+		t.Fatal("docs/README.md missing audit and scratch archive policy link")
+	}
+	for _, required := range []string{
+		"`.audits/` and `.trash/` are local-only scratch directories",
+		"must not be tracked",
+		"not release evidence",
+		"`docs/archive/`",
+		"explicit status",
+		"`git ls-files -- .audits .trash`",
+		"`git log --all -- .audits .trash`",
+		"Promote durable findings into tracked docs",
+	} {
+		if !strings.Contains(policy, required) {
+			t.Fatalf("docs/audits.md missing audit/archive policy text %q", required)
+		}
+	}
+
+	if tracked := gitTrackedScratchPaths(t, repoRoot); len(tracked) > 0 {
+		t.Fatalf(".audits and .trash must remain local-only and untracked:\n%s", strings.Join(tracked, "\n"))
 	}
 }
 
@@ -6939,6 +6970,23 @@ func goTestTimeSleepCalls(t *testing.T, repoRoot string) []string {
 	}
 	sort.Strings(violations)
 	return violations
+}
+
+func gitTrackedScratchPaths(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "git", "ls-files", "--", ".audits", ".trash")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git ls-files scratch paths: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil
+	}
+	sort.Strings(lines)
+	return lines
 }
 
 func packageTestSource(t *testing.T, dir string) string {
