@@ -90,5 +90,8 @@ Every pull request should explain:
 - security impact,
 - benchmark or performance impact.
 
-Non-maintainer PRs require review. Maintainer direct pushes should still use the
-same checklist before release.
+Non-maintainer PRs require at least one approving review and CODEOWNERS review
+where ownership applies. Maintainer direct pushes should still use the same
+checklist, run the narrowest proving validation command, and confirm no local
+scratch files, secrets, `.audits`, or `.trash` entries are staged before
+release.

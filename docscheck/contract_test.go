@@ -4944,6 +4944,45 @@ func TestRaceCoverageCoversSharedMiddlewareState(t *testing.T) {
 	}
 }
 
+func TestPRReviewDisciplineGovernanceIsDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+
+	for _, required := range []string{
+		"Require pull requests before merge.",
+		"Require CODEOWNERS review using `.github/CODEOWNERS`.",
+		"Require at least one approving review for non-maintainer pull requests.",
+		"## PR Review Discipline",
+		"Repository branch protection should require pull requests, CODEOWNERS review",
+		"at least one approving review for non-maintainer pull requests",
+		"Maintainer",
+		"direct pushes are allowed only for tightly scoped maintenance",
+		"Maintainer self-review checklist for direct pushes",
+		"run the narrowest validation command that proves the change",
+		"check compatibility, security, dependency, generated-output, and docs impact",
+		"ensure `.audits`, `.trash`, local evidence, secrets, and generated scratch",
+		"create a focused Conventional Commit",
+		"make github-governance-check",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing PR review discipline %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Non-maintainer PRs require at least one approving review",
+		"CODEOWNERS review",
+		"Maintainer direct pushes should still use the same",
+		"checklist, run the narrowest proving validation command",
+		"no local",
+		"scratch files, secrets, `.audits`, or `.trash` entries are staged",
+	} {
+		if !strings.Contains(contributing, required) {
+			t.Fatalf("CONTRIBUTING.md missing PR review discipline %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 
@@ -4961,6 +5000,7 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 		"make release-api-check",
 		"ci / fuzz",
 		"dependency-review / dependency-review",
+		"Require at least one approving review for non-maintainer pull requests.",
 		"codeql",
 		"scorecard",
 		"make github-governance-check",

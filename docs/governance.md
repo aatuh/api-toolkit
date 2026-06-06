@@ -13,6 +13,7 @@ and `docs/stable-core.md`.
 - Protect `master` and release branches.
 - Require pull requests before merge.
 - Require CODEOWNERS review using `.github/CODEOWNERS`.
+- Require at least one approving review for non-maintainer pull requests.
 - Require the CI jobs that apply to the change:
   - `ci / test`, including `make coverage-check`, `make test-race`, and
     `make vuln`.
@@ -46,6 +47,31 @@ check branch protection, required status checks, CODEOWNERS review, force-push
 and deletion protection, and tag rulesets for both `refs/tags/v*` and
 `refs/tags/contrib/v*`. It skips cleanly when `gh` is not installed or
 authenticated, and it is not part of `finalize` or required PR CI.
+
+## PR Review Discipline
+
+Repository branch protection should require pull requests, CODEOWNERS review,
+and at least one approving review for non-maintainer pull requests. Maintainer
+direct pushes are allowed only for tightly scoped maintenance, release
+preparation, or urgent security work, and they still need a self-review before
+release evidence is accepted.
+
+Maintainer self-review checklist for direct pushes:
+
+- confirm the change is tied to a backlog item, security fix, release step, or
+  narrowly scoped maintenance task,
+- run the narrowest validation command that proves the change and record it in
+  the commit or release notes when relevant,
+- check compatibility, security, dependency, generated-output, and docs impact,
+- ensure `.audits`, `.trash`, local evidence, secrets, and generated scratch
+  files are not staged,
+- create a focused Conventional Commit,
+- before publishing a release, verify the direct-push commits are covered by
+  release evidence and reviewer checklist entries.
+
+Treat branch review settings as external GitHub state. When repository settings
+are accessible, attach `make github-governance-check` output or GitHub ruleset
+evidence during release review.
 
 ## Code Scanning Merge Protection
 
