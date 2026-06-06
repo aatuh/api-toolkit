@@ -12,6 +12,7 @@ without scanning the root README.
 | [Core package decision guide](core-package-guide.md) | Adopters and reviewers | Choose packages by use case, when-not-to-use guidance, stability tier, dependency note, and example link. |
 | [Scaffold-first path](scaffold-first.md) | New service teams | Generate app-owned service code and understand what the toolkit owns versus what the generated app owns. |
 | [Contrib adapter path](contrib-adapters.md) | Adapter adopters | Decide when to add supported contrib adapters, integrations, examples, or generator tooling. |
+| [CLI and scaffold identity](cli-scaffold-identity.md) | Adopters and maintainers | Decide how CLI, scaffold, generated-service, and library-first identities stay separate. |
 | [Stable core charter](stable-core.md) | New users and maintainers | Decide which root packages are the recommended small-core dependency surface and what evidence stable packages need. |
 | [Roadmap and non-goals](../ROADMAP.md) | Adopters and contributors | See current direction, candidate work, explicit non-goals, and proposal rules. |
 | [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveats for each stable package. |
@@ -214,6 +215,7 @@ important public docs disappear from navigation:
 
 `README.md`, `ROADMAP.md`, `docs/library-first.md`, `docs/minimal-core.md`,
 `docs/core-package-guide.md`, `docs/scaffold-first.md`,
+`docs/cli-scaffold-identity.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/migration/v3.md`, `docs/troubleshooting.md`,
 `docs/security.md`, `docs/threat-model.md`, `docs/auth.md`, `docs/idempotency.md`,

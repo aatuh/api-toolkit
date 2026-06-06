@@ -64,6 +64,7 @@ Go 1.25.x.
 - Browse stable API references: [docs/api-reference.md](docs/api-reference.md)
 - Generate a new app-owned service scaffold: [docs/scaffold-first.md](docs/scaffold-first.md)
 - Wire supported adapters: [docs/contrib-adapters.md](docs/contrib-adapters.md)
+- Review CLI/scaffold identity: [docs/cli-scaffold-identity.md](docs/cli-scaffold-identity.md)
 - Review the stable-core charter: [docs/stable-core.md](docs/stable-core.md)
 - Review the public roadmap and non-goals: [ROADMAP.md](ROADMAP.md)
 - Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)

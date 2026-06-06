@@ -4922,6 +4922,36 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 	}
 }
 
+func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	decision := readText(t, filepath.Join(repoRoot, "docs", "cli-scaffold-identity.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	combined := decision + "\n" + readme + "\n" + docsIndex + "\n" + roadmap
+
+	for _, required := range []string{
+		"# CLI And Scaffold Identity",
+		"api-toolkit remains library-first",
+		"github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit",
+		"outside the stable core API promise",
+		"generated services as app-owned code",
+		"Do not move scaffold-only dependencies",
+		"api-toolkit-cli",
+		"smallest useful library dependency",
+		"`docs/library-first.md`",
+		"`docs/minimal-core.md`",
+		"`docs/v4-plan.md`",
+		"`docs/adr/0001-module-boundaries.md`",
+		"docs/cli-scaffold-identity.md",
+		"[CLI and scaffold identity](cli-scaffold-identity.md)",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("CLI/scaffold identity decision missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
