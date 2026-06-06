@@ -5012,6 +5012,34 @@ func TestPRReviewDisciplineGovernanceIsDocumented(t *testing.T) {
 	}
 }
 
+func TestPublicRepositoryMetadataTargetIsDocumented(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+
+	for _, required := range []string{
+		"## Public Repository Metadata",
+		"library-first positioning",
+		"Required description:",
+		"Small Go HTTP API building blocks for JSON APIs, middleware, OpenAPI contracts, and service scaffolds.",
+		"Required topics:",
+		"`go`",
+		"`http`",
+		"`api`",
+		"`middleware`",
+		"`openapi`",
+		"Avoid broad topics",
+		"`framework`",
+		"`microservices`",
+		"`clean-architecture`",
+		"`ports-and-adapters`",
+		"`developer-tools`",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing public repository metadata target %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 

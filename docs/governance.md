@@ -106,6 +106,28 @@ supply-chain-governance finding: remediate it before release publication or
 record an explicit release-review disposition that explains why the lower score
 is accepted for that release.
 
+## Public Repository Metadata
+
+GitHub About metadata should reinforce the library-first positioning and avoid
+generic framework overreach.
+
+Required description:
+
+`Small Go HTTP API building blocks for JSON APIs, middleware, OpenAPI contracts, and service scaffolds.`
+
+Required topics:
+
+- `go`
+- `http`
+- `api`
+- `middleware`
+- `openapi`
+
+Avoid broad topics such as `framework`, `microservices`, `clean-architecture`,
+`ports-and-adapters`, or `developer-tools` unless the project is deliberately
+repositioned and the README, alternatives, and stable-core charter change in
+the same review.
+
 ## Release Approval
 
 Release reviewers use `docs/release-runbook.md` as the command source of truth
