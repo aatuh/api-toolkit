@@ -4856,6 +4856,7 @@ func TestPublicRoadmapDocumentsNonGoals(t *testing.T) {
 		"# Roadmap",
 		"## Current Focus",
 		"## Next Candidates",
+		"## Open Design Review Issues",
 		"## Non-Goals",
 		"## Decision Rules",
 		"## How To Propose Changes",
@@ -4871,6 +4872,10 @@ func TestPublicRoadmapDocumentsNonGoals(t *testing.T) {
 		"docs/dependency-boundary.md",
 		"docs/scaffold-support.md",
 		"docs/alternatives.md",
+		"https://github.com/aatuh/api-toolkit/issues/29",
+		"https://github.com/aatuh/api-toolkit/issues/30",
+		"https://github.com/aatuh/api-toolkit/issues/31",
+		"https://github.com/aatuh/api-toolkit/issues/32",
 		"[ROADMAP.md](ROADMAP.md)",
 		"[Roadmap and non-goals](../ROADMAP.md)",
 	} {

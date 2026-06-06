@@ -35,6 +35,16 @@ release-review evidence justifies the maintenance cost:
 | Generated scaffold refinements | The generated change must remain app-owned and should not add product-domain assumptions. |
 | Performance-focused hardening | Benchmarks must identify a real hot path and preserve safety behavior. |
 
+## Open Design Review Issues
+
+Use these issues to give focused external feedback before roadmap candidates
+turn into implementation work:
+
+- [Stable core size and package boundaries](https://github.com/aatuh/api-toolkit/issues/29)
+- [Root ports shape and interface ownership](https://github.com/aatuh/api-toolkit/issues/30)
+- [Generated scaffold scope and ownership](https://github.com/aatuh/api-toolkit/issues/31)
+- [Contrib adapter policy and support tiers](https://github.com/aatuh/api-toolkit/issues/32)
+
 ## Non-Goals
 
 api-toolkit will not try to become:
