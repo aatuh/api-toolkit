@@ -71,6 +71,7 @@ Dependency note legend:
 | `apiclient` | Client-side Problem Details and precondition helpers. | You build small stdlib clients. | Generated clients own all behavior. | stable | root-only | [example](../apiclient/example_test.go) |
 | `apitest` | HTTP assertion helpers. | Tests need deterministic API response checks. | The production runtime needs assertions. | stable | test-only | [example](../apitest/example_test.go) |
 | `contracttest` | Route/OpenAPI contract assertions. | Tests need route contract checks. | Production code needs runtime behavior. | stable | test-only | [example](../contracttest/example_test.go) |
+| `compatkit` | Downstream HTTP compatibility checks. | Service tests need reusable upgrade evidence against a handler or base URL. | Package-local unit tests or direct contracttest assertions are enough. | experimental | test-only | [example](../compatkit/example_test.go) |
 | `httpx/recover` | Panic recovery middleware. | You need deterministic Problem Details for panics. | Another recovery layer already owns panic handling. | stable | root-only | [example](../httpx/recover/example_test.go) |
 | `email` | Email sender contract types. | You need a tiny app-owned email boundary. | Provider-specific workflow belongs in app code. | stable | root-only | [example](../email/example_test.go) |
 | `scheduler` | Scheduler abstractions and recorder helpers. | Background jobs need toolkit-compatible contracts. | A workflow engine owns scheduling. | stable | root-only | [example](../scheduler/example_test.go) |
@@ -78,4 +79,3 @@ Dependency note legend:
 | `compat/billing` | Hosted-checkout compatibility model. | Existing v3 billing compatibility is required. | You design new billing workflows. | compatibility-only | compat | [example](../compat/billing/example_test.go) |
 | `scheduler/migrations` | Migration compatibility asset. | Existing migration compatibility needs it. | New migration orchestration is app-owned. | compatibility-only | compat | [example](../scheduler/migrations/example_test.go) |
 | `swagstub` | Tooling compatibility shim. | Existing v3 tooling expects it. | New runtime code needs docs behavior. | compatibility-only | compat | [example](../swagstub/example_test.go) |
-

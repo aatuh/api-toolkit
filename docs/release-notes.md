@@ -74,6 +74,16 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-06-06
+
+### Test evidence and compatibility
+
+- Added experimental `github.com/aatuh/api-toolkit/v3/compatkit` downstream
+  compatibility test support. Services can run readiness, version, Problem
+  Details, OpenAPI compatibility, and custom HTTP checks against an in-process
+  handler or explicit base URL without promoting the package to the stable API
+  surface.
+
 ## 2026-05-21
 
 ### Release baseline maintenance

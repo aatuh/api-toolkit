@@ -5041,12 +5041,49 @@ func TestStableAPIReviewBoardProcessRequiresDesignIssueCommentWindowAndApproval(
 		"docs/package-owners.tsv",
 		"docs/api-inventory.md",
 		"docs/release-notes.md",
-		"stable API review board process in `docs/governance.md`",
+		"API review board process in `docs/governance.md`",
 		"a public design issue, at least 7 calendar",
 		"[Governance](governance.md)",
 	} {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("stable API review board process missing %q", required)
+		}
+	}
+}
+
+func TestDownstreamCompatibilityKitIsRunnableByExternalServices(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	pkg := readText(t, filepath.Join(repoRoot, "compatkit", "compatkit.go"))
+	doc := readText(t, filepath.Join(repoRoot, "compatkit", "doc.go"))
+	example := readText(t, filepath.Join(repoRoot, "compatkit", "example_test.go"))
+	guide := readText(t, filepath.Join(repoRoot, "docs", "downstream-compatibility.md"))
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	owners := readText(t, filepath.Join(repoRoot, "docs", "package-owners.tsv"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	combined := pkg + "\n" + doc + "\n" + example + "\n" + guide + "\n" + classification + "\n" + owners + "\n" + docsIndex + "\n" + releaseNotes
+
+	for _, required := range []string{
+		"package compatkit",
+		"func Run(t testing.TB, suite Suite)",
+		"func RunChecks(ctx context.Context, suite Suite) Result",
+		"type StableHTTPConfig struct",
+		"func StableHTTPChecks(cfg StableHTTPConfig) []Check",
+		"Target{Handler:",
+		"Target{BaseURL:",
+		"ExpectOpenAPICompatible",
+		"MaxBodyBytes",
+		"request path must be relative to the suite target",
+		"Experimental test-support package",
+		"docs/downstream-compatibility.md",
+		"github.com/aatuh/api-toolkit/v3/compatkit\texperimental\tdirect-tests",
+		"github.com/aatuh/api-toolkit/v3/compatkit\tcore-maintainers\texperimental\tcore-test-maintainers\tnon-blocking-experimental",
+		"[Downstream compatibility kit](downstream-compatibility.md)",
+		"API review board process in `docs/governance.md`",
+		"handler or explicit base URL",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("downstream compatibility kit evidence missing %q", required)
 		}
 	}
 }

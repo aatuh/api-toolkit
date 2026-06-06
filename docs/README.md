@@ -148,6 +148,7 @@ identifies the installed generator and contract tool.
 | [Versioning](../VERSIONING.md) | API consumers and maintainers | Define the stable core API surface and contrib compatibility policy. |
 | [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
 | [API reference index](api-reference.md) | API consumers | Jump from each stable or compatibility-only root package to pkg.go.dev and its compile-checked example. |
+| [Downstream compatibility kit](downstream-compatibility.md) | API consumers | Run experimental `compatkit` service checks against an in-process handler or explicit base URL. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
 | [Governance](governance.md) | Maintainers | Review stable API review board process, branch protection, CODEOWNERS, required checks, tag protection, and release approval expectations. |
 | [API addition example exceptions](api-addition-exceptions.tsv) | Maintainers | Record exact symbol exceptions when a new stable exported identifier has a doc comment and release note but a compile-checked example would mislead. |
@@ -226,7 +227,8 @@ important public docs disappear from navigation:
 `docs/observability.md`, `docs/scaffold-support.md`,
 `docs/adapter-maturity.md`, `docs/safe-defaults.md`,
 `docs/middleware-safety.md`, `docs/input-size-threat-review.md`,
-`docs/testing.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `docs/metrics.md`,
+`docs/testing.md`, `docs/downstream-compatibility.md`, `SECURITY.md`,
+`CODE_OF_CONDUCT.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`, `docs/license-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,
 `VERSIONING.md`, `docs/api-inventory.md`, `docs/api-review-checklist.md`,

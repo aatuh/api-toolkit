@@ -24,6 +24,7 @@ github.com/aatuh/api-toolkit/v3/apitest	stable	direct-tests	Stable HTTP API resp
 github.com/aatuh/api-toolkit/v3/authorization	stable	direct-tests	Core authorization context helpers.
 github.com/aatuh/api-toolkit/v3/binding	stable	direct-tests	Stable request binding and validation Problem Details helpers.
 github.com/aatuh/api-toolkit/v3/compat/billing	compatibility-only	direct-tests	Explicit hosted-checkout and billing compatibility package.
+github.com/aatuh/api-toolkit/v3/compatkit	experimental	direct-tests	Experimental downstream service compatibility test runner.
 github.com/aatuh/api-toolkit/v3/contracttest	stable	direct-tests	Stable route, OpenAPI, and problem catalog contract test helpers.
 github.com/aatuh/api-toolkit/v3/docscheck	excluded	direct-tests	Repository contract tests, not public API.
 github.com/aatuh/api-toolkit/v3/email	stable	direct-tests	Core email port types.

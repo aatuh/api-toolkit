@@ -4,6 +4,7 @@ github.com/aatuh/api-toolkit/v3/apitest	core-maintainers	stable	core-test-mainta
 github.com/aatuh/api-toolkit/v3/authorization	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v3/binding	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v3/compat/billing	core-maintainers	compatibility-only	core-test-maintainers	release-blocking-stable
+github.com/aatuh/api-toolkit/v3/compatkit	core-maintainers	experimental	core-test-maintainers	non-blocking-experimental
 github.com/aatuh/api-toolkit/v3/contracttest	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v3/docscheck	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/email	core-maintainers	stable	core-test-maintainers	release-blocking-stable
