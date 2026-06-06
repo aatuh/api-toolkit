@@ -6085,6 +6085,91 @@ func TestLargeResponseStreamingOptOutEvidenceIsExecutable(t *testing.T) {
 	}
 }
 
+func TestSecurityEdgeCaseEvidenceIsExecutable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	jwtTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "jwt", "middleware_test.go"))
+	apiKeyTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "apikey", "apikey_test.go"))
+	tenantTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "tenant", "tenant_test.go"))
+	idempotencyTests := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "idempotency_test.go"))
+	webhookTests := readText(t, filepath.Join(repoRoot, "webhooks", "webhooks_test.go"))
+	webhookReplayTests := readText(t, filepath.Join(repoRoot, "webhooks", "replay_test.go"))
+	jwtCode := readText(t, filepath.Join(repoRoot, "middleware", "auth", "jwt", "middleware.go"))
+	webhookCode := readText(t, filepath.Join(repoRoot, "webhooks", "webhooks.go")) + "\n" +
+		readText(t, filepath.Join(repoRoot, "webhooks", "replay.go"))
+
+	for _, required := range []string{
+		"func TestHandlerRejectsDuplicateAuthorizationHeaders",
+		"expired token",
+		"not yet valid token",
+		"AllowedClockSkew",
+	} {
+		if !strings.Contains(jwtTests, required) {
+			t.Fatalf("middleware/auth/jwt/middleware_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestHandlerRejectsDuplicateAuthorizationAPIKeys",
+		"invalid API key credentials",
+	} {
+		if !strings.Contains(apiKeyTests, required) {
+			t.Fatalf("middleware/auth/apikey/apikey_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestTenantMiddlewareRequiresTenant",
+		"func TestTenantMiddlewareMismatch",
+		"func TestTenantMiddlewareHeaderMultipleValues",
+	} {
+		if !strings.Contains(tenantTests, required) {
+			t.Fatalf("middleware/auth/tenant/tenant_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestIdempotencyRejectsReplayAcrossDifferentActors",
+		"func TestIdempotencyRejectsReplayAcrossDifferentTenants",
+		"func TestTenantScopedStorageKeyFuncIsolatesTenantsAndPreservesClientReplayKey",
+		"clock-skew-sensitive",
+	} {
+		if !strings.Contains(idempotencyTests, required) {
+			t.Fatalf("middleware/idempotency/idempotency_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestHMACVerifierRejectsDuplicateSignatureHeaders",
+		"func TestHMACVerifierRejectsMissingMalformedAndWrongSignatures",
+		"ErrInvalidSignature",
+	} {
+		if !strings.Contains(webhookTests, required) {
+			t.Fatalf("webhooks/webhooks_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"func TestCheckReplayWindowRejectsDuplicateSecurityHeaders",
+		"outside",
+		"RequireEventID",
+	} {
+		if !strings.Contains(webhookReplayTests, required) {
+			t.Fatalf("webhooks/replay_test.go missing security edge evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		`r.Header.Values("Authorization")`,
+		"ParseBearerTokenValues",
+	} {
+		if !strings.Contains(jwtCode, required) {
+			t.Fatalf("middleware/auth/jwt/middleware.go missing ambiguous authorization parsing guard %q", required)
+		}
+	}
+	for _, required := range []string{
+		"singleHeaderValue",
+		"Header.Values",
+	} {
+		if !strings.Contains(webhookCode, required) {
+			t.Fatalf("webhooks package missing duplicate security header parsing guard %q", required)
+		}
+	}
+}
+
 func TestRuntimeCompatibilityGoldenCoversStableHTTPContracts(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	testSource := readText(t, filepath.Join(repoRoot, "contracttest", "runtime_compat_test.go"))

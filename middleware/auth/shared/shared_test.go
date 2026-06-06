@@ -54,6 +54,19 @@ func TestParseBearerToken(t *testing.T) {
 	}
 }
 
+func TestParseBearerTokenValuesRejectsDuplicateAuthorizationHeaders(t *testing.T) {
+	token, present, err := ParseBearerTokenValues([]string{"Bearer valid", "Bearer attacker"})
+	if err == nil {
+		t.Fatal("expected duplicate authorization header error")
+	}
+	if !present {
+		t.Fatal("expected duplicate authorization headers to count as present")
+	}
+	if token != "" {
+		t.Fatalf("expected empty token for duplicate authorization headers, got %q", token)
+	}
+}
+
 func TestNormalizeAlgorithms(t *testing.T) {
 	got, err := NormalizeAlgorithms([]string{"RS256", " rs256 ", "HS256", ""})
 	if err != nil {

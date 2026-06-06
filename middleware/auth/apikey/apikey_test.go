@@ -68,6 +68,10 @@ func TestHandlerRejectsMissingMalformedAndInvalidKeys(t *testing.T) {
 			h.Set("Authorization", "ApiKey secret")
 			h.Set("X-API-Key", "secret")
 		}, want: http.StatusBadRequest, body: "invalid API key credentials"},
+		{name: "duplicate authorization api keys", header: func(h http.Header) {
+			h.Add("Authorization", "ApiKey secret")
+			h.Add("Authorization", "ApiKey other")
+		}, want: http.StatusBadRequest, body: "invalid API key credentials"},
 		{name: "invalid", header: func(h http.Header) {
 			h.Set("X-API-Key", "wrong")
 		}, want: http.StatusUnauthorized, body: "invalid API key"},
@@ -89,6 +93,25 @@ func TestHandlerRejectsMissingMalformedAndInvalidKeys(t *testing.T) {
 				t.Fatalf("body = %s, want %q", rec.Body.String(), tt.body)
 			}
 		})
+	}
+}
+
+func TestHandlerRejectsDuplicateAuthorizationAPIKeys(t *testing.T) {
+	mw := newTestMiddleware(t, Principal{ID: "key_123"})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Add("Authorization", "ApiKey secret")
+	req.Header.Add("Authorization", "ApiKey other")
+	rec := httptest.NewRecorder()
+
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next should not run for duplicate API key authorization headers")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "invalid API key credentials") {
+		t.Fatalf("body = %s, want invalid API key credentials", rec.Body.String())
 	}
 }
 

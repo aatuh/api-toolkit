@@ -49,6 +49,38 @@ func TestHandlerReturnsUnauthorizedWhenAuthorizationHeaderMalformed(t *testing.T
 	}
 }
 
+func TestHandlerRejectsDuplicateAuthorizationHeaders(t *testing.T) {
+	kf, privateKey := newTestKeyfunc(t)
+	now := time.Now()
+	mw := &Middleware{
+		cfg: Config{
+			Issuer:   "https://issuer.example",
+			Audience: "example",
+		},
+		jwks:        kf,
+		enabled:     true,
+		log:         ports.NopLogger{},
+		allowedAlgs: []string{"RS256"},
+		claimReq: claimRequirements{
+			requireSubject:    true,
+			requireExpiration: true,
+		},
+	}
+	token := signToken(t, jwt.SigningMethodRS256, baseClaims(now), privateKey, "test-kid")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Authorization", "Bearer attacker")
+	mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for ambiguous authorization headers")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected duplicate authorization headers to fail closed with 401, got %d", rec.Code)
+	}
+}
+
 func TestHandlerAcceptsValidTokenAndStoresSubject(t *testing.T) {
 	kf, privateKey := newTestKeyfunc(t)
 	now := time.Now()

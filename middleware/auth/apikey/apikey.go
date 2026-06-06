@@ -223,6 +223,7 @@ func presentedKeyFromRequest(r *http.Request, headers []string) (PresentedKey, e
 }
 
 func apiKeyFromAuthorization(values []string) (string, bool, error) {
+	var found string
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -238,9 +239,15 @@ func apiKeyFromAuthorization(values []string) (string, bool, error) {
 		if len(parts) != 2 || strings.TrimSpace(parts[1]) == "" {
 			return "", false, errMalformedCredential
 		}
-		return parts[1], true, nil
+		if found != "" {
+			return "", false, errMultipleCredentials
+		}
+		found = parts[1]
 	}
-	return "", false, nil
+	if found == "" {
+		return "", false, nil
+	}
+	return found, true, nil
 }
 
 func normalizeHeaders(headers []string) []string {

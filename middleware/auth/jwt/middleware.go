@@ -181,7 +181,7 @@ func tokenFromRequest(r *http.Request) (string, bool, error) {
 	if r == nil {
 		return "", false, errors.New("request is nil")
 	}
-	return parseBearerToken(r.Header.Get("Authorization"))
+	return shared.ParseBearerTokenValues(r.Header.Values("Authorization"))
 }
 
 func parseBearerToken(header string) (string, bool, error) {

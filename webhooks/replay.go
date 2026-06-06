@@ -42,8 +42,11 @@ func CheckReplayWindow(r *http.Request, config ReplayConfig) ReplayDecision {
 	if eventIDHeader == "" {
 		eventIDHeader = EventIDHeader
 	}
-	eventID := strings.TrimSpace(r.Header.Get(eventIDHeader))
-	if config.RequireEventID && eventID == "" {
+	eventID, eventIDPresent, err := singleHeaderValue(r, eventIDHeader)
+	if err != nil {
+		return ReplayDecision{Allowed: false, Reason: "webhook event id header is invalid"}
+	}
+	if config.RequireEventID && !eventIDPresent {
 		return ReplayDecision{Allowed: false, Reason: "webhook event id is required"}
 	}
 	if config.Tolerance <= 0 {
@@ -53,8 +56,11 @@ func CheckReplayWindow(r *http.Request, config ReplayConfig) ReplayDecision {
 	if timestampHeader == "" {
 		timestampHeader = TimestampHeader
 	}
-	rawTimestamp := strings.TrimSpace(r.Header.Get(timestampHeader))
-	if rawTimestamp == "" {
+	rawTimestamp, timestampPresent, err := singleHeaderValue(r, timestampHeader)
+	if err != nil {
+		return ReplayDecision{Allowed: false, Reason: "webhook timestamp header is invalid", EventID: eventID}
+	}
+	if !timestampPresent {
 		return ReplayDecision{Allowed: false, Reason: "webhook timestamp is required", EventID: eventID}
 	}
 	timestamp, err := parseWebhookTimestamp(rawTimestamp)

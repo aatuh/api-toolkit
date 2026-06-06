@@ -68,6 +68,21 @@ func TestHMACVerifierRejectsMissingMalformedAndWrongSignatures(t *testing.T) {
 	}
 }
 
+func TestHMACVerifierRejectsDuplicateSignatureHeaders(t *testing.T) {
+	body := []byte(`{"id":"evt_1"}`)
+	verifier, err := NewHMACSHA256Verifier(HMACConfig{Secret: []byte("secret")})
+	if err != nil {
+		t.Fatalf("NewHMACSHA256Verifier() error = %v", err)
+	}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+	req.Header.Add("X-Signature", signHex(body, "secret"))
+	req.Header.Add("X-Signature", signHex(body, "attacker"))
+
+	if err := verifier.VerifyWebhook(context.Background(), req, body); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("duplicate signature error = %v, want %v", err, ErrInvalidSignature)
+	}
+}
+
 func TestReceiverAcceptsVerifiedJSONEvent(t *testing.T) {
 	body := []byte(`{"id":"evt_1"}`)
 	verifier, err := NewHMACSHA256Verifier(HMACConfig{Secret: []byte("secret")})

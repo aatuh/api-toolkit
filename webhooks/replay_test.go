@@ -26,6 +26,28 @@ func TestCheckReplayWindow(t *testing.T) {
 	}
 }
 
+func TestCheckReplayWindowRejectsDuplicateSecurityHeaders(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+
+	duplicateTimestamp := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhooks", nil)
+	duplicateTimestamp.Header.Add(TimestampHeader, now.Format(time.RFC3339))
+	duplicateTimestamp.Header.Add(TimestampHeader, now.Add(time.Hour).Format(time.RFC3339))
+	duplicateTimestamp.Header.Set(EventIDHeader, "evt_1")
+	decision := CheckReplayWindow(duplicateTimestamp, ReplayConfig{Tolerance: time.Minute, RequireEventID: true, Now: func() time.Time { return now }})
+	if decision.Allowed || !strings.Contains(decision.Reason, "timestamp") || !strings.Contains(decision.Reason, "invalid") {
+		t.Fatalf("duplicate timestamp decision = %#v", decision)
+	}
+
+	duplicateEventID := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhooks", nil)
+	duplicateEventID.Header.Set(TimestampHeader, now.Format(time.RFC3339))
+	duplicateEventID.Header.Add(EventIDHeader, "evt_1")
+	duplicateEventID.Header.Add(EventIDHeader, "evt_attacker")
+	decision = CheckReplayWindow(duplicateEventID, ReplayConfig{Tolerance: time.Minute, RequireEventID: true, Now: func() time.Time { return now }})
+	if decision.Allowed || !strings.Contains(decision.Reason, "event id") || !strings.Contains(decision.Reason, "invalid") {
+		t.Fatalf("duplicate event id decision = %#v", decision)
+	}
+}
+
 func TestReceiverRejectsMissingReplayEventID(t *testing.T) {
 	receiver := Receiver[map[string]string]{Config: ReceiverConfig[map[string]string]{
 		Verifier: VerifierFunc(func(context.Context, *http.Request, []byte) error { return nil }),

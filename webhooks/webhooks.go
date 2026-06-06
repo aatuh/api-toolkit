@@ -68,8 +68,11 @@ func NewHMACSHA256Verifier(config HMACConfig) (Verifier, error) {
 		config.HeaderName = "X-Signature"
 	}
 	return VerifierFunc(func(ctx context.Context, r *http.Request, body []byte) error {
-		signature := strings.TrimSpace(r.Header.Get(config.HeaderName))
-		if signature == "" {
+		signature, ok, err := singleHeaderValue(r, config.HeaderName)
+		if err != nil {
+			return ErrInvalidSignature
+		}
+		if !ok {
 			return ErrMissingSignature
 		}
 		if config.Prefix != "" {
@@ -241,4 +244,22 @@ func decodeSignature(signature string, encoding SignatureEncoding) ([]byte, erro
 	default:
 		return nil, fmt.Errorf("unsupported signature encoding")
 	}
+}
+
+func singleHeaderValue(r *http.Request, headerName string) (string, bool, error) {
+	if r == nil {
+		return "", false, fmt.Errorf("request is required")
+	}
+	values := r.Header.Values(headerName)
+	if len(values) == 0 {
+		return "", false, nil
+	}
+	if len(values) > 1 {
+		return "", true, fmt.Errorf("%s header has multiple values", headerName)
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return "", false, nil
+	}
+	return value, true, nil
 }

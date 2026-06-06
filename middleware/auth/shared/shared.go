@@ -221,6 +221,18 @@ func ParseBearerToken(header string) (string, bool, error) {
 	return token, true, nil
 }
 
+// ParseBearerTokenValues extracts a bearer token from Authorization header
+// values and rejects duplicated headers instead of trusting the first value.
+func ParseBearerTokenValues(values []string) (string, bool, error) {
+	if len(values) == 0 {
+		return "", false, nil
+	}
+	if len(values) > 1 {
+		return "", true, errors.New("authorization header contains multiple values")
+	}
+	return ParseBearerToken(values[0])
+}
+
 // AuthErrorDetail converts header parse results into a stable log message.
 func AuthErrorDetail(err error, present bool) string {
 	if err != nil {
