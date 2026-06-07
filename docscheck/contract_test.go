@@ -1272,6 +1272,61 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 	}
 }
 
+func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+
+	for _, required := range []string{
+		"Classify release tag",
+		`^v[0-9]+\.[0-9]+\.0-rc\.[0-9]+$`,
+		"release_kind=release-candidate",
+		"prerelease=true",
+		"prerelease: ${{ steps.release_kind.outputs.prerelease }}",
+		"Unsupported release tag $tag; use vX.Y.Z or vX.Y.0-rc.N.",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/release.yml missing release-candidate flow %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Minor releases that touch the stable surface",
+		"`vX.Y.0-rc.1`",
+		"`vX.Y.0-rc.2`",
+		"No stable surface touch",
+		"latest published stable v3 tag",
+		"RELEASE_TAG=vX.Y.0-rc.1",
+		"prerelease: true",
+		"Do not advance the supported v3 baseline to an RC tag",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing release-candidate policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"`vX.Y.0-rc.1` prerelease before the final stable `vX.Y.0` tag",
+		"do not advance the supported baseline to an RC tag",
+		"tag matches `vX.Y.0-rc.N`",
+		"RELEASE_TAG=vX.Y.0-rc.1",
+		"increment the RC number instead of retagging",
+	} {
+		if !strings.Contains(review, required) {
+			t.Fatalf("docs/release-review.md missing release-candidate checklist %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Minor releases that touch the stable surface must publish a `vX.Y.0-rc.1`",
+		"before the final stable `vX.Y.0` tag",
+		"latest published stable v3 tag, not a previous RC",
+	} {
+		if !strings.Contains(versioning, required) {
+			t.Fatalf("VERSIONING.md missing release-candidate versioning policy %q", required)
+		}
+	}
+}
+
 func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	cmd := exec.CommandContext(context.Background(), "bash", "scripts/release_check_summary.sh")

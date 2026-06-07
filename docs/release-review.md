@@ -16,6 +16,9 @@ Use this as the short reviewer path before publishing a release.
 - First v3 major-release evidence may use `API_BASE_REF=v2.1.0` only as
   documented v2-to-v3 transition evidence; later v3 releases compare against
   the latest published v3 tag.
+- For a minor release that touches the stable surface, require a published
+  `vX.Y.0-rc.1` prerelease before the final stable `vX.Y.0` tag. RC evidence
+  still uses the latest published stable v3 tag as `API_BASE_REF`; do not advance the supported baseline to an RC tag.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`,
@@ -43,6 +46,10 @@ Use this as the short reviewer path before publishing a release.
   for signed SBOMs, certificates, and provenance attestations.
 - Check `docs/release-notes.md` for behavior changes, upgrade notes, and any
   incompatible contrib drift acknowledgement.
+- For release candidates, confirm the GitHub draft release uses
+  `prerelease: true`, the tag matches `vX.Y.0-rc.N`, publication verification
+  used `RELEASE_TAG=vX.Y.0-rc.1` or the matching RC tag, and replacement
+  candidates increment the RC number instead of retagging.
 - Check `VERSIONING.md` for the stable core package list and command intent.
 - Check `docs/package-classification.tsv` for public package API and test
   posture changes.

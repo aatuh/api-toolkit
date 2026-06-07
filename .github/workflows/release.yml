@@ -29,6 +29,22 @@ jobs:
           go-version: 1.25.x
           check-latest: true
 
+      - name: Classify release tag
+        id: release_kind
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.0-rc\.[0-9]+$ ]]; then
+            echo "release_kind=release-candidate" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release_kind=stable" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported release tag $tag; use vX.Y.Z or vX.Y.0-rc.N." >&2
+            exit 2
+          fi
+
       - name: Generate clean publication evidence
         run: make release-evidence
 
@@ -107,7 +123,12 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # softprops/action-gh-release v3.0.0
         with:
           draft: true
+          prerelease: ${{ steps.release_kind.outputs.prerelease }}
           fail_on_unmatched_files: true
+          body: |
+            Release kind: ${{ steps.release_kind.outputs.release_kind }}.
+
+            Release candidates use `vX.Y.0-rc.N` tags and are marked as GitHub prereleases. Promote only by tagging the final stable `vX.Y.0` after clean release evidence and release review.
           files: |
             release-check-summary.json
             release-evidence-logs.tgz

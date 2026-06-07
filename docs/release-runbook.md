@@ -23,6 +23,41 @@ update this line first, then update command examples in `README.md`,
 mention the supported baseline, and any release evidence fixtures in the same
 change. Do not introduce a second baseline table in another document.
 
+## Release candidate flow
+
+Minor releases that touch the stable surface must publish at least one release
+candidate before the final stable tag. Use `vX.Y.0-rc.1` for the first
+candidate, then `vX.Y.0-rc.2`, `vX.Y.0-rc.3`, and so on for replacement
+candidates. Do not delete or retag release candidates after publication.
+
+A stable-surface touch includes any new stable root package, newly exported
+stable identifier, stable package behavior change that adopters may notice, or
+compatibility-sensitive deprecation/migration helper intended for the next
+minor release. Patch releases and minor releases with no stable-surface touch
+may skip the release-candidate path only when the release review records
+`No stable surface touch`.
+
+Release candidates use the same clean release evidence path as stable releases:
+
+1. Keep `API_BASE_REF` set to the latest published stable v3 tag, not to a
+   previous release candidate.
+2. Run `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` from a
+   clean worktree.
+3. Tag the candidate as `vX.Y.0-rc.1`.
+4. Let `.github/workflows/release.yml` create a draft GitHub prerelease with
+   `prerelease: true`.
+5. Verify draft assets with
+   `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.0-rc.1 GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+6. Publish the draft as a prerelease, collect adopter and maintainer feedback,
+   and record any required fixes in `docs/release-notes.md`.
+7. For each replacement candidate, rerun clean evidence and tag the next
+   `vX.Y.0-rc.N`; never mutate an existing RC tag.
+8. Promote only by rerunning clean evidence and tagging the final stable
+   `vX.Y.0` after release review accepts the candidate feedback.
+
+Do not advance the supported v3 baseline to an RC tag. The baseline moves only
+after the final stable `vX.Y.0` release is published.
+
 ## Commands
 
 | Command | Intent | Output |
@@ -73,6 +108,7 @@ Use this command sequence before publishing:
 11. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
 12. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
 13. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+14. For a release candidate, use `RELEASE_TAG=vX.Y.0-rc.1` in the same publication verification command and confirm the draft release is marked as a GitHub prerelease.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
