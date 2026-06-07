@@ -2833,6 +2833,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
 	generatedSoakScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_soak_check.sh"))
+	generatedFailureScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_failure_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
 	upgradeSmokeScript := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_check.sh"))
 	referenceCoverageScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_coverage.sh"))
@@ -2851,6 +2852,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-contract:",
 		"generated-soak-check:",
 		"generated-soak-contract:",
+		"generated-failure-check:",
+		"generated-failure-contract:",
 		"generated-upgrade-compat-check:",
 		"upgrade-smoke-check:",
 		"upgrade-smoke-contract:",
@@ -2882,6 +2885,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-soak-contract") {
 		t.Fatal("docs-check must include generated-soak-contract")
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-failure-contract") {
+		t.Fatal("docs-check must include generated-failure-contract")
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) reference-service-load-contract") {
 		t.Fatal("docs-check must include reference-service-load-contract")
@@ -2936,6 +2942,29 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	} {
 		if !strings.Contains(generatedSoakScript, required) {
 			t.Fatalf("generated soak script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"GENERATED_FAILURE_RESULT_DIR must be a repo-relative path without .. components",
+		".ci-result/generated-failure",
+		"--profile saas-api-full",
+		"--auth api-key",
+		"--auth jwt",
+		"generated_failure_test.go",
+		"generated_failure_jwt_test.go",
+		"TestGeneratedFailureReadinessFailsClosedForPostgresAndRedis",
+		"TestGeneratedFailureExpiredManagedAPIKeyIsRejected",
+		"TestGeneratedFailureBadJWKSURLFailsClosed",
+		"TestGeneratedFailureSlowDownstreamHardTimeoutIsBounded",
+		"redis_down",
+		"postgres_down",
+		"expired_api_key",
+		"bad_jwks_endpoint",
+		"slow_downstream_timeout",
+		"failure_contract",
+	} {
+		if !strings.Contains(generatedFailureScript, required) {
+			t.Fatalf("generated failure script missing %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -3016,6 +3045,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-soak-check",
+		"make generated-failure-check",
 		"make generated-upgrade-compat-check",
 		"make upgrade-smoke-check",
 		"make reference-service-evidence",
@@ -3239,6 +3269,96 @@ func TestGeneratedFullProfileSoakRunsInNightly(t *testing.T) {
 	} {
 		if !strings.Contains(governance, required) && !strings.Contains(runbook, required) && !strings.Contains(docsIndex, required) {
 			t.Fatalf("generated soak docs missing %q", required)
+		}
+	}
+}
+
+func TestGeneratedFullProfileFailureCheckCoversChaosScenarios(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "generated_failure_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "generated_failure_contract_test.sh"))
+	nightly := readText(t, filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, required := range []string{
+		"generated-failure-check:",
+		"generated-failure-contract:",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing generated failure target %q", required)
+		}
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-failure-contract") {
+		t.Fatal("docs-check must include generated-failure-contract")
+	}
+	for _, required := range []string{
+		"GENERATED_FAILURE_REPO_ROOT",
+		"GENERATED_FAILURE_RESULT_DIR",
+		"GENERATED_FAILURE_RESULT_DIR must be a repo-relative path without .. components",
+		"go run ./cmd/api-toolkit new service",
+		"--profile saas-api-full",
+		"--auth api-key",
+		"--auth jwt",
+		"generated_failure_test.go",
+		"generated_failure_jwt_test.go",
+		"TestGeneratedFailureReadinessFailsClosedForPostgresAndRedis",
+		"TestGeneratedFailureExpiredManagedAPIKeyIsRejected",
+		"TestGeneratedFailureBadJWKSURLFailsClosed",
+		"TestGeneratedFailureSlowDownstreamHardTimeoutIsBounded",
+		"go test ./internal/httpapi -run TestGeneratedFailure -count=1",
+		"go test ./cmd/api -run TestGeneratedFailureBadJWKSURLFailsClosed -count=1",
+		"redis_down",
+		"postgres_down",
+		"expired_api_key",
+		"bad_jwks_endpoint",
+		"slow_downstream_timeout",
+		"failure_contract",
+		".ci-result/generated-failure",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("generated failure script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"generated failure contract tests passed",
+		"FAIL_GO_TEST_PACKAGE=./cmd/api",
+		"GENERATED_FAILURE_RESULT_DIR=\"../escape\"",
+		"\"redis_down\"",
+		"\"postgres_down\"",
+		"\"expired_api_key\"",
+		"\"bad_jwks_endpoint\"",
+		"\"slow_downstream_timeout\"",
+		"timeoutmw.NewHard",
+		"127.0.0.1:1/jwks",
+		"JWT_JWKS_URL",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("generated failure contract missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Generated failure integration",
+		"make generated-failure-check",
+	} {
+		if !strings.Contains(nightly, required) {
+			t.Fatalf("nightly workflow missing generated failure wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"generated full-profile failure",
+		"generated failure integration",
+		"Redis down",
+		"Postgres down",
+		"expired API key",
+		"bad JWKS endpoint",
+		"slow downstream timeout",
+		".ci-result/generated-failure",
+	} {
+		if !strings.Contains(governance, required) && !strings.Contains(runbook, required) && !strings.Contains(docsIndex, required) {
+			t.Fatalf("generated failure docs missing %q", required)
 		}
 	}
 }
@@ -5589,6 +5709,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"FUZZTIME=60s make fuzz",
 		"make generated-integration-check",
 		"make generated-soak-check",
+		"make generated-failure-check",
 		"make vuln",
 		"BENCHTIME=1x make benchmark-smoke",
 	} {
@@ -5602,6 +5723,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"scheduled `nightly` workflow",
 		"longer fuzzing",
 		"generated full-profile soak",
+		"generated failure integration",
 		"benchmark smoke",
 		"not a required pull-request gate",
 	} {

@@ -27,6 +27,8 @@ jobs:
         run: make generated-integration-check
       - name: Generated full-profile soak
         run: GENERATED_SOAK_DURATION_SECONDS=300 GENERATED_SOAK_INTEGRATION_CYCLES=3 make generated-soak-check
+      - name: Generated failure integration
+        run: make generated-failure-check
       - name: Dependency vulnerability checks
         run: make vuln
       - name: Benchmark smoke
