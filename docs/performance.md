@@ -61,6 +61,30 @@ recorded baseline needs an explicit performance note in the pull request or
 release evidence. The note should name the behavior gained, the affected
 benchmark row, and whether the threshold should be raised.
 
+## Reference Service Load Baseline
+
+The checked-in reference SaaS API has a separate load-smoke baseline because it
+is generated application evidence, not a root or contrib package benchmark. Run
+it with:
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make reference-service-load
+```
+
+The command writes `.ci-result/reference-service-load/status`,
+`.ci-result/reference-service-load/summary.json`,
+`.ci-result/reference-service-load/summary.md`, and `load-smoke.log`. The
+summary records request count, concurrency, throughput, latency percentiles,
+heap and total allocation deltas, malloc deltas, per-request allocation
+estimates, rate-limit responses, timeouts, unexpected statuses, and the expected
+missing-API-key failure behavior for `GET /widgets`.
+
+`docs/reference-service-load-baseline.tsv` is the committed seed baseline for
+that local smoke. It records latency, throughput, memory, allocations, expected
+failure status, unexpected status count, secret-leak count, and the evidence
+command. Use it as release-review context on the same machine and Go toolchain;
+do not treat it as a public performance SLA.
+
 ## Review Rules
 
 - Benchmark output belongs with the change when it touches middleware hot paths,
@@ -72,3 +96,6 @@ benchmark row, and whether the threshold should be raised.
   numbers across releases.
 - Keep generated scaffold benchmarks writing to benchmark temp directories only;
   they must not write evidence or generated services into the working tree.
+- Re-run `make reference-service-load` after changes to the generated full
+  service router, auth/idempotency paths, in-memory app services, or evidence
+  scripts before updating `docs/reference-service-load-baseline.tsv`.

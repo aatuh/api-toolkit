@@ -62,6 +62,24 @@ The command writes `.ci-result/coverage/reference-service.func` and
 from root and contrib coverage thresholds because generated application code is
 app-owned evidence, not part of the toolkit module aggregate.
 
+Use the load-smoke target when reviewers need a local baseline for the checked-in
+generated service:
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make reference-service-load
+```
+
+The command runs the real reference-service router in-process with bounded
+synthetic requests. It writes `.ci-result/reference-service-load/status`,
+`.ci-result/reference-service-load/summary.json`,
+`.ci-result/reference-service-load/summary.md`, and `load-smoke.log`. The JSON
+and Markdown summaries include throughput, latency percentiles, memory deltas,
+allocation deltas, expected auth failure behavior for a missing API key on
+`GET /widgets`, unexpected status counts, rate-limit responses, and secret-leak
+counts. The committed seed baseline is tracked in
+`docs/reference-service-load-baseline.tsv`; treat it as release-review context,
+not a cross-machine SLA.
+
 Use the generated-service upgrade compatibility check when release reviewers
 need evidence that published generator output can move to the current workspace:
 
@@ -97,6 +115,8 @@ in release review notes:
 
 - `make reference-service-check` result.
 - `make reference-service-evidence` summary path and status.
+- `make reference-service-load` summary path, latency, throughput, memory,
+  allocations, and expected failure behavior.
 - Docker-backed `make integration-check` result, including whether MinIO ran.
 - Migration `up`, `check`, `verify`, and guarded `down` refusal result.
 - Backup/restore drill notes for Postgres and object storage when the service is

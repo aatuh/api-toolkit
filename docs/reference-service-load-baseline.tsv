@@ -1,0 +1,2 @@
+# scenario	mode	requests	concurrency	throughput_rps	p50_latency_ms	p95_latency_ms	p99_latency_ms	max_latency_ms	heap_alloc_delta_bytes	total_alloc_delta_bytes	mallocs_delta	allocs_per_request	bytes_per_request	failure_scenario	expected_failure_status	unexpected_status_count	secret_leak_count	evidence
+reference_service_router	local_in_process	240	8	34255.23691207309	0.053672	0.742897	1.086072	1.234034	1308552	6082704	63179	263.24583333333334	25344.6	missing_api_key_get_widgets	401	0	0	GOWORK=off GOTOOLCHAIN=local make reference-service-load

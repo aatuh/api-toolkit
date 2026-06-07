@@ -202,6 +202,7 @@ Use the narrowest check that matches the change:
 | V3 cleanup readiness | `GOTOOLCHAIN=local make v3-readiness-check` | Runs focused compatibility-sensitive surface guardrails for major-version cleanup planning and release-note requirements. |
 | Docs plus ordinary code changes | `GOTOOLCHAIN=local make fast-check` | Runs `docs-check` and unit tests without rewriting files. |
 | Reference service coverage | `GOTOOLCHAIN=local make reference-service-coverage` | Records non-Docker generated-service coverage under `.ci-result/coverage/` without folding app-owned code into toolkit coverage thresholds. |
+| Reference service load | `GOTOOLCHAIN=local make reference-service-load` | Records non-Docker generated-service latency, throughput, memory, allocation, and expected auth-failure evidence under `.ci-result/reference-service-load/`. |
 | Timeout determinism | `GOTOOLCHAIN=local make timeout-determinism-check` | Repeats the hard-timeout late-write test under normal and race runs, then runs the root timeout/idempotency/rate-limit/scheduler race subset. |
 | Reviewer or audit pass | `GOTOOLCHAIN=local make audit-check` | Non-mutating reviewer gate with lint, vuln, gosec, build smoke, GitHub Actions pin audit, docs contracts, tests, race, and fuzz smoke. |
 | Generated files, examples, scripts, package docs, or repo-wide contracts | `GOTOOLCHAIN=local make finalize` when practical | Installs tools and may rewrite Go formatting and module files through `fmt` and `tidy`; avoid it in shared dirty worktrees unless that mutation is intended. |

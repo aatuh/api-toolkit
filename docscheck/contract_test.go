@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2834,6 +2835,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
 	upgradeSmokeScript := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_check.sh"))
 	referenceCoverageScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_coverage.sh"))
+	referenceLoadScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_load.sh"))
 	referenceEvidenceScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_evidence.sh"))
 	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
@@ -2851,6 +2853,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"upgrade-smoke-contract:",
 		"reference-service-evidence:",
 		"reference-service-coverage:",
+		"reference-service-load:",
+		"reference-service-load-contract:",
 		"reference-service-evidence-contract:",
 		"github-governance-check:",
 		"actions-audit:",
@@ -2872,6 +2876,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-integration-contract") {
 		t.Fatal("docs-check must include generated-integration-contract")
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) reference-service-load-contract") {
+		t.Fatal("docs-check must include reference-service-load-contract")
 	}
 	for _, required := range []string{
 		"actions/attest-build-provenance v1",
@@ -2969,12 +2976,26 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		}
 	}
 	for _, required := range []string{
+		"REFERENCE_SERVICE_LOAD_REQUESTS",
+		"REFERENCE_SERVICE_LOAD_CONCURRENCY",
+		".ci-result/reference-service-load",
+		"run ./cmd/loadsmoke",
+		"summary.json",
+		"summary.md",
+		"load-smoke.log",
+	} {
+		if !strings.Contains(referenceLoadScript, required) {
+			t.Fatalf("reference service load script missing %q", required)
+		}
+	}
+	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
 		"make generated-upgrade-compat-check",
 		"make upgrade-smoke-check",
 		"make reference-service-evidence",
 		"make reference-service-coverage",
+		"make reference-service-load",
 		"make github-governance-check",
 		"make actions-audit",
 		"make timeout-determinism-check",
@@ -5752,6 +5773,117 @@ func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 	}
 }
 
+func TestReferenceServiceLoadBaselineIsPublished(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	serviceMakefile := readText(t, filepath.Join(repoRoot, "examples", "reference-saas-api", "Makefile"))
+	loadCommand := readText(t, filepath.Join(repoRoot, "examples", "reference-saas-api", "cmd", "loadsmoke", "main.go"))
+	loadScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_load.sh"))
+	loadContract := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_load_contract_test.sh"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
+	performance := readText(t, filepath.Join(repoRoot, "docs", "performance.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, required := range []string{
+		"reference-service-load:",
+		"reference-service-load-contract:",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing reference-service load target %q", required)
+		}
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) reference-service-load-contract") {
+		t.Fatal("docs-check must include reference-service-load-contract")
+	}
+	if !strings.Contains(serviceMakefile, "load-smoke:") || !strings.Contains(serviceMakefile, "$(GO) run ./cmd/loadsmoke") {
+		t.Fatal("reference service Makefile missing load-smoke target")
+	}
+	for _, required := range []string{
+		"httptest.NewRequest",
+		"runtime.ReadMemStats",
+		"reference-service-load-smoke.v1",
+		"throughput_rps",
+		"latency_ms",
+		"memory",
+		"allocations",
+		"failure_behavior",
+		"missing API key on GET /widgets",
+		"UnexpectedStatusCount",
+		"SecretLeakCount",
+	} {
+		if !strings.Contains(loadCommand, required) {
+			t.Fatalf("load smoke command missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"REFERENCE_SERVICE_LOAD_RESULT_DIR",
+		"REFERENCE_SERVICE_LOAD_REQUESTS",
+		"REFERENCE_SERVICE_LOAD_CONCURRENCY",
+		".ci-result/reference-service-load",
+		"load-smoke.log",
+		"run ./cmd/loadsmoke",
+	} {
+		if !strings.Contains(loadScript, required) {
+			t.Fatalf("reference service load script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"reference service load contract tests passed",
+		"\"requests\": 17",
+		"\"concurrency\": 3",
+		"\"expected_status\": 401",
+	} {
+		if !strings.Contains(loadContract, required) {
+			t.Fatalf("reference service load contract missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"make reference-service-load",
+		".ci-result/reference-service-load",
+		"summary.json",
+		"summary.md",
+		"latency",
+		"throughput",
+		"memory",
+		"allocations",
+		"failure behavior",
+		"docs/reference-service-load-baseline.tsv",
+	} {
+		if !strings.Contains(referenceService, required) && !strings.Contains(performance, required) && !strings.Contains(runbook, required) && !strings.Contains(docsIndex, required) {
+			t.Fatalf("reference service load docs missing %q", required)
+		}
+	}
+
+	rows := loadReferenceServiceLoadBaselines(t, repoRoot)
+	if len(rows) < 1 {
+		t.Fatal("docs/reference-service-load-baseline.tsv must include at least one baseline row")
+	}
+	for _, row := range rows {
+		if row.Scenario == "" || row.Mode == "" || row.Evidence == "" {
+			t.Fatalf("reference service load baseline has empty identity fields: %#v", row)
+		}
+		if row.Requests <= 0 || row.Concurrency <= 0 || row.Concurrency > row.Requests {
+			t.Fatalf("reference service load baseline has invalid request/concurrency values: %#v", row)
+		}
+		if row.ThroughputRPS <= 0 || row.P50LatencyMS <= 0 || row.P95LatencyMS <= 0 || row.P99LatencyMS <= 0 || row.MaxLatencyMS <= 0 {
+			t.Fatalf("reference service load baseline has non-positive throughput or latency: %#v", row)
+		}
+		if row.TotalAllocDeltaBytes <= 0 || row.MallocsDelta <= 0 || row.AllocsPerRequest <= 0 || row.BytesPerRequest <= 0 {
+			t.Fatalf("reference service load baseline has non-positive allocation evidence: %#v", row)
+		}
+		if row.FailureScenario != "missing_api_key_get_widgets" || row.ExpectedFailureStatus != http.StatusUnauthorized {
+			t.Fatalf("reference service load baseline has wrong failure behavior: %#v", row)
+		}
+		if row.UnexpectedStatusCount != 0 || row.SecretLeakCount != 0 {
+			t.Fatalf("reference service load baseline should be clean: %#v", row)
+		}
+		if !strings.Contains(row.Evidence, "make reference-service-load") {
+			t.Fatalf("reference service load baseline evidence must name target: %#v", row)
+		}
+	}
+}
+
 func TestBenchmarkBaselineManifestTracksReportAllocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	rows := loadBenchmarkBaselines(t, repoRoot)
@@ -8250,6 +8382,28 @@ type benchmarkBaseline struct {
 	Evidence            string
 }
 
+type referenceServiceLoadBaseline struct {
+	Scenario              string
+	Mode                  string
+	Requests              int
+	Concurrency           int
+	ThroughputRPS         float64
+	P50LatencyMS          float64
+	P95LatencyMS          float64
+	P99LatencyMS          float64
+	MaxLatencyMS          float64
+	HeapAllocDeltaBytes   int
+	TotalAllocDeltaBytes  int
+	MallocsDelta          int
+	AllocsPerRequest      float64
+	BytesPerRequest       float64
+	FailureScenario       string
+	ExpectedFailureStatus int
+	UnexpectedStatusCount int
+	SecretLeakCount       int
+	Evidence              string
+}
+
 func loadBenchmarkBaselines(t *testing.T, repoRoot string) []benchmarkBaseline {
 	t.Helper()
 
@@ -8281,6 +8435,45 @@ func loadBenchmarkBaselines(t *testing.T, repoRoot string) []benchmarkBaseline {
 	return rows
 }
 
+func loadReferenceServiceLoadBaselines(t *testing.T, repoRoot string) []referenceServiceLoadBaseline {
+	t.Helper()
+
+	content := readText(t, filepath.Join(repoRoot, "docs", "reference-service-load-baseline.tsv"))
+	var rows []referenceServiceLoadBaseline
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 19 {
+			t.Fatalf("docs/reference-service-load-baseline.tsv:%d: expected 19 tab-separated columns, got %d", lineNo+1, len(cols))
+		}
+		rows = append(rows, referenceServiceLoadBaseline{
+			Scenario:              strings.TrimSpace(cols[0]),
+			Mode:                  strings.TrimSpace(cols[1]),
+			Requests:              mustAtoi(t, "requests", cols[2]),
+			Concurrency:           mustAtoi(t, "concurrency", cols[3]),
+			ThroughputRPS:         mustAtof(t, "throughput_rps", cols[4]),
+			P50LatencyMS:          mustAtof(t, "p50_latency_ms", cols[5]),
+			P95LatencyMS:          mustAtof(t, "p95_latency_ms", cols[6]),
+			P99LatencyMS:          mustAtof(t, "p99_latency_ms", cols[7]),
+			MaxLatencyMS:          mustAtof(t, "max_latency_ms", cols[8]),
+			HeapAllocDeltaBytes:   mustAtoi(t, "heap_alloc_delta_bytes", cols[9]),
+			TotalAllocDeltaBytes:  mustAtoi(t, "total_alloc_delta_bytes", cols[10]),
+			MallocsDelta:          mustAtoi(t, "mallocs_delta", cols[11]),
+			AllocsPerRequest:      mustAtof(t, "allocs_per_request", cols[12]),
+			BytesPerRequest:       mustAtof(t, "bytes_per_request", cols[13]),
+			FailureScenario:       strings.TrimSpace(cols[14]),
+			ExpectedFailureStatus: mustAtoi(t, "expected_failure_status", cols[15]),
+			UnexpectedStatusCount: mustAtoi(t, "unexpected_status_count", cols[16]),
+			SecretLeakCount:       mustAtoi(t, "secret_leak_count", cols[17]),
+			Evidence:              strings.TrimSpace(cols[18]),
+		})
+	}
+	return rows
+}
+
 func benchmarkFunctionContains(source, name, token string) bool {
 	start := strings.Index(source, "func "+name+"(")
 	if start < 0 {
@@ -8299,6 +8492,16 @@ func mustAtoi(t *testing.T, field, value string) int {
 	got, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
 		t.Fatalf("parse %s=%q as int: %v", field, value, err)
+	}
+	return got
+}
+
+func mustAtof(t *testing.T, field, value string) float64 {
+	t.Helper()
+
+	got, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		t.Fatalf("parse %s=%q as float: %v", field, value, err)
 	}
 	return got
 }

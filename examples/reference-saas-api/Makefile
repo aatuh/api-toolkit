@@ -4,7 +4,7 @@ OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
 
-.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff contracts-changelog contracts-impact client-check client-ts-check asset-check observability-check deploy-check resource-check provider-check provider-live-check migrate-plan migrate-up migrate-status migrate-check migrate-verify migrate-down integration-check clean finalize
+.PHONY: deps test fmt build openapi-check openapi-update contracts-lint contracts-diff contracts-changelog contracts-impact client-check client-ts-check asset-check observability-check deploy-check resource-check provider-check provider-live-check load-smoke migrate-plan migrate-up migrate-status migrate-check migrate-verify migrate-down integration-check clean finalize
 
 deps:
 	$(GO) mod tidy
@@ -82,6 +82,9 @@ provider-check:
 provider-live-check:
 	@if [ "$${RUN_PROVIDER_LIVE_CHECKS:-}" != "true" ]; then echo "set RUN_PROVIDER_LIVE_CHECKS=true to run live provider checks"; exit 2; fi
 	$(GO) test -tags=provider_live ./internal/providers/...
+
+load-smoke: deps
+	$(GO) run ./cmd/loadsmoke -out ../../.ci-result/reference-service-load
 
 migrate-plan:
 	$(GO) run ./cmd/migrate plan

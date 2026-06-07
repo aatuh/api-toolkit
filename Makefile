@@ -31,7 +31,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -124,6 +124,12 @@ reference-service-check: ## Verify the checked-in reference saas-api-full servic
 reference-service-coverage: ## Record non-Docker reference service coverage separately from root/contrib thresholds
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" GO="$(GO)" scripts/reference_service_coverage.sh
 
+reference-service-load: ## Record non-Docker reference service load smoke baseline
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" GO="$(GO)" scripts/reference_service_load.sh
+
+reference-service-load-contract: ## Run reference service load smoke script contract tests
+	@scripts/reference_service_load_contract_test.sh
+
 reference-service-evidence: ## Record non-blocking reference service evidence under .ci-result/reference-service
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/reference_service_evidence.sh
 
@@ -159,6 +165,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) generated-integration-contract
 	@$(MAKE) generated-upgrade-compat-contract
 	@$(MAKE) upgrade-smoke-contract
+	@$(MAKE) reference-service-load-contract
 	@$(MAKE) reference-service-evidence-contract
 
 fmt: ## Run gofmt and rewrite formatted Go files
