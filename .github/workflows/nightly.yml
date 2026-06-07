@@ -25,6 +25,8 @@ jobs:
         run: FUZZTIME=60s make fuzz
       - name: Generated scaffold integration
         run: make generated-integration-check
+      - name: Generated full-profile soak
+        run: GENERATED_SOAK_DURATION_SECONDS=300 GENERATED_SOAK_INTEGRATION_CYCLES=3 make generated-soak-check
       - name: Dependency vulnerability checks
         run: make vuln
       - name: Benchmark smoke

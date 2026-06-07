@@ -2832,6 +2832,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	governanceScript := readText(t, filepath.Join(repoRoot, "scripts", "github_governance_check.sh"))
 	actionsAuditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
 	integrationScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_integration_check.sh"))
+	generatedSoakScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_soak_check.sh"))
 	upgradeCompatScript := readText(t, filepath.Join(repoRoot, "scripts", "generated_upgrade_compat_check.sh"))
 	upgradeSmokeScript := readText(t, filepath.Join(repoRoot, "scripts", "upgrade_smoke_check.sh"))
 	referenceCoverageScript := readText(t, filepath.Join(repoRoot, "scripts", "reference_service_coverage.sh"))
@@ -2848,6 +2849,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"generated-integration-check:",
 		"generated-integration-check-minio:",
 		"generated-integration-contract:",
+		"generated-soak-check:",
+		"generated-soak-contract:",
 		"generated-upgrade-compat-check:",
 		"upgrade-smoke-check:",
 		"upgrade-smoke-contract:",
@@ -2876,6 +2879,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-integration-contract") {
 		t.Fatal("docs-check must include generated-integration-contract")
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-soak-contract") {
+		t.Fatal("docs-check must include generated-soak-contract")
 	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) reference-service-load-contract") {
 		t.Fatal("docs-check must include reference-service-load-contract")
@@ -2912,6 +2918,24 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	} {
 		if !strings.Contains(integrationScript, required) {
 			t.Fatalf("generated integration script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"GENERATED_SOAK_DURATION_SECONDS",
+		"GENERATED_SOAK_INTEGRATION_CYCLES",
+		"GENERATED_SOAK_RACE_WORKERS",
+		"GENERATED_SOAK_RESULT_DIR must be a repo-relative path without .. components",
+		".ci-result/generated-soak",
+		"generated_soak_test.go",
+		"TestGeneratedFullProfileSoakNoGoroutineGrowth",
+		"runtime.NumGoroutine",
+		"go test -race ./internal/httpapi",
+		"make integration-check",
+		"integration-cycle-",
+		"soak_contract",
+	} {
+		if !strings.Contains(generatedSoakScript, required) {
+			t.Fatalf("generated soak script missing %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -2991,6 +3015,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	for _, required := range []string{
 		"make generated-integration-check",
 		"make generated-integration-check-minio",
+		"make generated-soak-check",
 		"make generated-upgrade-compat-check",
 		"make upgrade-smoke-check",
 		"make reference-service-evidence",
@@ -3132,6 +3157,89 @@ func TestGeneratedProfileIntegrationCoversRuntimeContract(t *testing.T) {
 
 	if strings.Count(workflow, "Generated build") < 2 {
 		t.Fatal("generated integration workflow must build generated services before Docker runtime checks")
+	}
+}
+
+func TestGeneratedFullProfileSoakRunsInNightly(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "generated_soak_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "generated_soak_contract_test.sh"))
+	nightly := readText(t, filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+
+	for _, required := range []string{
+		"generated-soak-check:",
+		"generated-soak-contract:",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing generated soak target %q", required)
+		}
+	}
+	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) generated-soak-contract") {
+		t.Fatal("docs-check must include generated-soak-contract")
+	}
+	for _, required := range []string{
+		"GENERATED_SOAK_DURATION_SECONDS",
+		"GENERATED_SOAK_INTEGRATION_CYCLES",
+		"GENERATED_SOAK_RACE_WORKERS",
+		"require_int_range GENERATED_SOAK_DURATION_SECONDS",
+		"GENERATED_SOAK_RESULT_DIR must be a repo-relative path without .. components",
+		"go run ./cmd/api-toolkit new service",
+		"--profile saas-api-full",
+		"--auth api-key",
+		"generated_soak_test.go",
+		"TestGeneratedFullProfileSoakNoGoroutineGrowth",
+		"runtime.NumGoroutine",
+		"GENERATED_SOAK_TEST_DURATION",
+		"go test -race ./internal/httpapi -run TestGeneratedFullProfileSoakNoGoroutineGrowth -count=1",
+		"make integration-check",
+		"integration-cycle-",
+		"soak_contract",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("generated soak script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"generated soak contract tests passed",
+		"GENERATED_SOAK_DURATION_SECONDS=5",
+		"GENERATED_SOAK_INTEGRATION_CYCLES=2",
+		"GENERATED_SOAK_RACE_WORKERS=3",
+		"FAIL_MAKE_TARGET=integration-check",
+		"GENERATED_SOAK_RESULT_DIR=\"../escape\"",
+		"GENERATED_SOAK_DURATION_SECONDS=0",
+		"GENERATED_SOAK_INTEGRATION_CYCLES=0",
+		"\"runtime.NumGoroutine before/after threshold\"",
+		"\"repeated make integration-check\"",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("generated soak contract missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Generated full-profile soak",
+		"GENERATED_SOAK_DURATION_SECONDS=300 GENERATED_SOAK_INTEGRATION_CYCLES=3 make generated-soak-check",
+	} {
+		if !strings.Contains(nightly, required) {
+			t.Fatalf("nightly workflow missing generated soak wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"generated full-profile soak",
+		"300-second in-process race/goroutine soak",
+		"three Docker-backed integration cycles",
+		"goroutine leaks",
+		"race-prone caches",
+		"connection leaks",
+		".ci-result/generated-soak",
+		"race-soak.log",
+	} {
+		if !strings.Contains(governance, required) && !strings.Contains(runbook, required) && !strings.Contains(docsIndex, required) {
+			t.Fatalf("generated soak docs missing %q", required)
+		}
 	}
 }
 
@@ -5480,6 +5588,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"schedule:",
 		"FUZZTIME=60s make fuzz",
 		"make generated-integration-check",
+		"make generated-soak-check",
 		"make vuln",
 		"BENCHTIME=1x make benchmark-smoke",
 	} {
@@ -5492,6 +5601,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	for _, required := range []string{
 		"scheduled `nightly` workflow",
 		"longer fuzzing",
+		"generated full-profile soak",
 		"benchmark smoke",
 		"not a required pull-request gate",
 	} {
