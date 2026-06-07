@@ -148,6 +148,7 @@ identifies the installed generator and contract tool.
 | [Versioning](../VERSIONING.md) | API consumers and maintainers | Define the stable core API surface and contrib compatibility policy. |
 | [Public API inventory](api-inventory.md) | API consumers and maintainers | Review generated exported symbols grouped by package, stability tier, added version, and deprecation status. |
 | [API reference index](api-reference.md) | API consumers | Jump from each stable or compatibility-only root package to pkg.go.dev and its compile-checked example. |
+| [Generated API docs site](site/index.html) | API consumers | Search package status, examples, compatibility docs, and migration guides from a static generated site. |
 | [Downstream compatibility kit](downstream-compatibility.md) | API consumers | Run experimental `compatkit` service checks against an in-process handler or explicit base URL. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
 | [Governance](governance.md) | Maintainers | Review stable API review board process, branch protection, CODEOWNERS, required checks, tag protection, and release approval expectations. |
@@ -196,7 +197,7 @@ Use the narrowest check that matches the change:
 
 | Change type | Preferred command | Notes |
 | --- | --- | --- |
-| Documentation-only edits | `GOTOOLCHAIN=local make docs-check` | Runs documentation contracts, getting-started build extraction, API/docs policy checks, and release evidence parser contracts. |
+| Documentation-only edits | `GOTOOLCHAIN=local make docs-check` | Runs documentation contracts, generated docs-site drift checks, getting-started build extraction, API/docs policy checks, and release evidence parser contracts. |
 | Architecture or dependency-boundary edits | `GOTOOLCHAIN=local make dependency-boundary-check` | Runs the stable-core import boundary check before the broader docs gate. |
 | V3 cleanup readiness | `GOTOOLCHAIN=local make v3-readiness-check` | Runs focused compatibility-sensitive surface guardrails for major-version cleanup planning and release-note requirements. |
 | Docs plus ordinary code changes | `GOTOOLCHAIN=local make fast-check` | Runs `docs-check` and unit tests without rewriting files. |
@@ -227,7 +228,7 @@ important public docs disappear from navigation:
 `docs/observability.md`, `docs/scaffold-support.md`,
 `docs/adapter-maturity.md`, `docs/safe-defaults.md`,
 `docs/middleware-safety.md`, `docs/input-size-threat-review.md`,
-`docs/testing.md`, `docs/downstream-compatibility.md`, `SECURITY.md`,
+`docs/testing.md`, `docs/site/index.html`, `docs/downstream-compatibility.md`, `SECURITY.md`,
 `CODE_OF_CONDUCT.md`, `docs/metrics.md`,
 `docs/support-policy.md`, `docs/dependency-policy.md`, `docs/license-policy.md`,
 `docs/dependency-footprint.md`, `docs/adr/0001-module-boundaries.md`,

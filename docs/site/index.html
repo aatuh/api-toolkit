@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="internal/tools/docsite">
+  <title>api-toolkit API docs</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">Generated API docs site</p>
+      <h1>api-toolkit API docs</h1>
+      <p class="lede">Search packages, examples, stability status, compatibility notes, and migration guides from one static artifact.</p>
+    </div>
+    <dl class="stats" aria-label="Package status summary">
+      <div><dt>Stable</dt><dd>42</dd></div>
+      <div><dt>Compatibility-only</dt><dd>3</dd></div>
+      <div><dt>Contrib rows</dt><dd>79</dd></div>
+      <div><dt>Search entries</dt><dd>193</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="search-panel" aria-labelledby="search-heading">
+      <h2 id="search-heading">Search</h2>
+      <label class="search-label" for="site-search">Find packages, examples, compatibility, or migration docs</label>
+      <input id="site-search" type="search" autocomplete="off" placeholder="Try: ratelimit migration, compatibility-only, Problem Details">
+      <p id="search-status" class="muted" role="status">Loading search index...</p>
+      <ol id="search-results" class="results"></ol>
+    </section>
+
+    <section aria-labelledby="quick-links-heading">
+      <h2 id="quick-links-heading">Key docs</h2>
+      <div class="link-grid">
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/README.md">
+          <span>overview</span>
+          <strong>api-toolkit</strong>
+          <small>README.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/README.md">
+          <span>navigation</span>
+          <strong>Documentation</strong>
+          <small>docs/README.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/api-reference.md">
+          <span>api</span>
+          <strong>API Reference Index</strong>
+          <small>docs/api-reference.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/core-package-guide.md">
+          <span>api</span>
+          <strong>Core Package Decision Guide</strong>
+          <small>docs/core-package-guide.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/package-classification.md">
+          <span>package-status</span>
+          <strong>Package Classification</strong>
+          <small>docs/package-classification.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/core-readiness.md">
+          <span>package-status</span>
+          <strong>Core Readiness Matrix</strong>
+          <small>docs/core-readiness.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/VERSIONING.md">
+          <span>compatibility</span>
+          <strong>Versioning and Stability</strong>
+          <small>VERSIONING.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/deprecations.md">
+          <span>compatibility</span>
+          <strong>Deprecation Policy</strong>
+          <small>docs/deprecations.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/v3-compatibility-roadmap.md">
+          <span>compatibility</span>
+          <strong>V3 Compatibility Record</strong>
+          <small>docs/v3-compatibility-roadmap.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/downstream-compatibility.md">
+          <span>compatibility</span>
+          <strong>Downstream Compatibility Kit</strong>
+          <small>docs/downstream-compatibility.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/migration/v3.md">
+          <span>migration</span>
+          <strong>V3 Migration Guide</strong>
+          <small>docs/migration/v3.md</small>
+        </a>
+
+        <a class="doc-link" href="https://github.com/aatuh/api-toolkit/blob/master/docs/release-notes.md">
+          <span>migration</span>
+          <strong>Release Notes</strong>
+          <small>docs/release-notes.md</small>
+        </a>
+
+      </div>
+    </section>
+
+    <section aria-labelledby="package-heading">
+      <h2 id="package-heading">Package status</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>API status</th>
+              <th>Test status</th>
+              <th>Notes</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/apiclient">github.com/aatuh/api-toolkit/v3/apiclient</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable client-side API helper utilities.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/apiclient/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/apitest">github.com/aatuh/api-toolkit/v3/apitest</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable HTTP API response assertion helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/apitest/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/authorization">github.com/aatuh/api-toolkit/v3/authorization</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Core authorization context helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/authorization/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/binding">github.com/aatuh/api-toolkit/v3/binding</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable request binding and validation Problem Details helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/binding/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/contracttest">github.com/aatuh/api-toolkit/v3/contracttest</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable route, OpenAPI, and problem catalog contract test helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/contracttest/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/email">github.com/aatuh/api-toolkit/v3/email</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Core email port types.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/email/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/endpoints/docs">github.com/aatuh/api-toolkit/v3/endpoints/docs</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable core docs endpoint helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/docs/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/endpoints/health">github.com/aatuh/api-toolkit/v3/endpoints/health</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable core health endpoint helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/health/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/endpoints/list">github.com/aatuh/api-toolkit/v3/endpoints/list</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable list endpoint helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/list/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/endpoints/pprof">github.com/aatuh/api-toolkit/v3/endpoints/pprof</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable pprof endpoint mounting helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/pprof/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/endpoints/version">github.com/aatuh/api-toolkit/v3/endpoints/version</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable version endpoint helper.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/version/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/fielderrors">github.com/aatuh/api-toolkit/v3/fielderrors</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable validation field error helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/fielderrors/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/httpcache">github.com/aatuh/api-toolkit/v3/httpcache</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable conditional request and validator helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/httpcache/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/httpx">github.com/aatuh/api-toolkit/v3/httpx</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable HTTP response and Problem Details helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/httpx/identity">github.com/aatuh/api-toolkit/v3/httpx/identity</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable request identity helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/identity/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/httpx/recover">github.com/aatuh/api-toolkit/v3/httpx/recover</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable panic recovery helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/recover/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/idempotent">github.com/aatuh/api-toolkit/v3/idempotent</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable idempotent HTTP contract and response helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/idempotent/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/apikey">github.com/aatuh/api-toolkit/v3/middleware/auth/apikey</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable API key authentication and scope middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/apikey/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/authz">github.com/aatuh/api-toolkit/v3/middleware/auth/authz</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable role authorization middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/authz/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/jwt">github.com/aatuh/api-toolkit/v3/middleware/auth/jwt</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable JWT middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/jwt/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/tenant">github.com/aatuh/api-toolkit/v3/middleware/auth/tenant</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable tenant context middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/tenant/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/deprecation">github.com/aatuh/api-toolkit/v3/middleware/deprecation</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable Deprecation, Sunset, and Link header middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/deprecation/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/idempotency">github.com/aatuh/api-toolkit/v3/middleware/idempotency</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable idempotency middleware with token-aware release semantics.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/idempotency/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/json">github.com/aatuh/api-toolkit/v3/middleware/json</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable JSON content middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/json/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/maxbody">github.com/aatuh/api-toolkit/v3/middleware/maxbody</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable request body limit middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/maxbody/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/querylimits">github.com/aatuh/api-toolkit/v3/middleware/querylimits</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable query limit parsing.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/querylimits/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/ratelimit">github.com/aatuh/api-toolkit/v3/middleware/ratelimit</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable rate-limit middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/ratelimit/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/secure">github.com/aatuh/api-toolkit/v3/middleware/secure</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable security header middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/secure/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/timeout">github.com/aatuh/api-toolkit/v3/middleware/timeout</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable timeout middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/timeout/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/trace">github.com/aatuh/api-toolkit/v3/middleware/trace</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable request trace middleware.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/trace/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/negotiation">github.com/aatuh/api-toolkit/v3/negotiation</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable content negotiation helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/negotiation/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/oauth2">github.com/aatuh/api-toolkit/v3/oauth2</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable provider-neutral OAuth2 claim and scope helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/oauth2/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/operations">github.com/aatuh/api-toolkit/v3/operations</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable asynchronous operation response and polling helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/operations/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/ports">github.com/aatuh/api-toolkit/v3/ports</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable core ports, including documented compatibility-sensitive sub-surfaces.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/ports/idempotency_example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/queryparams">github.com/aatuh/api-toolkit/v3/queryparams</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable collection query parameter parsing helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/queryparams/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/routecontracts">github.com/aatuh/api-toolkit/v3/routecontracts</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable route and OpenAPI contract registration helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/routecontracts/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/routepolicy">github.com/aatuh/api-toolkit/v3/routepolicy</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable operation-derived runtime policy middleware helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/routepolicy/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/scheduler">github.com/aatuh/api-toolkit/v3/scheduler</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable scheduler abstractions.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/scheduler/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/securityprofile">github.com/aatuh/api-toolkit/v3/securityprofile</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable security profile defaults.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/securityprofile/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/specs">github.com/aatuh/api-toolkit/v3/specs</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable spec registry helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/specs/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/upload">github.com/aatuh/api-toolkit/v3/upload</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable multipart upload decoding and validation helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/upload/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/webhooks">github.com/aatuh/api-toolkit/v3/webhooks</a></td>
+              <td><span class="badge">stable</span></td>
+              <td>direct-tests</td>
+              <td>Stable webhook verification and receiver helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/webhooks/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/compat/billing">github.com/aatuh/api-toolkit/v3/compat/billing</a></td>
+              <td><span class="badge">compatibility-only</span></td>
+              <td>direct-tests</td>
+              <td>Explicit hosted-checkout and billing compatibility package.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/compat/billing/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/scheduler/migrations">github.com/aatuh/api-toolkit/v3/scheduler/migrations</a></td>
+              <td><span class="badge">compatibility-only</span></td>
+              <td>direct-tests</td>
+              <td>Stable for v3 migration compatibility; new apps should keep migration orchestration app-owned or adapter-owned.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/scheduler/migrations/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/swagstub">github.com/aatuh/api-toolkit/v3/swagstub</a></td>
+              <td><span class="badge">compatibility-only</span></td>
+              <td>direct-tests</td>
+              <td>Stable for v3 tooling compatibility; not a recommended runtime abstraction.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/swagstub/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres">github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres audit event adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis">github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Redis cache adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/cedar">github.com/aatuh/api-toolkit/contrib/v3/adapters/cedar</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Third-party Cedar policy adapter with shared policy-engine contract coverage.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/chi">github.com/aatuh/api-toolkit/contrib/v3/adapters/chi</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Supported chi router adapter and authz route validation helpers.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar">github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Environment loading adapter with required-value, typed parsing, binding, .env loading, and redaction behavior.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient">github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Outbound HTTP client, retry, breaker, bulkhead, timeout, and SSRF transport adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis">github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Redis idempotency adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap">github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Supported zap logger adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate">github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Database migration adapter over contrib migrator lifecycle operations.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3">github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>S3-compatible object storage adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/opa">github.com/aatuh/api-toolkit/contrib/v3/adapters/opa</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>OPA policy adapter with shared policy-engine contract coverage.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres">github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres operation repository adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres">github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres transactional outbox adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool">github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres pool adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis">github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Redis rate-limit adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/resend">github.com/aatuh/api-toolkit/contrib/v3/adapters/resend</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Resend email adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe">github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Stripe billing adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres">github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres transaction adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/validation">github.com/aatuh/api-toolkit/contrib/v3/adapters/validation</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Validation adapter backed by github.com/aatuh/validate/v3 with field mapping, nested validation, structured codes, safe messages, and Problem Details-compatible errors.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres">github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres outbound webhook endpoint registry, delivery, attempt, and replay adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/async">github.com/aatuh/api-toolkit/contrib/v3/async</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Durable async worker contracts and runner.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/audit">github.com/aatuh/api-toolkit/contrib/v3/audit</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Audit event contracts.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/bootstrap">github.com/aatuh/api-toolkit/contrib/v3/bootstrap</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Contrib bootstrap composition helpers.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/contrib/bootstrap/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/cache">github.com/aatuh/api-toolkit/contrib/v3/cache</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Cache contracts.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/config">github.com/aatuh/api-toolkit/contrib/v3/config</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Contrib configuration loader with required-value, typed parsing, enum validation, deterministic errors, and safe defaults.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/entitlements">github.com/aatuh/api-toolkit/contrib/v3/entitlements</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Provider-neutral entitlements contracts, quota service, and HTTP enforcement middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/clerk">github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/clerk</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around Clerk auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/devheaders">github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/devheaders</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around dev-header auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/jwt">github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/jwt</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around JWT auth integration.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/oidc">github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/oidc</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around OIDC auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/pgxpool">github.com/aatuh/api-toolkit/contrib/v3/integrations/pgxpool</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around pgxpool adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/resend">github.com/aatuh/api-toolkit/contrib/v3/integrations/resend</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around Resend adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/stripe">github.com/aatuh/api-toolkit/contrib/v3/integrations/stripe</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around Stripe adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/integrations/txpostgres">github.com/aatuh/api-toolkit/contrib/v3/integrations/txpostgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Convenience wrapper around txpostgres adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk">github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Clerk auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders">github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Dev-header auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc">github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Provider-neutral OIDC/JWKS auth middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/cors">github.com/aatuh/api-toolkit/contrib/v3/middleware/cors</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>CORS middleware adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics">github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Metrics middleware adapter.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi">github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>OpenAPI validation middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace">github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>OpenTelemetry trace middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog">github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Request logging middleware.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/migrator">github.com/aatuh/api-toolkit/contrib/v3/migrator</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Migration orchestration package with plan, status, check, verify, lock, checksum, guarded down, and failed-state behavior.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/objectstore">github.com/aatuh/api-toolkit/contrib/v3/objectstore</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Object storage contracts.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/scheduler/postgres">github.com/aatuh/api-toolkit/contrib/v3/scheduler/postgres</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Postgres scheduler run store with record, last-finished lookup, and persistence error behavior.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/telemetry">github.com/aatuh/api-toolkit/contrib/v3/telemetry</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>OpenTelemetry wiring helpers.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery">github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery</a></td>
+              <td><span class="badge">supported-adapter</span></td>
+              <td>direct-tests</td>
+              <td>Outbound webhook delivery contracts, signing, dispatch, retry, and async worker helpers.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency">github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency</a></td>
+              <td><span class="badge">experimental</span></td>
+              <td>direct-tests</td>
+              <td>In-memory idempotency adapter for dev/test; production supported tier is Redis-backed.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/countrycodes">github.com/aatuh/api-toolkit/contrib/v3/countrycodes</a></td>
+              <td><span class="badge">experimental</span></td>
+              <td>direct-tests</td>
+              <td>Country code helpers; low-level helper not yet in supported adapter scope.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/email/markdown">github.com/aatuh/api-toolkit/contrib/v3/email/markdown</a></td>
+              <td><span class="badge">experimental</span></td>
+              <td>direct-tests</td>
+              <td>Markdown email rendering adapter; not promoted until renderer contract and drift evidence are added.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/compatkit">github.com/aatuh/api-toolkit/v3/compatkit</a></td>
+              <td><span class="badge">experimental</span></td>
+              <td>direct-tests</td>
+              <td>Experimental downstream service compatibility test runner.</td>
+              <td><a href="https://github.com/aatuh/api-toolkit/blob/master/compatkit/example_test.go">example</a></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/shared">github.com/aatuh/api-toolkit/v3/middleware/auth/shared</a></td>
+              <td><span class="badge">experimental</span></td>
+              <td>direct-tests</td>
+              <td>Auth middleware implementation-sharing package; intentionally not stable API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/clock">github.com/aatuh/api-toolkit/contrib/v3/adapters/clock</a></td>
+              <td><span class="badge">wrapper-only</span></td>
+              <td>wrapper-smoke-tested</td>
+              <td>Thin system clock adapter; smoke coverage is sufficient because behavior delegates to time.Now through a narrow port.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/ulid">github.com/aatuh/api-toolkit/contrib/v3/adapters/ulid</a></td>
+              <td><span class="badge">wrapper-only</span></td>
+              <td>wrapper-smoke-tested</td>
+              <td>Thin ULID generator adapter; smoke coverage is sufficient because behavior is delegated to the ULID generator library.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/uuid">github.com/aatuh/api-toolkit/contrib/v3/adapters/uuid</a></td>
+              <td><span class="badge">wrapper-only</span></td>
+              <td>wrapper-smoke-tested</td>
+              <td>Thin UUID generator adapter; smoke coverage is sufficient because behavior is delegated to the UUID generator library.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/email/noop">github.com/aatuh/api-toolkit/contrib/v3/email/noop</a></td>
+              <td><span class="badge">wrapper-only</span></td>
+              <td>wrapper-smoke-tested</td>
+              <td>No-op email sender wrapper; smoke coverage is sufficient because the package intentionally performs no delivery side effects.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest">github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable health checker adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencytest">github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencytest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable idempotency adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest">github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable policy adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest">github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable rate-limit adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/async/asynctest">github.com/aatuh/api-toolkit/contrib/v3/async/asynctest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable async store contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/audit/audittest">github.com/aatuh/api-toolkit/contrib/v3/audit/audittest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable audit recorder contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/cache/cachetest">github.com/aatuh/api-toolkit/contrib/v3/cache/cachetest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable cache adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/entitlements/entitlementstest">github.com/aatuh/api-toolkit/contrib/v3/entitlements/entitlementstest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable entitlements store contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/objectstore/objectstoretest">github.com/aatuh/api-toolkit/contrib/v3/objectstore/objectstoretest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Reusable object storage adapter contract tests.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/testutil/authtest">github.com/aatuh/api-toolkit/v3/testutil/authtest</a></td>
+              <td><span class="badge">test-only</span></td>
+              <td>test-support</td>
+              <td>Root test support package; not stable public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/api-key">github.com/aatuh/api-toolkit/contrib/v3/examples/api-key</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/auth">github.com/aatuh/api-toolkit/contrib/v3/examples/auth</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/file-upload">github.com/aatuh/api-toolkit/contrib/v3/examples/file-upload</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/idempotency">github.com/aatuh/api-toolkit/contrib/v3/examples/idempotency</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/minimal">github.com/aatuh/api-toolkit/contrib/v3/examples/minimal</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/outbound">github.com/aatuh/api-toolkit/contrib/v3/examples/outbound</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/pagination">github.com/aatuh/api-toolkit/contrib/v3/examples/pagination</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/policy">github.com/aatuh/api-toolkit/contrib/v3/examples/policy</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/secure-profile">github.com/aatuh/api-toolkit/contrib/v3/examples/secure-profile</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/spec-first">github.com/aatuh/api-toolkit/contrib/v3/examples/spec-first</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/webhook">github.com/aatuh/api-toolkit/contrib/v3/examples/webhook</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Example application.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/examples/snippets/minimal-existing-service">github.com/aatuh/api-toolkit/v3/examples/snippets/minimal-existing-service</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Copy-paste README snippet source, build-smoke checked by docscheck.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/examples/snippets/nethttp-migration">github.com/aatuh/api-toolkit/v3/examples/snippets/nethttp-migration</a></td>
+              <td><span class="badge">example-only</span></td>
+              <td>example-only</td>
+              <td>Copy-paste net/http migration snippet source, behavior checked by package tests and docscheck.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/examples/spec-first/gen">github.com/aatuh/api-toolkit/contrib/v3/examples/spec-first/gen</a></td>
+              <td><span class="badge">generated</span></td>
+              <td>generated</td>
+              <td>Generated example code.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit">github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit</a></td>
+              <td><span class="badge">tooling</span></td>
+              <td>direct-tests</td>
+              <td>Developer CLI for service scaffolding, generated clients, contract checks, observability bundles, and deployment starters.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/cmd/migrate">github.com/aatuh/api-toolkit/contrib/v3/cmd/migrate</a></td>
+              <td><span class="badge">tooling</span></td>
+              <td>direct-tests</td>
+              <td>CLI tooling package.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3/cmd/tester">github.com/aatuh/api-toolkit/contrib/v3/cmd/tester</a></td>
+              <td><span class="badge">tooling</span></td>
+              <td>direct-tests</td>
+              <td>CLI tooling package.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v3">github.com/aatuh/api-toolkit/contrib/v3</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>excluded</td>
+              <td>Module marker package only; no stable API promise.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/docscheck">github.com/aatuh/api-toolkit/v3/docscheck</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>direct-tests</td>
+              <td>Repository contract tests, not public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/internal/compatfixtures/rootcore">github.com/aatuh/api-toolkit/v3/internal/compatfixtures/rootcore</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>direct-tests</td>
+              <td>Checked-in root stable API compatibility fixture copied by upgrade-smoke-check; not public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/internal/tools/apiadditions">github.com/aatuh/api-toolkit/v3/internal/tools/apiadditions</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>direct-tests</td>
+              <td>Internal review gate for API addition evidence, not public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/internal/tools/apiinventory">github.com/aatuh/api-toolkit/v3/internal/tools/apiinventory</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>excluded</td>
+              <td>Internal generator for docs/api-inventory.md, not public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+            <tr>
+              <td><a href="https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/internal/tools/docsite">github.com/aatuh/api-toolkit/v3/internal/tools/docsite</a></td>
+              <td><span class="badge">excluded</span></td>
+              <td>excluded</td>
+              <td>Internal generator for docs/site, not public API.</td>
+              <td><span class="muted">n/a</span></td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="examples-heading">
+      <h2 id="examples-heading">Examples</h2>
+      <ul class="example-list">
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/contrib/bootstrap/example_test.go">github.com/aatuh/api-toolkit/contrib/v3/bootstrap</a><span>contrib/bootstrap/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/apiclient/example_test.go">github.com/aatuh/api-toolkit/v3/apiclient</a><span>apiclient/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/apitest/example_test.go">github.com/aatuh/api-toolkit/v3/apitest</a><span>apitest/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/authorization/example_test.go">github.com/aatuh/api-toolkit/v3/authorization</a><span>authorization/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/binding/example_test.go">github.com/aatuh/api-toolkit/v3/binding</a><span>binding/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/compat/billing/example_test.go">github.com/aatuh/api-toolkit/v3/compat/billing</a><span>compat/billing/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/compatkit/example_test.go">github.com/aatuh/api-toolkit/v3/compatkit</a><span>compatkit/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/contracttest/example_test.go">github.com/aatuh/api-toolkit/v3/contracttest</a><span>contracttest/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/email/example_test.go">github.com/aatuh/api-toolkit/v3/email</a><span>email/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/docs/example_test.go">github.com/aatuh/api-toolkit/v3/endpoints/docs</a><span>endpoints/docs/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/health/example_test.go">github.com/aatuh/api-toolkit/v3/endpoints/health</a><span>endpoints/health/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/list/example_test.go">github.com/aatuh/api-toolkit/v3/endpoints/list</a><span>endpoints/list/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/pprof/example_test.go">github.com/aatuh/api-toolkit/v3/endpoints/pprof</a><span>endpoints/pprof/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/endpoints/version/example_test.go">github.com/aatuh/api-toolkit/v3/endpoints/version</a><span>endpoints/version/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/fielderrors/example_test.go">github.com/aatuh/api-toolkit/v3/fielderrors</a><span>fielderrors/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/httpcache/example_test.go">github.com/aatuh/api-toolkit/v3/httpcache</a><span>httpcache/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/example_test.go">github.com/aatuh/api-toolkit/v3/httpx</a><span>httpx/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/identity/example_test.go">github.com/aatuh/api-toolkit/v3/httpx/identity</a><span>httpx/identity/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/httpx/recover/example_test.go">github.com/aatuh/api-toolkit/v3/httpx/recover</a><span>httpx/recover/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/idempotent/example_test.go">github.com/aatuh/api-toolkit/v3/idempotent</a><span>idempotent/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/apikey/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/auth/apikey</a><span>middleware/auth/apikey/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/authz/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/auth/authz</a><span>middleware/auth/authz/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/jwt/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/auth/jwt</a><span>middleware/auth/jwt/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/auth/tenant/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/auth/tenant</a><span>middleware/auth/tenant/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/deprecation/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/deprecation</a><span>middleware/deprecation/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/idempotency/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/idempotency</a><span>middleware/idempotency/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/json/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/json</a><span>middleware/json/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/maxbody/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/maxbody</a><span>middleware/maxbody/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/querylimits/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/querylimits</a><span>middleware/querylimits/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/ratelimit/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/ratelimit</a><span>middleware/ratelimit/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/secure/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/secure</a><span>middleware/secure/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/timeout/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/timeout</a><span>middleware/timeout/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/middleware/trace/example_test.go">github.com/aatuh/api-toolkit/v3/middleware/trace</a><span>middleware/trace/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/negotiation/example_test.go">github.com/aatuh/api-toolkit/v3/negotiation</a><span>negotiation/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/oauth2/example_test.go">github.com/aatuh/api-toolkit/v3/oauth2</a><span>oauth2/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/operations/example_test.go">github.com/aatuh/api-toolkit/v3/operations</a><span>operations/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/ports/idempotency_example_test.go">github.com/aatuh/api-toolkit/v3/ports</a><span>ports/idempotency_example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/queryparams/example_test.go">github.com/aatuh/api-toolkit/v3/queryparams</a><span>queryparams/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/routecontracts/example_test.go">github.com/aatuh/api-toolkit/v3/routecontracts</a><span>routecontracts/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/routepolicy/example_test.go">github.com/aatuh/api-toolkit/v3/routepolicy</a><span>routepolicy/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/scheduler/example_test.go">github.com/aatuh/api-toolkit/v3/scheduler</a><span>scheduler/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/scheduler/migrations/example_test.go">github.com/aatuh/api-toolkit/v3/scheduler/migrations</a><span>scheduler/migrations/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/securityprofile/example_test.go">github.com/aatuh/api-toolkit/v3/securityprofile</a><span>securityprofile/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/specs/example_test.go">github.com/aatuh/api-toolkit/v3/specs</a><span>specs/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/swagstub/example_test.go">github.com/aatuh/api-toolkit/v3/swagstub</a><span>swagstub/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/upload/example_test.go">github.com/aatuh/api-toolkit/v3/upload</a><span>upload/example_test.go</span></li>
+
+        <li><a href="https://github.com/aatuh/api-toolkit/blob/master/webhooks/example_test.go">github.com/aatuh/api-toolkit/v3/webhooks</a><span>webhooks/example_test.go</span></li>
+
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    Generated by <code>internal/tools/docsite</code>. Run <code>make docs-site</code> after package, compatibility, migration, or example documentation changes.
+  </footer>
+  <script src="site.js" defer></script>
+</body>
+</html>

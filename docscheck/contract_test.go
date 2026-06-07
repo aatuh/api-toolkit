@@ -5123,6 +5123,53 @@ func TestDeprecationShimsGiveV3UsersMigrationHelpers(t *testing.T) {
 	}
 }
 
+func TestGeneratedAPIDocsSiteCoversSearchExamplesStatusCompatibilityAndMigration(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	index := readText(t, filepath.Join(repoRoot, "docs", "site", "index.html"))
+	script := readText(t, filepath.Join(repoRoot, "docs", "site", "site.js"))
+	searchIndex := readText(t, filepath.Join(repoRoot, "docs", "site", "search-index.json"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	generator := readText(t, filepath.Join(repoRoot, "internal", "tools", "docsite", "main.go"))
+	combined := index + "\n" + script + "\n" + searchIndex + "\n" + docsIndex + "\n" + makefile + "\n" + generator
+
+	for _, required := range []string{
+		"Generated API docs site",
+		"Search",
+		"Package status",
+		"Examples",
+		"Compatibility",
+		"Migration",
+		"search-index.json",
+		"docs-site:",
+		"docs-site-check:",
+		"internal/tools/docsite",
+		"docs/site/index.html",
+		"docs/api-reference.md",
+		"docs/package-classification.md",
+		"VERSIONING.md",
+		"docs/deprecations.md",
+		"docs/v3-compatibility-roadmap.md",
+		"docs/migration/v3.md",
+		"github.com/aatuh/api-toolkit/v3/middleware/ratelimit",
+		"compatibility-only",
+		"example_test.go",
+		"pkg.go.dev",
+		"textContent",
+		`credentials: "same-origin"`,
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("generated API docs site evidence missing %q", required)
+		}
+	}
+	if strings.Contains(script, "innerHTML") {
+		t.Fatal("docs/site/site.js must not use innerHTML for generated search results")
+	}
+	if strings.Contains(index, "https://cdn.") || strings.Contains(index, "unpkg.com") || strings.Contains(index, "jsdelivr") {
+		t.Fatal("docs/site/index.html must not load remote script/style CDNs")
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
