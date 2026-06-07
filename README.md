@@ -71,6 +71,7 @@ Go 1.25.x.
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
 - Review benchmark baselines: [docs/performance.md](docs/performance.md)
 - Review contributor rules: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Share adopter feedback: [.github/ISSUE_TEMPLATE/adopter_review.md](.github/ISSUE_TEMPLATE/adopter_review.md)
 - Use the PR checklist: [.github/pull_request_template.md](.github/pull_request_template.md)
 - Use the documentation map: [docs/README.md](docs/README.md)
 - Review safe defaults: [docs/safe-defaults.md](docs/safe-defaults.md)
@@ -170,8 +171,11 @@ Current repository trust signals:
   and branch-protection evidence boundaries.
 - Maintenance status: this is currently a single-maintainer project. Security
   reports use the acknowledgement and remediation targets in
-  [SECURITY.md](SECURITY.md); routine issues, feature requests, and
-  non-security pull requests are handled best effort. Supported versions are the
+  [SECURITY.md](SECURITY.md); routine issues, feature requests, adopter
+  reviews, and non-security pull requests are handled best effort. Use
+  [.github/ISSUE_TEMPLATE/adopter_review.md](.github/ISSUE_TEMPLATE/adopter_review.md)
+  to report API friction, missing docs, and migration pain without posting
+  secrets or vulnerability details publicly. Supported versions are the
   latest release on the default branch, with Go/platform support documented in
   [docs/support-policy.md](docs/support-policy.md).
 

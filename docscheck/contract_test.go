@@ -4672,6 +4672,7 @@ func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
 		".github/ISSUE_TEMPLATE/feature_request.md",
 		".github/ISSUE_TEMPLATE/docs.md",
 		".github/ISSUE_TEMPLATE/api_change.md",
+		".github/ISSUE_TEMPLATE/adopter_review.md",
 		".github/ISSUE_TEMPLATE/security.md",
 		".github/pull_request_template.md",
 	} {
@@ -4691,6 +4692,79 @@ func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
 		if !strings.Contains(prTemplate, required) {
 			t.Fatalf("pull request template missing %q", required)
 		}
+	}
+}
+
+func TestAdopterFeedbackLoopIsPublishedAndSafe(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	template := readText(t, filepath.Join(repoRoot, ".github", "ISSUE_TEMPLATE", "adopter_review.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"# Adopter Review",
+		"public issue template",
+		"API Friction",
+		"Missing Docs",
+		"Migration Pain",
+		"What Worked",
+		"Requested Outcome",
+		"Existing service",
+		"Generated scaffold",
+		"Contrib adapter",
+		"Version or commit",
+		"Go version",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("adopter review issue template missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Do not include secrets",
+		"tokens",
+		"private URLs",
+		"customer data",
+		"proprietary schemas",
+		"vulnerability details",
+		"SECURITY.md",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("adopter review issue template missing public-safety guidance %q", required)
+		}
+	}
+	for _, source := range []struct {
+		name string
+		text string
+	}{
+		{"README.md", readme},
+		{"CONTRIBUTING.md", contributing},
+		{"docs/governance.md", governance},
+	} {
+		for _, required := range []string{
+			".github/ISSUE_TEMPLATE/adopter_review.md",
+			"API friction",
+			"missing docs",
+			"migration pain",
+		} {
+			if !strings.Contains(source.text, required) {
+				t.Fatalf("%s missing adopter feedback loop text %q", source.name, required)
+			}
+		}
+	}
+	for _, required := range []string{
+		"GitHub Discussions",
+		"actionable API, docs, compatibility, and migration",
+		"secrets, tokens, private URLs, customer data",
+		"SECURITY.md",
+	} {
+		if !strings.Contains(contributing+"\n"+governance, required) {
+			t.Fatalf("adopter feedback process missing issue/discussion or safety guidance %q", required)
+		}
+	}
+	if !strings.Contains(bestPractices, "adopter review template") {
+		t.Fatal("docs/openssf-best-practices.md missing adopter review template evidence")
 	}
 }
 

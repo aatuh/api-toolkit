@@ -77,6 +77,18 @@ Do not open public issues for vulnerabilities. Use `SECURITY.md` and GitHub
 private vulnerability reporting. Normal PRs must avoid leaking secrets, tokens,
 PII, raw provider payloads, or internal parser/database errors.
 
+## Adopter feedback
+
+Use [.github/ISSUE_TEMPLATE/adopter_review.md](.github/ISSUE_TEMPLATE/adopter_review.md)
+for public adopter reviews. The template asks for adoption path, API friction,
+missing docs, migration pain, what worked, and the requested outcome.
+
+If GitHub Discussions are enabled for longer Q&A, maintainers may redirect
+conversation there, but actionable API, docs, compatibility, or migration
+follow-up should be captured in an issue. Do not post secrets, tokens, private
+URLs, customer data, proprietary schemas, or vulnerability details in public
+feedback.
+
 ## Conduct
 
 Project spaces follow `CODE_OF_CONDUCT.md`. Keep disagreement technical,

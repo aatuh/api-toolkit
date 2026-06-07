@@ -73,6 +73,26 @@ Treat branch review settings as external GitHub state. When repository settings
 are accessible, attach `make github-governance-check` output or GitHub ruleset
 evidence during release review.
 
+## Adopter Feedback Loop
+
+Public adopter feedback uses
+`.github/ISSUE_TEMPLATE/adopter_review.md`. The template asks for the adoption
+path, API friction, missing docs, migration pain, what worked, and the requested
+outcome. Maintainers should convert recurring feedback into one of:
+
+- documentation fixes,
+- examples or migration notes,
+- API review issues,
+- compatibility tests,
+- backlog items with explicit non-goals.
+
+If GitHub Discussions are enabled, use them for broad Q&A or open-ended design
+conversation, but keep actionable API, docs, compatibility, and migration follow
+up in issues so it can be linked from release review and backlog work. Public
+feedback must not include secrets, tokens, private URLs, customer data,
+proprietary schemas, or vulnerability details; use `SECURITY.md` for private
+security reports.
+
 ## Stable API Review Board
 
 Stable root API growth requires public design review before implementation.

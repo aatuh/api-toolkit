@@ -21,7 +21,7 @@ Open gaps: branch protection and MFA.
 | Area | Status | Evidence or gap |
 | --- | --- | --- |
 | Project purpose and obtain instructions | Met locally | README describes the library, target user, non-goals, install command, and existing-service path. |
-| Feedback and contribution process | Met locally | `CONTRIBUTING.md`, issue templates, PR template, and `SECURITY.md` exist. |
+| Feedback and contribution process | Met locally | `CONTRIBUTING.md`, issue templates including the adopter review template, PR template, and `SECURITY.md` exist. |
 | License | Met locally | `LICENSE` is Apache-2.0. |
 | Version control and public source | Met locally | The repository uses Git and publishes source on GitHub. |
 | Security reporting | Met locally | `SECURITY.md` documents private reporting, acknowledgement expectations, and severity-based remediation targets. |
