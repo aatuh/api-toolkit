@@ -1079,6 +1079,7 @@ Stability tier: `stable`
 | `HeaderConfig.ResetHeader` | field | v3 compatibility surface | active |
 | `HeaderConfig.RetryAfterHeader` | field | v3 compatibility surface | active |
 | `KeyFn` | type | v3 compatibility surface | active |
+| `Limiter` | type | v3 compatibility surface | active |
 | `Middleware` | type | v3 compatibility surface | active |
 | `Middleware.Handler` | method | v3 compatibility surface | active |
 | `Middleware.Middleware` | method | v3 compatibility surface | active |

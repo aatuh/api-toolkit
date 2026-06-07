@@ -74,6 +74,18 @@ source of truth is `docs/release-runbook.md`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
 - List endpoint helpers keep the checked parser APIs: `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`.
 
+## 2026-06-07
+
+### Migration
+
+- Added `middleware/ratelimit.Limiter` as a package-local v3 migration shim
+  over `ports.RateLimiter`. Existing `ports.RateLimiter` users remain
+  source-compatible, while new rate-limit adapters can move imports toward the
+  consuming middleware package before v4 shrinks broad root ports.
+- Updated `docs/deprecations.md` so the active register covers the existing
+  source-deprecated `middleware/timeout.New` and `middleware/trace.Use` shims
+  with replacements, removal horizon, snippets, and release-note pointers.
+
 ## 2026-06-06
 
 ### Test evidence and compatibility

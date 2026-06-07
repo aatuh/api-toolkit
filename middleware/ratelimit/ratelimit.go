@@ -16,6 +16,11 @@ import (
 // KeyFn extracts a key for rate limiting buckets.
 type KeyFn func(*http.Request) string
 
+// Limiter is the package-local rate limiter contract for middleware users.
+// It is a v3 migration shim over ports.RateLimiter so applications can move
+// their imports toward middleware/ratelimit before v4 shrinks broad root ports.
+type Limiter = ports.RateLimiter
+
 // Options configures the rate limit middleware.
 type Options struct {
 	Capacity   float64 // tokens

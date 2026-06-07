@@ -1,11 +1,24 @@
 package ratelimit_test
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
 )
+
+type exampleLimiter struct{}
+
+func (exampleLimiter) Allow(context.Context, string) (bool, time.Duration, error) {
+	return true, 0, nil
+}
+
+func ExampleLimiter() {
+	var limiter ratelimit.Limiter = exampleLimiter{}
+	_ = limiter
+}
 
 func ExampleSetRateLimitHeaders() {
 	recorder := httptest.NewRecorder()

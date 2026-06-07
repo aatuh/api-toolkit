@@ -15,6 +15,7 @@ code should use.
 | Driver-shaped database stats | `ports.DatabasePool.Stat` and `ports.DatabaseStats` were removed from the generic pool contract. | `DatabasePoolSnapshotProvider`, `ports.SnapshotDatabasePoolStats`, `SnapshotDatabaseStats`, and adapter `StatSnapshot()` methods. | Root snapshot tests, pgxpool adapter tests, and docscheck rules that examples prefer snapshots. |
 | Legacy response helpers | Public `response_writer` package removed. | `github.com/aatuh/api-toolkit/v3/httpx` and package-local response recorders. | `httpx` response tests, idempotency capture tests, and docscheck rules that examples avoid the removed package. |
 | Tokenless idempotency release | Legacy `IdempotencyReleaser.Release(ctx, key)` behavior was replaced by token-aware reservation release. | `ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)`. | Idempotency adapter contract tests and bounded, redacted compatibility telemetry. |
+| Root rate limiter port | `ports.RateLimiter` remains available for v3 source compatibility, but new code should migrate to the package-local shim. | `middleware/ratelimit.Limiter`, an alias over the v3 port. | Compile-checked `ExampleLimiter`, API inventory, and docscheck shim coverage. |
 | Unchecked authz construction | Checked startup validation is the documented path. | `middleware/auth/authz.NewRequireRoleMiddlewareChecked` and `ValidateRequireRoleMiddlewareRoutes`. | Authz checked-constructor examples and route validation tests. |
 | Unchecked list parsing | Checked parser APIs are the documented path when validation matters. | `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`. | Parser validation tests and docs/examples using checked helpers. |
 
@@ -26,7 +27,7 @@ code should use.
   database stats, and response helper APIs.
 - Keep replacement imports visible in user-facing docs: `compat/billing`,
   `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, adapter
-  `StatSnapshot()`, and `httpx`.
+  `StatSnapshot()`, `middleware/ratelimit.Limiter`, and `httpx`.
 - Keep idempotency compatibility telemetry bounded: no raw paths, keys,
   provider secrets, or high-cardinality error values in labels.
 - Keep streaming, SSE, websocket, and large-download timeout caveats visible in

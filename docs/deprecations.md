@@ -27,7 +27,14 @@ Source comments should use Go's `Deprecated:` convention so pkg.go.dev and
 
 | Symbol | Since | Replacement | Removal earliest major | Migration snippet | Release note |
 | --- | --- | --- | --- | --- | --- |
-| None currently documented in source comments. | n/a | n/a | n/a | n/a | n/a |
+| `middleware/timeout.New` | 2026-06-07 | `middleware/timeout.NewPropagator` | v4 | `timeout.New(opts)` -> `timeout.NewPropagator(opts)` when the route only needs cooperative context deadlines. | `docs/release-notes.md` 2026-06-07 Migration |
+| `middleware/trace.Use` | 2026-06-07 | `middleware/trace.New(opts).Middleware()` | v4 | `trace.Use(opts)` -> `mw, _ := trace.New(opts); mw.Middleware()` for explicit middleware construction. | `docs/release-notes.md` 2026-06-07 Migration |
+
+## Compatibility Shim Register
+
+| Shim | Existing surface | Preferred import | Purpose | Evidence |
+| --- | --- | --- | --- | --- |
+| `middleware/ratelimit.Limiter` | `ports.RateLimiter` | `github.com/aatuh/api-toolkit/v3/middleware/ratelimit` | Lets v3 users move rate-limit adapter contracts to the package that consumes them before v4 shrinks broad root ports. | `middleware/ratelimit/example_test.go`, `docs/v3-compatibility-roadmap.md`, `docs/api-inventory.md` |
 
 Compatibility-sensitive but not source-deprecated surfaces are tracked in
 [ports-surface.md](ports-surface.md),

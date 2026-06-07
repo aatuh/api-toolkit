@@ -1,8 +1,10 @@
-// Package ratelimit provides stable rate-limit middleware over ports.RateLimiter.
+// Package ratelimit provides stable rate-limit middleware over Limiter.
 //
 // The middleware owns HTTP behavior while storage and quota decisions stay
-// behind the RateLimiter port. Use contrib adapters for concrete stores, and
-// keep dangerous local bypass configuration restricted to trusted proxies.
+// behind the Limiter contract. Limiter is a v3 migration shim alias for
+// ports.RateLimiter; prefer the package-local name in new application code
+// before v4 shrinks broad root ports. Use contrib adapters for concrete stores,
+// and keep dangerous local bypass configuration restricted to trusted proxies.
 //
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v3/middleware/ratelimit`.

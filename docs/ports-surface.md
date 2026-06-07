@@ -30,6 +30,9 @@ design, not current invitations to widen generic core ports.
   `DatabaseStats`, were removed from the generic pool contract. Keep
   backend-specific counters in adapters and expose plain-value snapshots to
   generic observability code.
+- `ports.RateLimiter` remains for v3 source compatibility. New rate-limit
+  adapter contracts should import `middleware/ratelimit.Limiter`, which is a
+  package-local migration shim over the same interface.
 - Legacy response helpers were removed from the stable core surface. Use
   `httpx` for JSON and Problem Details responses and package-local response
   recorders for middleware internals.
@@ -50,6 +53,8 @@ design, not current invitations to widen generic core ports.
 - New database examples must prefer `DatabasePoolSnapshotProvider`,
   `SnapshotDatabasePoolStats`, `SnapshotDatabaseStats`, or adapter
   `StatSnapshot()` methods.
+- New rate-limit examples should use `middleware/ratelimit.Limiter` rather than
+  importing `ports.RateLimiter` directly.
 - New response examples must use `httpx`; middleware that needs capture should
   keep package-local recorders.
 

@@ -5088,6 +5088,41 @@ func TestDownstreamCompatibilityKitIsRunnableByExternalServices(t *testing.T) {
 	}
 }
 
+func TestDeprecationShimsGiveV3UsersMigrationHelpers(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	ratelimit := readText(t, filepath.Join(repoRoot, "middleware", "ratelimit", "ratelimit.go"))
+	ratelimitDoc := readText(t, filepath.Join(repoRoot, "middleware", "ratelimit", "doc.go"))
+	ratelimitExample := readText(t, filepath.Join(repoRoot, "middleware", "ratelimit", "example_test.go"))
+	deprecations := readText(t, filepath.Join(repoRoot, "docs", "deprecations.md"))
+	portsSurface := readText(t, filepath.Join(repoRoot, "docs", "ports-surface.md"))
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "v3-compatibility-roadmap.md"))
+	migration := readText(t, filepath.Join(repoRoot, "docs", "migration", "v3.md"))
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	combined := ratelimit + "\n" + ratelimitDoc + "\n" + ratelimitExample + "\n" + deprecations + "\n" + portsSurface + "\n" + roadmap + "\n" + migration + "\n" + releaseNotes
+
+	for _, required := range []string{
+		"type Limiter = ports.RateLimiter",
+		"v3 migration shim over ports.RateLimiter",
+		"ExampleLimiter",
+		"var limiter ratelimit.Limiter",
+		"`middleware/timeout.New`",
+		"`middleware/timeout.NewPropagator`",
+		"`middleware/trace.Use`",
+		"`middleware/trace.New(opts).Middleware()`",
+		"Compatibility Shim Register",
+		"`middleware/ratelimit.Limiter`",
+		"`ports.RateLimiter`",
+		"before v4 shrinks broad root ports",
+		"docs/api-inventory.md",
+		"2026-06-07",
+		"Migration",
+	} {
+		if !strings.Contains(combined, required) {
+			t.Fatalf("deprecation shim evidence missing %q", required)
+		}
+	}
+}
+
 func TestExampleCompileGateIsWiredToCI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
