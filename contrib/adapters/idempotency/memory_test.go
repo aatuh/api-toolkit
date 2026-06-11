@@ -55,6 +55,58 @@ func TestMemoryStoreReleaseRespectsReservationToken(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreReleaseReservationDoesNotDeleteSuccessorReservation(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	now := time.Unix(1_700_000_000, 123_000_000).UTC()
+	store.now = func() time.Time { return now }
+	ctx := context.Background()
+	key := "order:successor"
+	if ok, err := store.TryBegin(ctx, key, ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-old",
+		ReservationToken: "token-old",
+		CreatedAt:        now,
+	}, time.Millisecond); err != nil {
+		t.Fatalf("TryBegin() old reservation error = %v", err)
+	} else if !ok {
+		t.Fatal("TryBegin() old reservation = false, want true")
+	}
+
+	now = now.Add(2 * time.Millisecond)
+	if ok, err := store.TryBegin(ctx, key, ports.IdempotencyRecord{
+		State:            ports.IdempotencyStateInFlight,
+		RequestHash:      "hash-new",
+		ReservationToken: "token-new",
+		CreatedAt:        now,
+	}, time.Minute); err != nil {
+		t.Fatalf("TryBegin() successor error = %v", err)
+	} else if !ok {
+		t.Fatal("TryBegin() successor = false, want true after expiry")
+	}
+
+	if err := store.ReleaseReservation(ctx, key, "token-old"); !errors.Is(err, ports.ErrLegacyInFlightTokenMismatch) {
+		t.Fatalf("ReleaseReservation() stale token error = %v, want %v", err, ports.ErrLegacyInFlightTokenMismatch)
+	}
+	got, found, err := store.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("Get() successor error = %v", err)
+	}
+	if !found || got.ReservationToken != "token-new" || got.RequestHash != "hash-new" {
+		t.Fatalf("successor reservation was not preserved: found=%v record=%#v", found, got)
+	}
+
+	if err := store.ReleaseReservation(ctx, key, "token-new"); err != nil {
+		t.Fatalf("ReleaseReservation() successor error = %v", err)
+	}
+	if _, found, err := store.Get(ctx, key); err != nil {
+		t.Fatalf("Get() after successor release error = %v", err)
+	} else if found {
+		t.Fatal("successor reservation should be deleted after matching release")
+	}
+}
+
 func TestMemoryStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 	t.Parallel()
 
