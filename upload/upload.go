@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"path"
 	"strings"
+	"unicode"
 
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
 	"github.com/aatuh/api-toolkit/v3/httpx"
@@ -21,7 +24,9 @@ const (
 
 // File describes an uploaded multipart file.
 type File struct {
-	FieldName   string
+	FieldName string
+	// Filename is normalized to a display/storage basename. It strips both
+	// Unix- and Windows-style path components and control characters.
 	Filename    string
 	ContentType string
 	Size        int64
@@ -73,7 +78,7 @@ func DecodeMultipart(r *http.Request, config Config) (Form, error) {
 	if r == nil || r.Body == nil {
 		return Form{}, fieldError("body", "required", "multipart request body is required")
 	}
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
+	if !isMultipartFormData(r.Header.Get("Content-Type")) {
 		return Form{}, fieldError("content_type", "invalid", "Content-Type must be multipart/form-data")
 	}
 	maxRequestBytes := config.MaxRequestBytes
@@ -104,7 +109,7 @@ func DecodeMultipart(r *http.Request, config Config) (Form, error) {
 	var errs fielderrors.FieldErrors
 	for field, headers := range r.MultipartForm.File {
 		for _, header := range headers {
-			file := File{FieldName: field, Filename: header.Filename, ContentType: header.Header.Get("Content-Type"), Size: header.Size, Header: header.Header, FileHeader: header}
+			file := File{FieldName: field, Filename: normalizeFilename(header.Filename), ContentType: header.Header.Get("Content-Type"), Size: header.Size, Header: header.Header, FileHeader: header}
 			if config.MaxFileBytes > 0 && header.Size > config.MaxFileBytes {
 				errs = append(errs, fieldError(field, "too_large", field+" exceeds maximum file size")...)
 			}
@@ -154,6 +159,34 @@ func ValidationProblem(err error) httpx.Problem {
 // WriteValidationProblem writes upload validation errors as Problem Details.
 func WriteValidationProblem(w http.ResponseWriter, err error) {
 	httpx.WriteProblem(w, http.StatusBadRequest, ValidationProblem(err))
+}
+
+func isMultipartFormData(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(mediaType, "multipart/form-data")
+}
+
+func normalizeFilename(filename string) string {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return ""
+	}
+	filename = strings.ReplaceAll(filename, "\\", "/")
+	filename = path.Base(filename)
+	filename = strings.TrimSpace(filename)
+	filename = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, filename)
+	if filename == "." || filename == ".." {
+		return ""
+	}
+	return filename
 }
 
 func fieldError(field, code, message string) fielderrors.FieldErrors {
