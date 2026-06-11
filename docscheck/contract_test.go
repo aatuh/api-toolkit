@@ -5733,6 +5733,73 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	}
 }
 
+func TestMutationSmokeExperimentIsNonBlocking(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks",
+		"MUTATION_LIMIT ?= 12",
+		"MUTATION_TIMEOUT ?= 30s",
+		"MUTATION_OUT ?= $(OUTPUT_DIR)/mutation/mutation-smoke.tsv",
+		"mutation-smoke: ## Run non-blocking stable-core mutation smoke",
+		`GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_PACKAGES)" MUTATION_LIMIT="$(MUTATION_LIMIT)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(MUTATION_OUT)" scripts/mutation_smoke.sh`,
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing mutation-smoke wiring %q", required)
+		}
+	}
+	for _, target := range []string{"finalize", "audit-check", "release-check", "release-evidence"} {
+		if strings.Contains(makeTargetRecipe(t, makefile, target), "mutation-smoke") {
+			t.Fatalf("Makefile target %s must not run non-blocking mutation smoke", target)
+		}
+	}
+
+	script := readText(t, filepath.Join(repoRoot, "scripts", "mutation_smoke.sh"))
+	for _, required := range []string{
+		"MUTATION_PACKAGES",
+		"MUTATION_LIMIT",
+		"MUTATION_TIMEOUT",
+		"MUTATION_OUT",
+		"./internal/tools/mutationsmoke",
+		`GOWORK="${GOWORK:-off}"`,
+		`GOTOOLCHAIN="${GOTOOLCHAIN:-local}"`,
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("scripts/mutation_smoke.sh missing %q", required)
+		}
+	}
+
+	tool := readText(t, filepath.Join(repoRoot, "internal", "tools", "mutationsmoke", "main.go"))
+	for _, required := range []string{
+		"parser.ParseFile",
+		"exec.CommandContext",
+		"parsePackageList",
+		"resolveOutputPath",
+		"isPathInside",
+		"copyRepository",
+		`".audits"`,
+		`".trash"`,
+		`"GOWORK=off"`,
+	} {
+		if !strings.Contains(tool, required) {
+			t.Fatalf("mutation smoke tool missing safety wiring %q", required)
+		}
+	}
+
+	docs := readText(t, filepath.Join(repoRoot, "docs", "test-coverage.md"))
+	for _, required := range []string{
+		"## Mutation Smoke",
+		"non-blocking mutation-testing",
+		".ci-result/mutation/mutation-smoke.tsv",
+		"weak-assertion review prompt",
+		"`mutation-smoke` is intentionally opt-in and non-blocking",
+	} {
+		if !strings.Contains(docs, required) {
+			t.Fatalf("docs/test-coverage.md missing mutation smoke text %q", required)
+		}
+	}
+}
+
 func TestRaceCoverageCoversSharedMiddlewareState(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	targets := []struct {

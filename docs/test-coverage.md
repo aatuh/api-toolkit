@@ -30,6 +30,29 @@ The command writes coverage evidence under `.ci-result/coverage/`:
 `coverage-check`, so publication evidence records the coverage gate log beside
 lint, vuln, gosec, API compatibility, docs, tests, race, and fuzz evidence.
 
+## Mutation Smoke
+
+`GOTOOLCHAIN=local make mutation-smoke` runs a non-blocking mutation-testing
+experiment against a small stable-core package set. It mutates boolean literals
+and simple comparison/logical operators in a temporary copy of the repository,
+then runs the affected package tests for each mutant.
+
+The default package set is `./binding,./queryparams,./negotiation,./webhooks`.
+Tune a local run with:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MUTATION_PACKAGES` | `./binding,./queryparams,./negotiation,./webhooks` | Comma or whitespace separated `./` package patterns. |
+| `MUTATION_LIMIT` | `12` | Maximum mutants to execute. |
+| `MUTATION_TIMEOUT` | `30s` | Per-mutant test timeout. |
+| `MUTATION_OUT` | `.ci-result/mutation/mutation-smoke.tsv` | TSV report path under the repository root. |
+
+The TSV columns are `package`, `file`, `rule`, `original`, `replacement`,
+`status`, and `duration_ms`. A `survived` mutant means the package tests still
+passed after the source change; treat that as a weak-assertion review prompt.
+`mutation-smoke` is intentionally opt-in and non-blocking, so it is not part of
+`finalize`, `audit-check`, `release-check`, or `release-evidence`.
+
 ## Floors
 
 The aggregate defaults are:

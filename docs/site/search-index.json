@@ -984,6 +984,12 @@
     "text": "github.com/aatuh/api-toolkit/v3/internal/tools/docsite excluded excluded Internal generator for docs/site, not public API. "
   },
   {
+    "title": "github.com/aatuh/api-toolkit/v3/internal/tools/mutationsmoke",
+    "category": "package-status",
+    "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/internal/tools/mutationsmoke",
+    "text": "github.com/aatuh/api-toolkit/v3/internal/tools/mutationsmoke excluded direct-tests Internal non-blocking mutation smoke experiment, not public API. "
+  },
+  {
     "title": "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey",
     "category": "package-status",
     "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/v3/middleware/auth/apikey",

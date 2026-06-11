@@ -3,6 +3,9 @@ GO ?= go
 GOWORK ?= off
 FUZZTIME ?= 10s
 BENCHTIME ?= 1x
+MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
+MUTATION_LIMIT ?= 12
+MUTATION_TIMEOUT ?= 30s
 export GOWORK
 
 # Standard tools.
@@ -14,6 +17,7 @@ APIDIFF_VERSION ?= v0.0.0-20260410095643-746e56fc9e2f
 
 # Tools used by local CI steps.
 OUTPUT_DIR ?= .ci-result
+MUTATION_OUT ?= $(OUTPUT_DIR)/mutation/mutation-smoke.tsv
 CODEQL ?= codeql
 CODEQL_DB_DIR ?= $(OUTPUT_DIR)/codeql-db
 CODEQL_QUERIES ?= codeql/go-queries
@@ -31,7 +35,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -254,6 +258,9 @@ timeout-determinism-check: ## Run repeated timeout middleware determinism and ra
 
 fuzz: ## Run fuzz smoke tests
 	@GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
+
+mutation-smoke: ## Run non-blocking stable-core mutation smoke
+	@GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_PACKAGES)" MUTATION_LIMIT="$(MUTATION_LIMIT)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(MUTATION_OUT)" scripts/mutation_smoke.sh
 
 benchmark-smoke: ## Run package benchmark smoke without performance claims
 	@set -e; for mod in $(MODULES); do \
