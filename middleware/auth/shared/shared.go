@@ -148,7 +148,13 @@ func ParseTokenClaims(
 	if cfg.Requirements.RequireIssuedAt {
 		opts = append(opts, jwt.WithIssuedAt())
 	}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, keyfunc, opts...)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+		kid, ok := token.Header["kid"].(string)
+		if !ok || strings.TrimSpace(kid) == "" {
+			return nil, errors.New("token missing kid")
+		}
+		return keyfunc(token)
+	}, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("token parse: %w", err)
 	}

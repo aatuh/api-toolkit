@@ -148,7 +148,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		},
 		tokenFromRequest,
 		func(ctx context.Context, token string) (context.Context, error) {
-			subj, err := m.subjectFromToken(token)
+			subj, err := m.subjectFromTokenContext(ctx, token)
 			if err != nil {
 				return nil, err
 			}
@@ -176,7 +176,7 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 		},
 		tokenFromRequest,
 		func(ctx context.Context, token string) (context.Context, error) {
-			subj, err := m.subjectFromToken(token)
+			subj, err := m.subjectFromTokenContext(ctx, token)
 			if err != nil {
 				return nil, err
 			}
@@ -239,10 +239,17 @@ type discoveryDocument struct {
 }
 
 func (m *Middleware) subjectFromToken(tokenStr string) (Subject, error) {
+	return m.subjectFromTokenContext(context.Background(), tokenStr)
+}
+
+func (m *Middleware) subjectFromTokenContext(ctx context.Context, tokenStr string) (Subject, error) {
 	if m.jwks == nil {
 		return Subject{}, errors.New("jwks not configured")
 	}
-	claims, err := shared.ParseTokenClaims(tokenStr, m.jwks.Keyfunc, shared.TokenParserConfig{
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	claims, err := shared.ParseTokenClaims(tokenStr, m.jwks.KeyfuncCtx(ctx), shared.TokenParserConfig{
 		Audience:          m.cfg.Audience,
 		Issuer:            m.cfg.Issuer,
 		AllowedClockSkew:  m.cfg.AllowedClockSkew,
