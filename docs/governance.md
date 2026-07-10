@@ -102,6 +102,46 @@ The Actions audit rejects missing workflow-level permissions and broad
 `read-all`/`write-all` defaults. Add a new scope only with a documented action
 requirement, a focused workflow change, and a matching audit-contract update.
 
+## Action Pin Refresh Policy
+
+`.github/dependabot.yml` checks GitHub Actions from `/` weekly and opens `ci`
+prefixed pull requests. Dependabot updates workflow action references and their
+same-line version comments; generated Go workflow templates are source code,
+so maintainers must update those template pins in the same pull request when
+they use the affected action. See [GitHub's Dependabot action-update
+guidance](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/auto-update-actions).
+
+Every third-party `uses:` reference must keep a full 40-character commit SHA
+and a same-line human-readable version comment, for example
+`actions/checkout@<sha> # actions/checkout vX.Y.Z`. Do not replace the SHA with
+a mutable tag. Before accepting a new SHA, verify that it belongs to the named
+upstream action repository rather than a fork, review the action release notes
+and source changes, and confirm that the comment names the reviewed version.
+GitHub documents full commit SHA pinning as the immutable action-reference
+option. See [GitHub's secure use reference](https://docs.github.com/en/actions/reference/security/secure-use).
+
+For every Actions Dependabot pull request:
+
+1. Review the Dependabot summary, upstream release notes, and the exact
+   owner/repository, SHA, and same-line version comment.
+2. Reassess token permissions and secret exposure. Do not add a scope, secret,
+   `pull_request_target` trigger, or untrusted-event interpolation merely to
+   make the action update pass.
+3. Synchronize generated `actions/checkout` and `actions/setup-go` templates
+   when the update changes either action; inspect generated workflow output.
+4. Run `GOTOOLCHAIN=local make actions-audit`,
+   `GOTOOLCHAIN=local make actions-audit-contract`, the affected generated
+   scaffold tests when templates changed, and `GOTOOLCHAIN=local make docs-check`.
+5. Merge only after required GitHub checks pass. Security updates follow the
+   dependency remediation targets in `SECURITY.md`; defer a version update only
+   with an owner, reason, review date, and removal trigger in the appropriate
+   release review or disposition record.
+
+The Actions audit rejects unpinned references, missing version comments,
+deprecated provenance action comments, stale generated checkout/setup-go pins,
+and broad or missing workflow permissions. It does not prove an action is safe;
+the upstream review and required CI remain mandatory.
+
 ## Secret Scanning And Example Configuration
 
 Secret scanning and push protection are external GitHub settings. Before a

@@ -47,6 +47,10 @@ audit_uses_line() {
   local version="${ref##*@}"
   if [[ ! "$version" =~ ^[0-9a-f]{40}$ ]]; then
     report "$rel:$line_no unpinned action ref $ref"
+    return
+  fi
+  if [[ ! "$line" =~ \#[[:space:]]+[^[:space:]#] ]]; then
+    report "$rel:$line_no pinned action missing version comment $ref"
   fi
 }
 

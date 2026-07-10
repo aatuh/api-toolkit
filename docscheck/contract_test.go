@@ -2607,6 +2607,63 @@ func TestGitHubActionsUseLeastPrivilegePermissions(t *testing.T) {
 	}
 }
 
+func TestActionPinRefreshPolicyIsAuditable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	dependabot := readText(t, filepath.Join(repoRoot, ".github", "dependabot.yml"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	auditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
+	auditContract := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit_contract_test.sh"))
+
+	for _, required := range []string{
+		"package-ecosystem: \"github-actions\"",
+		"directory: \"/\"",
+		"interval: \"weekly\"",
+		"Action Pin Refresh Policy",
+	} {
+		if !strings.Contains(dependabot, required) {
+			t.Fatalf(".github/dependabot.yml missing Actions update configuration %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Action Pin Refresh Policy",
+		"GitHub Actions from `/` weekly",
+		"same-line version comments",
+		"full 40-character commit SHA",
+		"Do not replace the SHA with\na mutable tag",
+		"named\nupstream action repository rather than a fork",
+		"Reassess token permissions and secret exposure",
+		"`pull_request_target` trigger",
+		"Synchronize generated `actions/checkout` and `actions/setup-go` templates",
+		"make actions-audit-contract",
+		"make docs-check",
+		"https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/auto-update-actions",
+		"https://docs.github.com/en/actions/reference/security/secure-use",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing action refresh policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"action pin refresh policy",
+		"pinned action missing version comment",
+	} {
+		if !strings.Contains(securityPolicy+"\n"+auditScript+"\n"+auditContract, required) {
+			t.Fatalf("action refresh documentation or audit missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"full-SHA `uses:` refs",
+		"same-line version comments",
+		"Action Pin Refresh Policy",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("docs/release-runbook.md missing action refresh guidance %q", required)
+		}
+	}
+}
+
 func TestOpenSSFBestPracticesBadgeGapsAreDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

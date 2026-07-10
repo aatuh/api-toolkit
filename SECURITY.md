@@ -59,6 +59,8 @@ Dependabot is enabled for:
 - GitHub Actions in `/`
 
 Security updates are surfaced automatically as pull requests.
+Review [the action pin refresh policy](docs/governance.md#action-pin-refresh-policy)
+before merging a GitHub Actions Dependabot update.
 
 ## Secret Handling And Scanning
 

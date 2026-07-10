@@ -8,7 +8,8 @@ updates:
     directory: "/contrib"
     schedule:
       interval: "weekly"
-  # Keeps SHA-pinned workflow actions current by opening PRs with refreshed refs.
+  # Keeps SHA-pinned workflow actions current; review docs/governance.md's
+  # Action Pin Refresh Policy before merging a generated Dependabot PR.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -76,11 +76,19 @@ EOF_GENERATOR
 }
 
 pass_repo="$tmp/pass"
-write_repo "$pass_repo" "${current_checkout%% #*}" "$current_checkout" "$current_setup_go"
+write_repo "$pass_repo" "$current_checkout" "$current_checkout" "$current_setup_go"
 pass_output="$(require_success pass env ACTIONS_AUDIT_ROOT="$pass_repo" "$script")"
 case "$pass_output" in
   *"actions-audit: passed"*) ;;
   *) printf 'pass output missing success marker:\n%s\n' "$pass_output" >&2; exit 1 ;;
+esac
+
+missing_comment_repo="$tmp/missing-comment"
+write_repo "$missing_comment_repo" "${current_checkout%% #*}" "$current_checkout" "$current_setup_go"
+missing_comment_output="$(require_failure missing-comment env ACTIONS_AUDIT_ROOT="$missing_comment_repo" "$script")"
+case "$missing_comment_output" in
+  *"pinned action missing version comment actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"*) ;;
+  *) printf 'missing-comment output missing finding:\n%s\n' "$missing_comment_output" >&2; exit 1 ;;
 esac
 
 missing_permissions_repo="$tmp/missing-permissions"
