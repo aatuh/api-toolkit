@@ -89,6 +89,51 @@ follow-up should be captured in an issue. Do not post secrets, tokens, private
 URLs, customer data, proprietary schemas, or vulnerability details in public
 feedback.
 
+## Issue Triage
+
+This is a single-maintainer project, so public issue triage is best effort. Aim
+to acknowledge, label, request the missing reproduction details, or explain the
+next decision within 14 calendar days. Security reports are different: do not
+triage them in public; use `SECURITY.md` and GitHub private vulnerability
+reporting, which has its own three-business-day acknowledgement target.
+
+At first review, classify the issue with the most useful available label:
+
+- `good first issue` for a bounded task with enough context for a newcomer,
+- `docs` for a documentation or example change,
+- `api-review` for a stable root API proposal or compatibility decision,
+- `security` only for public safety coordination that contains no vulnerability
+  details; otherwise redirect privately,
+- `breaking-change` when a reported behavior or proposal can affect a public
+  source, runtime, configuration, or generated-output contract,
+- `needs-design` when implementation should wait for a scoped design issue or
+  adopter feedback.
+
+Use the existing issue templates before asking reporters to rewrite a report.
+For bugs, ask for the smallest safe reproduction, affected package or command,
+api-toolkit and Go versions, operating-system context, expected behavior, and
+observed behavior. Never request secrets, customer data, private URLs, raw
+provider payloads, or vulnerability details in a public issue.
+
+Close an issue only with a brief reason:
+
+- close as fixed when the issue links to the merged pull request or released
+  version,
+- close duplicates with a link to the canonical issue,
+- close out-of-scope proposals after explaining the applicable non-goal,
+  app-owned alternative, contrib path, or design discussion,
+- request missing reproduction details before closing an unreproducible bug;
+  close it after 30 days without a response and invite the reporter to reopen
+  with the requested safe details,
+- close questions after the answer is documented or the conversation has moved
+  to the appropriate discussion space,
+- immediately redirect a public security report to the private channel and
+  remove sensitive detail when repository administrators can do so safely.
+
+Do not close an active `needs-design`, `api-review`, or adopter-feedback issue
+solely because no implementation is scheduled. Mark it deferred with the next
+review trigger instead.
+
 ## Conduct
 
 Project spaces follow `CODE_OF_CONDUCT.md`. Keep disagreement technical,

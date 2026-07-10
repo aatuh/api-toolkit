@@ -4668,6 +4668,31 @@ func TestMaintainerAvailabilityAndSupportedVersionsAreDocumented(t *testing.T) {
 	}
 }
 
+func TestContributingIssueTriagePolicyDefinesResponsesAndClosure(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+
+	for _, required := range []string{
+		"## Issue Triage",
+		"within 14 calendar days",
+		"three-business-day acknowledgement target",
+		"`good first issue`", "`docs`", "`api-review`", "`security`",
+		"`breaking-change`", "`needs-design`",
+		"smallest safe reproduction",
+		"Never request secrets, customer data, private URLs",
+		"Close an issue only with a brief reason:",
+		"the issue links to the merged pull request or released\n  version",
+		"close duplicates with a link to the canonical issue",
+		"close it after 30 days without a response",
+		"immediately redirect a public security report to the private channel",
+		"Do not close an active `needs-design`, `api-review`, or adopter-feedback issue",
+	} {
+		if !strings.Contains(contributing, required) {
+			t.Fatalf("CONTRIBUTING.md missing issue triage policy %q", required)
+		}
+	}
+}
+
 func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)
