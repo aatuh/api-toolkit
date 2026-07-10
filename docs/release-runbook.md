@@ -47,7 +47,7 @@ Release candidates use the same clean release evidence path as stable releases:
 4. Let `.github/workflows/release.yml` create a draft GitHub prerelease with
    `prerelease: true`.
 5. Verify draft assets with
-   `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.0-rc.1 GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+   `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.0-rc.1 GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 6. Publish the draft as a prerelease, collect adopter and maintainer feedback,
    and record any required fixes in `docs/release-notes.md`.
 7. For each replacement candidate, rerun clean evidence and tag the next
@@ -93,7 +93,7 @@ after the final stable `vX.Y.0` release is published.
 | `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
 | `CONTRIB_RELEASE_BASE_REF=v3.1.2 GOTOOLCHAIN=local make contrib-release-notes-check` | Review gate for supported contrib adapter/integration/middleware/tooling behavior notes. | Fails when behavior files or package-owned runtime assets changed without `docs/release-notes.md`. |
 | `make release-artifact-verify-fixture` | Synthetic local verifier fixture. | Builds a throwaway release asset bundle and runs the local verifier path; this is not publication verification. |
-| `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations for every draft release asset. |
+| `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify` | Publication draft release artifact verification. | Verifies a supported release-tag identifier, expected asset names, summary publication invariants, `release-asset-manifest.tsv` checksums, retained log archive contents from summary log paths, SBOM signatures/certificates, and online GitHub provenance attestations for every draft release asset. |
 
 ## Clean-worktree release preflight
 
@@ -113,8 +113,8 @@ Use this command sequence before publishing:
 12. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
 13. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
 14. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
-14. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
-15. For a release candidate, use `RELEASE_TAG=vX.Y.0-rc.1` in the same publication verification command and confirm the draft release is marked as a GitHub prerelease.
+15. After the tag workflow uploads and attests the draft release assets, download the draft release assets and run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+16. For a release candidate, use `RELEASE_TAG=vX.Y.0-rc.1` in the same publication verification command and confirm the draft release is marked as a GitHub prerelease.
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
@@ -150,7 +150,7 @@ limits of this SLSA-style provenance model.
 | SBOM payloads | `sbom-root.spdx.json` and `sbom-contrib.spdx.json` are signed with keyless Sigstore/cosign in the GitHub release workflow. | Run the per-SBOM `cosign verify-blob` commands in `SECURITY.md`, or run publication mode of `make release-artifact-verify`. |
 | SBOM signature and certificate assets | `*.sig` and `*.pem` files are uploaded with the draft release and included in `release-asset-manifest.tsv`. | Verify manifest checksums and then verify the SBOM payloads against their matching signature and certificate. |
 | Release asset manifest | `release-asset-manifest.tsv` records SHA-256 checksums for the uploaded release assets. | Run `sha256sum -c release-asset-manifest.tsv` from the downloaded asset directory or use `make release-artifact-verify`. |
-| GitHub provenance attestations | Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested by the release workflow. | Run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`; it runs `gh attestation verify` for every expected asset. |
+| GitHub provenance attestations | Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested by the release workflow. | Run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`; it runs `gh attestation verify` for every expected asset and source reference. |
 
 If cryptographically signed Git tags are added later, update this section, the
 release workflow, and docscheck contracts in the same change. Until then,
@@ -229,8 +229,8 @@ evidence is rejected before publishing.
 It creates fake SBOM/signature material and a throwaway summary so the local
 path can be audited without downloaded draft release assets. It must not be used
 as publication evidence. Publication verification still requires downloaded
-GitHub draft release assets, `RELEASE_ARTIFACT_VERIFY_MODE=publication`,
-`RELEASE_TAG`, `GITHUB_REPOSITORY`, real Sigstore certificates, and online
+GitHub draft release assets, `RELEASE_TAG`, `GITHUB_REPOSITORY`, real Sigstore
+certificates, and online
 attestation checks.
 
 GitHub release workflow evidence is the publication tier. The tag-driven
@@ -256,8 +256,9 @@ certificates, inspect the retained log archive, and confirm provenance
 attestations for every subject in
 `publication_artifact_expectations.github_attestation_subjects`. The repository
 command for this is
-`RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
-Publication mode fails if `RELEASE_TAG` is missing, parses
+`RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+The command invokes `scripts/verify-release.sh`, rejects missing or unsupported
+release-tag identifiers, parses
 `release-check-summary.json` for publication-grade invariants, and confirms
 every `checks[].log_path` plus `contrib_drift.artifact_path` exists in
 `release-evidence-logs.tgz`.

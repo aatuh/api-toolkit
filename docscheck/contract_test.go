@@ -3867,6 +3867,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
 	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
 	verifier := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify.sh"))
+	publicationVerifier := readText(t, filepath.Join(repoRoot, "scripts", "verify-release.sh"))
 	reviewerSummary := readText(t, filepath.Join(repoRoot, "scripts", "release_review_summary.sh"))
 	artifactContract := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify_contract_test.sh"))
 	parserContract := readText(t, filepath.Join(repoRoot, "scripts", "release_evidence_parser_contract_test.sh"))
@@ -3894,13 +3895,30 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		for _, required := range []string{
 			"make release-review-summary",
 			"make release-artifact-verify-fixture",
-			"RELEASE_ARTIFACT_VERIFY_MODE=publication",
 			"RELEASE_TAG",
 			"GITHUB_REPOSITORY",
+			"make release-artifact-verify",
 		} {
 			if !strings.Contains(source.text, required) {
 				t.Fatalf("%s missing consolidated reviewer path text %q", source.name, required)
 			}
+		}
+	}
+	for _, required := range []string{
+		"scripts/verify-release.sh",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing publication verifier entry point %q", required)
+		}
+	}
+	for _, required := range []string{
+		"RELEASE_ARTIFACT_VERIFY_MODE:-publication",
+		"RELEASE_TAG is required to verify a published draft release",
+		"RELEASE_TAG must be vX.Y.Z or vX.Y.0-rc.N",
+		"release_artifact_verify.sh",
+	} {
+		if !strings.Contains(publicationVerifier, required) {
+			t.Fatalf("scripts/verify-release.sh missing publication verification behavior %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -4060,7 +4078,6 @@ func TestReleaseProvenanceGuideSetsBoundedAttestationClaims(t *testing.T) {
 		"id-token: write",
 		"aatuh/api-toolkit",
 		"refs/tags/vX.Y.Z",
-		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
 		"RELEASE_TAG=\"$TAG\"",
 		"GITHUB_REPOSITORY=\"$REPOSITORY\"",
 		"make release-artifact-verify",
@@ -4071,6 +4088,7 @@ func TestReleaseProvenanceGuideSetsBoundedAttestationClaims(t *testing.T) {
 		"not claimed to be reproducible bit-for-bit",
 		"Go module-proxy zips, container images, downstream\n  binaries",
 		"do not replace checksum validation",
+		"The command rejects missing tags",
 		"Do not publish a release",
 		"When adding or removing a release asset",
 	} {
@@ -4141,7 +4159,7 @@ func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 		"sbom-contrib.spdx.json",
 		"--certificate-oidc-issuer https://token.actions.githubusercontent.com",
 		"--certificate-identity \"https://github.com/aatuh/api-toolkit/.github/workflows/release.yml@refs/tags/${TAG}\"",
-		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"RELEASE_TAG=\"${TAG}\"",
 		"GITHUB_REPOSITORY=aatuh/api-toolkit",
 		"make release-artifact-verify",
 	} {
@@ -4168,7 +4186,8 @@ func TestReleaseRunbookDocumentsSigningAndAttestationPolicy(t *testing.T) {
 		"`release-asset-manifest.tsv` records SHA-256 checksums",
 		"Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested",
 		"gh attestation verify",
-		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"RELEASE_TAG=vX.Y.Z",
+		"scripts/verify-release.sh",
 		"make release-artifact-verify",
 		"If cryptographically signed Git tags are added later",
 		"release trust is based on protected tag creation, clean release evidence,",

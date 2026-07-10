@@ -348,8 +348,8 @@ release-evidence: ## Run release readiness and write release-check-summary.json
 release-review-summary: ## Print reviewer decision fields from release-check-summary.json
 	@bash scripts/release_review_summary.sh "$${RELEASE_SUMMARY:-release-check-summary.json}"
 
-release-artifact-verify: ## Verify downloaded draft release assets, checksums, SBOM signatures, and retained logs
-	@bash scripts/release_artifact_verify.sh "$${RELEASE_ASSET_DIR:-.}"
+release-artifact-verify: ## Verify release assets; publication mode validates the tag, checksums, signatures, and attestations
+	@bash scripts/verify-release.sh "$${RELEASE_ASSET_DIR:-.}"
 
 release-artifact-verify-fixture: ## Exercise release artifact verification against a synthetic local fixture
 	@bash scripts/release_artifact_verify_fixture.sh

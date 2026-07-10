@@ -274,6 +274,7 @@ ok_dir="$tmp/ok"
 make_bundle "$ok_dir"
 require_success local-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
 require_success local-verify-summary-baseline env -u API_BASE_REF PATH="$fake_bin:$PATH" bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
+require_success local-wrapper-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 RELEASE_ARTIFACT_VERIFY_MODE=local bash "$repo_root/scripts/verify-release.sh" "$ok_dir" >/dev/null
 
 baseline_mismatch_output="$(require_failure baseline-mismatch env PATH="$fake_bin:$PATH" API_BASE_REF=v3.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
 case "$baseline_mismatch_output" in
@@ -312,10 +313,36 @@ GH_CALLS="$tmp/gh-calls" require_success publication-verify env \
   RELEASE_ARTIFACT_VERIFY_MODE=publication \
   RELEASE_TAG=v2.1.0 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
-  bash "$repo_root/scripts/release_artifact_verify.sh" "$publication_dir" >/dev/null
+  bash "$repo_root/scripts/verify-release.sh" "$publication_dir" >/dev/null
 if [ "$(wc -l < "$tmp/gh-calls")" -ne 9 ]; then
   printf 'publication verifier should run one gh attestation check per release asset, got:\n%s\n' "$(cat "$tmp/gh-calls")" >&2
   exit 1
 fi
+
+GH_CALLS="$tmp/gh-calls-rc" require_success publication-rc-verify env \
+  PATH="$fake_bin:$PATH" \
+  GH_CALLS="$tmp/gh-calls-rc" \
+  API_BASE_REF=v2.1.0 \
+  RELEASE_TAG=v2.1.0-rc.1 \
+  GITHUB_REPOSITORY=aatuh/api-toolkit \
+  bash "$repo_root/scripts/verify-release.sh" "$publication_dir" >/dev/null
+
+missing_wrapper_tag_output="$(require_failure publication-wrapper-missing-tag env PATH="$fake_bin:$PATH" bash "$repo_root/scripts/verify-release.sh" "$publication_dir")"
+case "$missing_wrapper_tag_output" in
+  *"RELEASE_TAG is required to verify a published draft release"*) ;;
+  *) printf 'publication wrapper did not require a release tag:\n%s\n' "$missing_wrapper_tag_output" >&2; exit 1 ;;
+esac
+
+malformed_wrapper_tag_output="$(require_failure publication-wrapper-malformed-tag env PATH="$fake_bin:$PATH" RELEASE_TAG=v2.1.1-rc.1 bash "$repo_root/scripts/verify-release.sh" "$publication_dir")"
+case "$malformed_wrapper_tag_output" in
+  *"RELEASE_TAG must be vX.Y.Z or vX.Y.0-rc.N, got: v2.1.1-rc.1"*) ;;
+  *) printf 'publication wrapper did not reject malformed release tag:\n%s\n' "$malformed_wrapper_tag_output" >&2; exit 1 ;;
+esac
+
+malformed_wrapper_repo_output="$(require_failure publication-wrapper-malformed-repository env PATH="$fake_bin:$PATH" RELEASE_TAG=v2.1.0 GITHUB_REPOSITORY=aatuh/api-toolkit/extra bash "$repo_root/scripts/verify-release.sh" "$publication_dir")"
+case "$malformed_wrapper_repo_output" in
+  *"GITHUB_REPOSITORY must be an owner/repository value, got: aatuh/api-toolkit/extra"*) ;;
+  *) printf 'publication wrapper did not reject malformed repository:\n%s\n' "$malformed_wrapper_repo_output" >&2; exit 1 ;;
+esac
 
 echo "release artifact verifier contract tests passed"

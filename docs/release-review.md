@@ -57,7 +57,7 @@ Use this as the short reviewer path before publishing a release.
   completed v3 cleanup decisions and remaining compatibility-sensitive
   guardrails.
 - Download the GitHub draft release assets into one directory and run
-  `RELEASE_ASSET_DIR=/path/to/assets RELEASE_ARTIFACT_VERIFY_MODE=publication RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
+  `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
   Publication mode requires online GitHub provenance attestation verification.
 - Apply the scope and trust limits in [docs/provenance.md](provenance.md):
   provenance links a release asset to its GitHub build context, but does not

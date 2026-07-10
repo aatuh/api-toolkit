@@ -54,7 +54,6 @@ ASSET_DIR="$(mktemp -d)"
 gh release download "$TAG" --repo "$REPOSITORY" --dir "$ASSET_DIR" --clobber
 
 RELEASE_ASSET_DIR="$ASSET_DIR" \
-RELEASE_ARTIFACT_VERIFY_MODE=publication \
 RELEASE_TAG="$TAG" \
 GITHUB_REPOSITORY="$REPOSITORY" \
 make release-artifact-verify
@@ -71,6 +70,10 @@ Publication mode verifies all of the following before it succeeds:
    provenance policy and no dirty working-tree state.
 5. `gh attestation verify` succeeds for every draft-release asset and requires
    `--source-ref "refs/tags/$TAG"`.
+
+The command rejects missing tags and accepts only stable `vX.Y.Z` or release
+candidate `vX.Y.0-rc.N` identifiers. This is a tag identifier and source-ref
+check, not a cryptographic signature on the Git tag.
 
 For a direct inspection of one subject, run:
 

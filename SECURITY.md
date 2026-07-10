@@ -98,7 +98,6 @@ attestations, run:
 
 ```sh
 RELEASE_ASSET_DIR=/path/to/downloaded/assets \
-  RELEASE_ARTIFACT_VERIFY_MODE=publication \
   RELEASE_TAG="${TAG}" \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
   make release-artifact-verify
