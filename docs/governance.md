@@ -303,3 +303,41 @@ that evidence exists.
 Live provider checks are opt-in only. They must not be added to default
 `finalize`, required pull-request CI, or release evidence unless a future
 governance change explicitly promotes them.
+
+## Experimental Feature Lifecycle
+
+Every experimental package, adapter, generator feature, or scaffold capability
+must have a package-classification row, an owner row, a stated boundary, and a
+review trigger. Experimental means maintained only to the extent recorded by
+its owner; it is not covered by the stable root compatibility promise and must
+not be presented as the default adoption path.
+
+Graduation requires evidence appropriate to the destination:
+
+1. To become a `supported-adapter`, the feature needs direct behavior tests,
+   package documentation, a supported-adapter contract, realistic-test evidence,
+   release-drift coverage, an owner, and release-note review.
+2. To become stable root API, it must first satisfy the supported-adapter or
+   equivalent behavior evidence where applicable, then complete the stable API
+   review board process: public design issue, at least seven calendar days for
+   comment, maintainer approval, compatibility evidence, examples, and release
+   notes.
+3. Generated-service behavior remains app-owned unless its reusable toolkit
+   surface completes the same classification and review evidence; generated
+   output alone is not promotion evidence.
+
+Freeze a feature when adoption, ownership, maintenance capacity, or evidence is
+insufficient to justify further work. Keep its classification explicit, change
+the package-owner or release-note record to say `frozen`, state whether only
+security/correctness fixes are accepted, and give the next review date or
+removal trigger. A frozen feature is neither silently promoted nor treated as a
+new recommended path.
+
+Remove an experimental feature only after documenting the affected import path,
+configuration, generated output, or behavior; the owner; replacement or
+app-owned alternative; migration impact; and release-note entry. For a public
+experimental surface, provide at least one release cycle of notice when a safe
+replacement exists. Stable and compatibility-only APIs follow `VERSIONING.md`
+and `docs/deprecations.md` instead; experimental status is not permission to
+break a stable contract. Update package classification, ownership, examples,
+docs, tests, and release evidence together so removal is visible to adopters.

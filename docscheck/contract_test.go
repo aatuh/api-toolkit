@@ -5988,6 +5988,32 @@ func TestStableAPIReviewBoardProcessRequiresDesignIssueCommentWindowAndApproval(
 	}
 }
 
+func TestExperimentalFeatureLifecycleGovernanceIsExplicit(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+
+	for _, required := range []string{
+		"## Experimental Feature Lifecycle",
+		"package-classification row, an owner row, a stated boundary, and a\nreview trigger",
+		"not covered by the stable root compatibility promise",
+		"To become a `supported-adapter`",
+		"direct behavior tests", "realistic-test evidence", "release-drift coverage",
+		"To become stable root API",
+		"public design issue, at least seven calendar days",
+		"Generated-service behavior remains app-owned",
+		"Freeze a feature when adoption, ownership, maintenance capacity, or evidence is\ninsufficient",
+		"say `frozen`", "next review date or\nremoval trigger",
+		"Remove an experimental feature only after documenting the affected import path",
+		"at least one release cycle of notice",
+		"experimental status is not permission to\nbreak a stable contract",
+		"Update package classification, ownership, examples,\ndocs, tests, and release evidence together",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing experimental lifecycle rule %q", required)
+		}
+	}
+}
+
 func TestDownstreamCompatibilityKitIsRunnableByExternalServices(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	pkg := readText(t, filepath.Join(repoRoot, "compatkit", "compatkit.go"))
