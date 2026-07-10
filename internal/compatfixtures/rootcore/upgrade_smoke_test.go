@@ -4,6 +4,7 @@
 package upgradesmoke
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,7 @@ type createWidgetRequest struct {
 }
 
 func TestStableCoreUpgradeSmoke(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(`{"name":"starter"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets", strings.NewReader(`{"name":"starter"}`))
 	body, err := binding.DecodeJSON[createWidgetRequest](req, binding.JSONConfig{
 		MaxBytes:      1024,
 		RequireObject: true,
@@ -40,7 +41,7 @@ func TestStableCoreUpgradeSmoke(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/widgets", strings.NewReader(`{"name":"starter"}`)))
+	handler.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/widgets", strings.NewReader(`{"name":"starter"}`)))
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d", rec.Code)
 	}

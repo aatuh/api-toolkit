@@ -76,6 +76,10 @@ func TestSubjectFromTokenUsesConfiguredTenantAndScopeClaims(t *testing.T) {
 	claims["permissions"] = []string{"widgets:read", "widgets:write"}
 	claims["email"] = "user@example.com"
 	token := signToken(t, jwt.SigningMethodRS256, claims, privateKey, "test-kid")
+	//nolint:staticcheck // Regression coverage for the nil-context fail-closed guard.
+	if _, err := mw.subjectFromTokenContext(nil, token); err == nil || err.Error() != "oidc jwt verification context is required" {
+		t.Fatalf("nil verification context error = %v", err)
+	}
 
 	subject, err := mw.subjectFromToken(token)
 	if err != nil {

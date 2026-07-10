@@ -161,7 +161,7 @@ func (m *Middleware) subjectFromTokenContext(ctx context.Context, tokenStr strin
 		return Subject{}, errors.New("jwks not configured")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return Subject{}, errors.New("clerk jwt verification context is required")
 	}
 	claims, err := shared.ParseTokenClaims(tokenStr, m.jwks.KeyfuncCtx(ctx), shared.TokenParserConfig{
 		Audience:          m.cfg.Audience,

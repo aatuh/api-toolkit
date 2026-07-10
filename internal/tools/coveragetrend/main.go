@@ -193,6 +193,7 @@ func parseConfig(args []string) (config, error) {
 }
 
 func readSummary(path string) ([]summaryRow, error) {
+	// #nosec G304 -- path is an explicit local coverage summary selected by the operator.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read coverage summary %s: %w", path, err)
@@ -282,6 +283,7 @@ func readLegacySnapshot(cfg config) ([]summaryRow, error) {
 }
 
 func readLegacyLog(path string) (map[string]string, error) {
+	// #nosec G304 -- path is an explicit local legacy coverage log selected by the operator.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read legacy coverage log %s: %w", path, err)
@@ -328,6 +330,7 @@ func coverageFromLogLine(line string) (string, bool) {
 }
 
 func readCoverageTotal(path string) (string, error) {
+	// #nosec G304 -- path is an explicit local coverage function report selected by the operator.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read coverage function summary %s: %w", path, err)
@@ -365,6 +368,7 @@ func readAggregate(funcPath, explicit string) (string, error) {
 }
 
 func readHistory(path string) ([]historyRow, error) {
+	// #nosec G304 -- path is an explicit local coverage history selected by the operator.
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -682,6 +686,7 @@ func compareRelease(left, right string) int {
 }
 
 func checkFile(path string, want []byte) error {
+	// #nosec G304 -- path is a local generated report selected by the operator for drift checking.
 	got, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -693,9 +698,11 @@ func checkFile(path string, want []byte) error {
 }
 
 func writeFile(path string, content []byte) error {
+	// #nosec G301 -- Coverage report directories are public repository documentation.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	// #nosec G306 -- Coverage reports are public repository documentation.
 	return os.WriteFile(path, content, 0o644)
 }
 

@@ -92,6 +92,7 @@ func run(root, classificationPath, outPath string) error {
 	}
 	outBytes := bytes.TrimRight(buf.Bytes(), "\n")
 	outBytes = append(outBytes, '\n')
+	// #nosec G306 -- This generated API inventory is public documentation.
 	if err := os.WriteFile(outputPath, outBytes, 0o644); err != nil {
 		return fmt.Errorf("write inventory: %w", err)
 	}
@@ -99,6 +100,7 @@ func run(root, classificationPath, outPath string) error {
 }
 
 func modulePath(goMod string) (string, error) {
+	// #nosec G304 -- goMod is derived from the selected local repository root.
 	file, err := os.Open(goMod)
 	if err != nil {
 		return "", fmt.Errorf("read go.mod: %w", err)
@@ -119,6 +121,7 @@ func modulePath(goMod string) (string, error) {
 }
 
 func readPackageClasses(path, modulePath string) ([]packageClass, error) {
+	// #nosec G304 -- path is an explicit local classification manifest selected by the operator.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("read package classification: %w", err)
@@ -155,6 +158,7 @@ func readPackageClasses(path, modulePath string) ([]packageClass, error) {
 
 func packageSymbols(dir string) ([]symbol, error) {
 	fset := token.NewFileSet()
+	//nolint:staticcheck // The inventory intentionally includes all non-test source variants, not only active build tags.
 	pkgs, err := parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
 		name := info.Name()
 		return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")

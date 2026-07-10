@@ -451,7 +451,7 @@ func (r *runner) doHandler(ctx context.Context, method string, request Request) 
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	req := httptest.NewRequest(method, "http://compatkit.local"+path, bytes.NewReader(request.Body)).WithContext(reqCtx)
+	req := httptest.NewRequestWithContext(reqCtx, method, "http://compatkit.local"+path, bytes.NewReader(request.Body))
 	req.Header = request.Header.Clone()
 	recorder := newCaptureResponseWriter(r.maxBodyBytes)
 	r.handler.ServeHTTP(recorder, req)

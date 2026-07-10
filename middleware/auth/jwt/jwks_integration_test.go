@@ -170,9 +170,6 @@ func newJWKSIntegrationMiddleware(t *testing.T, ctx context.Context, jwksURL str
 
 func assertJWTIntegrationStatus(t *testing.T, mw *Middleware, ctx context.Context, token string, wantStatus int) {
 	t.Helper()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	called := false
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true

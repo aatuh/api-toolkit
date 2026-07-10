@@ -83,6 +83,7 @@ func run(cfg config) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G304 -- releaseNotesPath is an explicit local operator path resolved from the repository root.
 	releaseNotesBytes, err := os.ReadFile(releaseNotesPath)
 	if err != nil {
 		return fmt.Errorf("read release notes: %w", err)
@@ -124,6 +125,7 @@ func resolvePath(root, value string) string {
 }
 
 func readInventory(path string) (map[string]inventoryEntry, error) {
+	// #nosec G304 -- path is an explicit local inventory path selected by the operator.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -222,6 +224,7 @@ func packageDir(root, modulePath, importPath string) (string, bool) {
 
 func packageSourceEvidence(dir string) (map[string]symbolEvidence, error) {
 	fset := token.NewFileSet()
+	//nolint:staticcheck // The additions gate intentionally includes all non-test source variants, not only active build tags.
 	pkgs, err := parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
 		name := info.Name()
 		return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
@@ -350,6 +353,7 @@ func exampleSymbols(dir string) ([]exampleEvidence, error) {
 			continue
 		}
 		path := filepath.Join(dir, name)
+		// #nosec G304 -- name is a non-directory entry returned by os.ReadDir for the package directory.
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
@@ -415,6 +419,7 @@ func symbolTextMentions(text, symbol string) bool {
 }
 
 func readExceptions(path string) (map[string]bool, error) {
+	// #nosec G304 -- path is an explicit local exceptions manifest path selected by the operator.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read API addition exceptions: %w", err)
@@ -460,6 +465,7 @@ func releaseNotesMentionSymbol(notes string, entry inventoryEntry) bool {
 }
 
 func modulePath(goMod string) (string, error) {
+	// #nosec G304 -- goMod is derived from the selected local repository root.
 	content, err := os.ReadFile(goMod)
 	if err != nil {
 		return "", fmt.Errorf("read go.mod: %w", err)

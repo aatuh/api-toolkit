@@ -51,6 +51,7 @@ func TestRuntimeCompatibilityGolden(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
 			t.Fatalf("create golden dir: %v", err)
 		}
+		//nolint:gosec // This opt-in update writes a public checked-in compatibility fixture.
 		if err := os.WriteFile(goldenPath, got, 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}

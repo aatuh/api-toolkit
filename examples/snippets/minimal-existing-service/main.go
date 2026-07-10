@@ -1,7 +1,10 @@
 package main
 
 import (
+	"errors"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
 	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
@@ -18,7 +21,12 @@ func main() {
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	if err := http.ListenAndServe(":8080", bodyLimit.Handler(mux)); err != nil {
-		panic(err)
+	server := &http.Server{
+		Addr:              ":8080",
+		Handler:           bodyLimit.Handler(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("listen: %v", err)
 	}
 }

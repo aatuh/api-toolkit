@@ -66,6 +66,14 @@ source of truth is `docs/release-runbook.md`.
 
 ## v3 cleanup branch
 
+### Security and dependencies
+
+- Updated contrib `github.com/jackc/pgx/v5` from `v5.9.0` to `v5.9.2` and
+  `github.com/yuin/goldmark` from `v1.7.16` to `v1.7.17` to remove the called
+  `govulncheck` findings `GO-2026-5004` and `GO-2026-5320`. The update does not
+  change api-toolkit's public API; `adapters/pgxpool` remains a supported
+  contrib adapter and `email/markdown` remains experimental.
+
 ### Breaking cleanup
 
 - The module paths are now `github.com/aatuh/api-toolkit/v3` and `github.com/aatuh/api-toolkit/contrib/v3`.

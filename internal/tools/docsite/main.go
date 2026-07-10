@@ -138,6 +138,7 @@ func renderSite(root string) (map[string][]byte, error) {
 
 func loadPackageRows(root string) ([]packageRow, error) {
 	path := filepath.Join(root, "docs", "package-classification.tsv")
+	// #nosec G304 -- path is fixed beneath the selected local repository root.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read package classification: %w", err)
@@ -239,6 +240,7 @@ func loadDocumentRows(root string) ([]documentRow, error) {
 	rows := make([]documentRow, 0, len(sources))
 	for _, source := range sources {
 		path := filepath.Join(root, filepath.FromSlash(source.Path))
+		// #nosec G304 -- source.Path comes from the fixed documentation-source manifest.
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("read %s: %w", source.Path, err)
@@ -320,11 +322,13 @@ func searchEntries(documents []documentRow, packages []packageRow, examples []ex
 }
 
 func writeFiles(out string, files map[string][]byte) error {
+	// #nosec G301 -- The generated static site is intentionally public.
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 	for name, content := range files {
 		path := filepath.Join(out, name)
+		// #nosec G306 -- Generated static-site assets are intentionally public.
 		if err := os.WriteFile(path, content, 0o644); err != nil {
 			return fmt.Errorf("write %s: %w", filepath.ToSlash(path), err)
 		}
@@ -336,6 +340,7 @@ func checkFiles(out string, files map[string][]byte) error {
 	var drift []string
 	for name, want := range files {
 		path := filepath.Join(out, name)
+		// #nosec G304 -- name is a fixed key from the generated static-site asset map.
 		got, err := os.ReadFile(path)
 		if err != nil {
 			drift = append(drift, fmt.Sprintf("%s: %v", filepath.ToSlash(path), err))

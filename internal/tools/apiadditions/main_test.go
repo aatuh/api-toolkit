@@ -117,6 +117,7 @@ func mustMkdir(t *testing.T, path string) {
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
+	//nolint:gosec // Test fixture source must stay readable by the parser under test.
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}

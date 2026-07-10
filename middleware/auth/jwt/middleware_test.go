@@ -321,6 +321,10 @@ func TestSubjectFromTokenEnforcesRequiredClaimsAndAlgorithms(t *testing.T) {
 	claims := baseClaims(now)
 	claims["nbf"] = float64(now.Add(-time.Minute).Unix())
 	token := signToken(t, jwt.SigningMethodRS256, claims, privateKey, "test-kid")
+	//nolint:staticcheck // Regression coverage for the nil-context fail-closed guard.
+	if _, err := mw.subjectFromTokenContext(nil, token); err == nil || !strings.Contains(err.Error(), "verification context is required") {
+		t.Fatalf("nil verification context error = %v", err)
+	}
 	subject, err := mw.subjectFromToken(token)
 	if err != nil {
 		t.Fatalf("subjectFromToken() error = %v", err)

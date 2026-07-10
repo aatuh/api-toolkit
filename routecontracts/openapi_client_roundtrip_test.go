@@ -3,6 +3,7 @@ package routecontracts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -111,6 +112,10 @@ func TestRegistryGeneratedOpenAPIDrivesExampleJSONClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client create widget error = %v", err)
 	}
+	if resp == nil {
+		t.Fatal("client create widget response is nil")
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated || created.ID != "widget_123" || created.Name != "primary" {
 		t.Fatalf("client create widget response = %#v status=%d", created, resp.StatusCode)
 	}
@@ -122,8 +127,12 @@ func TestRegistryGeneratedOpenAPIDrivesExampleJSONClient(t *testing.T) {
 		baseURL+operation.Path,
 		openAPIClientRoundTripCreateWidget{},
 	)
-	problem, ok := err.(*apiclient.ProblemError)
-	if !ok {
+	if resp == nil {
+		t.Fatal("client problem response is nil")
+	}
+	defer resp.Body.Close()
+	var problem *apiclient.ProblemError
+	if !errors.As(err, &problem) {
 		t.Fatalf("client problem error = %T %v", err, err)
 	}
 	if resp.StatusCode != http.StatusBadRequest || problem.Problem.Detail != "name is required" {

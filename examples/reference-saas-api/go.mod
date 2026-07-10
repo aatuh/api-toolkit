@@ -6,7 +6,7 @@ require (
 	github.com/aatuh/api-toolkit/contrib/v3 v3.1.2
 	github.com/aatuh/api-toolkit/v3 v3.1.2
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/jackc/pgx/v5 v5.9.0
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/redis/go-redis/v9 v9.19.0
 )
 

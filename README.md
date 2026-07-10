@@ -22,6 +22,10 @@ Core-only install:
 go get github.com/aatuh/api-toolkit/v3
 ```
 
+Stable core package list: `VERSIONING.md` is the source of truth, and
+`scripts/apicheck.sh` must cover the same package list. Root and contrib target
+Go 1.25.x.
+
 Minimal existing-service example
 ([source](examples/snippets/minimal-existing-service/main.go)):
 
@@ -29,7 +33,10 @@ Minimal existing-service example
 package main
 
 import (
+	"errors"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
 	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
@@ -46,15 +53,16 @@ func main() {
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	if err := http.ListenAndServe(":8080", bodyLimit.Handler(mux)); err != nil {
-		panic(err)
+	server := &http.Server{
+		Addr:              ":8080",
+		Handler:           bodyLimit.Handler(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("listen: %v", err)
 	}
 }
 ```
-
-Stable core package list: `VERSIONING.md` is the source of truth, and
-`scripts/apicheck.sh` must cover the same package list. Root and contrib target
-Go 1.25.x.
 
 ## Start Here
 

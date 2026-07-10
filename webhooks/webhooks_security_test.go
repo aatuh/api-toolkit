@@ -33,7 +33,7 @@ func TestWebhookSecurityConformance(t *testing.T) {
 
 		receiver.ServeHTTP(rec, req)
 
-		assertWebhookSecurityFailure(t, rec, http.StatusUnauthorized, "webhook verification failed")
+		assertWebhookSecurityFailure(t, rec, "webhook verification failed")
 		if *handledCount != 0 {
 			t.Fatalf("handler ran after signature mismatch: %d", *handledCount)
 		}
@@ -47,7 +47,7 @@ func TestWebhookSecurityConformance(t *testing.T) {
 
 		receiver.ServeHTTP(rec, tampered)
 
-		assertWebhookSecurityFailure(t, rec, http.StatusUnauthorized, "webhook verification failed")
+		assertWebhookSecurityFailure(t, rec, "webhook verification failed")
 		if *handledCount != 0 {
 			t.Fatalf("handler ran after body tamper: %d", *handledCount)
 		}
@@ -60,7 +60,7 @@ func TestWebhookSecurityConformance(t *testing.T) {
 
 		receiver.ServeHTTP(rec, req)
 
-		assertWebhookSecurityFailure(t, rec, http.StatusUnauthorized, "outside the replay window")
+		assertWebhookSecurityFailure(t, rec, "outside the replay window")
 		if *handledCount != 0 {
 			t.Fatalf("handler ran for stale replay timestamp: %d", *handledCount)
 		}
@@ -73,7 +73,7 @@ func TestWebhookSecurityConformance(t *testing.T) {
 
 		receiver.ServeHTTP(rec, req)
 
-		assertWebhookSecurityFailure(t, rec, http.StatusUnauthorized, "outside the replay window")
+		assertWebhookSecurityFailure(t, rec, "outside the replay window")
 		if *handledCount != 0 {
 			t.Fatalf("handler ran for future clock skew: %d", *handledCount)
 		}
@@ -162,10 +162,10 @@ func cloneWebhookRequestWithBody(t *testing.T, req *http.Request, body []byte) *
 	return cloned
 }
 
-func assertWebhookSecurityFailure(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantDetail string) {
+func assertWebhookSecurityFailure(t *testing.T, rec *httptest.ResponseRecorder, wantDetail string) {
 	t.Helper()
-	if rec.Code != wantStatus {
-		t.Fatalf("status = %d, want %d; body=%s", rec.Code, wantStatus, rec.Body.String())
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusUnauthorized, rec.Body.String())
 	}
 	if rec.Header().Get("Content-Type") != "application/problem+json" {
 		t.Fatalf("content type = %q", rec.Header().Get("Content-Type"))

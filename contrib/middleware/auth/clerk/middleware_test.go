@@ -232,6 +232,10 @@ func TestSubjectFromTokenEnforcesAllowedAlgorithms(t *testing.T) {
 	}
 
 	rsToken := signToken(t, jwt.SigningMethodRS256, baseClaims(now), privateKey, "test-kid")
+	//nolint:staticcheck // Regression coverage for the nil-context fail-closed guard.
+	if _, err := mw.subjectFromTokenContext(nil, rsToken); err == nil || err.Error() != "clerk jwt verification context is required" {
+		t.Fatalf("nil verification context error = %v", err)
+	}
 	subject, err := mw.subjectFromToken(rsToken)
 	if err != nil {
 		t.Fatalf("expected RS256 token to parse: %v", err)
