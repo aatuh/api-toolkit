@@ -4693,6 +4693,37 @@ func TestContributingIssueTriagePolicyDefinesResponsesAndClosure(t *testing.T) {
 	}
 }
 
+func TestReferenceAdopterStoryIsBoundedAndActionable(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	story := readText(t, filepath.Join(repoRoot, "docs", "adopters.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	referenceService := readText(t, filepath.Join(repoRoot, "docs", "reference-service.md"))
+
+	for _, required := range []string{
+		"# Adopter Story: Checked-in Reference Service",
+		"not an external customer case study",
+		"maintainer-owned `examples/reference-saas-api` module",
+		"not an independent adopter report,\na production deployment, or evidence of customer usage",
+		"## What Worked", "## What Hurt", "## What Changed", "## Evidence And Limits",
+		"`make reference-service-check`", "`make reference-service-evidence`",
+		"`make reference-service-load`", "Postgres", "Redis", "OpenAPI",
+		"idempotent", "observability", "deployment",
+		"not a cross-machine SLA", "backup/restore", "incident-response",
+		"reference-service.md#adoption-evidence-template",
+		".github/ISSUE_TEMPLATE/adopter_review.md",
+	} {
+		if !strings.Contains(story, required) {
+			t.Fatalf("docs/adopters.md missing bounded adopter-story evidence %q", required)
+		}
+	}
+	if !strings.Contains(docsIndex, "[Adopter story](adopters.md)") {
+		t.Fatal("docs/README.md missing adopter story navigation")
+	}
+	if !strings.Contains(referenceService, "[adopter story](adopters.md)") {
+		t.Fatal("docs/reference-service.md missing adopter story navigation")
+	}
+}
+
 func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 	skipV2CompatibilitySurfaceChecksOnV3(t)
 	repoRoot := mustRepoRoot(t)

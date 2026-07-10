@@ -20,6 +20,7 @@ without scanning the root README.
 | [Getting started](getting-started.md) | Scaffold users | Generate, run, and verify the production-oriented app-owned service scaffold. |
 | [Full service scaffold](full-service-scaffold.md) | Application teams | Understand the `saas-api-full` production foundation, support tier, and integration-test policy. |
 | [Reference service](reference-service.md) | Maintainers and release reviewers | Verify the checked-in `saas-api-full` adoption proof and know which evidence is local, Docker-backed, or deployment-owned. |
+| [Adopter story](adopters.md) | Evaluators and maintainers | Read the maintainer-owned reference-service outcome, friction, changes, and evidence limits without treating it as a customer case study. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
 | [V3 migration guide](migration/v3.md) | Application teams upgrading dependencies | Upgrade root, contrib, and generated-service adoption paths within the v3 line. |
 | [Troubleshooting](troubleshooting.md) | Application developers and maintainers | Diagnose Go version, contrib tier, timeout buffering, health, idempotency, auth, and generated-service issues. |
@@ -72,7 +73,8 @@ OpenAPI request validation by default.
 Reference-service evidence starts at [reference-service.md](reference-service.md)
 and then follows the app-owned docs under `examples/reference-saas-api`,
 including its README, deployment starter docs, observability runbook, and
-provider workflow runbook.
+provider workflow runbook. Read the [adopter story](adopters.md) for the
+maintainer-owned outcome and its explicit evidence limits.
 
 The same CLI can review OpenAPI artifacts before release. `contracts lint`
 checks operation IDs, non-public security requirements, unsafe-write tenant,

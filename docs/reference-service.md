@@ -6,6 +6,10 @@ services, uses local `replace` directives back to this workspace, and is kept as
 a separate Go module so it behaves like an application that consumes
 api-toolkit.
 
+For the candid maintainer-owned account of what this evidence did and did not
+establish, read the [adopter story](adopters.md). It is not an external customer
+case study or a substitute for a downstream service's deployment evidence.
+
 The reference service is intentionally production-like rather than minimal. It
 includes Postgres migrations, Redis-backed production paths, tenant membership,
 API keys, idempotent widget writes, async operations, outbox-backed webhook
