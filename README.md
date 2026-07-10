@@ -82,6 +82,24 @@ Go 1.25.x.
 - Upgrade within v3: [docs/migration/v3.md](docs/migration/v3.md)
 - Troubleshoot adoption issues: [docs/troubleshooting.md](docs/troubleshooting.md)
 
+## Funding And Sponsorship
+
+api-toolkit does not currently accept or solicit sponsorships, donations,
+grants, or paid support through this repository. Users and contributors have no
+financial obligation to use, evaluate, report issues for, or contribute to the
+project.
+
+Contributions, issue triage, API review, and security handling remain governed
+by the published technical policies. A payment, offer of funding, or request
+for priority would not create paid support, release priority, maintainer access,
+or a security-response commitment. Do not send money or payment details to
+maintainers based on repository activity or public comments.
+
+If the project later accepts funding, maintainers must add a reviewed public
+funding link and state the recipient, scope, conflicts-of-interest handling,
+and whether funding changes any support expectations before soliciting or
+accepting funds.
+
 ## Modules
 
 | Module | Import path | Use for |

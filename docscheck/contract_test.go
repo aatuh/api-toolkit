@@ -4713,6 +4713,25 @@ func TestMaintainerSuccessionPolicyIsBoundedAndDoesNotExposeSecurityReports(t *t
 	}
 }
 
+func TestFundingAndSponsorshipDecisionIsExplicit(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+
+	for _, required := range []string{
+		"## Funding And Sponsorship",
+		"does not currently accept or solicit sponsorships, donations,\ngrants, or paid support through this repository",
+		"no\nfinancial obligation",
+		"would not create paid support, release priority, maintainer access,\nor a security-response commitment",
+		"Do not send money or payment details",
+		"reviewed public\nfunding link", "recipient", "conflicts-of-interest handling",
+		"before soliciting or\naccepting funds",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing funding-and-sponsorship decision %q", required)
+		}
+	}
+}
+
 func TestContributingIssueTriagePolicyDefinesResponsesAndClosure(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
