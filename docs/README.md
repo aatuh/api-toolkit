@@ -156,7 +156,7 @@ identifies the installed generator and contract tool.
 | [Generated API docs site](site/index.html) | API consumers | Search package status, examples, compatibility docs, and migration guides from a static generated site. |
 | [Downstream compatibility kit](downstream-compatibility.md) | API consumers | Run experimental `compatkit` service checks against an in-process handler or explicit base URL. |
 | [API review checklist](api-review-checklist.md) | Maintainers | Review naming, zero values, context, cancellation, errors, concurrency, options, return types, and interface necessity. |
-| [Governance](governance.md) | Maintainers | Review stable API review board process, branch protection, CODEOWNERS, required checks, tag protection, and release approval expectations. |
+| [Governance](governance.md) | Maintainers | Review stable API review board process, branch protection, CODEOWNERS, required checks, release approval, and maintainer succession policy. |
 | [API addition example exceptions](api-addition-exceptions.tsv) | Maintainers | Record exact symbol exceptions when a new stable exported identifier has a doc comment and release note but a compile-checked example would mislead. |
 | [Deprecation policy](deprecations.md) | Maintainers and release reviewers | Track deprecation format, replacements, removal horizon, migration snippets, and release-note requirements. |
 | [Interface ownership](interface-ownership.md) | Maintainers | Document whether exported interfaces are user-implemented, adapter-owned, test-only, or compatibility-sensitive. |

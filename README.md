@@ -179,7 +179,9 @@ Current repository trust signals:
   to report API friction, missing docs, and migration pain without posting
   secrets or vulnerability details publicly. Supported versions are the
   latest release on the default branch, with Go/platform support documented in
-  [docs/support-policy.md](docs/support-policy.md).
+  [docs/support-policy.md](docs/support-policy.md). There is no automatic
+  successor; [governance documents the unavailability and verified handover
+  policy](docs/governance.md#maintainer-succession-and-unavailability).
 
 ## Production readiness
 

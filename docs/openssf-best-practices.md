@@ -31,7 +31,7 @@ Open gaps: branch protection and MFA.
 | Maintainer MFA | External gap | The Best Practices site may ask about developer MFA. GitHub requires MFA broadly, but project-specific maintainer MFA evidence is external repository/account state. |
 | Dependency review | Met locally | `.github/workflows/dependency-review.yml` runs the dependency review action with high/critical vulnerability failure and license-policy enforcement from `.github/dependency-review-config.yml`. External branch settings must still require the check. |
 | License policy | Met locally | `docs/license-policy.md` defines allowed dependency licenses, dependency-review enforcement, and the exception review process. |
-| Maintainer availability | Met locally | README and `SECURITY.md` document single-maintainer status, response expectations, and supported versions. |
+| Maintainer availability | Met locally | README, `SECURITY.md`, and `docs/governance.md` document single-maintainer status, response expectations, supported versions, and the bounded succession path. |
 | Community conduct | Met locally | `CODE_OF_CONDUCT.md` defines expected behavior, unacceptable behavior, reporting, and maintainer actions. |
 
 ## Claiming Rule

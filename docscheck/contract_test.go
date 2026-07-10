@@ -4668,6 +4668,51 @@ func TestMaintainerAvailabilityAndSupportedVersionsAreDocumented(t *testing.T) {
 	}
 }
 
+func TestMaintainerSuccessionPolicyIsBoundedAndDoesNotExposeSecurityReports(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	bestPractices := readText(t, filepath.Join(repoRoot, "docs", "openssf-best-practices.md"))
+
+	for _, required := range []string{
+		"## Maintainer Succession And Unavailability",
+		"single-maintainer project", "There is no automatic\nsuccessor",
+		"does not grant anyone permission to merge, publish, change GitHub\nsettings, access private security reports, or represent the project",
+		"### Temporary Unavailability", "does not relax the normal review,\nsecurity, or release rules",
+		"Do not create a public security issue or advisory to force an\nescalation",
+		"### Succession Request", "After 90 consecutive calendar days",
+		"candidate", "requested scope", "not an authorization",
+		"does not promise a repository transfer", "clearly named fork",
+		"### Verified Handover", "Grant only the repository permissions",
+		"make github-governance-check", "Rotate or reissue", "Never transfer tokens",
+		"GitHub OIDC for SBOM signing", "only official project commitments",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing maintainer succession policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"does not create a public-disclosure exception or transfer private\nsecurity access",
+		"docs/governance.md#maintainer-succession-and-unavailability",
+	} {
+		if !strings.Contains(securityPolicy, required) {
+			t.Fatalf("SECURITY.md missing succession boundary %q", required)
+		}
+	}
+	for _, required := range []string{
+		"There is no automatic\n  successor",
+		"docs/governance.md#maintainer-succession-and-unavailability",
+	} {
+		if !strings.Contains(readme, required) {
+			t.Fatalf("README.md missing succession-policy link %q", required)
+		}
+	}
+	if !strings.Contains(bestPractices, "bounded succession path") {
+		t.Fatal("docs/openssf-best-practices.md missing succession evidence")
+	}
+}
+
 func TestContributingIssueTriagePolicyDefinesResponsesAndClosure(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))

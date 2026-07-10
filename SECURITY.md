@@ -30,7 +30,11 @@ requests, but there is no 24/7 coverage or commercial support guarantee.
 The acknowledgement and remediation targets below are best-effort maintainer
 targets for supported versions. If the maintainer is unavailable and a fix is
 urgent for your deployment, pin a safe release, apply a temporary fork, or carry
-an application-level mitigation while coordinated disclosure continues.
+an application-level mitigation while the report stays private. An unavailable
+maintainer does not create a public-disclosure exception or transfer private
+security access. See the [maintainer succession and unavailability
+policy](docs/governance.md#maintainer-succession-and-unavailability) for the
+bounded handover path and its limits.
 
 ## Reporting a Vulnerability
 

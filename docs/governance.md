@@ -82,6 +82,63 @@ Treat branch review settings as external GitHub state. When repository settings
 are accessible, attach `make github-governance-check` output or GitHub ruleset
 evidence during release review.
 
+## Maintainer Succession And Unavailability
+
+api-toolkit is currently a single-maintainer project. There is no automatic
+successor, emergency support desk, or transfer of repository, release, or
+security authority when that maintainer is unavailable. Opening an issue or
+pull request does not grant anyone permission to merge, publish, change GitHub
+settings, access private security reports, or represent the project.
+
+### Temporary Unavailability
+
+An absence pauses best-effort work; it does not relax the normal review,
+security, or release rules. Contributors may open issues and pull requests, but
+must not assume a merge, release, response target, or private contact route is
+available. Do not create a public security issue or advisory to force an
+escalation. Follow `SECURITY.md`, keep the report private, and use the documented
+deployment mitigations while waiting for an authorized maintainer.
+
+### Succession Request
+
+After 90 consecutive calendar days with no public maintainer activity or
+published availability notice, a contributor may open a public succession
+request as a GitHub issue. The request must name the candidate, summarize their
+relevant contributions or stewardship experience, define the requested scope
+(triage, review, releases, security coordination, or ownership), and link this
+policy. It must not include personal contact details, account-recovery details,
+credentials, private security report details, or pressure reporters to disclose
+vulnerabilities publicly.
+
+The request is a visible record of interest, not an authorization. Only a
+person who already has the necessary GitHub and project authority can add an
+administrator, transfer ownership, or grant private-security access. If no
+authorized person can act, this policy does not promise a repository transfer;
+the candidate may maintain a clearly named fork with independent governance,
+release, and security policies.
+
+### Verified Handover
+
+When an authorized maintainer is available to hand over responsibility, record
+the new maintainer's accepted scope in the succession issue, then:
+
+1. Grant only the repository permissions needed for that scope and retain the
+   branch, tag, CODEOWNERS, and required-check protections in this document.
+2. Have the incoming maintainer review `SECURITY.md`, the release runbook, open
+   security reports they are authorized to access, and the current release
+   evidence before making a release or security commitment.
+3. Verify the repository settings with `make github-governance-check` where
+   authenticated access is available, and record any external-setting gap in
+   the handover issue.
+4. Rotate or reissue any provider, registry, or automation credential through
+   its owning service after access is confirmed. Never transfer tokens, recovery
+   codes, private keys, or secrets through Git, issues, pull requests, or docs.
+
+The release workflow uses GitHub OIDC for SBOM signing; that does not remove
+the need to verify GitHub repository authority before a new maintainer publishes
+a release. Until the handover is recorded, the current supported release and
+published security policy remain the only official project commitments.
+
 ## Workflow Token Permissions
 
 Every repository workflow must declare workflow-level `permissions`; omitted
