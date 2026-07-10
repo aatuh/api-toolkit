@@ -6022,6 +6022,113 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 	}
 }
 
+func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	history := readText(t, filepath.Join(repoRoot, "docs", "coverage-trend.tsv"))
+	lines := strings.Split(strings.TrimSpace(history), "\n")
+	if len(lines) < 2 {
+		t.Fatal("docs/coverage-trend.tsv has no coverage rows")
+	}
+	if lines[0] != "release_tag\trelease_commit\tmodule\tpackage\tapi_status\ttest_status\tobserved_percent" {
+		t.Fatalf("docs/coverage-trend.tsv header = %q", lines[0])
+	}
+
+	rows := map[string]map[string]string{}
+	counts := map[string]int{}
+	for index, line := range lines[1:] {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 7 {
+			t.Fatalf("docs/coverage-trend.tsv:%d has %d columns, want 7", index+2, len(fields))
+		}
+		if !regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$`).MatchString(fields[0]) {
+			t.Fatalf("docs/coverage-trend.tsv:%d has invalid release tag %q", index+2, fields[0])
+		}
+		if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(fields[1]) {
+			t.Fatalf("docs/coverage-trend.tsv:%d has invalid release commit %q", index+2, fields[1])
+		}
+		if rows[fields[0]] == nil {
+			rows[fields[0]] = map[string]string{}
+		}
+		key := fields[2] + "\t" + fields[3]
+		if _, exists := rows[fields[0]][key]; exists {
+			t.Fatalf("docs/coverage-trend.tsv:%d duplicates %s for %s", index+2, fields[3], fields[0])
+		}
+		rows[fields[0]][key] = fields[6]
+		counts[fields[0]]++
+	}
+	for _, release := range []string{"v3.0.0", "v3.1.0", "v3.1.2"} {
+		if counts[release] < 60 {
+			t.Fatalf("docs/coverage-trend.tsv release %s has %d rows, want at least 60", release, counts[release])
+		}
+		for _, aggregate := range []string{"root\t(aggregate)", "contrib\t(aggregate)"} {
+			if rows[release][aggregate] == "" {
+				t.Fatalf("docs/coverage-trend.tsv release %s is missing %s", release, aggregate)
+			}
+		}
+	}
+	if rows["v3.0.0"]["root\tgithub.com/aatuh/api-toolkit/v3/middleware/auth/jwt"] != "40.0" {
+		t.Fatal("coverage trend must retain the v3.0.0 JWT baseline")
+	}
+	if rows["v3.1.2"]["root\tgithub.com/aatuh/api-toolkit/v3/middleware/auth/jwt"] != "93.3" {
+		t.Fatal("coverage trend must retain the v3.1.2 JWT coverage result")
+	}
+
+	trendDoc := readText(t, filepath.Join(repoRoot, "docs", "coverage-trend.md"))
+	for _, required := range []string{
+		"# Package Coverage Trend",
+		"## Aggregate Trend",
+		"## Package Trend",
+		"v3.0.0",
+		"v3.1.0",
+		"v3.1.2",
+		"+53.3 pp",
+		"docs/coverage-trend.tsv",
+		"make coverage-trend-record",
+		"make coverage-trend-check",
+	} {
+		if !strings.Contains(trendDoc, required) {
+			t.Fatalf("docs/coverage-trend.md missing %q", required)
+		}
+	}
+
+	coverageDoc := readText(t, filepath.Join(repoRoot, "docs", "test-coverage.md"))
+	if !strings.Contains(coverageDoc, "[Package coverage trend](coverage-trend.md)") {
+		t.Fatal("docs/test-coverage.md must link to the package coverage trend")
+	}
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	if !strings.Contains(docsIndex, "[Package coverage trend](coverage-trend.md)") {
+		t.Fatal("docs/README.md must link to the package coverage trend")
+	}
+
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, target := range []string{"coverage-trend-record", "coverage-trend-check"} {
+		if !makefileTargetSet(makefile)[target] {
+			t.Fatalf("Makefile missing %s target", target)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "coverage-trend-check") {
+		t.Fatal("docs-check must run coverage-trend-check")
+	}
+
+	tool := readText(t, filepath.Join(repoRoot, "internal", "tools", "coveragetrend", "main.go"))
+	for _, required := range []string{
+		"readLegacySnapshot",
+		"coverage-trend.tsv",
+		"coverage-trend.md",
+		"coverage history already contains release",
+		"coverage trend document is stale",
+	} {
+		if !strings.Contains(tool, required) {
+			t.Fatalf("coverage trend tool missing %q", required)
+		}
+	}
+
+	docsite := readText(t, filepath.Join(repoRoot, "internal", "tools", "docsite", "main.go"))
+	if !strings.Contains(docsite, `{"docs/coverage-trend.md", "test-evidence"}`) {
+		t.Fatal("docs site must index docs/coverage-trend.md")
+	}
+}
+
 func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	performance := readText(t, filepath.Join(repoRoot, "docs", "performance.md"))

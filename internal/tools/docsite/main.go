@@ -223,6 +223,7 @@ func loadDocumentRows(root string) ([]documentRow, error) {
 		{"docs/README.md", "navigation"},
 		{"docs/api-reference.md", "api"},
 		{"docs/core-package-guide.md", "api"},
+		{"docs/coverage-trend.md", "test-evidence"},
 		{"docs/package-classification.md", "package-status"},
 		{"docs/core-readiness.md", "package-status"},
 		{"VERSIONING.md", "compatibility"},

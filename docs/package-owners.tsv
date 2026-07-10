@@ -24,6 +24,7 @@ github.com/aatuh/api-toolkit/v3/examples/snippets/nethttp-migration	examples-mai
 github.com/aatuh/api-toolkit/v3/internal/compatfixtures/rootcore	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/apiadditions	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/apiinventory	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
+github.com/aatuh/api-toolkit/v3/internal/tools/coveragetrend	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/docsite	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/mutationsmoke	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/middleware/auth/apikey	core-maintainers	stable	core-test-maintainers	release-blocking-stable

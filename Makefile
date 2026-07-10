@@ -3,6 +3,8 @@ GO ?= go
 GOWORK ?= off
 FUZZTIME ?= 10s
 BENCHTIME ?= 1x
+COVERAGE_TREND_RELEASE ?=
+COVERAGE_TREND_COMMIT ?=
 MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_LIMIT ?= 12
 MUTATION_TIMEOUT ?= 30s
@@ -35,7 +37,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check fast-check test-race timeout-determinism-check fuzz mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract release-artifact-verify-contract release-evidence-parser-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race timeout-determinism-check fuzz mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -169,6 +171,7 @@ actions-audit-contract: ## Run GitHub Actions audit script contract tests
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) coverage-trend-check
 	@$(MAKE) docs-site-check
 	@$(MAKE) api-inventory-check
 	@$(MAKE) api-additions-check
@@ -239,6 +242,14 @@ coverage: ## Run unit tests with coverage reporting
 
 coverage-check: ## Run unit tests with coverage thresholds
 	@GO="$(GO)" scripts/coverage_check.sh --check
+
+coverage-trend-record: ## Record the current package coverage summary for a release tag
+	@test -n "$(COVERAGE_TREND_RELEASE)" || { echo "COVERAGE_TREND_RELEASE is required, for example v3.1.3"; exit 2; }
+	@test -n "$(COVERAGE_TREND_COMMIT)" || { echo "COVERAGE_TREND_COMMIT is required, for example $$(git rev-parse --verify HEAD)"; exit 2; }
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(GO) run ./internal/tools/coveragetrend -record "$(COVERAGE_TREND_RELEASE)" -commit "$(COVERAGE_TREND_COMMIT)"
+
+coverage-trend-check: ## Verify public package coverage trend documentation
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(GO) run ./internal/tools/coveragetrend -check
 
 fast-check: ## Run non-installing local checks without rewriting files
 	@$(MAKE) docs-check

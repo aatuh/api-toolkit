@@ -92,3 +92,23 @@ they are not release-blocking coverage floors. Branch notes are prompts for
 reviewing negative paths and risk-specific behavior; they do not replace direct
 tests for malformed input, auth failures, size limits, lifecycle failures, or
 other branch behavior.
+
+## Public Trend
+
+[Package coverage trend](coverage-trend.md) compares every dashboard package
+across published releases. Its source file, `docs/coverage-trend.tsv`, records
+the exact tag commit, module, package status, and observed statement coverage
+for each snapshot.
+
+After the release commit's `make coverage-check` passes, update the trend in the
+release pull request before tagging:
+
+```sh
+COVERAGE_TREND_RELEASE=vX.Y.Z \
+COVERAGE_TREND_COMMIT="$(git rev-parse --verify HEAD)" \
+GOTOOLCHAIN=local make coverage-trend-record
+GOTOOLCHAIN=local make coverage-trend-check
+```
+
+The trend documents coverage movement. It is not a substitute for the existing
+floor gate and it does not make a percentage increase a release criterion.

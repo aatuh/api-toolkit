@@ -24,6 +24,7 @@ without scanning the root README.
 | [V3 migration guide](migration/v3.md) | Application teams upgrading dependencies | Upgrade root, contrib, and generated-service adoption paths within the v3 line. |
 | [Troubleshooting](troubleshooting.md) | Application developers and maintainers | Diagnose Go version, contrib tier, timeout buffering, health, idempotency, auth, and generated-service issues. |
 | [Test coverage evidence](test-coverage.md) | Maintainers and release reviewers | Read the coverage gate outputs, package-level floor summary, and release-evidence relationship. |
+| [Package coverage trend](coverage-trend.md) | Maintainers and release reviewers | Compare root and selected contrib package coverage across published releases. |
 | [Benchmark baselines](performance.md) | Maintainers and release reviewers | Run and interpret package-level benchmark baselines before performance-sensitive changes or releases. |
 | [Coverage hardening backlog](coverage-hardening-backlog.md) | Maintainers | Track behavior-test prerequisites before raising high-risk package coverage floors. |
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
