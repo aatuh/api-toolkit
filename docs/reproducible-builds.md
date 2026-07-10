@@ -28,6 +28,7 @@ executables. Its attested draft-release asset set is:
 - `release-evidence-logs.tgz`
 - `release-asset-manifest.tsv`
 - Root and contrib SPDX SBOMs with their Sigstore signatures and certificates
+- Root and contrib SPDX-derived dependency license reports
 
 For this asset set, the published verification command checks:
 

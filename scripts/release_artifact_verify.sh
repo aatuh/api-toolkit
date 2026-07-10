@@ -123,6 +123,8 @@ required_assets = [
     "release-asset-manifest.tsv",
     "sbom-root.spdx.json",
     "sbom-contrib.spdx.json",
+    "dependency-licenses-root.tsv",
+    "dependency-licenses-contrib.tsv",
     "sbom-root.spdx.json.sig",
     "sbom-root.spdx.json.pem",
     "sbom-contrib.spdx.json.sig",
@@ -216,8 +218,25 @@ for subject in required_subjects:
 if expectations.get("local_generates_signed_sboms") is not False:
     fail("local_generates_signed_sboms must be false")
 
+license_evidence = summary.get("dependency_license_evidence") or {}
+if license_evidence.get("source") != "SPDX SBOM package metadata generated in the GitHub release workflow":
+    fail("dependency_license_evidence.source must describe the SPDX SBOM source")
+if license_evidence.get("generator") != "scripts/sbom_license_report.py":
+    fail("dependency_license_evidence.generator must name the report generator")
+if license_evidence.get("root_report") != "dependency-licenses-root.tsv":
+    fail("dependency_license_evidence.root_report must name the root report")
+if license_evidence.get("contrib_report") != "dependency-licenses-contrib.tsv":
+    fail("dependency_license_evidence.contrib_report must name the contrib report")
+
 sbom_assets = summary.get("sbom_assets") or []
-for asset in required_assets[3:]:
+for asset in (
+    "sbom-root.spdx.json",
+    "sbom-contrib.spdx.json",
+    "sbom-root.spdx.json.sig",
+    "sbom-root.spdx.json.pem",
+    "sbom-contrib.spdx.json.sig",
+    "sbom-contrib.spdx.json.pem",
+):
     if asset not in sbom_assets:
         fail(f"sbom_assets missing {asset}")
 if summary.get("sbom_status") not in ("not_generated", "generated_and_signed"):
@@ -272,6 +291,35 @@ verify_sbom_signature() {
     "$asset_dir/$sbom" >/dev/null
 }
 
+verify_dependency_license_report() {
+  local report="$1"
+
+  awk -F '\t' -v report="$report" '
+    NR == 1 {
+      if ($0 != "module\tversion\tlicense_expression\tstatus\tsource_purls") {
+        printf "%s has an unexpected header\n", report > "/dev/stderr"
+        exit 1
+      }
+      next
+    }
+    NF != 5 || $1 == "" || $2 == "" || $3 == "" || $4 == "" || $5 == "" {
+      printf "%s has an incomplete dependency license row at line %d\n", report, NR > "/dev/stderr"
+      exit 1
+    }
+    $4 != "detected" && $4 != "needs_review" && $4 != "missing_from_sbom" {
+      printf "%s has an unknown dependency license status %s at line %d\n", report, $4, NR > "/dev/stderr"
+      exit 1
+    }
+    { rows++ }
+    END {
+      if (NR == 0 || rows == 0) {
+        printf "%s has no dependency license rows\n", report > "/dev/stderr"
+        exit 1
+      }
+    }
+  ' "$asset_dir/$report"
+}
+
 verify_attestations_if_requested() {
   if [ "$verify_mode" = "publication" ] && [ -z "$release_tag" ]; then
     echo "RELEASE_TAG is required when RELEASE_ARTIFACT_VERIFY_MODE=publication" >&2
@@ -301,6 +349,8 @@ required_assets=(
   "release-asset-manifest.tsv"
   "sbom-root.spdx.json"
   "sbom-contrib.spdx.json"
+  "dependency-licenses-root.tsv"
+  "dependency-licenses-contrib.tsv"
   "sbom-root.spdx.json.sig"
   "sbom-root.spdx.json.pem"
   "sbom-contrib.spdx.json.sig"
@@ -314,6 +364,8 @@ done
 verify_manifest_checksums
 verify_log_archive
 verify_summary_invariants
+verify_dependency_license_report "dependency-licenses-root.tsv"
+verify_dependency_license_report "dependency-licenses-contrib.tsv"
 verify_sbom_signature "sbom-root.spdx.json" "sbom-root.spdx.json.sig" "sbom-root.spdx.json.pem"
 verify_sbom_signature "sbom-contrib.spdx.json" "sbom-contrib.spdx.json.sig" "sbom-contrib.spdx.json.pem"
 verify_attestations_if_requested

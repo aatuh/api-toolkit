@@ -29,6 +29,7 @@ git_state = value(summary, ("git_state",), {})
 provenance = value(summary, ("provenance_policy",), {})
 vulnerability = value(summary, ("vulnerability_evidence",), {})
 contrib = value(summary, ("contrib_drift",), {})
+licenses = value(summary, ("dependency_license_evidence",), {})
 full_profile = value(summary, ("full_profile_scaffold_evidence",), {})
 expectations = value(summary, ("publication_artifact_expectations",), {})
 
@@ -79,6 +80,12 @@ print(
     f"missing={contrib.get('missing_disposition_count')} "
     f"expired={contrib.get('expired_disposition_count')} "
     f"artifact={contrib.get('artifact_path')}"
+)
+print(
+    "dependency_license_evidence: "
+    f"root_report={licenses.get('root_report')} "
+    f"contrib_report={licenses.get('contrib_report')} "
+    f"generator={licenses.get('generator')}"
 )
 print(
 	    "full_profile_scaffold: "

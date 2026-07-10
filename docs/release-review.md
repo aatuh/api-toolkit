@@ -22,7 +22,12 @@ Use this as the short reviewer path before publishing a release.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`,
-  `full_profile_scaffold_evidence`, and artifact tier status.
+  `dependency_license_evidence`, `full_profile_scaffold_evidence`, and artifact
+  tier status.
+- Open `dependency-licenses-root.tsv` and `dependency-licenses-contrib.tsv`
+  from the draft release. Resolve every `needs_review` or `missing_from_sbom`
+  row under `docs/license-policy.md`; the reports preserve evidence gaps and do
+  not grant exceptions by themselves.
 - Run `RELEASE_SUMMARY=release-check-summary.json make release-review-summary`
   to print the same decision fields from one command before walking the detailed
   evidence.
@@ -87,6 +92,8 @@ Required draft release assets:
 - `release-asset-manifest.tsv`
 - `sbom-root.spdx.json`
 - `sbom-contrib.spdx.json`
+- `dependency-licenses-root.tsv`
+- `dependency-licenses-contrib.tsv`
 - `sbom-root.spdx.json.sig`
 - `sbom-root.spdx.json.pem`
 - `sbom-contrib.spdx.json.sig`

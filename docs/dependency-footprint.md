@@ -21,6 +21,10 @@ The report writes review artifacts under `.ci-result/dependencies/`:
 | `minimal-core-packages.txt` | Non-stdlib packages reached by the minimal-core package set. |
 | `*.added.modules` and `*.removed.modules` | Module diff files when `API_BASE_REF` is set. |
 
+The tag-driven GitHub release workflow separately publishes
+`dependency-licenses-root.tsv` and `dependency-licenses-contrib.tsv`. They are
+draft-release assets, not local `make dependency-report` files.
+
 For release or pull-request comparison, set an explicit base ref:
 
 ```sh
@@ -30,6 +34,14 @@ API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report
 The report does not replace vulnerability scanning. Vulnerability status is
 owned by `make vuln`, `release-check-summary.json` `vulnerability_evidence`,
 `docs/dependency-risk.md`, and `docs/vulnerability-dispositions.tsv`.
+
+The license reports are generated only in the tag-driven release workflow after
+the root and contrib SPDX SBOMs exist. Each row records the Go module, selected
+version, SPDX expression, report status, and source PURL. `detected` means Syft
+provided SPDX metadata; `needs_review` preserves `NOASSERTION` or `LicenseRef-`
+metadata; `missing_from_sbom` records a build-list module for which the SBOM did
+not provide a matching Go PURL. Neither review status is an allow decision.
+Apply [license-policy.md](license-policy.md) before publishing.
 
 ## Current Footprint Policy
 

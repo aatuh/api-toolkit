@@ -127,6 +127,14 @@ summary = {
         "expired_disposition_count": 0,
         "disposition_issues": [],
     },
+    "dependency_license_evidence": {
+        "source": "SPDX SBOM package metadata generated in the GitHub release workflow",
+        "generator": "scripts/sbom_license_report.py",
+        "format": "TSV",
+        "root_report": "dependency-licenses-root.tsv",
+        "contrib_report": "dependency-licenses-contrib.tsv",
+        "scope": "synthetic fixture",
+    },
     "artifact_tiers": {},
     "publication_artifact_expectations": {
         "local_evidence_assets": [
@@ -140,6 +148,8 @@ summary = {
             "release-asset-manifest.tsv",
             "sbom-root.spdx.json",
             "sbom-contrib.spdx.json",
+            "dependency-licenses-root.tsv",
+            "dependency-licenses-contrib.tsv",
             "sbom-root.spdx.json.sig",
             "sbom-root.spdx.json.pem",
             "sbom-contrib.spdx.json.sig",
@@ -151,6 +161,8 @@ summary = {
             "release-asset-manifest.tsv",
             "sbom-root.spdx.json",
             "sbom-contrib.spdx.json",
+            "dependency-licenses-root.tsv",
+            "dependency-licenses-contrib.tsv",
             "sbom-root.spdx.json.sig",
             "sbom-root.spdx.json.pem",
             "sbom-contrib.spdx.json.sig",
@@ -185,6 +197,10 @@ for log_name in \
 done
 tar -C "$asset_dir/logs" -czf "$asset_dir/release-evidence-logs.tgz" .
 
+for report in dependency-licenses-root.tsv dependency-licenses-contrib.tsv; do
+  printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/%s\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/%s@v1.0.0\n' "$report" "$report" >"$asset_dir/$report"
+done
+
 for asset in \
   sbom-root.spdx.json sbom-contrib.spdx.json \
   sbom-root.spdx.json.sig sbom-root.spdx.json.pem \
@@ -199,6 +215,8 @@ done
     release-evidence-logs.tgz \
     sbom-root.spdx.json \
     sbom-contrib.spdx.json \
+    dependency-licenses-root.tsv \
+    dependency-licenses-contrib.tsv \
     sbom-root.spdx.json.sig \
     sbom-root.spdx.json.pem \
     sbom-contrib.spdx.json.sig \

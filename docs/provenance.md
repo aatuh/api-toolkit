@@ -32,6 +32,8 @@ Each published draft release asset below is an attestation subject:
 | `release-asset-manifest.tsv` | SHA-256 manifest for the uploaded assets. |
 | `sbom-root.spdx.json` | Root module SBOM. |
 | `sbom-contrib.spdx.json` | Contrib module SBOM. |
+| `dependency-licenses-root.tsv` | Root Go module license report derived from the root SPDX SBOM. |
+| `dependency-licenses-contrib.tsv` | Contrib Go module license report derived from the contrib SPDX SBOM. |
 | `sbom-root.spdx.json.sig`, `sbom-root.spdx.json.pem` | Keyless Sigstore signature and certificate for the root SBOM. |
 | `sbom-contrib.spdx.json.sig`, `sbom-contrib.spdx.json.pem` | Keyless Sigstore signature and certificate for the contrib SBOM. |
 
@@ -66,9 +68,12 @@ Publication mode verifies all of the following before it succeeds:
 2. `release-asset-manifest.tsv` matches every downloaded asset checksum.
 3. Both SBOMs verify against their keyless Sigstore signatures and expected
    GitHub Actions OIDC workflow identity.
-4. The evidence summary is clean publication evidence, including a passed
+4. The root and contrib dependency license reports are present, structurally
+   valid, and preserve any `needs_review` or `missing_from_sbom` rows for
+   release review.
+5. The evidence summary is clean publication evidence, including a passed
    provenance policy and no dirty working-tree state.
-5. `gh attestation verify` succeeds for every draft-release asset and requires
+6. `gh attestation verify` succeeds for every draft-release asset and requires
    `--source-ref "refs/tags/$TAG"`.
 
 The command rejects missing tags and accepts only stable `vX.Y.Z` or release

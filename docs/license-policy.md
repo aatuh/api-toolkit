@@ -85,5 +85,9 @@ Before publishing a release, reviewers should confirm:
 - `.github/dependency-review-config.yml` and this document list the same allowed
   licenses,
 - every dependency exception has an owner and re-review trigger,
+- inspect `dependency-licenses-root.tsv` and
+  `dependency-licenses-contrib.tsv` in the draft release. Review every
+  `needs_review` or `missing_from_sbom` row against the SBOM, upstream license,
+  and any recorded exception before publication,
 - release notes mention dependency license changes that affect generated
   scaffolds, supported adapters, or distributed artifacts.

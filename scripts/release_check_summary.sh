@@ -1043,6 +1043,8 @@ artifact_tiers_json() {
     "release-asset-manifest.tsv"
     "sbom-root.spdx.json"
     "sbom-contrib.spdx.json"
+    "dependency-licenses-root.tsv"
+    "dependency-licenses-contrib.tsv"
     "sbom-root.spdx.json.sig"
     "sbom-root.spdx.json.pem"
     "sbom-contrib.spdx.json.sig"
@@ -1056,7 +1058,7 @@ artifact_tiers_json() {
   printf '"artifacts":'; json_string_array "release-check-summary.json" "$log_dir/*.log" "$release_logs_archive_path"
   printf '},'
   printf '"github_release_workflow":{'
-  printf '"description":"The GitHub release workflow produces the local evidence summary plus SBOMs, Sigstore signatures, certificates, and provenance attestations.",'
+  printf '"description":"The GitHub release workflow produces the local evidence summary plus SPDX SBOMs, SBOM-derived root and contrib dependency license reports, Sigstore signatures, certificates, and provenance attestations.",'
   printf '"produces_signed_sboms":true,'
   printf '"artifacts":['
   local first=true
@@ -1072,6 +1074,17 @@ artifact_tiers_json() {
   printf '}'
 }
 
+dependency_license_evidence_json() {
+  printf '{'
+  printf '"source":"SPDX SBOM package metadata generated in the GitHub release workflow",'
+  printf '"generator":'; json_string "scripts/sbom_license_report.py"; printf ','
+  printf '"format":"TSV",'
+  printf '"root_report":"dependency-licenses-root.tsv",'
+  printf '"contrib_report":"dependency-licenses-contrib.tsv",'
+  printf '"scope":"Each report is filtered to its Go module build list. detected records have SPDX license metadata; needs_review and missing_from_sbom records require reviewer follow-up."'
+  printf '}'
+}
+
 publication_artifact_expectations_json() {
   printf '{'
   printf '"local_evidence_assets":'; json_string_array "release-check-summary.json" "$log_dir/*.log" "$release_logs_archive_path"; printf ','
@@ -1081,6 +1094,8 @@ publication_artifact_expectations_json() {
     "release-asset-manifest.tsv" \
     "sbom-root.spdx.json" \
     "sbom-contrib.spdx.json" \
+    "dependency-licenses-root.tsv" \
+    "dependency-licenses-contrib.tsv" \
     "sbom-root.spdx.json.sig" \
     "sbom-root.spdx.json.pem" \
     "sbom-contrib.spdx.json.sig" \
@@ -1091,6 +1106,8 @@ publication_artifact_expectations_json() {
     "release-asset-manifest.tsv" \
     "sbom-root.spdx.json" \
     "sbom-contrib.spdx.json" \
+    "dependency-licenses-root.tsv" \
+    "dependency-licenses-contrib.tsv" \
     "sbom-root.spdx.json.sig" \
     "sbom-root.spdx.json.pem" \
     "sbom-contrib.spdx.json.sig" \
@@ -1219,6 +1236,7 @@ printf '\n  ],\n'
 printf '  "tool_versions": '; tool_versions_json; printf ',\n'
 printf '  "vulnerability_evidence": '; vulnerability_evidence_json "$log_dir/vuln.log"; printf ',\n'
 printf '  "contrib_drift": %s,\n' "$contrib_drift_json_value"
+printf '  "dependency_license_evidence": '; dependency_license_evidence_json; printf ',\n'
 printf '  "full_profile_scaffold_evidence": '; full_profile_scaffold_evidence_json; printf ',\n'
 printf '  "artifact_tiers": '; artifact_tiers_json; printf ',\n'
 printf '  "publication_artifact_expectations": '; publication_artifact_expectations_json; printf ',\n'

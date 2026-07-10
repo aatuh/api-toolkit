@@ -1436,6 +1436,14 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 				Message   string `json:"message"`
 			} `json:"disposition_issues"`
 		} `json:"contrib_drift"`
+		DependencyLicenseEvidence struct {
+			Source        string `json:"source"`
+			Generator     string `json:"generator"`
+			Format        string `json:"format"`
+			RootReport    string `json:"root_report"`
+			ContribReport string `json:"contrib_report"`
+			Scope         string `json:"scope"`
+		} `json:"dependency_license_evidence"`
 		FullProfileScaffoldEvidence struct {
 			Profile            string `json:"profile"`
 			ContractTest       string `json:"contract_test"`
@@ -1694,6 +1702,14 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	if summary.ContribDrift.DispositionIssues == nil {
 		t.Fatal("contrib drift summary missing disposition_issues array")
 	}
+	if summary.DependencyLicenseEvidence.Source != "SPDX SBOM package metadata generated in the GitHub release workflow" ||
+		summary.DependencyLicenseEvidence.Generator != "scripts/sbom_license_report.py" ||
+		summary.DependencyLicenseEvidence.Format != "TSV" ||
+		summary.DependencyLicenseEvidence.RootReport != "dependency-licenses-root.tsv" ||
+		summary.DependencyLicenseEvidence.ContribReport != "dependency-licenses-contrib.tsv" ||
+		!strings.Contains(summary.DependencyLicenseEvidence.Scope, "Go module build list") {
+		t.Fatalf("dependency license evidence is incomplete: %+v", summary.DependencyLicenseEvidence)
+	}
 	if summary.FullProfileScaffoldEvidence.Profile != "saas-api-full" {
 		t.Fatalf("full profile evidence profile = %q, want saas-api-full", summary.FullProfileScaffoldEvidence.Profile)
 	}
@@ -1807,7 +1823,14 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 			t.Fatalf("artifact_tiers missing %s", tier)
 		}
 	}
-	for _, required := range []string{"release-check-summary.json", "release-evidence-logs.tgz", "sbom-root.spdx.json", "sbom-contrib.spdx.json"} {
+	for _, required := range []string{
+		"release-check-summary.json",
+		"release-evidence-logs.tgz",
+		"sbom-root.spdx.json",
+		"sbom-contrib.spdx.json",
+		"dependency-licenses-root.tsv",
+		"dependency-licenses-contrib.tsv",
+	} {
 		if !containsString(summary.PublicationArtifactExpectations.GitHubDraftReleaseAssets, required) {
 			t.Fatalf("publication artifact expectations missing draft release asset %s", required)
 		}
@@ -4070,6 +4093,8 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"expired_disposition_count",
 		"checks[].log_path",
 		"contrib_drift.artifact_path",
+		"dependency_license_evidence",
+		"verify_dependency_license_report",
 		"gh attestation verify",
 	} {
 		if !strings.Contains(verifier, required) {
@@ -4080,6 +4105,7 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"publication_eligible",
 		"vulnerability_dispositions",
 		"contrib_drift",
+		"dependency_license_evidence",
 		"artifact_expectations",
 		"review_decision",
 	} {
@@ -4132,6 +4158,8 @@ func TestReleaseArtifactAttestationsCoverDraftAssets(t *testing.T) {
 		"release-asset-manifest.tsv",
 		"sbom-root.spdx.json",
 		"sbom-contrib.spdx.json",
+		"dependency-licenses-root.tsv",
+		"dependency-licenses-contrib.tsv",
 		"sbom-root.spdx.json.sig",
 		"sbom-root.spdx.json.pem",
 		"sbom-contrib.spdx.json.sig",
@@ -4232,6 +4260,8 @@ func TestReleaseProvenanceGuideSetsBoundedAttestationClaims(t *testing.T) {
 		"release-asset-manifest.tsv",
 		"sbom-root.spdx.json",
 		"sbom-contrib.spdx.json",
+		"dependency-licenses-root.tsv",
+		"dependency-licenses-contrib.tsv",
 		"sbom-root.spdx.json.sig",
 		"sbom-root.spdx.json.pem",
 		"sbom-contrib.spdx.json.sig",
@@ -4295,6 +4325,7 @@ func TestReproducibleBuildStatusMakesBoundedReleaseClaims(t *testing.T) {
 		"release-check-summary.json",
 		"release-evidence-logs.tgz",
 		"release-asset-manifest.tsv",
+		"dependency license reports",
 		"Sigstore signatures and certificates",
 		"SHA-256 checksums",
 		"GitHub artifact attestations",
@@ -4327,6 +4358,8 @@ func TestReproducibleBuildStatusMakesBoundedReleaseClaims(t *testing.T) {
 		"release-asset-manifest.tsv",
 		"sbom-root.spdx.json",
 		"sbom-contrib.spdx.json",
+		"dependency-licenses-root.tsv",
+		"dependency-licenses-contrib.tsv",
 		"Attest provenance (release assets)",
 	} {
 		if !strings.Contains(workflow, required) {
@@ -4335,6 +4368,58 @@ func TestReproducibleBuildStatusMakesBoundedReleaseClaims(t *testing.T) {
 	}
 	if !strings.Contains(makefile, "ci-build-smoke") {
 		t.Fatal("Makefile is missing ci-build-smoke evidence")
+	}
+}
+
+func TestDependencyLicenseReportsAreReleaseEvidence(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	report := readText(t, filepath.Join(repoRoot, "scripts", "sbom_license_report.py"))
+	reportContract := readText(t, filepath.Join(repoRoot, "scripts", "sbom_license_report_contract_test.sh"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	summary := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh"))
+	verifier := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify.sh"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	licensePolicy := readText(t, filepath.Join(repoRoot, "docs", "license-policy.md"))
+	footprint := readText(t, filepath.Join(repoRoot, "docs", "dependency-footprint.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+
+	for _, required := range []string{
+		"go", "list", "-m", "-json", "all",
+		"GOWORK", "pkg:golang/", "NOASSERTION", "LicenseRef-",
+		"missing_from_sbom", "needs_review", "os.replace",
+	} {
+		if !strings.Contains(report, required) {
+			t.Fatalf("SBOM dependency license report is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"example.com/foo", "missing_from_sbom", "NOASSERTION",
+		"expected missing SBOM input to fail",
+	} {
+		if !strings.Contains(reportContract, required) {
+			t.Fatalf("SBOM dependency license report contract is missing %q", required)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "sbom-license-report-contract") {
+		t.Fatal("docs-check must run the SPDX dependency license report contract")
+	}
+	for _, document := range []string{workflow, summary, verifier, licensePolicy, footprint, review} {
+		for _, asset := range []string{"dependency-licenses-root.tsv", "dependency-licenses-contrib.tsv"} {
+			if !strings.Contains(document, asset) {
+				t.Fatalf("dependency license release evidence is missing %s", asset)
+			}
+		}
+	}
+	for _, required := range []string{
+		"Generate dependency license reports",
+		"--module-dir .",
+		"--module-dir contrib",
+		"sha256sum",
+		"subject-path:",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow is missing dependency license report wiring %q", required)
+		}
 	}
 }
 

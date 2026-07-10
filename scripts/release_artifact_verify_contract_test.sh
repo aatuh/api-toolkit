@@ -53,6 +53,25 @@ FAKE
   chmod +x "$bin_dir/cosign" "$bin_dir/gh"
 }
 
+write_manifest() {
+  local dir="$1"
+
+  (
+    cd "$dir"
+    sha256sum \
+      release-check-summary.json \
+      release-evidence-logs.tgz \
+      sbom-root.spdx.json \
+      sbom-contrib.spdx.json \
+      dependency-licenses-root.tsv \
+      dependency-licenses-contrib.tsv \
+      sbom-root.spdx.json.sig \
+      sbom-root.spdx.json.pem \
+      sbom-contrib.spdx.json.sig \
+      sbom-contrib.spdx.json.pem > release-asset-manifest.tsv
+  )
+}
+
 make_bundle() {
   local dir="$1"
   local status="${2:-passed}"
@@ -179,6 +198,14 @@ summary = {
         "expired_disposition_count": 0,
         "disposition_issues": [],
     },
+    "dependency_license_evidence": {
+        "source": "SPDX SBOM package metadata generated in the GitHub release workflow",
+        "generator": "scripts/sbom_license_report.py",
+        "format": "TSV",
+        "root_report": "dependency-licenses-root.tsv",
+        "contrib_report": "dependency-licenses-contrib.tsv",
+        "scope": "contract fixture",
+    },
     "artifact_tiers": {},
     "publication_artifact_expectations": {
         "local_evidence_assets": [
@@ -192,6 +219,8 @@ summary = {
             "release-asset-manifest.tsv",
             "sbom-root.spdx.json",
             "sbom-contrib.spdx.json",
+            "dependency-licenses-root.tsv",
+            "dependency-licenses-contrib.tsv",
             "sbom-root.spdx.json.sig",
             "sbom-root.spdx.json.pem",
             "sbom-contrib.spdx.json.sig",
@@ -203,6 +232,8 @@ summary = {
             "release-asset-manifest.tsv",
             "sbom-root.spdx.json",
             "sbom-contrib.spdx.json",
+            "dependency-licenses-root.tsv",
+            "dependency-licenses-contrib.tsv",
             "sbom-root.spdx.json.sig",
             "sbom-root.spdx.json.pem",
             "sbom-contrib.spdx.json.sig",
@@ -247,24 +278,17 @@ PY
   fi
   tar -C "$logs_dir" -czf "$dir/release-evidence-logs.tgz" .
 
+  for report in dependency-licenses-root.tsv dependency-licenses-contrib.tsv; do
+    printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/%s\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/%s@v1.0.0\n' "$report" "$report" >"$dir/$report"
+  done
+
   for asset in \
     sbom-root.spdx.json sbom-contrib.spdx.json \
     sbom-root.spdx.json.sig sbom-root.spdx.json.pem \
     sbom-contrib.spdx.json.sig sbom-contrib.spdx.json.pem; do
     printf 'fixture %s\n' "$asset" >"$dir/$asset"
   done
-  (
-    cd "$dir"
-    sha256sum \
-      release-check-summary.json \
-      release-evidence-logs.tgz \
-      sbom-root.spdx.json \
-      sbom-contrib.spdx.json \
-      sbom-root.spdx.json.sig \
-      sbom-root.spdx.json.pem \
-      sbom-contrib.spdx.json.sig \
-      sbom-contrib.spdx.json.pem > release-asset-manifest.tsv
-  )
+  write_manifest "$dir"
 }
 
 fake_bin="$tmp/bin"
@@ -296,6 +320,16 @@ case "$bad_summary_output" in
   *) printf 'failed summary invariant did not fail clearly:\n%s\n' "$bad_summary_output" >&2; exit 1 ;;
 esac
 
+malformed_license_dir="$tmp/malformed-license"
+make_bundle "$malformed_license_dir"
+printf 'unexpected\theader\n' >"$malformed_license_dir/dependency-licenses-root.tsv"
+write_manifest "$malformed_license_dir"
+malformed_license_output="$(require_failure malformed-license-report env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$malformed_license_dir")"
+case "$malformed_license_output" in
+  *"dependency-licenses-root.tsv has an unexpected header"*) ;;
+  *) printf 'malformed dependency license report did not fail clearly:\n%s\n' "$malformed_license_output" >&2; exit 1 ;;
+esac
+
 missing_summary_log_dir="$tmp/missing-summary-log"
 make_bundle "$missing_summary_log_dir" "passed" "no" "custom-extra.log"
 missing_summary_log_output="$(require_failure missing-summary-log env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$missing_summary_log_dir")"
@@ -314,7 +348,7 @@ GH_CALLS="$tmp/gh-calls" require_success publication-verify env \
   RELEASE_TAG=v2.1.0 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
   bash "$repo_root/scripts/verify-release.sh" "$publication_dir" >/dev/null
-if [ "$(wc -l < "$tmp/gh-calls")" -ne 9 ]; then
+if [ "$(wc -l < "$tmp/gh-calls")" -ne 11 ]; then
   printf 'publication verifier should run one gh attestation check per release asset, got:\n%s\n' "$(cat "$tmp/gh-calls")" >&2
   exit 1
 fi
