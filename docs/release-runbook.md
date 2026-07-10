@@ -142,6 +142,9 @@ Release tags, signatures, and attestations have separate meanings:
 See [release provenance](provenance.md) for the full consumer verification
 command, trusted source-reference policy, attested asset scope, and explicit
 limits of this SLSA-style provenance model.
+See [reproducible build status](reproducible-builds.md) for the separate
+non-claim on bit-for-bit executable reproducibility and the release assets this
+workflow actually verifies.
 
 | Item | Policy | Consumer verification |
 | --- | --- | --- |

@@ -182,6 +182,7 @@ identifies the installed generator and contract tool.
 | [OpenSSF Best Practices gap review](openssf-best-practices.md) | Maintainers and release reviewers | Track Best Practices badge readiness, unclaimed status, and remaining gaps before publishing a badge. |
 | [Release runbook](release-runbook.md) | Release operators | Command source of truth for local checks, release evidence, artifact verification, and baseline policy. |
 | [Release provenance](provenance.md) | Release consumers and reviewers | Verify GitHub artifact provenance, understand the attested asset scope, and apply the documented trust limits. |
+| [Reproducible build status](reproducible-builds.md) | Release consumers and maintainers | Distinguish unsupported binary reproducibility from the checksums, signatures, and provenance verified for release assets. |
 | [Release review checklist](release-review.md) | Release reviewers | Short path through summary fields, manifests, dirty-tree decisions, artifacts, and release notes. |
 | [Governance](governance.md) | Maintainers | Branch protection, CODEOWNERS, tag protection, required checks, and release approval expectations. |
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |

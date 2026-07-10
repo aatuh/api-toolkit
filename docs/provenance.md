@@ -105,6 +105,9 @@ In particular, this project does not make any of these claims:
 - Attestations do not replace checksum validation, SBOM signature verification,
   code review, vulnerability triage, or runtime hardening.
 
+See [reproducible build status](reproducible-builds.md) for the explicit binary
+reproducibility boundary and the release asset checks that are available today.
+
 Do not publish a release when the required GitHub attestation verification,
 checksum verification, or SBOM signature verification fails. Keep the release
 draft unpublished, preserve the failed verifier output, and investigate the

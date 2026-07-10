@@ -231,6 +231,7 @@ func loadDocumentRows(root string) ([]documentRow, error) {
 		{"docs/v3-compatibility-roadmap.md", "compatibility"},
 		{"docs/downstream-compatibility.md", "compatibility"},
 		{"docs/provenance.md", "release-evidence"},
+		{"docs/reproducible-builds.md", "release-evidence"},
 		{"docs/migration/v3.md", "migration"},
 		{"docs/release-notes.md", "migration"},
 	}

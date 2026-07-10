@@ -4143,6 +4143,72 @@ func TestReleaseProvenanceGuideSetsBoundedAttestationClaims(t *testing.T) {
 	}
 }
 
+func TestReproducibleBuildStatusMakesBoundedReleaseClaims(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	reproducibleBuilds := readText(t, filepath.Join(repoRoot, "docs", "reproducible-builds.md"))
+	provenance := readText(t, filepath.Join(repoRoot, "docs", "provenance.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	docsite := readText(t, filepath.Join(repoRoot, "internal", "tools", "docsite", "main.go"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+
+	for _, required := range []string{
+		"# Reproducible Build Status",
+		"does **not** claim reproducible binaries",
+		"draft releases do\nnot publish compiled executables",
+		"does not independently rebuild a\nbinary and compare its hash",
+		"bit-for-bit reproduction of an api-toolkit release",
+		"-trimpath",
+		"-buildvcs=false",
+		"VERSION`, `BUILD_COMMIT`, and `BUILD_DATE`",
+		"compiler, operating-system image,\narchitecture, dependency-fetch, or build-environment input",
+		"release-check-summary.json",
+		"release-evidence-logs.tgz",
+		"release-asset-manifest.tsv",
+		"Sigstore signatures and certificates",
+		"SHA-256 checksums",
+		"GitHub artifact attestations",
+		"refs/tags/vX.Y.Z",
+		"make ci-build-smoke",
+		"buildability\ncheck, not a deterministic-output comparison",
+		"Do not use a local\nbinary hash as a release-verification signal",
+		"Future Claim Requirements",
+		"Publish the binary and include it in the release manifest and attestation\n   subject set",
+		"independent rebuild that compares the resulting bytes",
+		"reproducible binary",
+	} {
+		if !strings.Contains(reproducibleBuilds, required) {
+			t.Fatalf("docs/reproducible-builds.md missing bounded release claim %q", required)
+		}
+	}
+	for name, document := range map[string]string{
+		"docs/provenance.md":             provenance,
+		"docs/release-runbook.md":        runbook,
+		"docs/README.md":                 docsIndex,
+		"internal/tools/docsite/main.go": docsite,
+	} {
+		if !strings.Contains(document, "reproducible-build") {
+			t.Fatalf("%s does not link to reproducible build status", name)
+		}
+	}
+	for _, required := range []string{
+		"release-check-summary.json",
+		"release-evidence-logs.tgz",
+		"release-asset-manifest.tsv",
+		"sbom-root.spdx.json",
+		"sbom-contrib.spdx.json",
+		"Attest provenance (release assets)",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow missing verified release asset evidence %q", required)
+		}
+	}
+	if !strings.Contains(makefile, "ci-build-smoke") {
+		t.Fatal("Makefile is missing ci-build-smoke evidence")
+	}
+}
+
 func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
