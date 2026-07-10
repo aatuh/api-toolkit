@@ -2,9 +2,24 @@
 
 ## Supported Versions
 
-We provide security updates for the latest release on the default branch. Older
-versions may receive fixes at our discretion. The supported Go and platform
-line is documented in `docs/support-policy.md`.
+We provide security updates for the latest release on the default branch. The
+supported Go and platform line is documented in `docs/support-policy.md`.
+
+## Previous Minor Backport Policy
+
+Previous minor release lines do not receive routine security backports. High,
+Medium, and Low severity fixes target the latest supported release; users of an
+older minor line should upgrade or apply the documented mitigation.
+
+For a Critical vulnerability, a maintainer may approve one exceptional backport
+when an affected user cannot safely upgrade immediately and the older line can
+accept a minimal, regression-tested patch. The decision must record the affected
+versions, reason the upgrade is blocked, owner, mitigation, fixed version, and
+disclosure plan in the private advisory and release notes. It must not add a new
+feature, expand the supported surface, or become a general previous-minor
+support promise. When no exceptional backport is approved, the maintainer will
+publish the latest-version fix or mitigation through the coordinated disclosure
+process.
 
 ## Maintainer Availability
 
