@@ -1506,6 +1506,16 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		}
 	}
 
+	generatedCI, err := os.ReadFile(filepath.Join(serviceDir, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("read generated full-profile CI workflow: %v", err)
+	}
+	for _, want := range []string{"permissions:", "contents: read"} {
+		if !strings.Contains(string(generatedCI), want) {
+			t.Fatalf("generated full-profile CI workflow missing %q:\n%s", want, generatedCI)
+		}
+	}
+
 	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
 	if err != nil {
 		t.Fatalf("read generated full-profile .env.example: %v", err)
@@ -1821,7 +1831,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated integration workflow: %v", err)
 	}
-	for _, want := range []string{"workflow_dispatch:", "schedule:", "make integration-check", "docker compose"} {
+	for _, want := range []string{"workflow_dispatch:", "schedule:", "permissions:", "contents: read", "make integration-check", "docker compose"} {
 		if !strings.Contains(string(generatedIntegrationWorkflow), want) {
 			t.Fatalf("generated integration workflow missing %q:\n%s", want, generatedIntegrationWorkflow)
 		}

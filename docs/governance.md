@@ -82,6 +82,26 @@ Treat branch review settings as external GitHub state. When repository settings
 are accessible, attach `make github-governance-check` output or GitHub ruleset
 evidence during release review.
 
+## Workflow Token Permissions
+
+Every repository workflow must declare workflow-level `permissions`; omitted
+scopes become `none`. Read-only validation workflows use only `contents: read`.
+`permissions: read-all` and `permissions: write-all` are prohibited because
+they grant unrelated repository scopes. See [GitHub's workflow permission
+reference](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
+
+The permitted write or OIDC exceptions are purpose-bound:
+
+| Workflow | Exception | Reason |
+| --- | --- | --- |
+| `codeql.yml` | `security-events: write` | Upload CodeQL SARIF results. |
+| `scorecard.yml` analysis job | `security-events: write`, `id-token: write` | Upload SARIF and publish verified Scorecard results. Its workflow-level permissions are `{}`; job-level read scopes exist only for the Scorecard checks. |
+| `release.yml` | `contents: write`, `attestations: write`, `id-token: write` | Create the draft release, create provenance attestations, and sign SBOMs with GitHub OIDC. |
+
+The Actions audit rejects missing workflow-level permissions and broad
+`read-all`/`write-all` defaults. Add a new scope only with a documented action
+requirement, a focused workflow change, and a matching audit-contract update.
+
 ## Secret Scanning And Example Configuration
 
 Secret scanning and push protection are external GitHub settings. Before a

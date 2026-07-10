@@ -50,11 +50,28 @@ audit_uses_line() {
   fi
 }
 
+audit_workflow_permissions() {
+  local file="$1"
+  local rel
+  rel="$(relpath "$file")"
+
+  if ! grep -Eq '^permissions:' "$file"; then
+    report "$rel missing explicit workflow-level permissions"
+    return
+  fi
+  if grep -Eq '^permissions:[[:space:]]*(read-all|write-all)([[:space:]]*(#.*)?)$' "$file"; then
+    report "$rel uses broad workflow-level permissions"
+  fi
+}
+
 audit_file() {
   local file="$1"
   local rel
   local line_no=0
   rel="$(relpath "$file")"
+  if [[ "$file" == "$repo_root/.github/workflows/"*.yml || "$file" == "$repo_root/.github/workflows/"*.yaml ]]; then
+    audit_workflow_permissions "$file"
+  fi
   while IFS= read -r line || [ -n "$line" ]; do
     line_no=$((line_no + 1))
     if [[ "$line" == *"actions/attest-build-provenance v1"* ]]; then

@@ -2514,7 +2514,7 @@ func TestOpenSSFScorecardTargetIsPublished(t *testing.T) {
 		"push:",
 		"schedule:",
 		"workflow_dispatch:",
-		"permissions: read-all",
+		"permissions: {}",
 		"security-events: write",
 		"id-token: write",
 		"contents: read",
@@ -2531,6 +2531,78 @@ func TestOpenSSFScorecardTargetIsPublished(t *testing.T) {
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf(".github/workflows/scorecard.yml missing OpenSSF Scorecard wiring %q", required)
+		}
+	}
+}
+
+func TestGitHubActionsUseLeastPrivilegePermissions(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	workflows := map[string][]string{
+		"ci.yml": {
+			"permissions:\n  contents: read",
+		},
+		"codeql.yml": {
+			"permissions:\n  actions: read\n  contents: read\n  security-events: write",
+		},
+		"dependency-review.yml": {
+			"permissions:\n  contents: read",
+		},
+		"integration.yml": {
+			"permissions:\n  contents: read",
+		},
+		"nightly.yml": {
+			"permissions:\n  contents: read",
+		},
+		"release.yml": {
+			"permissions:\n  attestations: write\n  contents: write\n  id-token: write",
+		},
+		"scorecard.yml": {
+			"permissions: {}",
+			"security-events: write",
+			"id-token: write",
+			"contents: read",
+			"actions: read",
+			"checks: read",
+			"issues: read",
+			"pull-requests: read",
+		},
+	}
+	for name, required := range workflows {
+		workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", name))
+		for _, value := range required {
+			if !strings.Contains(workflow, value) {
+				t.Fatalf(".github/workflows/%s missing least-privilege permission %q", name, value)
+			}
+		}
+		if strings.Contains(workflow, "permissions: read-all") || strings.Contains(workflow, "permissions: write-all") {
+			t.Fatalf(".github/workflows/%s uses broad workflow-level permissions", name)
+		}
+	}
+
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	auditScript := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit.sh"))
+	auditContract := readText(t, filepath.Join(repoRoot, "scripts", "actions_audit_contract_test.sh"))
+	for _, required := range []string{
+		"## Workflow Token Permissions",
+		"Every repository workflow must declare workflow-level `permissions`",
+		"`permissions: read-all` and `permissions: write-all` are prohibited",
+		"codeql.yml",
+		"scorecard.yml` analysis job",
+		"release.yml",
+		"https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions",
+		"Actions audit rejects missing workflow-level permissions",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing workflow permission policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"missing explicit workflow-level permissions",
+		"uses broad workflow-level permissions",
+		"audit_workflow_permissions",
+	} {
+		if !strings.Contains(auditScript+"\n"+auditContract, required) {
+			t.Fatalf("Actions permissions audit missing contract %q", required)
 		}
 	}
 }

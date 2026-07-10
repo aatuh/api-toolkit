@@ -48,9 +48,17 @@ write_repo() {
   local workflow_uses="$2"
   local generator_checkout="$3"
   local generator_setup_go="$4"
+  local workflow_permissions="${5-}"
+  if [ -z "$workflow_permissions" ]; then
+    workflow_permissions=$'permissions:\n  contents: read'
+  fi
+  if [ "$workflow_permissions" = "__missing__" ]; then
+    workflow_permissions=""
+  fi
   mkdir -p "$dir/.github/workflows" "$dir/contrib/cmd/api-toolkit"
   cat >"$dir/.github/workflows/ci.yml" <<EOF_WORKFLOW
 name: ci
+$workflow_permissions
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -73,6 +81,22 @@ pass_output="$(require_success pass env ACTIONS_AUDIT_ROOT="$pass_repo" "$script
 case "$pass_output" in
   *"actions-audit: passed"*) ;;
   *) printf 'pass output missing success marker:\n%s\n' "$pass_output" >&2; exit 1 ;;
+esac
+
+missing_permissions_repo="$tmp/missing-permissions"
+write_repo "$missing_permissions_repo" "${current_checkout%% #*}" "$current_checkout" "$current_setup_go" "__missing__"
+missing_permissions_output="$(require_failure missing-permissions env ACTIONS_AUDIT_ROOT="$missing_permissions_repo" "$script")"
+case "$missing_permissions_output" in
+  *".github/workflows/ci.yml missing explicit workflow-level permissions"*) ;;
+  *) printf 'missing-permissions output missing finding:\n%s\n' "$missing_permissions_output" >&2; exit 1 ;;
+esac
+
+broad_permissions_repo="$tmp/broad-permissions"
+write_repo "$broad_permissions_repo" "${current_checkout%% #*}" "$current_checkout" "$current_setup_go" "permissions: read-all"
+broad_permissions_output="$(require_failure broad-permissions env ACTIONS_AUDIT_ROOT="$broad_permissions_repo" "$script")"
+case "$broad_permissions_output" in
+  *".github/workflows/ci.yml uses broad workflow-level permissions"*) ;;
+  *) printf 'broad-permissions output missing finding:\n%s\n' "$broad_permissions_output" >&2; exit 1 ;;
 esac
 
 unpinned_repo="$tmp/unpinned"
