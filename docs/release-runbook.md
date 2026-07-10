@@ -139,6 +139,10 @@ counts before accepting local publication evidence.
 
 Release tags, signatures, and attestations have separate meanings:
 
+See [release provenance](provenance.md) for the full consumer verification
+command, trusted source-reference policy, attested asset scope, and explicit
+limits of this SLSA-style provenance model.
+
 | Item | Policy | Consumer verification |
 | --- | --- | --- |
 | Git release tag `vX.Y.Z` | Protected by GitHub tag rulesets for `refs/tags/v*`. The release workflow does not currently create a GPG-, SSH-, or Sigstore-signed Git tag, so do not advertise the tag itself as cryptographically signed. | Fetch the tag from GitHub, compare it with the GitHub release target, and rely on the signed and attested release assets below for artifact integrity. |

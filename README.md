@@ -154,7 +154,7 @@ Current repository trust signals:
 - Release review covers dependency footprint, contrib drift, vulnerability
   dispositions, SBOM assets, signatures, and provenance/attestation policy
   through `docs/release-runbook.md`, `docs/release-review.md`, and
-  `release-check-summary.json`.
+  `docs/provenance.md`, and `release-check-summary.json`.
 - OpenSSF Scorecard results are published by `.github/workflows/scorecard.yml`
   as a public badge/API report, uploaded SARIF artifact `scorecard-sarif`, and
   code-scanning SARIF. Target `>= 8`; a lower public score requires remediation

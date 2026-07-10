@@ -4037,6 +4037,94 @@ func TestReleaseArtifactAttestationsCoverDraftAssets(t *testing.T) {
 	}
 }
 
+func TestReleaseProvenanceGuideSetsBoundedAttestationClaims(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	provenance := readText(t, filepath.Join(repoRoot, "docs", "provenance.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	review := readText(t, filepath.Join(repoRoot, "docs", "release-review.md"))
+	rootReadme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsite := readText(t, filepath.Join(repoRoot, "internal", "tools", "docsite", "main.go"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	verifier := readText(t, filepath.Join(repoRoot, "scripts", "release_artifact_verify.sh"))
+
+	for _, required := range []string{
+		"# Release Provenance",
+		"SLSA-style provenance",
+		"does not claim\nSLSA certification",
+		"SLSA v1.0 Build Level 2",
+		"does not claim Build Level 3",
+		"https://docs.github.com/en/actions/concepts/security/artifact-attestations",
+		"actions/attest-build-provenance",
+		"attestations: write",
+		"id-token: write",
+		"aatuh/api-toolkit",
+		"refs/tags/vX.Y.Z",
+		"RELEASE_ARTIFACT_VERIFY_MODE=publication",
+		"RELEASE_TAG=\"$TAG\"",
+		"GITHUB_REPOSITORY=\"$REPOSITORY\"",
+		"make release-artifact-verify",
+		"gh attestation verify",
+		"--source-ref \"refs/tags/$TAG\"",
+		"does not establish that an artifact is secure",
+		"Git tags are not cryptographically signed",
+		"not claimed to be reproducible bit-for-bit",
+		"Go module-proxy zips, container images, downstream\n  binaries",
+		"do not replace checksum validation",
+		"Do not publish a release",
+		"When adding or removing a release asset",
+	} {
+		if !strings.Contains(provenance, required) {
+			t.Fatalf("docs/provenance.md missing bounded provenance guidance %q", required)
+		}
+	}
+
+	for _, asset := range []string{
+		"release-check-summary.json",
+		"release-evidence-logs.tgz",
+		"release-asset-manifest.tsv",
+		"sbom-root.spdx.json",
+		"sbom-contrib.spdx.json",
+		"sbom-root.spdx.json.sig",
+		"sbom-root.spdx.json.pem",
+		"sbom-contrib.spdx.json.sig",
+		"sbom-contrib.spdx.json.pem",
+	} {
+		if !strings.Contains(provenance, asset) {
+			t.Fatalf("docs/provenance.md missing attested release asset %s", asset)
+		}
+	}
+
+	for name, document := range map[string]string{
+		"docs/README.md":                 docsIndex,
+		"docs/release-runbook.md":        runbook,
+		"docs/release-review.md":         review,
+		"README.md":                      rootReadme,
+		"internal/tools/docsite/main.go": docsite,
+	} {
+		if !strings.Contains(document, "provenance") {
+			t.Fatalf("%s does not link to or include release provenance", name)
+		}
+	}
+	for _, required := range []string{
+		"attestations: write",
+		"id-token: write",
+		"actions/attest-build-provenance@",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow missing provenance control %q", required)
+		}
+	}
+	for _, required := range []string{
+		"gh attestation verify",
+		"--source-ref \"refs/tags/$release_tag\"",
+	} {
+		if !strings.Contains(verifier, required) {
+			t.Fatalf("release artifact verifier missing provenance verification %q", required)
+		}
+	}
+}
+
 func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
