@@ -7974,6 +7974,7 @@ var saasWebScaffoldFiles = []scaffoldFile{
 	{Name: "internal/session/session_test.go", Body: saasWebSessionTestTemplate},
 	{Name: "Makefile", Body: saasWebMakefileTemplate},
 	{Name: ".env.example", Body: saasWebEnvTemplate},
+	{Name: ".gitignore", Body: gitignoreTemplate},
 	{Name: "README.md", Body: saasWebReadmeTemplate},
 }
 
@@ -9105,6 +9106,8 @@ const saasWebReadmeTemplate = `# SaaS Web
 Browser/session scaffold with cookie-backed sessions, memory and Redis-backed session stores, CSRF middleware, secure cookie defaults, browser-safe CORS, logout/session rotation, and an OIDC-session callback flow isolated from API-first profiles.
 
 Use ` + "`--auth oidc-session`" + ` when generating this profile to require OIDC issuer, client, secret, and redirect configuration at startup. Production mode requires a high-entropy ` + "`SESSION_SECRET`" + ` and rejects wildcard browser origins.
+
+Copy ` + "`.env.example`" + ` into a local environment file or secret manager, then keep real values outside Git. The generated ` + "`.gitignore`" + ` ignores ` + "`.env`" + ` and ` + "`.env.*`" + ` while retaining the placeholder-only ` + "`.env.example`" + `.
 `
 
 const entitlementsTemplate = `package entitlements

@@ -4235,6 +4235,70 @@ func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 	}
 }
 
+func TestSecretScanningGuidanceAndGeneratedEnvBoundary(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	generator := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	generatorTests := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main_test.go"))
+
+	for _, required := range []string{
+		"## Secret Handling And Scanning",
+		"Secrets must never be committed",
+		"production `.env`\nfiles",
+		"Generated service profiles commit `.env.example` only",
+		"placeholder-only",
+		"ignore `.env` and `.env.*` while retaining `.env.example`",
+		"GitHub Secret Scanning and push protection",
+		"external GitHub controls",
+		"gosec`, CodeQL, `.gitignore`, and review do\nnot replace dedicated secret scanning",
+		"treat it as disclosed",
+		"Revoke or rotate it first",
+		"does not\nremove a value from Git history",
+	} {
+		if !strings.Contains(securityPolicy, required) {
+			t.Fatalf("SECURITY.md missing secret handling guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Secret Scanning And Example Configuration",
+		"Secret scanning and push protection are external GitHub settings",
+		"external GitHub settings",
+		"does not claim\nto verify them",
+		"Reject tracked `.env`,\n`.env.*`, private-key, credential, or production secret files",
+		"placeholder-only `.env.example`",
+		"secret.example.yaml",
+		"`saas-api`, `saas-api-full`, `dev-api`, and `saas-web` profiles emit\n`.env.example`",
+		"rotate or revoke the\ncredential before trying to edit history",
+		"SECURITY.md",
+	} {
+		if !strings.Contains(governance, required) {
+			t.Fatalf("docs/governance.md missing secret scanning guidance %q", required)
+		}
+	}
+	for _, required := range []string{
+		"var saasWebScaffoldFiles",
+		"{Name: \".env.example\", Body: saasWebEnvTemplate}",
+		"{Name: \".gitignore\", Body: gitignoreTemplate}",
+		"const gitignoreTemplate = `.env",
+		"!.env.example",
+	} {
+		if !strings.Contains(generator, required) {
+			t.Fatalf("saas-web generator missing safe env-file boundary %q", required)
+		}
+	}
+	for _, required := range []string{
+		"TestNewServiceGeneratesSaaSWebSessionProfile",
+		"generated saas-web .env.example missing placeholder",
+		"generated saas-web .gitignore missing",
+		"!.env.example",
+	} {
+		if !strings.Contains(generatorTests, required) {
+			t.Fatalf("saas-web generator test missing safe env-file assertion %q", required)
+		}
+	}
+}
+
 func TestReleaseRunbookDocumentsSigningAndAttestationPolicy(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))

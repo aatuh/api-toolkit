@@ -60,6 +60,37 @@ Dependabot is enabled for:
 
 Security updates are surfaced automatically as pull requests.
 
+## Secret Handling And Scanning
+
+Secrets must never be committed, including revoked credentials, API keys,
+passwords, access tokens, private keys, session secrets, webhook signing
+secrets, DSNs with credentials, provider credentials, and production `.env`
+files. Do not put them in source, tests, fixtures, generated output, commit
+messages, pull requests, issues, release evidence, logs, or documentation.
+
+Generated service profiles commit `.env.example` only. It documents variable
+names and non-secret local defaults; it must stay placeholder-only. Generated
+`.gitignore` files ignore `.env` and `.env.*` while retaining `.env.example`.
+Copy the example into a local environment file or load values from a secret
+manager, then keep every real value outside Git. Sanitized deployment examples,
+such as `secret.example.yaml`, also require placeholders rather than live
+credentials.
+
+GitHub Secret Scanning and push protection must be enabled in repository
+settings for supported secret patterns. These are external GitHub controls, so
+maintainers must verify their active state in the repository Security settings
+or applicable organization policy. `gosec`, CodeQL, `.gitignore`, and review do
+not replace dedicated secret scanning or push protection, and a clean scan does
+not make a credential safe to commit.
+
+If a secret is committed or exposed, treat it as disclosed even if the commit
+is private or subsequently removed. Revoke or rotate it first, remove it from
+current files and generated artifacts, assess logs and deployments that may
+have received it, and report the incident privately through the process above
+when it affects users or supported releases. A normal follow-up commit does not
+remove a value from Git history; coordinate any history rewrite and force-push
+with affected maintainers and repository administrators.
+
 ## Release Signing (Sigstore/cosign)
 
 Release SBOMs are signed using Sigstore/cosign via GitHub OIDC.

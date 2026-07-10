@@ -29,6 +29,9 @@ and `docs/stable-core.md`.
     the configured license policy.
   - `codeql` and `scorecard` workflow results when those workflows are enabled
     for the repository.
+- Enable GitHub Secret Scanning and push protection for supported secret
+  patterns. Treat them as required merge-prevention controls, not as a
+  replacement for review or safe configuration design.
 - Keep the scheduled `nightly` workflow enabled for longer fuzzing, generated
   scaffold integration, generated full-profile soak checks, generated failure integration checks,
   dependency vulnerability checks, and benchmark smoke. The soak step runs
@@ -78,6 +81,32 @@ Maintainer self-review checklist for direct pushes:
 Treat branch review settings as external GitHub state. When repository settings
 are accessible, attach `make github-governance-check` output or GitHub ruleset
 evidence during release review.
+
+## Secret Scanning And Example Configuration
+
+Secret scanning and push protection are external GitHub settings. Before a
+release, verify in repository Security settings or organization policy that both
+are active for this repository; the checked-in governance script does not claim
+to verify them. A passing workflow, a clean `git diff`, or a `.gitignore` rule
+does not prove that no secret was committed.
+
+Review every changed configuration, generated artifact, deployment manifest,
+fixture, and documentation example for credentials. Reject tracked `.env`,
+`.env.*`, private-key, credential, or production secret files. The only
+environment-file exception is a placeholder-only `.env.example`; sanitized
+examples such as `secret.example.yaml` may name required keys but must never
+contain live values.
+
+Generated `saas-api`, `saas-api-full`, `dev-api`, and `saas-web` profiles emit
+`.env.example` and ignore `.env` plus `.env.*`. Real values belong in the
+developer's local environment or deployment secret manager. Review generated
+output after scaffold changes to ensure this boundary remains true.
+
+When a scan, reviewer, or maintainer finds an exposure, rotate or revoke the
+credential before trying to edit history. Then remove it from current source,
+examples, logs, releases, and deployment systems as applicable. Do not put the
+secret in a public issue while reporting the incident; follow `SECURITY.md` for
+private disclosure and history-remediation coordination.
 
 ## Adopter Feedback Loop
 

@@ -838,6 +838,8 @@ func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
 		"internal/session/session_test.go",
 		"README.md",
 		"Makefile",
+		".env.example",
+		".gitignore",
 	} {
 		if _, err := os.Stat(filepath.Join(serviceDir, file)); err != nil {
 			t.Fatalf("expected saas-web file %s: %v", file, err)
@@ -885,6 +887,24 @@ func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
 	}
 	if !strings.Contains(string(goMod), "github.com/redis/go-redis/v9") {
 		t.Fatalf("go.mod missing Redis session dependency:\n%s", goMod)
+	}
+	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
+	if err != nil {
+		t.Fatalf("read generated saas-web .env.example: %v", err)
+	}
+	for _, want := range []string{"SESSION_SECRET=replace-me-with-at-least-32-bytes", "OIDC_CLIENT_SECRET="} {
+		if !strings.Contains(string(generatedEnv), want) {
+			t.Fatalf("generated saas-web .env.example missing placeholder %q:\n%s", want, generatedEnv)
+		}
+	}
+	gitignore, err := os.ReadFile(filepath.Join(serviceDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read generated saas-web .gitignore: %v", err)
+	}
+	for _, want := range []string{".env", ".env.*", "!.env.example"} {
+		if !strings.Contains(string(gitignore), want) {
+			t.Fatalf("generated saas-web .gitignore missing %q:\n%s", want, gitignore)
+		}
 	}
 	cmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	cmd.Dir = serviceDir
