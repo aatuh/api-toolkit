@@ -5550,7 +5550,7 @@ func TestAdopterFeedbackLoopIsPublishedAndSafe(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"GitHub Discussions",
+		"GitHub Discussions are disabled",
 		"actionable API, docs, compatibility, and migration",
 		"secrets, tokens, private URLs, customer data",
 		"SECURITY.md",
@@ -5561,6 +5561,46 @@ func TestAdopterFeedbackLoopIsPublishedAndSafe(t *testing.T) {
 	}
 	if !strings.Contains(bestPractices, "adopter review template") {
 		t.Fatal("docs/openssf-best-practices.md missing adopter review template evidence")
+	}
+}
+
+func TestQuestionsAndDiscussionsPolicyUsesIssuesWhileDiscussionsAreDisabled(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	template := readText(t, filepath.Join(repoRoot, ".github", "ISSUE_TEMPLATE", "question.md"))
+
+	for _, required := range []string{
+		"## Questions And Discussions",
+		"GitHub Discussions are disabled for this repository",
+		"Use GitHub issues as the\npublic place for focused usage questions, API proposals, documentation gaps, and\nadopter feedback",
+		".github/ISSUE_TEMPLATE/question.md",
+		"Questions are best effort, not a support-service SLA",
+		"`SECURITY.md` and GitHub private vulnerability reporting",
+		"secrets, tokens,\nprivate URLs, customer data, proprietary schemas, or vulnerability details",
+	} {
+		if !strings.Contains(contributing, required) {
+			t.Fatalf("CONTRIBUTING.md missing questions-and-discussions policy %q", required)
+		}
+	}
+	for _, required := range []string{
+		"# Usage Question",
+		"GitHub Discussions are disabled for this repository",
+		"api-toolkit version or commit", "Go version",
+		"Package, contrib adapter, generated profile, or command",
+		"What You Tried", "Expected Outcome", "SECURITY.md",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("question issue template missing %q", required)
+		}
+	}
+	if !strings.Contains(governance, "GitHub Discussions are disabled") ||
+		!strings.Contains(governance, "Questions And Discussions policy") {
+		t.Fatal("docs/governance.md does not publish the no-discussions policy")
+	}
+	if !strings.Contains(readme, ".github/ISSUE_TEMPLATE/question.md") {
+		t.Fatal("README.md does not link the question issue template")
 	}
 }
 

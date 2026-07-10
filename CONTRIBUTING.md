@@ -77,17 +77,36 @@ Do not open public issues for vulnerabilities. Use `SECURITY.md` and GitHub
 private vulnerability reporting. Normal PRs must avoid leaking secrets, tokens,
 PII, raw provider payloads, or internal parser/database errors.
 
+## Questions And Discussions
+
+GitHub Discussions are disabled for this repository. Use GitHub issues as the
+public place for focused usage questions, API proposals, documentation gaps, and
+adopter feedback so each answer can be searched, linked to a release, or turned
+into an actionable follow-up.
+
+For a usage question, start with
+[.github/ISSUE_TEMPLATE/question.md](.github/ISSUE_TEMPLATE/question.md) and
+link the documentation or example you tried. Use the bug, feature, API-change,
+documentation, or adopter-review template when the question already identifies
+a defect, a request, or adoption friction. Security reports do not belong in
+issues; use `SECURITY.md` and GitHub private vulnerability reporting.
+
+Questions are best effort, not a support-service SLA. Maintainers may close a
+question after recording the answer in documentation, linking an existing
+answer, or opening a scoped follow-up issue. Do not include secrets, tokens,
+private URLs, customer data, proprietary schemas, or vulnerability details in a
+public issue.
+
 ## Adopter feedback
 
 Use [.github/ISSUE_TEMPLATE/adopter_review.md](.github/ISSUE_TEMPLATE/adopter_review.md)
 for public adopter reviews. The template asks for adoption path, API friction,
 missing docs, migration pain, what worked, and the requested outcome.
 
-If GitHub Discussions are enabled for longer Q&A, maintainers may redirect
-conversation there, but actionable API, docs, compatibility, or migration
-follow-up should be captured in an issue. Do not post secrets, tokens, private
-URLs, customer data, proprietary schemas, or vulnerability details in public
-feedback.
+Keep actionable API, docs, compatibility, and migration follow-up in issues as
+required by the Questions And Discussions policy. Do not post secrets, tokens,
+private URLs, customer data, proprietary schemas, or vulnerability details in
+public feedback.
 
 ## Issue Triage
 
@@ -125,8 +144,8 @@ Close an issue only with a brief reason:
 - request missing reproduction details before closing an unreproducible bug;
   close it after 30 days without a response and invite the reporter to reopen
   with the requested safe details,
-- close questions after the answer is documented or the conversation has moved
-  to the appropriate discussion space,
+- close questions after the answer is documented, linked to an existing answer,
+  or captured in a scoped follow-up issue,
 - immediately redirect a public security report to the private channel and
   remove sensitive detail when repository administrators can do so safely.
 

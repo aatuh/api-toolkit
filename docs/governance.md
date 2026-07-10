@@ -181,12 +181,13 @@ outcome. Maintainers should convert recurring feedback into one of:
 - compatibility tests,
 - backlog items with explicit non-goals.
 
-If GitHub Discussions are enabled, use them for broad Q&A or open-ended design
-conversation, but keep actionable API, docs, compatibility, and migration follow
-up in issues so it can be linked from release review and backlog work. Public
-feedback must not include secrets, tokens, private URLs, customer data,
-proprietary schemas, or vulnerability details; use `SECURITY.md` for private
-security reports.
+GitHub Discussions are disabled. The [Questions And Discussions policy in
+CONTRIBUTING.md](../CONTRIBUTING.md#questions-and-discussions) makes GitHub
+issues the public route for focused questions and open-ended design proposals;
+keep actionable API, docs, compatibility, and migration follow-up there so it
+can be linked from release review and backlog work. Public feedback must not
+include secrets, tokens, private URLs, customer data, proprietary schemas, or
+vulnerability details; use `SECURITY.md` for private security reports.
 
 ## Stable API Review Board
 

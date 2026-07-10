@@ -72,6 +72,7 @@ Go 1.25.x.
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
 - Review benchmark baselines: [docs/performance.md](docs/performance.md)
 - Review contributor rules: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Ask a focused usage question: [.github/ISSUE_TEMPLATE/question.md](.github/ISSUE_TEMPLATE/question.md)
 - Share adopter feedback: [.github/ISSUE_TEMPLATE/adopter_review.md](.github/ISSUE_TEMPLATE/adopter_review.md)
 - Use the PR checklist: [.github/pull_request_template.md](.github/pull_request_template.md)
 - Use the documentation map: [docs/README.md](docs/README.md)
