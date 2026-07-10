@@ -22,6 +22,33 @@ classification, and the release notes.
 | Contrib adapter evidence | Keep supported adapters documented, tested, and drift-reviewed without making contrib part of stable core. | Supported-adapter rows have direct tests, behavior evidence, and release-drift review. |
 | Generated service evidence | Keep scaffolds app-owned and production-conscious without making generated apps part of the root API. | Generated profiles have golden OpenAPI, contract checks, and reference-service evidence. |
 
+## Next 90 Days
+
+This is a rolling three-month planning horizon, not a release schedule. Work
+may be deferred when a security issue, compatibility concern, or adopter report
+requires attention first.
+
+| Window | Priority | Evidence before closing the window |
+| --- | --- | --- |
+| Days 0-30 | Keep the stable core small and trustworthy: resolve release-evidence, compatibility, dependency, and documentation gaps before adding root surface. | `make docs-check`, stable API review evidence, package ownership/readiness records, and release notes explain any user-visible change. |
+| Days 31-60 | Improve existing-service adoption through the smallest useful examples, troubleshooting updates, and focused cookbook gaps. | Examples compile, behavior claims have direct tests where useful, and guidance does not add a root router, provider, or generated-app dependency. |
+| Days 61-90 | Reassess v4 cleanup, contrib adapter maturity, and scaffold scope from adopter and release-review evidence. | Decisions are recorded in `docs/v4-plan.md`, adapter rows have owners and evidence, and deferred candidates retain an owner or explicit removal trigger. |
+
+## Stability Milestones
+
+1. Stable root packages remain semver-compatible within v3; a stable-surface
+   change needs the API review, compatibility, example, documentation, and
+   release-note evidence described by `VERSIONING.md`.
+2. Every stable or compatibility-only package retains a current readiness and
+   ownership record. A package does not become recommended merely because it
+   compiles or has an adapter implementation.
+3. Contrib adapters, provider integrations, generated application code, and
+   scaffolds remain outside the root stable-core promise unless a future major
+   version explicitly approves a different boundary.
+4. V4 cleanup stays planned rather than backported into v3: demotions, splits,
+   and removals follow `docs/v4-plan.md` only after migration and compatibility
+   evidence exists.
+
 ## Next Candidates
 
 These are candidates for future work when issue feedback, adopter use, or
