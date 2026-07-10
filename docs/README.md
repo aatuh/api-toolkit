@@ -116,6 +116,7 @@ identifies the installed generator and contract tool.
 | --- | --- | --- |
 | [Security posture](security.md) | Developers and operators | Configure secure defaults, dangerous bypasses, trusted proxies, health detail, and docs surfaces. |
 | [Security threat model](threat-model.md) | Maintainers, application teams, and security reviewers | Review protected assets, assumptions, threats, mitigations, and verification evidence for security-sensitive surfaces. |
+| [Package security review](security-review.md) | Maintainers and reviewers | Record threat, input, secret, authorization, DoS, data-leakage, and observability review evidence for each affected package. |
 | [Auth production guide](auth.md) | Developers and operators | Configure API-key, JWT, tenant, role, JWK rotation, clock skew, failure modes, and auth tests. |
 | [Idempotency production guide](idempotency.md) | Developers and operators | Configure storage, locking, TTL, replay semantics, request hashes, tenant scoping, conflicts, and Redis/Postgres ownership. |
 | [Health and admin operations](operations.md) | Operators and developers | Split public probes from detailed health, metrics, pprof, admin auth, network policy, and fail-closed checks. |
@@ -229,7 +230,8 @@ important public docs disappear from navigation:
 `docs/cli-scaffold-identity.md`,
 `docs/contrib-adapters.md`, `docs/getting-started.md`, `docs/cookbook.md`,
 `docs/architecture.md`, `docs/migration/v3.md`, `docs/troubleshooting.md`,
-`docs/security.md`, `docs/threat-model.md`, `docs/auth.md`, `docs/idempotency.md`,
+`docs/security.md`, `docs/threat-model.md`, `docs/security-review.md`,
+`docs/auth.md`, `docs/idempotency.md`,
 `docs/operations.md`, `docs/openapi-workflow.md`, `docs/configuration.md`,
 `docs/observability.md`, `docs/scaffold-support.md`,
 `docs/adapter-maturity.md`, `docs/safe-defaults.md`,

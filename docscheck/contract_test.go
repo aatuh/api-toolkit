@@ -8429,6 +8429,65 @@ func TestSecurityThreatModelCoversRequiredSurfaces(t *testing.T) {
 	}
 }
 
+func TestPackageSecurityReviewChecklistIsPackageScopedAndComplete(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	review := readText(t, filepath.Join(repoRoot, "docs", "security-review.md"))
+	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
+	threatModel := readText(t, filepath.Join(repoRoot, "docs", "threat-model.md"))
+	rootReadme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	packageDocStandard := readText(t, filepath.Join(repoRoot, "docs", "package-doc-standard.md"))
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	owners := readText(t, filepath.Join(repoRoot, "docs", "package-owners.tsv"))
+	docsite := readText(t, filepath.Join(repoRoot, "internal", "tools", "docsite", "main.go"))
+
+	for _, required := range []string{
+		"# Package Security Review",
+		"for **each affected package**",
+		"docs/package-classification.tsv",
+		"docs/package-owners.tsv",
+		"separate review record for each one",
+		"pass`, `not applicable`, or `follow-up required`",
+		"Do not use a module-wide \"not applicable\" result",
+		"### Threat Model",
+		"### Inputs",
+		"### Secrets",
+		"### Authentication and Authorization",
+		"### Resource Exhaustion (DoS)",
+		"### Data Leakage",
+		"### Logging and Observability",
+		"cross-tenant and\n  wrong-owner denial paths",
+		"Problem Details",
+		"raw authorization headers, cookies, bearer tokens, API keys",
+		"GOTOOLCHAIN=local make docs-check",
+		"release review\nchecklist",
+	} {
+		if !strings.Contains(review, required) {
+			t.Fatalf("docs/security-review.md missing package review control %q", required)
+		}
+	}
+	for name, document := range map[string]string{
+		"README.md":                      rootReadme,
+		"docs/security.md":               security,
+		"docs/threat-model.md":           threatModel,
+		"docs/README.md":                 docsIndex,
+		"docs/package-doc-standard.md":   packageDocStandard,
+		"internal/tools/docsite/main.go": docsite,
+	} {
+		if !strings.Contains(document, "security-review") {
+			t.Fatalf("%s does not link to package security review", name)
+		}
+	}
+	for name, manifest := range map[string]string{
+		"docs/package-classification.tsv": classification,
+		"docs/package-owners.tsv":         owners,
+	} {
+		if !strings.Contains(manifest, "github.com/aatuh/api-toolkit/v3/httpx") {
+			t.Fatalf("%s is missing public package review identity evidence", name)
+		}
+	}
+}
+
 func TestSupportConfigurationAdapterAndObservabilityGuidesCoverRuntimeCompleteness(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

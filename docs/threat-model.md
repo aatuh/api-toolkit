@@ -85,6 +85,10 @@ Run a threat-model review before merging any change that:
 - changes generated service production defaults, dangerous bypasses, secret
   handling, deployment starter assets, or integration checks.
 
+For every affected package, record the result in the [package security
+review](security-review.md). The review is package-scoped so a safe helper does
+not hide an unreviewed adapter, generated route, or public package change.
+
 ## Minimum Verification
 
 For a security-sensitive change, keep verification at the right boundary:

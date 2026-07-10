@@ -34,6 +34,8 @@ When adding or promoting a public package:
 - add or update `doc.go` in the package.
 - update `docs/package-classification.tsv` and `VERSIONING.md` when stability
   changes.
+- complete [package security review](security-review.md) for every new or
+  promoted public package, and for security-sensitive package changes.
 - link to `docs/cookbook.md` or `contrib/examples/README.md` when the package
   has a task recipe or runnable example.
 - avoid changelog-style package-doc inventory here; release notes own dated

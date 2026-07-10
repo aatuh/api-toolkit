@@ -76,6 +76,9 @@ Do not enable dev bypasses in production environments.
 The full review map is [Security Threat Model](threat-model.md). This short
 section keeps the operational assumptions visible inside the security posture
 guide.
+Use [package security review](security-review.md) to record the required
+threat, input, secret, authorization, DoS, data-leakage, and observability
+evidence for each affected package.
 
 Assume:
 

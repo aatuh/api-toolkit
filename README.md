@@ -248,6 +248,7 @@ if err != nil {
 
 - Security posture and dangerous-bypass configuration: [docs/security.md](docs/security.md)
 - Security threat model: [docs/threat-model.md](docs/threat-model.md)
+- Package security review: [docs/security-review.md](docs/security-review.md)
 - Auth production guide: [docs/auth.md](docs/auth.md)
 - Idempotency production guide: [docs/idempotency.md](docs/idempotency.md)
 - Health and admin operations: [docs/operations.md](docs/operations.md)
