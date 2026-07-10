@@ -131,6 +131,7 @@ identifies the installed generator and contract tool.
 | [Negative-path test matrix](negative-path-test-matrix.tsv) | Maintainers and release reviewers | Verify stable-package tests for malformed input, missing headers, bad content types, invalid auth, invalid tenant, oversized bodies, and invalid query limits. |
 | [Testing policy](testing.md) | Maintainers and release reviewers | Keep tests deterministic with fake clocks, injected sleep, bounded retries, and documented deadlock guards. |
 | [Security policy](../SECURITY.md) | Security reporters and release consumers | Report vulnerabilities and understand supported release security handling. |
+| [Security advisory drill](security-advisory-drill.md) | Maintainers and security reviewers | Review the completed fictional private-advisory drill and disclosure process. |
 | [Code of conduct](../CODE_OF_CONDUCT.md) | Contributors and maintainers | Set expectations for respectful project participation and conduct reporting. |
 | [Panic policy](../PANIC_POLICY.md) | Maintainers and API designers | Decide when panics are allowed and how HTTP recovery behaves. |
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |

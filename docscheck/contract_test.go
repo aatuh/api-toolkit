@@ -4579,6 +4579,38 @@ func TestSecurityPolicyDocumentsVulnerabilityRemediationSLA(t *testing.T) {
 	}
 }
 
+func TestSecurityAdvisoryDrillPreservesPrivateDisclosureBoundaries(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	drill := readText(t, filepath.Join(repoRoot, "docs", "security-advisory-drill.md"))
+
+	for _, document := range []string{securityPolicy, docsIndex} {
+		if !strings.Contains(document, "security-advisory-drill.md") {
+			t.Fatal("security advisory drill must be linked from the security policy and docs index")
+		}
+	}
+	for _, required := range []string{
+		"# Security Advisory Drill",
+		"SIM-2026-07-10-001",
+		"fictional simulation",
+		"No GitHub Security Advisory, CVE, public issue, pull request,",
+		"GitHub's private \"Report a vulnerability\" flow",
+		"latest supported release was\n`v3.1.2`",
+		"acknowledge within three\nbusiness days",
+		"within 14\ncalendar days",
+		"GOTOOLCHAIN=local GOWORK=off make vuln",
+		"go test ./middleware/auth/... ./webhooks -count=1",
+		"not proof that an unreported vulnerability",
+		"no product-code change, advisory, issue, CVE, or user\naction",
+		"at least once per calendar\nyear",
+	} {
+		if !strings.Contains(drill, required) {
+			t.Fatalf("security advisory drill missing %q", required)
+		}
+	}
+}
+
 func TestMaintainerAvailabilityAndSupportedVersionsAreDocumented(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

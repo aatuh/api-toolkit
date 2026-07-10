@@ -26,6 +26,10 @@ Please report security issues privately using GitHub Security Advisories:
 
 Do not open public issues for suspected vulnerabilities.
 
+Maintainers can review the latest fictional dry run in
+[docs/security-advisory-drill.md](docs/security-advisory-drill.md). It is a
+process exercise, not a record of a real vulnerability or advisory.
+
 ## What to Expect
 
 - Acknowledgement within 3 business days.
