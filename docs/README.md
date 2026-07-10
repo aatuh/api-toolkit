@@ -187,6 +187,7 @@ identifies the installed generator and contract tool.
 | [Reproducible build status](reproducible-builds.md) | Release consumers and maintainers | Distinguish unsupported binary reproducibility from the checksums, signatures, and provenance verified for release assets. |
 | [Release review checklist](release-review.md) | Release reviewers | Short path through summary fields, manifests, dirty-tree decisions, artifacts, and release notes. |
 | [Governance](governance.md) | Maintainers | Branch protection, CODEOWNERS, tag protection, required checks, and release approval expectations. |
+| [Changelog](../CHANGELOG.md) | Release consumers | Concise user-facing history for published releases. |
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
 | `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |

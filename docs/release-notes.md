@@ -8,6 +8,7 @@ upgrade notes, and package-tied compatibility acknowledgements.
 | Need | Current guidance |
 | --- | --- |
 | Exact release commands and supported `API_BASE_REF` | Use `docs/release-runbook.md`; do not maintain a second baseline table here. |
+| Concise user-facing summary by published version | Use `CHANGELOG.md`; update it with every release tag. |
 | User-visible behavior, migration notes, and compatibility acknowledgements | Add dated entries in this file. Keep historical entries historical unless later guidance would otherwise mislead readers. |
 | Stable surface changes | Update `VERSIONING.md`, package docs, compatibility docs, release notes, and docscheck coverage together. |
 | Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |

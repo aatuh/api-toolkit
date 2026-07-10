@@ -5763,6 +5763,40 @@ func TestPublicRoadmapDocumentsNonGoals(t *testing.T) {
 	}
 }
 
+func TestChangelogSummarizesPublishedV3Releases(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	changelog := readText(t, filepath.Join(repoRoot, "CHANGELOG.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
+	migration := readText(t, filepath.Join(repoRoot, "docs", "migration", "v3.md"))
+
+	for _, required := range []string{
+		"# Changelog",
+		"## Unreleased",
+		"## [3.1.2] - 2026-05-21",
+		"## [3.1.1] - 2026-05-21",
+		"## [3.1.0] - 2026-05-20",
+		"## [3.0.2] - 2026-05-19",
+		"## [3.0.1] - 2026-05-19",
+		"## [3.0.0] - 2026-05-17",
+		"## Older v1 and v2 Releases",
+		"github.com/aatuh/api-toolkit/v3",
+		"compat/billing",
+		"docs/migration/v3.md",
+		"[3.1.2]: https://github.com/aatuh/api-toolkit/compare/v3.1.1...v3.1.2",
+	} {
+		if !strings.Contains(changelog, required) {
+			t.Fatalf("CHANGELOG.md missing %q", required)
+		}
+	}
+	for _, source := range []string{readme, docsIndex, releaseNotes, migration} {
+		if !strings.Contains(source, "CHANGELOG.md") {
+			t.Fatal("release and upgrade documentation must link the concise changelog")
+		}
+	}
+}
+
 func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	plan := readText(t, filepath.Join(repoRoot, "docs", "v4-plan.md"))

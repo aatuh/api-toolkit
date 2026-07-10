@@ -67,6 +67,7 @@ Go 1.25.x.
 - Review CLI/scaffold identity: [docs/cli-scaffold-identity.md](docs/cli-scaffold-identity.md)
 - Review the stable-core charter: [docs/stable-core.md](docs/stable-core.md)
 - Review the public roadmap and non-goals: [ROADMAP.md](ROADMAP.md)
+- Browse concise release history: [CHANGELOG.md](CHANGELOG.md)
 - Compare alternatives and non-goals: [docs/alternatives.md](docs/alternatives.md)
 - Find task recipes: [docs/cookbook.md](docs/cookbook.md)
 - Review benchmark baselines: [docs/performance.md](docs/performance.md)
