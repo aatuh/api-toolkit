@@ -141,6 +141,7 @@ identifies the installed generator and contract tool.
 | [Dependency boundary](dependency-boundary.md) | Maintainers | Keep root stable code free of contrib adapter dependencies. |
 | [Auth dependency split decision](auth-dependency-split.md) | Adopters and maintainers | Understand current v3 JWT/JWK module graph cost and the v4 target for auth-heavy packages. |
 | [Provider adapter split decision](provider-adapter-split.md) | Adopters and maintainers | Keep Postgres, Redis, Stripe, Resend, OpenTelemetry, router, and provider adapters out of stable core. |
+| [Extension module assessment](extension-module-assessment.md) | Maintainers and release reviewers | Reject speculative provider-module splits until adoption, ownership, dependency, and release-cadence evidence supports one. |
 | [Dependency policy](dependency-policy.md) | Maintainers | Review allowed dependency classes, banned patterns, update SLA, and security-sensitive review gates. |
 | [License policy](license-policy.md) | Maintainers | Review allowed dependency licenses, dependency-review enforcement, and exception handling. |
 | [Dependency risk](dependency-risk.md) | Release reviewers and security maintainers | Review imported-but-not-called vulnerability disposition and ownership. |

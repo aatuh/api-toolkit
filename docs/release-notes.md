@@ -92,6 +92,9 @@ source of truth is `docs/release-runbook.md`.
 - Published an accountable v4 scope ledger in `docs/v4-plan.md`. Each keep,
   narrow, split, and removal decision now names an owner, replacement direction,
   and migration evidence required before a v4 API change.
+- Assessed provider extension-module candidates using ownership, dependency,
+  contract, realism, and drift evidence. No family is approved for extraction
+  without independent adoption or family-specific release-cadence evidence.
 
 ## v3 cleanup branch
 

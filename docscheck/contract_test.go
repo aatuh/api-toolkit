@@ -6031,6 +6031,45 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 	}
 }
 
+func TestExtensionModuleAssessmentRejectsSpeculativeSplits(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	assessment := readText(t, filepath.Join(repoRoot, "docs", "extension-module-assessment.md"))
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	providerDecision := readText(t, filepath.Join(repoRoot, "docs", "provider-adapter-split.md"))
+
+	for _, required := range []string{
+		"# Extension Module Assessment",
+		"External adopter counts",
+		"family-specific release-cadence data are not available",
+		"`API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report`",
+		"| Root | 3 | 1 | 4 |",
+		"| Contrib | 30 | 37 | 123 |",
+		"minimal-core path reaches zero third-party",
+		"docs/package-owners.tsv",
+		"docs/supported-adapter-contracts.tsv",
+		"docs/supported-adapter-test-realism.tsv",
+		"docs/contrib-api-drift-packages.txt",
+		"Postgres",
+		"Redis",
+		"Stripe",
+		"OpenTelemetry and observability",
+		"Provider auth",
+		"Router and browser adapters",
+		"No provider family is approved",
+		"E2-T2 therefore has no approved adapter",
+	} {
+		if !strings.Contains(assessment, required) {
+			t.Fatalf("extension module assessment missing %q", required)
+		}
+	}
+	if !strings.Contains(docsIndex, "[Extension module assessment](extension-module-assessment.md)") {
+		t.Fatal("docs/README.md missing extension module assessment link")
+	}
+	if !strings.Contains(providerDecision, "docs/extension-module-assessment.md") {
+		t.Fatal("provider adapter split decision must link the extension module assessment")
+	}
+}
+
 func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	decision := readText(t, filepath.Join(repoRoot, "docs", "cli-scaffold-identity.md"))

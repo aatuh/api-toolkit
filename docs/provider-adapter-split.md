@@ -33,6 +33,8 @@ For v4 planning:
   shorter.
 - Any provider-module split must preserve the root library-first identity and
   keep provider-specific behavior out of root `ports`.
+- Use `docs/extension-module-assessment.md` to record adoption, ownership,
+  dependency, and release-cadence evidence before approving a split.
 
 ## Current Adapter Families
 
