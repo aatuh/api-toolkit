@@ -7,37 +7,35 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type benchStore struct{}
 
-func (benchStore) Get(context.Context, string) (ports.IdempotencyRecord, bool, error) {
-	return ports.IdempotencyRecord{}, false, nil
+func (benchStore) Get(context.Context, string) (Record, bool, error) {
+	return Record{}, false, nil
 }
 
-func (benchStore) TryBegin(context.Context, string, ports.IdempotencyRecord, time.Duration) (bool, error) {
+func (benchStore) TryBegin(context.Context, string, Record, time.Duration) (bool, error) {
 	return true, nil
 }
 
-func (benchStore) Save(context.Context, string, ports.IdempotencyRecord, time.Duration) error {
+func (benchStore) Save(context.Context, string, Record, time.Duration) error {
 	return nil
 }
 
 type benchReplayStore struct {
-	record ports.IdempotencyRecord
+	record Record
 }
 
-func (s benchReplayStore) Get(context.Context, string) (ports.IdempotencyRecord, bool, error) {
+func (s benchReplayStore) Get(context.Context, string) (Record, bool, error) {
 	return s.record, true, nil
 }
 
-func (benchReplayStore) TryBegin(context.Context, string, ports.IdempotencyRecord, time.Duration) (bool, error) {
+func (benchReplayStore) TryBegin(context.Context, string, Record, time.Duration) (bool, error) {
 	return false, nil
 }
 
-func (benchReplayStore) Save(context.Context, string, ports.IdempotencyRecord, time.Duration) error {
+func (benchReplayStore) Save(context.Context, string, Record, time.Duration) error {
 	return nil
 }
 
@@ -92,8 +90,8 @@ func BenchmarkIdempotencyReplay(b *testing.B) {
 		b.Fatalf("hash: %v", err)
 	}
 
-	record := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateCompleted,
+	record := Record{
+		State:       StateCompleted,
 		Status:      http.StatusCreated,
 		RequestHash: hash,
 		Body:        []byte("ok"),

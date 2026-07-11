@@ -156,9 +156,9 @@ func (m *Middleware) emitLegacyInFlightCompatibility(
 func (m *Middleware) releaseLegacyInFlightWithOutcome(ctx context.Context, key string) (LegacyInFlightCompatibilityEventName, error) {
 	err := m.releaseReservation(ctx, key, "")
 	switch {
-	case err == nil || errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken):
+	case err == nil || errors.Is(err, ErrLegacyInFlightReservationMissingToken):
 		return LegacyInFlightCompatibilityRecovered, nil
-	case errors.Is(err, ports.ErrLegacyInFlightTokenMismatch):
+	case errors.Is(err, ErrLegacyInFlightTokenMismatch):
 		return LegacyInFlightCompatibilityRejected, err
 	case err != nil:
 		return LegacyInFlightCompatibilityUnknown, err
@@ -167,11 +167,11 @@ func (m *Middleware) releaseLegacyInFlightWithOutcome(ctx context.Context, key s
 	}
 }
 
-func (m *Middleware) isRecoverableLegacyInflight(record ports.IdempotencyRecord) bool {
+func (m *Middleware) isRecoverableLegacyInflight(record Record) bool {
 	if m == nil || m.opts.InFlightTTL <= 0 {
 		return false
 	}
-	if record.State != ports.IdempotencyStateInFlight {
+	if record.State != StateInFlight {
 		return false
 	}
 	if record.ReservationToken != "" {
@@ -198,9 +198,9 @@ func (m *Middleware) recoverLegacyInflightRecord(ctx context.Context, key string
 
 func legacyInFlightCompatibilityOutcome(err error) LegacyInFlightCompatibilityEventName {
 	switch {
-	case err == nil || errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken):
+	case err == nil || errors.Is(err, ErrLegacyInFlightReservationMissingToken):
 		return LegacyInFlightCompatibilityRecovered
-	case errors.Is(err, ports.ErrLegacyInFlightTokenMismatch):
+	case errors.Is(err, ErrLegacyInFlightTokenMismatch):
 		return LegacyInFlightCompatibilityRejected
 	default:
 		return LegacyInFlightCompatibilityUnknown
@@ -217,7 +217,7 @@ func resolvedStoreType(store Store) string {
 	return "unknown"
 }
 
-func (m *Middleware) warnClockSkewRisk(record ports.IdempotencyRecord) {
+func (m *Middleware) warnClockSkewRisk(record Record) {
 	if m == nil {
 		return
 	}

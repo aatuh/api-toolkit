@@ -3,8 +3,6 @@ package authorization
 import (
 	"context"
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
@@ -22,14 +20,14 @@ func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
 	requirePortsPolicyDecision(decision)
 }
 
-func requirePortsRequire(func(context.Context, ports.Authorizer, any, string, any) error) {}
+func requirePortsRequire(func(context.Context, Authorizer, any, string, any) error) {}
 
-func requirePortsAllow(func(*AllowlistAuthorizer, string, ports.Authorizer) error) {}
+func requirePortsAllow(func(*AllowlistAuthorizer, string, Authorizer) error) {}
 
-func requirePortsPolicyFactory(func(ports.PolicyEngine, PolicyAuthorizerOptions) *PolicyAuthorizer) {}
+func requirePortsPolicyFactory(func(PolicyEngine, PolicyAuthorizerOptions) *PolicyAuthorizer) {}
 
-func requirePortsAuthorizerFunc(ports.AuthorizerFunc) {}
+func requirePortsAuthorizerFunc(AuthorizerFunc) {}
 
-func requirePortsPolicyRequest(ports.PolicyRequest) {}
+func requirePortsPolicyRequest(PolicyRequest) {}
 
-func requirePortsPolicyDecision(ports.PolicyDecision) {}
+func requirePortsPolicyDecision(PolicyDecision) {}

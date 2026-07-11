@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestAllowlistAuthorizerDefaultDeny(t *testing.T) {
@@ -28,7 +27,7 @@ func TestAllowlistAuthorizerAllowAny(t *testing.T) {
 
 func TestAllowlistAuthorizerDelegates(t *testing.T) {
 	auth := NewAllowlistAuthorizer()
-	deny := ports.AuthorizerFunc(func(ctx context.Context, subject any, action string, resource any) error {
+	deny := AuthorizerFunc(func(ctx context.Context, subject any, action string, resource any) error {
 		return httpx.ErrForbidden
 	})
 	if err := auth.Allow("write", deny); err != nil {

@@ -2,8 +2,6 @@ package idempotency
 
 import (
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestPackageLocalStoreAliasesPreserveV3PortsIdentity(_ *testing.T) {
@@ -17,8 +15,8 @@ func TestPackageLocalStoreAliasesPreserveV3PortsIdentity(_ *testing.T) {
 	requirePortsReleasableStore(releasable)
 }
 
-func requirePortsStore(ports.IdempotencyStore) {}
+func requirePortsStore(Store) {}
 
-func requirePortsReservationReleaser(ports.IdempotencyReservationReleaser) {}
+func requirePortsReservationReleaser(ReservationReleaser) {}
 
-func requirePortsReleasableStore(ports.ReservationReleasableIdempotencyStore) {}
+func requirePortsReleasableStore(ReleasableStore) {}

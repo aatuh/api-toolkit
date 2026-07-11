@@ -2,7 +2,7 @@
 //
 // The middleware owns HTTP behavior while storage and quota decisions stay
 // behind the Limiter contract. Limiter is a v3 migration shim alias for
-// ports.RateLimiter; prefer the package-local name in new application code
+// Limiter; prefer the package-local name in new application code
 // before v4 shrinks broad root ports. Use contrib adapters for concrete stores,
 // and keep dangerous local bypass configuration restricted to trusted proxies.
 //

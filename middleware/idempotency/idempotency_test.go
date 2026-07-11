@@ -174,8 +174,8 @@ func TestIdempotencyRecoversLegacyTokenlessInflightRecordFromMemoryStore(t *test
 	const key = "key-legacy-memory-recovery"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -225,8 +225,8 @@ func TestIdempotencyEmitsLegacyCompatibilityEventsWithoutStoreCallbacks(t *testi
 	const key = "key-legacy-no-store-callback"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -324,8 +324,8 @@ func TestIdempotencyWarnsOnLegacyInflightClockSkewRisk(t *testing.T) {
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
 	key := "key-legacy-clock-skew"
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(30 * time.Second),
 	}, 24*time.Hour); err != nil {
@@ -376,8 +376,8 @@ func TestIdempotencyEmitsDefaultLegacyCompatibilitySinkWithHashedKey(t *testing.
 	const key = "key-legacy-no-store-callback"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -436,8 +436,8 @@ func TestIdempotencyCanEmitRawLegacyCompatibilityKeyWhenOptedIn(t *testing.T) {
 	const key = "key-legacy-raw-key"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -615,8 +615,8 @@ func TestIdempotencyDefaultLegacyCompatibilitySinkMatchesExplicitSinkContract(t 
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	seedLegacyInflight := func(key string) *memoryStore {
 		mem := newMemoryStore()
-		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
+		if err := mem.Save(context.Background(), key, Record{
+			State:       StateInFlight,
 			RequestHash: "legacy-hash",
 			CreatedAt:   now.Add(-15 * time.Minute),
 		}, 24*time.Hour); err != nil {
@@ -724,8 +724,8 @@ func TestIdempotencyCanEmitLegacyCompatibilityMetricSink(t *testing.T) {
 	const key = "key-legacy-metric-sink"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -835,8 +835,8 @@ func TestIdempotencyCanSampleCompatibilitySinkTrafficInHighVolumeMode(t *testing
 
 	for i := 0; i < requests; i++ {
 		key := "key-legacy-volume-" + strconv.Itoa(i)
-		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
+		if err := mem.Save(context.Background(), key, Record{
+			State:       StateInFlight,
 			RequestHash: "legacy-hash",
 			CreatedAt:   now.Add(-15 * time.Minute),
 		}, 24*time.Hour); err != nil {
@@ -898,8 +898,8 @@ func TestIdempotencyLegacyCompatibilityAsyncSinkSkipsRequestBackpressure(t *test
 	const key = "key-legacy-async-backpressure"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -959,8 +959,8 @@ func TestIdempotencyLegacyCompatibilitySyncSinkCanApplyRequestBackpressure(t *te
 	const key = "key-legacy-sync-backpressure"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -1016,8 +1016,8 @@ func TestIdempotencyLegacyCompatibilitySinkPanicsAreRecovered(t *testing.T) {
 	const key = "key-legacy-compat-sink-panic"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -1060,8 +1060,8 @@ func TestIdempotencyLegacyCompatibilityAsyncSampledPanicsDoNotBlockRepeatedFallb
 
 	for i := 0; i < requests; i++ {
 		key := "key-legacy-async-sampled-panic-" + strconv.Itoa(i)
-		if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
+		if err := mem.Save(context.Background(), key, Record{
+			State:       StateInFlight,
 			RequestHash: "legacy-hash",
 			CreatedAt:   now.Add(-15 * time.Minute),
 		}, 24*time.Hour); err != nil {
@@ -1243,12 +1243,12 @@ func TestIdempotencyDoesNotWarnOnAlignedInFlightTTLs(t *testing.T) {
 
 func TestIdempotencyEmitsLegacyCompatibilityRejectionForTokenMismatch(t *testing.T) {
 	mismatchStore := &legacyRecoveryErrorStore{
-		record: ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
+		record: Record{
+			State:       StateInFlight,
 			RequestHash: "legacy-hash",
 			CreatedAt:   time.Date(2026, time.April, 30, 9, 0, 0, 0, time.UTC),
 		},
-		releaseErr: ports.ErrLegacyInFlightTokenMismatch,
+		releaseErr: ErrLegacyInFlightTokenMismatch,
 	}
 	events := make([]LegacyInFlightCompatibilityEvent, 0, 2)
 
@@ -1287,15 +1287,15 @@ func TestIdempotencyEmitsLegacyCompatibilityRejectionForTokenMismatch(t *testing
 	if events[1].Outcome != LegacyInFlightCompatibilityRejected {
 		t.Fatalf("expected rejected outcome second, got %q", events[1].Outcome)
 	}
-	if events[1].Error != ports.ErrLegacyInFlightTokenMismatch.Error() {
+	if events[1].Error != ErrLegacyInFlightTokenMismatch.Error() {
 		t.Fatalf("expected ErrLegacyInFlightTokenMismatch event, got %q", events[1].Error)
 	}
 }
 
 func TestIdempotencyEmitsLegacyCompatibilityUnknownOnUnexpectedReleaseError(t *testing.T) {
 	unknownStore := &legacyRecoveryErrorStore{
-		record: ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateInFlight,
+		record: Record{
+			State:       StateInFlight,
 			RequestHash: "legacy-hash",
 			CreatedAt:   time.Date(2026, time.April, 30, 9, 0, 0, 0, time.UTC),
 		},
@@ -1347,8 +1347,8 @@ func TestIdempotencyDoesNotRecoverFreshLegacyInflightBeforeTTL(t *testing.T) {
 	const key = "key-legacy-fresh-not-recovered"
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-5 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -1393,8 +1393,8 @@ func TestIdempotencyLegacyCompatibilityRecommendationsIncludeStartupChecksAndFal
 	log := &captureLogger{}
 	now := time.Date(2026, time.April, 30, 10, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	if err := mem.Save(context.Background(), key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := mem.Save(context.Background(), key, Record{
+		State:       StateInFlight,
 		RequestHash: "legacy-hash",
 		CreatedAt:   now.Add(-15 * time.Minute),
 	}, 24*time.Hour); err != nil {
@@ -1994,7 +1994,7 @@ func TestIdempotencyMarksAmbiguousStateWhenResponseExceedsBufferLimit(t *testing
 	if !found {
 		t.Fatal("expected oversized response path to leave an ambiguous record")
 	}
-	if record.State != ports.IdempotencyStateAmbiguous {
+	if record.State != StateAmbiguous {
 		t.Fatalf("expected ambiguous state, got %v", record.State)
 	}
 
@@ -2195,7 +2195,7 @@ func TestIdempotencyReturnsServiceUnavailableWhenSaveFails(t *testing.T) {
 	if !found {
 		t.Fatal("expected failed completion save to leave ambiguous record")
 	}
-	if record.State != ports.IdempotencyStateAmbiguous {
+	if record.State != StateAmbiguous {
 		t.Fatalf("expected ambiguous state after save failure, got %v", record.State)
 	}
 }
@@ -2235,7 +2235,7 @@ func TestIdempotencyBlocksRetryAfterTransientSaveFailure(t *testing.T) {
 	if !found {
 		t.Fatal("expected transient save failure to leave ambiguous record")
 	}
-	if record.State != ports.IdempotencyStateAmbiguous {
+	if record.State != StateAmbiguous {
 		t.Fatalf("expected ambiguous state after save failure, got %v", record.State)
 	}
 
@@ -2359,12 +2359,12 @@ type captureLogger struct {
 }
 
 type legacyRecoveryErrorStore struct {
-	record     ports.IdempotencyRecord
+	record     Record
 	releaseErr error
 }
 
 type memoryEntry struct {
-	record    ports.IdempotencyRecord
+	record    Record
 	expiresAt time.Time
 }
 
@@ -2400,17 +2400,17 @@ func (m *recordingMemoryStore) UniqueKeys() []string {
 	return out
 }
 
-func (m *recordingMemoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (m *recordingMemoryStore) Get(ctx context.Context, key string) (Record, bool, error) {
 	m.recordKey(key)
 	return m.memoryStore.Get(ctx, key)
 }
 
-func (m *recordingMemoryStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (m *recordingMemoryStore) TryBegin(ctx context.Context, key string, record Record, ttl time.Duration) (bool, error) {
 	m.recordKey(key)
 	return m.memoryStore.TryBegin(ctx, key, record, ttl)
 }
 
-func (m *recordingMemoryStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (m *recordingMemoryStore) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	m.recordKey(key)
 	return m.memoryStore.Save(ctx, key, record, ttl)
 }
@@ -2425,25 +2425,25 @@ func (m *recordingMemoryStore) ReleaseReservation(ctx context.Context, key, toke
 	return m.memoryStore.ReleaseReservation(ctx, key, token)
 }
 
-func (m *memoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (m *memoryStore) Get(ctx context.Context, key string) (Record, bool, error) {
 	if m == nil {
-		return ports.IdempotencyRecord{}, false, nil
+		return Record{}, false, nil
 	}
 	_ = ctx
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	entry, ok := m.data[key]
 	if !ok {
-		return ports.IdempotencyRecord{}, false, nil
+		return Record{}, false, nil
 	}
 	if m.isExpired(entry) {
 		delete(m.data, key)
-		return ports.IdempotencyRecord{}, false, nil
+		return Record{}, false, nil
 	}
 	return cloneRecord(entry.record), true, nil
 }
 
-func (m *memoryStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (m *memoryStore) TryBegin(ctx context.Context, key string, record Record, ttl time.Duration) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
@@ -2460,7 +2460,7 @@ func (m *memoryStore) TryBegin(ctx context.Context, key string, record ports.Ide
 	return true, nil
 }
 
-func (m *memoryStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (m *memoryStore) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	if m == nil {
 		return nil
 	}
@@ -2493,7 +2493,7 @@ func (m *memoryStore) release(ctx context.Context, key, token string, requireTok
 	if !ok {
 		return nil
 	}
-	if entry.record.State != ports.IdempotencyStateInFlight {
+	if entry.record.State != StateInFlight {
 		return nil
 	}
 	if !requireToken {
@@ -2514,7 +2514,7 @@ func (m *memoryStore) release(ctx context.Context, key, token string, requireTok
 	return nil
 }
 
-func (s *saveFailStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (s *saveFailStore) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	if s == nil {
 		return nil
 	}
@@ -2527,7 +2527,7 @@ func (s *saveFailStore) Save(ctx context.Context, key string, record ports.Idemp
 	return s.memoryStore.Save(ctx, key, record, ttl)
 }
 
-func (s *contextSensitiveStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (s *contextSensitiveStore) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	if s == nil {
 		return nil
 	}
@@ -2568,13 +2568,13 @@ func (s *contextSensitiveStore) release(ctx context.Context, key, token string, 
 	return s.memoryStore.Release(ctx, key)
 }
 
-func (s *reservationCollisionStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (s *reservationCollisionStore) Get(ctx context.Context, key string) (Record, bool, error) {
 	_ = ctx
 	_ = key
-	return ports.IdempotencyRecord{}, false, nil
+	return Record{}, false, nil
 }
 
-func (s *reservationCollisionStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (s *reservationCollisionStore) TryBegin(ctx context.Context, key string, record Record, ttl time.Duration) (bool, error) {
 	_ = ctx
 	_ = key
 	_ = record
@@ -2582,7 +2582,7 @@ func (s *reservationCollisionStore) TryBegin(ctx context.Context, key string, re
 	return false, nil
 }
 
-func (s *reservationCollisionStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (s *reservationCollisionStore) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = record
@@ -2603,21 +2603,21 @@ func (s *reservationCollisionStore) ReleaseReservation(ctx context.Context, key,
 	return nil
 }
 
-func (s *storeWithoutRelease) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (s *storeWithoutRelease) Get(ctx context.Context, key string) (Record, bool, error) {
 	if s == nil || s.store == nil {
-		return ports.IdempotencyRecord{}, false, nil
+		return Record{}, false, nil
 	}
 	return s.store.Get(ctx, key)
 }
 
-func (s *storeWithoutRelease) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (s *storeWithoutRelease) TryBegin(ctx context.Context, key string, record Record, ttl time.Duration) (bool, error) {
 	if s == nil || s.store == nil {
 		return false, nil
 	}
 	return s.store.TryBegin(ctx, key, record, ttl)
 }
 
-func (s *storeWithoutRelease) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (s *storeWithoutRelease) Save(ctx context.Context, key string, record Record, ttl time.Duration) error {
 	if s == nil || s.store == nil {
 		return nil
 	}
@@ -2665,21 +2665,21 @@ func (s *captureLogger) WarnValues() [][]any {
 	return values
 }
 
-func (s *legacyRecoveryErrorStore) Get(_ context.Context, _ string) (ports.IdempotencyRecord, bool, error) {
+func (s *legacyRecoveryErrorStore) Get(_ context.Context, _ string) (Record, bool, error) {
 	if s == nil {
-		return ports.IdempotencyRecord{}, false, nil
+		return Record{}, false, nil
 	}
 	return s.record, true, nil
 }
 
-func (s *legacyRecoveryErrorStore) TryBegin(_ context.Context, _ string, _ ports.IdempotencyRecord, _ time.Duration) (bool, error) {
+func (s *legacyRecoveryErrorStore) TryBegin(_ context.Context, _ string, _ Record, _ time.Duration) (bool, error) {
 	if s == nil {
 		return false, nil
 	}
 	return false, nil
 }
 
-func (s *legacyRecoveryErrorStore) Save(_ context.Context, _ string, _ ports.IdempotencyRecord, _ time.Duration) error {
+func (s *legacyRecoveryErrorStore) Save(_ context.Context, _ string, _ Record, _ time.Duration) error {
 	return nil
 }
 
@@ -2707,7 +2707,7 @@ func (m *memoryStore) isExpired(entry memoryEntry) bool {
 	return m.now().After(entry.expiresAt)
 }
 
-func cloneRecord(record ports.IdempotencyRecord) ports.IdempotencyRecord {
+func cloneRecord(record Record) Record {
 	out := record
 	if record.Header != nil {
 		out.Header = record.Header.Clone()
@@ -2951,7 +2951,7 @@ func TestIdempotencyStoresCompletedResponseAfterRequestCancellation(t *testing.T
 	if !found {
 		t.Fatal("expected completed idempotency record")
 	}
-	if record.State != ports.IdempotencyStateCompleted {
+	if record.State != StateCompleted {
 		t.Fatalf("expected completed record, got %v", record.State)
 	}
 }
@@ -3082,15 +3082,15 @@ func TestIdempotencyPersistsAmbiguousStateAfterSaveFailureWhenRequestCanceled(t 
 	if !found {
 		t.Fatal("expected ambiguous record after failed save")
 	}
-	if record.State != ports.IdempotencyStateAmbiguous {
+	if record.State != StateAmbiguous {
 		t.Fatalf("expected ambiguous state, got %v", record.State)
 	}
 }
 
 func TestIdempotencyInFlightResponseIncludesConfiguredRetryAfter(t *testing.T) {
 	mem := newMemoryStore()
-	record := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	record := Record{
+		State:       StateInFlight,
 		RequestHash: "hash",
 		CreatedAt:   time.Now(),
 	}
@@ -3134,8 +3134,8 @@ func TestIdempotencyInFlightResponseIncludesConfiguredRetryAfter(t *testing.T) {
 func TestIdempotencyAmbiguousResponseUsesRemainingRetryWindow(t *testing.T) {
 	now := time.Date(2026, time.April, 23, 12, 0, 0, 0, time.UTC)
 	mem := newMemoryStore()
-	err := mem.Save(context.Background(), "key-ambiguous-retry-after", ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateAmbiguous,
+	err := mem.Save(context.Background(), "key-ambiguous-retry-after", Record{
+		State:       StateAmbiguous,
 		RequestHash: "hash",
 		CreatedAt:   now.Add(-30 * time.Second),
 	}, 5*time.Minute)

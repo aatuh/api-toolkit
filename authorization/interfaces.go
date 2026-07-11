@@ -1,30 +1,36 @@
 package authorization
 
-import "github.com/aatuh/api-toolkit/v3/ports"
+import "context"
 
-// Authorizer is the package-local authorization decision contract.
-//
-// It is an alias for ports.Authorizer during v3 compatibility. New
-// authorization integrations should import this package instead of adding to
-// root ports.
-type Authorizer = ports.Authorizer
+// Authorizer checks whether a subject can perform an action on a resource.
+type Authorizer interface {
+	Can(ctx context.Context, subject any, action string, resource any) error
+}
 
-// AuthorizerFunc adapts a function to the package-local Authorizer contract.
-//
-// It is an alias for ports.AuthorizerFunc during v3 compatibility.
-type AuthorizerFunc = ports.AuthorizerFunc
+// AuthorizerFunc adapts a function to the Authorizer contract.
+type AuthorizerFunc func(ctx context.Context, subject any, action string, resource any) error
 
-// PolicyEngine is the package-local policy evaluation contract.
-//
-// It is an alias for ports.PolicyEngine during v3 compatibility.
-type PolicyEngine = ports.PolicyEngine
+// Can executes the authorization function.
+func (f AuthorizerFunc) Can(ctx context.Context, subject any, action string, resource any) error {
+	return f(ctx, subject, action, resource)
+}
 
-// PolicyRequest is the package-local policy evaluation input.
-//
-// It is an alias for ports.PolicyRequest during v3 compatibility.
-type PolicyRequest = ports.PolicyRequest
+// PolicyRequest captures policy engine evaluation inputs.
+type PolicyRequest struct {
+	Subject  any
+	Action   string
+	Resource any
+	Context  any
+}
 
-// PolicyDecision is the package-local policy evaluation result.
-//
-// It is an alias for ports.PolicyDecision during v3 compatibility.
-type PolicyDecision = ports.PolicyDecision
+// PolicyDecision represents a policy evaluation outcome.
+type PolicyDecision struct {
+	Allow  bool
+	Reason string
+	Data   any
+}
+
+// PolicyEngine evaluates policy requests.
+type PolicyEngine interface {
+	Evaluate(ctx context.Context, req PolicyRequest) (PolicyDecision, error)
+}
