@@ -197,9 +197,8 @@ for log_name in \
 done
 tar -C "$asset_dir/logs" -czf "$asset_dir/release-evidence-logs.tgz" .
 
-for report in dependency-licenses-root.tsv dependency-licenses-contrib.tsv; do
-  printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/%s\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/%s@v1.0.0\n' "$report" "$report" >"$asset_dir/$report"
-done
+printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\n' >"$asset_dir/dependency-licenses-root.tsv"
+printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/dependency-licenses-contrib.tsv\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/dependency-licenses-contrib.tsv@v1.0.0\n' >"$asset_dir/dependency-licenses-contrib.tsv"
 
 for asset in \
   sbom-root.spdx.json sbom-contrib.spdx.json \

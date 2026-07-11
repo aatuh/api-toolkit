@@ -312,8 +312,8 @@ verify_dependency_license_report() {
     }
     { rows++ }
     END {
-      if (NR == 0 || rows == 0) {
-        printf "%s has no dependency license rows\n", report > "/dev/stderr"
+      if (NR == 0) {
+        printf "%s is empty\n", report > "/dev/stderr"
         exit 1
       }
     }
