@@ -3,7 +3,7 @@ package upload_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/upload"
+	"github.com/aatuh/api-toolkit/v4/upload"
 )
 
 func ExampleAllowedContentTypes() {

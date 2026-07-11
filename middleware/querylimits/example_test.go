@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/querylimits"
+	"github.com/aatuh/api-toolkit/v4/middleware/querylimits"
 )
 
 func ExampleNew() {

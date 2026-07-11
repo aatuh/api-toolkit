@@ -1,0 +1,8 @@
+go 1.25.0
+
+use (
+	.
+	./contrib
+	./examples/chi-existing-service
+	./examples/reference-saas-api
+)

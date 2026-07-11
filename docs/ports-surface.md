@@ -4,7 +4,7 @@ Audience: maintainers and advanced API consumers reviewing the v3 stable ports
 surface and the compatibility-shaped history that should not be copied into new
 generic contracts.
 
-This note explains which parts of `github.com/aatuh/api-toolkit/v3/ports` are
+This note explains which parts of `github.com/aatuh/api-toolkit/v4/ports` are
 broadly reusable and which historical shapes were moved out of generic core
 contracts during the v3 cleanup.
 
@@ -24,7 +24,7 @@ These compatibility-sensitive examples are historical guardrails for new
 design, not current invitations to widen generic core ports.
 
 - Historical `ports/billing.go` hosted-checkout and invoicing contracts now live in
-  `github.com/aatuh/api-toolkit/v3/compat/billing`. Keep app-owned billing
+  `github.com/aatuh/api-toolkit/v4/compat/billing`. Keep app-owned billing
   ports when the hosted-checkout model is not an exact fit.
 - Driver-shaped database counters, including `DatabasePool.Stat` and
   `DatabaseStats`, were removed from the generic pool contract. Keep

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/authorization"
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/tenant"
+	"github.com/aatuh/api-toolkit/v4/authorization"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/tenant"
 )
 
 func ExampleNew() {

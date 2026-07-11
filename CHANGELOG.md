@@ -7,7 +7,25 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased
 
-No released user-facing changes are recorded after `v3.1.2`.
+## [4.0.0] - 2026-07-11
+
+### Breaking
+
+- Root imports move from `github.com/aatuh/api-toolkit/v3/...` to
+  `github.com/aatuh/api-toolkit/v4/...`; contrib imports move from
+  `github.com/aatuh/api-toolkit/contrib/v3/...` to
+  `github.com/aatuh/api-toolkit/contrib/v4/...`.
+- Root `ports` now retains only `Logger`, `Clock`, `IDGen`, `NopLogger`, and
+  `SystemClock`. Endpoint, middleware, authorization, HTTP, and platform
+  contracts use their documented local or contrib-owned replacements.
+- JWT/JWK middleware and OAuth2 helpers move to the optional contrib module:
+  `contrib/middleware/auth/jwt` and `contrib/oauth2`. Root v4 has no direct
+  JWT/JWK dependencies.
+
+### Upgrade
+
+Follow [docs/migration/v4.md](docs/migration/v4.md) for import replacements,
+the root-port migration table, and workspace guidance.
 
 ## [3.1.2] - 2026-05-21
 
@@ -90,6 +108,7 @@ security-backport policy and use the v3 migration guide before upgrading from
 v2.
 
 [3.1.2]: https://github.com/aatuh/api-toolkit/compare/v3.1.1...v3.1.2
+[4.0.0]: https://github.com/aatuh/api-toolkit/compare/v3.1.2...v4.0.0
 [3.1.1]: https://github.com/aatuh/api-toolkit/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/aatuh/api-toolkit/compare/v3.0.2...v3.1.0
 [3.0.2]: https://github.com/aatuh/api-toolkit/compare/v3.0.1...v3.0.2

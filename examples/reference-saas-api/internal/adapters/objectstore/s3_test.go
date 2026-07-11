@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v3/objectstore"
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v4/objectstore"
 
 	"example.com/reference-saas-api/internal/app"
 )

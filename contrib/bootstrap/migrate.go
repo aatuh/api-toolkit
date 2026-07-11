@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate"
-	"github.com/aatuh/api-toolkit/contrib/v3/config"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/migrate"
+	"github.com/aatuh/api-toolkit/contrib/v4/config"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 type migratorFactory func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (contracts.Migrator, error)

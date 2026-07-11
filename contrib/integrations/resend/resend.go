@@ -3,9 +3,9 @@ package resend
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/resend"
-	"github.com/aatuh/api-toolkit/contrib/v3/config"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/resend"
+	"github.com/aatuh/api-toolkit/contrib/v4/config"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 // Client aliases the Resend client type.

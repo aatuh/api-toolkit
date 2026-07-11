@@ -12,7 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	"github.com/aatuh/api-toolkit/v4/middleware/idempotency"
 )
 
 const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"

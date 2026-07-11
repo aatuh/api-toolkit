@@ -22,13 +22,13 @@ import (
 
 var (
 	rootModulePath    = strings.Join([]string{"github.com", "aatuh", "api-toolkit"}, "/")
-	contribModulePath = rootModulePath + "/contrib/v3"
+	contribModulePath = rootModulePath + "/contrib/v4"
 )
 
 func skipV2CompatibilitySurfaceChecksOnV3(t *testing.T) {
 	t.Helper()
 	mod, err := os.ReadFile(filepath.Join(mustRepoRoot(t), "go.mod"))
-	if err == nil && strings.Contains(string(mod), "module "+rootModulePath+"/v3") {
+	if err == nil && strings.Contains(string(mod), "module "+rootModulePath+"/v4") {
 		t.Skip("v3 branch has removed the v2 compatibility-only surfaces")
 	}
 }
@@ -67,7 +67,7 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 	serviceDir := filepath.Join(tmpDir, "my-api")
 	doc := string(content)
 	for _, required := range []string{
-		"go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service",
+		"go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service",
 		"--module example.com/my-api",
 		"--profile saas-api",
 		"make finalize",
@@ -93,7 +93,7 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
 	)
 	cmd.Dir = filepath.Join(repoRoot, "contrib")
-	cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("generate getting-started service:\n%s\nerror: %v", out, err)
 	}
@@ -163,7 +163,7 @@ func TestRootProductionCodeDoesNotImportContrib(t *testing.T) {
 func TestRootTestsUseContribModulePath(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	fset := token.NewFileSet()
-	forbidden := rootModulePath + "/v3/contrib"
+	forbidden := rootModulePath + "/v4/contrib"
 
 	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -233,7 +233,7 @@ func TestRootModuleDependencyBoundaryExcludesContribAdapters(t *testing.T) {
 func TestStableCoreDependencyBoundariesExcludeContribProvidersAndGeneratedApps(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	classes := loadPackageClassifications(t, repoRoot)
-	rootV3Module := rootModulePath + "/v3"
+	rootV3Module := rootModulePath + "/v4"
 	forbiddenPrefixes := []string{
 		contribModulePath,
 		rootModulePath + "/contrib",
@@ -463,7 +463,7 @@ func TestStableAPIPackagesHaveCompileCheckedExamples(t *testing.T) {
 
 	var missing []string
 	for _, importPath := range packages {
-		rel := strings.TrimPrefix(importPath, rootModulePath+"/v3")
+		rel := strings.TrimPrefix(importPath, rootModulePath+"/v4")
 		rel = strings.TrimPrefix(rel, "/")
 		dir := filepath.Join(repoRoot, rel)
 		entries, err := os.ReadDir(dir)
@@ -594,7 +594,7 @@ func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 	classes := loadPackageClassifications(t, repoRoot)
 	packages := listedGoPackages(t, repoRoot)
 
-	assertClassifiedPackages(t, "root", packages, classes, rootModulePath+"/v3", map[string]bool{
+	assertClassifiedPackages(t, "root", packages, classes, rootModulePath+"/v4", map[string]bool{
 		"stable":             true,
 		"compatibility-only": true,
 		"experimental":       true,
@@ -608,8 +608,7 @@ func TestPublicPackageClassificationManifestCoversRootPackages(t *testing.T) {
 		apiStatus  string
 		testStatus string
 	}{
-		{rootModulePath + "/v3/docscheck", "excluded", "direct-tests"},
-		{rootModulePath + "/v3/testutil/authtest", "test-only", "test-support"},
+		{rootModulePath + "/v4/docscheck", "excluded", "direct-tests"},
 	} {
 		cls, ok := classes[required.importPath]
 		if !ok {
@@ -720,13 +719,13 @@ func TestListedGoPackagesParserIgnoresGoDownloadChatter(t *testing.T) {
 	packages := parseListedGoPackagesOutput(t, []byte(strings.Join([]string{
 		"go: downloading golang.org/x/crypto v0.50.0",
 		"go: downloading github.com/redis/go-redis/v9 v9.19.0",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient\t3\t1",
-		"github.com/aatuh/api-toolkit/contrib/v3/config\t2\t0",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/httpclient\t3\t1",
+		"github.com/aatuh/api-toolkit/contrib/v4/config\t2\t0",
 	}, "\n")))
 
 	want := []listedPackage{
-		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v3/adapters/httpclient", DirectTestFiles: 4},
-		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v3/config", DirectTestFiles: 2},
+		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v4/adapters/httpclient", DirectTestFiles: 4},
+		{ImportPath: "github.com/aatuh/api-toolkit/contrib/v4/config", DirectTestFiles: 2},
 	}
 	if !reflect.DeepEqual(packages, want) {
 		t.Fatalf("packages = %+v, want %+v", packages, want)
@@ -2037,11 +2036,11 @@ func TestCompatibilityShimLifecycleRoadmap(t *testing.T) {
 	for _, required := range []string{
 		"## V3 Removal Matrix",
 		"## V3 Owner Checklist",
-		"`github.com/aatuh/api-toolkit/v3/compat/billing`",
+		"`github.com/aatuh/api-toolkit/v4/compat/billing`",
 		"`DatabasePoolSnapshotProvider`",
 		"`ports.SnapshotDatabasePoolStats`",
 		"`response_writer`",
-		"`github.com/aatuh/api-toolkit/v3/httpx`",
+		"`github.com/aatuh/api-toolkit/v4/httpx`",
 		"`ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)`",
 		"`middleware/auth/authz.NewRequireRoleMiddlewareChecked`",
 		"`ValidateRequireRoleMiddlewareRoutes`",
@@ -3125,8 +3124,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"v3.0.0",
 		"v3.1.2",
 		"status.tsv",
-		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
-		"go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v3=",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v4=",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v4=",
 		"make contracts-diff",
 		".ci-result/generated-upgrade-compat",
 	} {
@@ -3138,8 +3137,8 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"UPGRADE_SMOKE_BASE_REF",
 		"v3.1.2",
 		"internal/compatfixtures/rootcore/upgrade_smoke_test.go",
-		"go get \"github.com/aatuh/api-toolkit/v3@$base_ref\"",
-		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=",
+		"go get \"github.com/aatuh/api-toolkit/v4@$base_ref\"",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v4=",
 		"go test ./...",
 		".ci-result/upgrade-smoke",
 		"status.tsv",
@@ -3247,9 +3246,9 @@ func TestCompatibilityFixtureUpgradeSmokeUsesCheckedInFixture(t *testing.T) {
 
 	for _, required := range []string{
 		"TestStableCoreUpgradeSmoke",
-		"github.com/aatuh/api-toolkit/v3/binding",
-		"github.com/aatuh/api-toolkit/v3/httpx",
-		"github.com/aatuh/api-toolkit/v3/middleware/maxbody",
+		"github.com/aatuh/api-toolkit/v4/binding",
+		"github.com/aatuh/api-toolkit/v4/httpx",
+		"github.com/aatuh/api-toolkit/v4/middleware/maxbody",
 		"binding.DecodeJSON",
 		"httpx.WriteJSON",
 		"maxbody.New",
@@ -3261,8 +3260,8 @@ func TestCompatibilityFixtureUpgradeSmokeUsesCheckedInFixture(t *testing.T) {
 	for _, required := range []string{
 		"internal/compatfixtures/rootcore/upgrade_smoke_test.go",
 		"cp \"$root_core_fixture\" \"$path/upgrade_smoke_test.go\"",
-		"go get \"github.com/aatuh/api-toolkit/v3@$base_ref\"",
-		"go mod edit -replace=github.com/aatuh/api-toolkit/v3=\"$repo_root\"",
+		"go get \"github.com/aatuh/api-toolkit/v4@$base_ref\"",
+		"go mod edit -replace=github.com/aatuh/api-toolkit/v4=\"$repo_root\"",
 		"GOWORK=off GOTOOLCHAIN=\"$gotoolchain\" go test ./...",
 	} {
 		if !strings.Contains(script, required) {
@@ -3555,8 +3554,8 @@ func TestContribModuleRemainsInstallableByVersion(t *testing.T) {
 		t.Fatalf("contrib/go.mod must not contain replace directives; published contrib/v3 CLI installs reject versioned modules with replace directives")
 	}
 	for _, required := range []string{
-		"github.com/aatuh/api-toolkit/v3 v3.1.2",
-		"module github.com/aatuh/api-toolkit/contrib/v3",
+		"github.com/aatuh/api-toolkit/v4 v4.0.0",
+		"module github.com/aatuh/api-toolkit/contrib/v4",
 	} {
 		if !strings.Contains(goMod, required) {
 			t.Fatalf("contrib/go.mod missing %q", required)
@@ -3650,18 +3649,18 @@ func TestSupportedAdapterContractsManifestCoversSupportedAdapters(t *testing.T) 
 	}
 
 	for _, importPath := range []string{
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/resend",
-		"github.com/aatuh/api-toolkit/contrib/v3/adapters/stripe",
-		"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk",
-		"github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi",
-		"github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace",
-		"github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog",
-		"github.com/aatuh/api-toolkit/contrib/v3/telemetry",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/logzap",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/resend",
+		"github.com/aatuh/api-toolkit/contrib/v4/adapters/stripe",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/clerk",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/oteltrace",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog",
+		"github.com/aatuh/api-toolkit/contrib/v4/telemetry",
 	} {
 		contract, ok := contracts[importPath]
 		if !ok {
@@ -4818,7 +4817,7 @@ func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if importPath == rootModulePath+"/v3/response_writer" {
+			if importPath == rootModulePath+"/v4/response_writer" {
 				rel, relErr := filepath.Rel(repoRoot, path)
 				if relErr != nil {
 					rel = path
@@ -4858,7 +4857,7 @@ func TestResponseWriterInventoryMatchesCurrentImports(t *testing.T) {
 func TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	forbidden := []string{
-		`"github.com/aatuh/api-toolkit/v3/response_writer"`,
+		`"github.com/aatuh/api-toolkit/v4/response_writer"`,
 		"ports.CheckoutSessionRequest",
 		"ports.PaymentProvider",
 		"ports.BillingProvider",
@@ -5191,7 +5190,7 @@ func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
 	requirements := map[string][]string{
 		filepath.Join(repoRoot, "ports", "doc.go"): {
 			"Compatibility-sensitive exceptions",
-			"github.com/aatuh/api-toolkit/v3/compat/billing",
+			"github.com/aatuh/api-toolkit/v4/compat/billing",
 			"DatabasePoolSnapshotProvider",
 			"SnapshotDatabasePoolStats",
 			"httpx",
@@ -5204,7 +5203,7 @@ func TestCompatibilitySensitivePackageDocsPointToReplacements(t *testing.T) {
 		},
 		filepath.Join(repoRoot, "response_writer", "doc.go"): {
 			"source compatibility",
-			"github.com/aatuh/api-toolkit/v3/httpx",
+			"github.com/aatuh/api-toolkit/v4/httpx",
 			"compatibility-sensitive",
 			"not a template",
 		},
@@ -5268,17 +5267,15 @@ func TestCurrentV3PackageDocsAvoidStaleV2CompatibilityClaims(t *testing.T) {
 
 	portsDoc := readText(t, filepath.Join(repoRoot, "ports", "doc.go"))
 	for _, required := range []string{
-		"stable core boundary contracts",
-		"github.com/aatuh/api-toolkit/v3/compat/billing",
-		"Response",
-		"httpx",
-		"DatabasePoolSnapshotProvider",
-		"SnapshotDatabasePoolStats",
-		"docs/ports-surface.md",
-		"docs/v3-compatibility-roadmap.md",
+		"stable generic utilities",
+		"Logger",
+		"Clock",
+		"IDGen",
+		"github.com/aatuh/api-toolkit/contrib/v4/contracts",
+		"docs/v4-plan.md",
 	} {
 		if !strings.Contains(portsDoc, required) {
-			t.Fatalf("ports/doc.go missing current v3 guidance %q", required)
+			t.Fatalf("ports/doc.go missing current v4 guidance %q", required)
 		}
 	}
 
@@ -5465,7 +5462,7 @@ func TestQualityAuditP0AdoptionAndProcessDocs(t *testing.T) {
 		"small, composable Go HTTP API building blocks",
 		"Target user:",
 		"Non-goals:",
-		"go get github.com/aatuh/api-toolkit/v3",
+		"go get github.com/aatuh/api-toolkit/v4",
 		"func main()",
 		"Stable core package list: `VERSIONING.md` is the source of truth",
 	} {
@@ -5704,7 +5701,7 @@ func TestAlternativesComparisonExamplesAndReleaseNoteCategories(t *testing.T) {
 		"binding.DecodeJSON",
 		"binding.WriteValidationProblem",
 		"httpx.WriteJSON",
-		"github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service",
+		"github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service",
 		"Existing services should start with the library version",
 	} {
 		if !strings.Contains(comparisonText, required) {
@@ -5858,8 +5855,8 @@ func TestChiExistingServiceExampleUsesToolkitWithoutContrib(t *testing.T) {
 	for _, required := range []string{
 		"module example.com/chi-existing-service",
 		"github.com/go-chi/chi/v5",
-		"github.com/aatuh/api-toolkit/v3",
-		"replace github.com/aatuh/api-toolkit/v3 => ../..",
+		"github.com/aatuh/api-toolkit/v4",
+		"replace github.com/aatuh/api-toolkit/v4 => ../..",
 		"chi.NewRouter",
 		"chi.URLParam",
 		"binding.DecodeJSON",
@@ -5881,9 +5878,9 @@ func TestChiExistingServiceExampleUsesToolkitWithoutContrib(t *testing.T) {
 	}
 	for _, forbidden := range []string{
 		"github.com/aatuh/api-toolkit/contrib",
-		"github.com/aatuh/api-toolkit/v3/contrib",
+		"github.com/aatuh/api-toolkit/v4/contrib",
 		"api-toolkit new service",
-		"contrib/v3/adapters/chi",
+		"contrib/v4/adapters/chi",
 	} {
 		if strings.Contains(combined, forbidden) {
 			t.Fatalf("chi existing-service example must avoid %q", forbidden)
@@ -5963,7 +5960,7 @@ func TestChangelogSummarizesPublishedV3Releases(t *testing.T) {
 		"## [3.0.1] - 2026-05-19",
 		"## [3.0.0] - 2026-05-17",
 		"## Older v1 and v2 Releases",
-		"github.com/aatuh/api-toolkit/v3",
+		"github.com/aatuh/api-toolkit/v4",
 		"compat/billing",
 		"docs/migration/v3.md",
 		"[3.1.2]: https://github.com/aatuh/api-toolkit/compare/v3.1.1...v3.1.2",
@@ -5988,14 +5985,14 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 
 	for _, required := range []string{
 		"# V4 Scope Cleanup Plan",
-		"No breaking v3 change",
-		"Every candidate below has an accountable owner",
+		"completed major-version boundary",
+		"Every moved root port has an accountable owner",
 		"docs/package-owners.tsv",
 		"## Keep Stable",
 		"## Demote Or Narrow In V4",
 		"## Split From Root",
 		"## Remove In V4 Only",
-		"## Required V4 Evidence",
+		"## Completed V4 Evidence",
 		"## Not In Scope For V3",
 		"Accountable owner",
 		"Replacement direction",
@@ -6008,10 +6005,10 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 		"`middleware/json`, `middleware/maxbody`, `middleware/querylimits`, `middleware/secure`, `middleware/timeout`, `middleware/trace`, `middleware/deprecation`",
 		"`middleware/idempotency`, `idempotent`, `webhooks`",
 		"`routecontracts`, `routepolicy`, `specs`, `contracttest`, `apitest`",
-		"github.com/aatuh/api-toolkit/v3/ports",
-		"github.com/aatuh/api-toolkit/v3/compat/billing",
-		"github.com/aatuh/api-toolkit/v3/scheduler/migrations",
-		"github.com/aatuh/api-toolkit/v3/swagstub",
+		"github.com/aatuh/api-toolkit/v4/ports",
+		"github.com/aatuh/api-toolkit/v4/compat/billing",
+		"github.com/aatuh/api-toolkit/v4/scheduler/migrations",
+		"github.com/aatuh/api-toolkit/v4/swagstub",
 		"`middleware/auth/jwt`, JWK handling, and OAuth2 helpers",
 		"CLI and generated scaffolds",
 		"Provider adapters and integrations",
@@ -6038,11 +6035,11 @@ func TestPortsV4MigrationLedgerMatchesCurrentPorts(t *testing.T) {
 
 	for _, required := range []string{
 		"symbol\tkind\tconsumers\timplementations\treplacement_path\tv3_deprecation_status\tv4_disposition\tmigration_evidence",
-		"Authorizer\ttype",
-		"DatabasePool\ttype",
-		"HealthChecker\ttype",
-		"RateLimiter\ttype",
-		"VersionInfo\ttype",
+		"Clock\ttype",
+		"IDGen\ttype",
+		"Logger\ttype",
+		"NopLogger\ttype",
+		"SystemClock\ttype",
 	} {
 		if !strings.Contains(ledger, required) {
 			t.Fatalf("ports v4 migration ledger missing %q", required)
@@ -6107,7 +6104,7 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 	for _, required := range []string{
 		"# CLI And Scaffold Identity",
 		"api-toolkit remains library-first",
-		"github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit",
+		"github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit",
 		"outside the stable core API promise",
 		"generated services as app-owned code",
 		"Do not move scaffold-only dependencies",
@@ -6130,13 +6127,13 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 			t.Fatalf("CLI/scaffold identity decision missing %q", required)
 		}
 	}
-	if !strings.Contains(classification, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit\ttooling") {
+	if !strings.Contains(classification, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit\ttooling") {
 		t.Fatal("contrib CLI must remain classified as tooling")
 	}
-	if !strings.Contains(owners, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit\tcontrib-tooling-maintainers\ttooling") {
+	if !strings.Contains(owners, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit\tcontrib-tooling-maintainers\ttooling") {
 		t.Fatal("contrib CLI must retain tooling ownership")
 	}
-	if strings.Contains(versioning, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit") {
+	if strings.Contains(versioning, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit") {
 		t.Fatal("contrib CLI must not enter the root stable package list")
 	}
 }
@@ -6152,20 +6149,15 @@ func TestAuthDependencySplitDecisionDocumentsV3LimitationAndV4Target(t *testing.
 
 	for _, required := range []string{
 		"# Auth Dependency Split Decision",
-		"do not compile against JWT/JWK packages",
-		"module graph still includes JWT/JWK",
-		"github.com/MicahParks/jwkset",
-		"github.com/MicahParks/keyfunc/v3",
-		"github.com/golang-jwt/jwt/v5",
-		"Split JWT/JWK-heavy auth packages into a dedicated auth module",
-		"Remove JWT/JWK direct requirements from the root module",
-		"github.com/aatuh/api-toolkit/v3/middleware/auth/jwt",
-		"github.com/aatuh/api-toolkit/v3/middleware/auth/shared",
-		"root `go.mod` no longer directly requires JWT/JWK",
-		"Do not break v3 import paths",
+		"V3 kept JWT/JWK middleware in the root module",
+		"V4 moves JWT/JWK middleware",
+		"Root v4 has no direct JWT/JWK requirements",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt",
+		"github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/shared",
+		"github.com/aatuh/api-toolkit/contrib/v4/oauth2",
+		"Existing v3 imports remain unchanged",
 		"docs/auth-dependency-split.md",
 		"[Auth dependency split decision](auth-dependency-split.md)",
-		"simple-core users should not inherit JWT/JWK modules after the split",
 	} {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("auth dependency split decision missing %q", required)
@@ -6185,7 +6177,7 @@ func TestProviderAdapterSplitDecisionKeepsAdaptersOutsideCore(t *testing.T) {
 	for _, required := range []string{
 		"# Provider Adapter Split Decision",
 		"keeps provider adapters outside the root stable core",
-		"github.com/aatuh/api-toolkit/contrib/v3",
+		"github.com/aatuh/api-toolkit/contrib/v4",
 		"Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, chi",
 		"Keep root stable packages free of provider SDKs, database drivers, router",
 		"docs/package-classification.tsv",
@@ -6291,8 +6283,8 @@ func TestDownstreamCompatibilityKitIsRunnableByExternalServices(t *testing.T) {
 		"request path must be relative to the suite target",
 		"Experimental test-support package",
 		"docs/downstream-compatibility.md",
-		"github.com/aatuh/api-toolkit/v3/compatkit\texperimental\tdirect-tests",
-		"github.com/aatuh/api-toolkit/v3/compatkit\tcore-maintainers\texperimental\tcore-test-maintainers\tnon-blocking-experimental",
+		"github.com/aatuh/api-toolkit/v4/compatkit\texperimental\tdirect-tests",
+		"github.com/aatuh/api-toolkit/v4/compatkit\tcore-maintainers\texperimental\tcore-test-maintainers\tnon-blocking-experimental",
 		"[Downstream compatibility kit](downstream-compatibility.md)",
 		"API review board process in `docs/governance.md`",
 		"handler or explicit base URL",
@@ -6316,25 +6308,23 @@ func TestDeprecationShimsGiveV3UsersMigrationHelpers(t *testing.T) {
 	combined := ratelimit + "\n" + ratelimitDoc + "\n" + ratelimitExample + "\n" + deprecations + "\n" + portsSurface + "\n" + roadmap + "\n" + migration + "\n" + releaseNotes
 
 	for _, required := range []string{
-		"type Limiter = ports.RateLimiter",
-		"v3 migration shim over ports.RateLimiter",
+		"type Limiter interface",
 		"ExampleLimiter",
 		"var limiter ratelimit.Limiter",
 		"`middleware/timeout.New`",
 		"`middleware/timeout.NewPropagator`",
 		"`middleware/trace.Use`",
 		"`middleware/trace.New(opts).Middleware()`",
-		"Compatibility Shim Register",
 		"`middleware/ratelimit.Limiter`",
-		"`ports.RateLimiter`",
-		"before v4 shrinks broad root ports",
 		"docs/api-inventory.md",
-		"2026-06-07",
 		"Migration",
 	} {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("deprecation shim evidence missing %q", required)
 		}
+	}
+	if strings.Contains(ratelimit, "ports.RateLimiter") {
+		t.Fatal("middleware/ratelimit must not retain a root ports rate-limiter alias in v4")
 	}
 }
 
@@ -6366,7 +6356,7 @@ func TestGeneratedAPIDocsSiteCoversSearchExamplesStatusCompatibilityAndMigration
 		"docs/deprecations.md",
 		"docs/v3-compatibility-roadmap.md",
 		"docs/migration/v3.md",
-		"github.com/aatuh/api-toolkit/v3/middleware/ratelimit",
+		"github.com/aatuh/api-toolkit/v4/middleware/ratelimit",
 		"compatibility-only",
 		"example_test.go",
 		"pkg.go.dev",
@@ -6449,17 +6439,21 @@ func TestNegativePathTestMatrixReferencesExecutableTests(t *testing.T) {
 		if !ok {
 			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s missing from package classification", lineNo+1, importPath)
 		}
-		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" {
-			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s is %s, want stable or compatibility-only", lineNo+1, importPath, cls.APIStatus)
+		if cls.APIStatus != "stable" && cls.APIStatus != "compatibility-only" && cls.APIStatus != "experimental" && cls.APIStatus != "supported-adapter" {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s is %s, want a tested public package", lineNo+1, importPath, cls.APIStatus)
 		}
-		if !inModule(importPath, rootModulePath+"/v3") {
-			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s must be a root stable package", lineNo+1, importPath)
+		if !inModule(importPath, rootModulePath+"/v4") && !inModule(importPath, contribModulePath) {
+			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: %s must be a root or contrib package", lineNo+1, importPath)
 		}
 		if filepath.IsAbs(testFile) || strings.Contains(testFile, "..") || !strings.HasSuffix(testFile, "_test.go") {
 			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: invalid test file path %q", lineNo+1, testFile)
 		}
-		pkgRel := strings.TrimPrefix(importPath, rootModulePath+"/v3")
-		pkgRel = strings.TrimPrefix(pkgRel, "/")
+		var pkgRel string
+		if strings.HasPrefix(importPath, contribModulePath) {
+			pkgRel = "contrib/" + strings.TrimPrefix(strings.TrimPrefix(importPath, contribModulePath), "/")
+		} else {
+			pkgRel = strings.TrimPrefix(strings.TrimPrefix(importPath, rootModulePath+"/v4"), "/")
+		}
 		if pkgRel != "" && !strings.HasPrefix(testFile, pkgRel+"/") {
 			t.Fatalf("docs/negative-path-test-matrix.tsv:%d: test file %q is outside package %s", lineNo+1, testFile, importPath)
 		}
@@ -6647,7 +6641,7 @@ func TestRaceCoverageCoversSharedMiddlewareState(t *testing.T) {
 		{filepath.Join("middleware", "ratelimit", "ratelimit_race_test.go"), "TestMiddlewareConcurrentInMemoryBucketsRace", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
 		{filepath.Join("middleware", "idempotency", "idempotency_race_test.go"), "TestMiddlewareConcurrentSameKeyRace", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
 		{filepath.Join("scheduler", "scheduler_race_test.go"), "TestRunnerConcurrentStartAndRecorderFailureHandlerRace", []string{"sync.WaitGroup", "go func", "SetRecorderFailureHandler"}},
-		{filepath.Join("middleware", "auth", "jwt", "middleware_race_test.go"), "TestMiddlewareConcurrentTokenValidationUsesSharedKeyfuncSafely", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
+		{filepath.Join("contrib", "middleware", "auth", "jwt", "middleware_race_test.go"), "TestMiddlewareConcurrentTokenValidationUsesSharedKeyfuncSafely", []string{"sync.WaitGroup", "go func", "httptest.NewRecorder"}},
 	}
 	for _, target := range targets {
 		source := readText(t, filepath.Join(repoRoot, target.file))
@@ -7262,7 +7256,7 @@ func TestQualityAuditP1AdoptionPathDocs(t *testing.T) {
 	coreGuide := readText(t, filepath.Join(repoRoot, "docs", "core-package-guide.md"))
 	for _, required := range []string{
 		"| Package | Use case | Use when | Do not use when | Stability | Dependency note | Example |",
-		"`middleware/auth/jwt`",
+		"`contrib/middleware/auth/jwt`",
 		"auth/JWK",
 		"`compat/billing`",
 		"compatibility-only",
@@ -7375,8 +7369,8 @@ func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 		"Keep the current two-module layout for v3",
 		"Root remains the stable API module",
 		"Contrib remains the adapter, integration, example, and tooling module",
-		"v4 plan may split auth-heavy packages",
-		"root JWT/JWK dependency inheritance is accepted for v3",
+		"V4 keeps auth-heavy packages",
+		"V3 accepted root JWT/JWK dependency inheritance",
 	} {
 		if !strings.Contains(adr, required) {
 			t.Fatalf("docs/adr/0001-module-boundaries.md missing %q", required)
@@ -7439,9 +7433,9 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	for _, required := range []string{
 		"Code generated by internal/tools/apiinventory",
 		"| Symbol | Kind | Added version | Deprecation status |",
-		"`github.com/aatuh/api-toolkit/v3/binding`",
+		"`github.com/aatuh/api-toolkit/v4/binding`",
 		"`DecodeJSON`",
-		"`github.com/aatuh/api-toolkit/v3/compat/billing`",
+		"`github.com/aatuh/api-toolkit/v4/compat/billing`",
 		"`compatibility-only`",
 		"v3 compatibility surface",
 	} {
@@ -7867,7 +7861,7 @@ func TestDeprecatedBillingPortsPointToCompatPackage(t *testing.T) {
 	code := readText(t, path)
 
 	for _, name := range exportedTopLevelNames(t, path) {
-		replacement := rootModulePath + "/v3/compat/billing." + name
+		replacement := rootModulePath + "/v4/compat/billing." + name
 		deprecation := "Deprecated: use " + replacement + "."
 		if !strings.Contains(code, deprecation) {
 			t.Fatalf("ports/billing.go missing deprecation replacement for %s: %s", name, replacement)
@@ -7883,7 +7877,7 @@ func TestDeprecatedBillingPortsStayInCompatibilitySource(t *testing.T) {
 		if allowedDeprecatedBillingSource(repoRoot, path) {
 			return nil
 		}
-		aliases, dotImport := importAliases(file, rootModulePath+"/v3/ports")
+		aliases, dotImport := importAliases(file, rootModulePath+"/v4/ports")
 		if len(aliases) == 0 && !dotImport {
 			return nil
 		}
@@ -7916,7 +7910,7 @@ func TestDatabaseStatsStayInCompatibilityOrAdapterSource(t *testing.T) {
 		if allowedDatabaseStatsSource(repoRoot, path) {
 			return nil
 		}
-		aliases, dotImport := importAliases(file, rootModulePath+"/v3/ports")
+		aliases, dotImport := importAliases(file, rootModulePath+"/v4/ports")
 		if len(aliases) == 0 && !dotImport {
 			return nil
 		}
@@ -8452,7 +8446,7 @@ func TestIdempotencyCaptureDoesNotUseLegacyResponseWriter(t *testing.T) {
 			if err != nil {
 				return []string{err.Error()}
 			}
-			if importPath == rootModulePath+"/v3/response_writer" {
+			if importPath == rootModulePath+"/v4/response_writer" {
 				return []string{sourceViolation(repoRoot, path, fset, imp.Pos(), "imports legacy response_writer from idempotency")}
 			}
 		}
@@ -8662,7 +8656,7 @@ func TestSafetyAndCoreReadinessDocsAreComplete(t *testing.T) {
 		"tested",
 		"middleware/timeout",
 		"middleware/idempotency",
-		"contrib/v3/middleware/openapi",
+		"contrib/v4/middleware/openapi",
 	} {
 		if !strings.Contains(safeDefaults, required) {
 			t.Fatalf("docs/safe-defaults.md missing %q", required)
@@ -8791,13 +8785,13 @@ func TestLargeResponseStreamingOptOutEvidenceIsExecutable(t *testing.T) {
 
 func TestSecurityEdgeCaseEvidenceIsExecutable(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	jwtTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "jwt", "middleware_test.go"))
+	jwtTests := readText(t, filepath.Join(repoRoot, "contrib", "middleware", "auth", "jwt", "middleware_test.go"))
 	apiKeyTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "apikey", "apikey_test.go"))
 	tenantTests := readText(t, filepath.Join(repoRoot, "middleware", "auth", "tenant", "tenant_test.go"))
 	idempotencyTests := readText(t, filepath.Join(repoRoot, "middleware", "idempotency", "idempotency_test.go"))
 	webhookTests := readText(t, filepath.Join(repoRoot, "webhooks", "webhooks_test.go"))
 	webhookReplayTests := readText(t, filepath.Join(repoRoot, "webhooks", "replay_test.go"))
-	jwtCode := readText(t, filepath.Join(repoRoot, "middleware", "auth", "jwt", "middleware.go"))
+	jwtCode := readText(t, filepath.Join(repoRoot, "contrib", "middleware", "auth", "jwt", "middleware.go"))
 	webhookCode := readText(t, filepath.Join(repoRoot, "webhooks", "webhooks.go")) + "\n" +
 		readText(t, filepath.Join(repoRoot, "webhooks", "replay.go"))
 
@@ -8808,7 +8802,7 @@ func TestSecurityEdgeCaseEvidenceIsExecutable(t *testing.T) {
 		"AllowedClockSkew",
 	} {
 		if !strings.Contains(jwtTests, required) {
-			t.Fatalf("middleware/auth/jwt/middleware_test.go missing security edge evidence %q", required)
+			t.Fatalf("contrib/middleware/auth/jwt/middleware_test.go missing security edge evidence %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -8861,7 +8855,7 @@ func TestSecurityEdgeCaseEvidenceIsExecutable(t *testing.T) {
 		"ParseBearerTokenValues",
 	} {
 		if !strings.Contains(jwtCode, required) {
-			t.Fatalf("middleware/auth/jwt/middleware.go missing ambiguous authorization parsing guard %q", required)
+			t.Fatalf("contrib/middleware/auth/jwt/middleware.go missing ambiguous authorization parsing guard %q", required)
 		}
 	}
 	for _, required := range []string{
@@ -8948,10 +8942,10 @@ func TestMigrationAndTroubleshootingGuidesCoverCommonAdoptionFailures(t *testing
 	}
 	for _, required := range []string{
 		"`v3.1.2`",
-		"`github.com/aatuh/api-toolkit/v3`",
-		"`github.com/aatuh/api-toolkit/contrib/v3`",
-		"go get github.com/aatuh/api-toolkit/v3@v3.1.2",
-		"go get github.com/aatuh/api-toolkit/contrib/v3@v3.1.2",
+		"`github.com/aatuh/api-toolkit/v4`",
+		"`github.com/aatuh/api-toolkit/contrib/v4`",
+		"go get github.com/aatuh/api-toolkit/v4@v3.1.2",
+		"go get github.com/aatuh/api-toolkit/contrib/v4@v3.1.2",
 		"go mod tidy",
 		"GOTOOLCHAIN=local make docs-check",
 		"`VERSIONING.md`",
@@ -9182,7 +9176,7 @@ func TestPackageSecurityReviewChecklistIsPackageScopedAndComplete(t *testing.T) 
 		"docs/package-classification.tsv": classification,
 		"docs/package-owners.tsv":         owners,
 	} {
-		if !strings.Contains(manifest, "github.com/aatuh/api-toolkit/v3/httpx") {
+		if !strings.Contains(manifest, "github.com/aatuh/api-toolkit/v4/httpx") {
 			t.Fatalf("%s is missing public package review identity evidence", name)
 		}
 	}
@@ -9340,8 +9334,8 @@ func TestPublicPackageDocsAvoidPlaceholderUtilities(t *testing.T) {
 }
 
 var tokenPattern = regexp.MustCompile(`github\.com/aatuh/[A-Za-z0-9./_-]+`)
-var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v3[^` + "`" + `]*)` + "`")
-var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v3[^"]*"`)
+var packageLiteralPattern = regexp.MustCompile("`(" + regexp.QuoteMeta(rootModulePath) + `/v4[^` + "`" + `]*)` + "`")
+var bashPackageLiteralPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(rootModulePath) + `/v4[^"]*"`)
 
 func publicMarkdownFiles(t *testing.T, repoRoot string) []string {
 	t.Helper()
@@ -9451,10 +9445,16 @@ func forbiddenModuleToken(token string) bool {
 	if token == rootModulePath+"/" || strings.HasPrefix(token, rootModulePath+"/.") {
 		return false
 	}
-	if token == rootModulePath+"/v3" {
+	if token == rootModulePath+"/v4" {
 		return false
 	}
 	if strings.HasPrefix(token, rootModulePath+"/v3/") {
+		return false
+	}
+	if strings.HasPrefix(token, rootModulePath+"/contrib/v3/") {
+		return false
+	}
+	if strings.HasPrefix(token, rootModulePath+"/v4/") {
 		return false
 	}
 	if token == contribModulePath {
@@ -9479,7 +9479,7 @@ func mustRepoRoot(t *testing.T) string {
 func runGoCmd(dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(context.Background(), "go", args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOWORK=off")
+	cmd.Env = os.Environ()
 	return cmd.CombinedOutput()
 }
 
@@ -10017,7 +10017,7 @@ func stableRootPackagesFromClassification(t *testing.T, repoRoot string) []strin
 	classes := loadPackageClassifications(t, repoRoot)
 	var packages []string
 	for _, cls := range classes {
-		if !inModule(cls.ImportPath, rootModulePath+"/v3") {
+		if !inModule(cls.ImportPath, rootModulePath+"/v4") {
 			continue
 		}
 		if cls.APIStatus == "stable" || cls.APIStatus == "compatibility-only" {
@@ -10349,7 +10349,7 @@ func contribPackageDir(repoRoot, importPath string) string {
 }
 
 func classifiedPackageDir(repoRoot, importPath string) string {
-	rootV3Module := rootModulePath + "/v3"
+	rootV3Module := rootModulePath + "/v4"
 	switch {
 	case importPath == rootV3Module:
 		return repoRoot
@@ -10462,7 +10462,7 @@ func optionsAuditRows(t *testing.T, content string) map[string]map[string]string
 	rows := map[string]map[string]string{}
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v3") {
+		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v4") {
 			continue
 		}
 		cols := markdownTableColumns(line)
@@ -10578,7 +10578,7 @@ func globalStateAuditRows(t *testing.T, content string) map[string]map[string]st
 	rows := map[string]map[string]string{}
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v3") {
+		if !strings.HasPrefix(line, "| `"+rootModulePath+"/v4") {
 			continue
 		}
 		cols := markdownTableColumns(line)

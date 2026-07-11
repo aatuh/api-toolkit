@@ -17,7 +17,7 @@ package set that solves the immediate problem.
 1. Add the root module:
 
 ```sh
-go get github.com/aatuh/api-toolkit/v3
+go get github.com/aatuh/api-toolkit/v4
 ```
 
 2. Pick one stable package from [core-package-guide.md](core-package-guide.md).

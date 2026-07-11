@@ -12,13 +12,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
-	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	coretrace "github.com/aatuh/api-toolkit/v3/middleware/trace"
-	"github.com/aatuh/api-toolkit/v3/ports"
-	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v4/middleware/timeout"
+	coretrace "github.com/aatuh/api-toolkit/v4/middleware/trace"
+	"github.com/aatuh/api-toolkit/v4/ports"
+	"github.com/aatuh/api-toolkit/v4/routepolicy"
 )
 
 const (

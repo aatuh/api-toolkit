@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"example.com/reference-saas-api/internal/app"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics"
 )
 
 func TestReadinessAndOpenAPI(t *testing.T) {

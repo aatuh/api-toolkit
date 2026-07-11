@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func ExampleNewBasicChecker() {

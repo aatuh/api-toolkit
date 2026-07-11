@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/idempotent"
+	"github.com/aatuh/api-toolkit/v4/idempotent"
 )
 
 func ExampleRequireKey() {

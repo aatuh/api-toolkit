@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
 
 	"example.com/reference-saas-api/internal/domain"
 )

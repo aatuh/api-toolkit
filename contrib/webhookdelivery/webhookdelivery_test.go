@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/v3/webhooks"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/v4/webhooks"
 )
 
 func TestCatalogRejectsUnsupportedEvents(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
-	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/healthchecktest"
+	compatbilling "github.com/aatuh/api-toolkit/v4/compat/billing"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
 func TestProviderOptionsAndWebhookContextHelpers(t *testing.T) {

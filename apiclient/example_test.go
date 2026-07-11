@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/apiclient"
+	"github.com/aatuh/api-toolkit/v4/apiclient"
 )
 
 func ExamplePreconditionHeaders() {

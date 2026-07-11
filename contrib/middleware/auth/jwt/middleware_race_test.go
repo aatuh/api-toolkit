@@ -11,7 +11,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func TestMiddlewareConcurrentTokenValidationUsesSharedKeyfuncSafely(t *testing.T) {

@@ -48,10 +48,10 @@ run_root_core_fixture() {
   if {
     cd "$fixture_dir"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod init "$module_path"
-    GOWORK=off GOTOOLCHAIN="$gotoolchain" go get "github.com/aatuh/api-toolkit/v3@$base_ref"
+    GOWORK=off GOTOOLCHAIN="$gotoolchain" go get "github.com/aatuh/api-toolkit/v4@$base_ref"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod tidy
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go test ./...
-    go mod edit -replace=github.com/aatuh/api-toolkit/v3="$repo_root"
+    go mod edit -replace=github.com/aatuh/api-toolkit/v4="$repo_root"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod tidy
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go test ./...
   } >"$repo_root/$log_path" 2>&1; then

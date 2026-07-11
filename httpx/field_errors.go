@@ -3,7 +3,7 @@ package httpx
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
 )
 
 // ValidationErrorsKey is the canonical extension key for field errors.

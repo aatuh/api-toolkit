@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/middleware/querylimits"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/middleware/querylimits"
 )
 
 type stubMiddlewareChain struct {

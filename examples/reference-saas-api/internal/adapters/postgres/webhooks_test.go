@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
 )
 
 func TestNewWebhookStoreRequiresSecretKey(t *testing.T) {
@@ -131,7 +131,7 @@ type fakeWebhookPool struct {
 func (p *fakeWebhookPool) Ping(context.Context) error { return nil }
 func (p *fakeWebhookPool) Close()                     {}
 
-func (p *fakeWebhookPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *fakeWebhookPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	if p.conn == nil {
 		p.conn = &fakeWebhookConn{}
 	}
@@ -145,32 +145,32 @@ type fakeWebhookExecCall struct {
 
 type fakeWebhookConn struct {
 	execCalls    []fakeWebhookExecCall
-	row          ports.DatabaseRow
-	rows         ports.DatabaseRows
-	tx           ports.DatabaseTransaction
+	row          contracts.DatabaseRow
+	rows         contracts.DatabaseRows
+	tx           contracts.DatabaseTransaction
 	rowsAffected int64
 }
 
-func (c *fakeWebhookConn) Query(_ context.Context, _ string, _ ...any) (ports.DatabaseRows, error) {
+func (c *fakeWebhookConn) Query(_ context.Context, _ string, _ ...any) (contracts.DatabaseRows, error) {
 	if c.rows != nil {
 		return c.rows, nil
 	}
 	return &fakeWebhookRows{}, nil
 }
 
-func (c *fakeWebhookConn) QueryRow(_ context.Context, _ string, _ ...any) ports.DatabaseRow {
+func (c *fakeWebhookConn) QueryRow(_ context.Context, _ string, _ ...any) contracts.DatabaseRow {
 	if c.row != nil {
 		return c.row
 	}
 	return fakeWebhookRowFunc(func(...any) error { return nil })
 }
 
-func (c *fakeWebhookConn) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (c *fakeWebhookConn) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	c.execCalls = append(c.execCalls, fakeWebhookExecCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeWebhookResult(c.rowsAffected), nil
 }
 
-func (c *fakeWebhookConn) Begin(context.Context) (ports.DatabaseTransaction, error) {
+func (c *fakeWebhookConn) Begin(context.Context) (contracts.DatabaseTransaction, error) {
 	if c.tx == nil {
 		return nil, errors.New("transaction not configured")
 	}
@@ -184,15 +184,15 @@ type fakeWebhookTx struct {
 	rowsAffected int64
 }
 
-func (t *fakeWebhookTx) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (t *fakeWebhookTx) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return &fakeWebhookRows{}, nil
 }
 
-func (t *fakeWebhookTx) QueryRow(context.Context, string, ...any) ports.DatabaseRow {
+func (t *fakeWebhookTx) QueryRow(context.Context, string, ...any) contracts.DatabaseRow {
 	return fakeWebhookRowFunc(func(...any) error { return nil })
 }
 
-func (t *fakeWebhookTx) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (t *fakeWebhookTx) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	t.execCalls = append(t.execCalls, fakeWebhookExecCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeWebhookResult(t.rowsAffected), nil
 }

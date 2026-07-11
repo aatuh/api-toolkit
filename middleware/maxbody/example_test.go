@@ -3,7 +3,7 @@ package maxbody_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/v4/middleware/maxbody"
 )
 
 func ExampleNew() {

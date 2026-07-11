@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/operations"
 )
 
 const WidgetImportJobKind = "widgets.import"

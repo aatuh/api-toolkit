@@ -10,12 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
-	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v3/routecontracts"
-	"github.com/aatuh/api-toolkit/v3/routepolicy"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v4/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v4/routecontracts"
+	"github.com/aatuh/api-toolkit/v4/routepolicy"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 type captureLogger struct {

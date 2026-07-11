@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/httpcache"
+	"github.com/aatuh/api-toolkit/v4/httpcache"
 )
 
 func ExampleEvaluateRead() {

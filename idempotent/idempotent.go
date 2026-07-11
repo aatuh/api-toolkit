@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/operations"
 )
 
 const defaultKeyHeader = "Idempotency-Key"

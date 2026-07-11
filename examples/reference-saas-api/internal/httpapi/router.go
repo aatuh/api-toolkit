@@ -14,20 +14,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
-	"github.com/aatuh/api-toolkit/contrib/v3/audit"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
-	openapimw "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v4/audit"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics"
+	openapimw "github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	corepprof "github.com/aatuh/api-toolkit/v3/endpoints/pprof"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
-	ratelimitmw "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
-	apitkops "github.com/aatuh/api-toolkit/v3/operations"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	corepprof "github.com/aatuh/api-toolkit/v4/endpoints/pprof"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	ratelimitmw "github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
+	apitkops "github.com/aatuh/api-toolkit/v4/operations"
 
 	"example.com/reference-saas-api/internal/app"
 	"example.com/reference-saas-api/internal/domain"
@@ -281,7 +281,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	return cfg.metrics(router)
 }
 
-func RegisterRoutes(r ports.HTTPRouter, cfg RouterConfig) error {
+func RegisterRoutes(r contracts.HTTPRouter, cfg RouterConfig) error {
 	if r == nil {
 		return errors.New("router is required")
 	}
@@ -408,7 +408,7 @@ type patchRouter interface {
 	Patch(pattern string, h http.HandlerFunc)
 }
 
-func registerPatch(r ports.HTTPRouter, pattern string, h http.HandlerFunc) {
+func registerPatch(r contracts.HTTPRouter, pattern string, h http.HandlerFunc) {
 	if pr, ok := r.(patchRouter); ok {
 		pr.Patch(pattern, h)
 		return
@@ -477,7 +477,7 @@ func NewMetricsMiddleware(recorder metricsmw.MetricsRecorder) (*metricsmw.Middle
 	return metricsmw.New(metricsmw.Options{Recorder: recorder})
 }
 
-func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware, error) {
+func NewRateLimitMiddleware(limiter ratelimitmw.Limiter) (*ratelimitmw.Middleware, error) {
 	return ratelimitmw.New(ratelimitmw.Options{
 		Capacity:     20,
 		RefillRate:   10,
@@ -488,7 +488,7 @@ func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware,
 	})
 }
 
-func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Middleware, error) {
+func NewIdempotencyMiddleware(store idempotencymw.Store) (*idempotencymw.Middleware, error) {
 	return idempotencymw.New(idempotencymw.Options{
 		Store:          store,
 		StorageKeyFunc: fullIdempotencyStorageKey,
@@ -610,7 +610,7 @@ func idempotencyScope(r *http.Request) (string, string) {
 }
 
 func NewHealthHandler(readiness HealthChecker) *health.Handler {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -619,14 +619,14 @@ func NewHealthHandler(readiness HealthChecker) *health.Handler {
 		ReadinessChecks: []string{"basic", "dependencies"},
 	})
 	manager.RegisterChecker(health.NewBasicChecker())
-	manager.RegisterChecker(health.NewCustomChecker("dependencies", func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+	manager.RegisterChecker(health.NewCustomChecker("dependencies", func(ctx context.Context) (health.Status, string, interface{}) {
 		if readiness == nil {
-			return ports.HealthStatusHealthy, "dependencies ready", nil
+			return health.StatusHealthy, "dependencies ready", nil
 		}
 		if err := readiness.Check(ctx); err != nil {
-			return ports.HealthStatusUnhealthy, "dependencies unavailable", nil
+			return health.StatusUnhealthy, "dependencies unavailable", nil
 		}
-		return ports.HealthStatusHealthy, "dependencies ready", nil
+		return health.StatusHealthy, "dependencies ready", nil
 	}))
 	return health.NewHandler(manager)
 }

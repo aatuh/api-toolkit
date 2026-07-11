@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v3/binding"
+	"github.com/aatuh/api-toolkit/v4/binding"
 )
 
 type exampleCreateWidget struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 func TestDefaultOptions(t *testing.T) {

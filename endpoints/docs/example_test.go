@@ -3,7 +3,7 @@ package docs_test
 import (
 	"fmt"
 
-	docsendpoint "github.com/aatuh/api-toolkit/v3/endpoints/docs"
+	docsendpoint "github.com/aatuh/api-toolkit/v4/endpoints/docs"
 )
 
 func ExampleNewWithConfig() {

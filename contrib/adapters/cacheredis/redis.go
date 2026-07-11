@@ -8,8 +8,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/cache"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/cache"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 // Options configures a Redis-backed cache store.

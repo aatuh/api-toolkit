@@ -11,18 +11,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/endpoints/version"
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/httpcache"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/idempotent"
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
-	"github.com/aatuh/api-toolkit/v3/middleware/deprecation"
-	jsonmw "github.com/aatuh/api-toolkit/v3/middleware/json"
-	"github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v3/ports"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/endpoints/version"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/httpcache"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/idempotent"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v4/middleware/deprecation"
+	jsonmw "github.com/aatuh/api-toolkit/v4/middleware/json"
+	"github.com/aatuh/api-toolkit/v4/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 func TestRuntimeCompatibilityGolden(t *testing.T) {
@@ -129,7 +128,7 @@ func runtimeCompatVersionEndpoint(t *testing.T) responseSnapshot {
 	t.Helper()
 
 	handler := version.NewHandler(version.Config{
-		Info: ports.VersionInfo{
+		Info: version.Info{
 			Version: "1.2.3",
 			Commit:  "abc123",
 			Date:    "2026-01-02T03:04:05Z",
@@ -361,45 +360,45 @@ func selectedHeaders(header http.Header, names ...string) map[string][]string {
 
 type runtimeCompatHealthManager struct{}
 
-func (runtimeCompatHealthManager) RegisterChecker(ports.HealthChecker) {}
+func (runtimeCompatHealthManager) RegisterChecker(health.Checker) {}
 
-func (runtimeCompatHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+func (runtimeCompatHealthManager) RegisterCheckers(...health.Checker) {}
 
-func (runtimeCompatHealthManager) GetLiveness(context.Context) ports.HealthResult {
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+func (runtimeCompatHealthManager) GetLiveness(context.Context) health.Result {
+	return health.Result{
+		Status:    health.StatusHealthy,
 		Message:   "live",
 		Timestamp: runtimeCompatHealthTimestamp(),
 	}
 }
 
-func (runtimeCompatHealthManager) GetReadiness(context.Context) ports.HealthResult {
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+func (runtimeCompatHealthManager) GetReadiness(context.Context) health.Result {
+	return health.Result{
+		Status:    health.StatusHealthy,
 		Message:   "ready",
 		Timestamp: runtimeCompatHealthTimestamp(),
 	}
 }
 
-func (runtimeCompatHealthManager) GetHealth(context.Context) ports.HealthResponse {
-	return ports.HealthResponse{
-		Status:    ports.HealthStatusHealthy,
+func (runtimeCompatHealthManager) GetHealth(context.Context) health.Response {
+	return health.Response{
+		Status:    health.StatusHealthy,
 		Message:   "healthy",
 		Timestamp: runtimeCompatHealthTimestamp(),
 	}
 }
 
-func (runtimeCompatHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
-	check := ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+func (runtimeCompatHealthManager) GetDetailedHealth(context.Context) health.DetailedResponse {
+	check := health.Result{
+		Status:    health.StatusHealthy,
 		Message:   "ready",
 		Timestamp: runtimeCompatHealthTimestamp(),
 	}
-	return ports.DetailedHealthResponse{
-		Status:    ports.HealthStatusHealthy,
+	return health.DetailedResponse{
+		Status:    health.StatusHealthy,
 		Timestamp: runtimeCompatHealthTimestamp(),
-		Checks:    map[string]ports.HealthResult{"readiness": check},
-		Summary: ports.HealthSummary{
+		Checks:    map[string]health.Result{"readiness": check},
+		Summary: health.Summary{
 			Total:   1,
 			Healthy: 1,
 		},

@@ -4,7 +4,7 @@ Audience: API consumers and maintainers who need the stable core surface,
 compatibility-sensitive exceptions, and release-command intent.
 
 This project follows semantic versioning for the core module
-`github.com/aatuh/api-toolkit/v3`. From v1 onward, we treat the packages listed
+`github.com/aatuh/api-toolkit/v4`. From v1 onward, we treat the packages listed
 below as stable: any breaking change requires a major version bump. Stability
 does not imply every exported identifier is perfectly adapter-neutral; some
 surfaces are explicitly classified as compatibility-sensitive so the public docs
@@ -31,69 +31,67 @@ Public API review artifacts:
 
 All exported identifiers in these packages are considered stable:
 
-- `github.com/aatuh/api-toolkit/v3/apiclient`
-- `github.com/aatuh/api-toolkit/v3/apitest`
-- `github.com/aatuh/api-toolkit/v3/authorization`
-- `github.com/aatuh/api-toolkit/v3/binding`
-- `github.com/aatuh/api-toolkit/v3/compat/billing`
-- `github.com/aatuh/api-toolkit/v3/contracttest`
-- `github.com/aatuh/api-toolkit/v3/email`
-- `github.com/aatuh/api-toolkit/v3/endpoints/docs`
-- `github.com/aatuh/api-toolkit/v3/endpoints/health`
-- `github.com/aatuh/api-toolkit/v3/endpoints/list`
-- `github.com/aatuh/api-toolkit/v3/endpoints/pprof`
-- `github.com/aatuh/api-toolkit/v3/endpoints/version`
-- `github.com/aatuh/api-toolkit/v3/fielderrors`
-- `github.com/aatuh/api-toolkit/v3/httpcache`
-- `github.com/aatuh/api-toolkit/v3/httpx`
-- `github.com/aatuh/api-toolkit/v3/httpx/identity`
-- `github.com/aatuh/api-toolkit/v3/httpx/recover`
-- `github.com/aatuh/api-toolkit/v3/idempotent`
-- `github.com/aatuh/api-toolkit/v3/middleware/auth/apikey`
-- `github.com/aatuh/api-toolkit/v3/middleware/auth/authz`
-- `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt`
-- `github.com/aatuh/api-toolkit/v3/middleware/auth/tenant`
-- `github.com/aatuh/api-toolkit/v3/middleware/deprecation`
-- `github.com/aatuh/api-toolkit/v3/middleware/idempotency`
-- `github.com/aatuh/api-toolkit/v3/middleware/json`
-- `github.com/aatuh/api-toolkit/v3/middleware/maxbody`
-- `github.com/aatuh/api-toolkit/v3/middleware/querylimits`
-- `github.com/aatuh/api-toolkit/v3/middleware/ratelimit`
-- `github.com/aatuh/api-toolkit/v3/middleware/secure`
-- `github.com/aatuh/api-toolkit/v3/middleware/timeout`
-- `github.com/aatuh/api-toolkit/v3/middleware/trace`
-- `github.com/aatuh/api-toolkit/v3/negotiation`
-- `github.com/aatuh/api-toolkit/v3/oauth2`
-- `github.com/aatuh/api-toolkit/v3/operations`
-- `github.com/aatuh/api-toolkit/v3/ports`
-- `github.com/aatuh/api-toolkit/v3/queryparams`
-- `github.com/aatuh/api-toolkit/v3/routecontracts`
-- `github.com/aatuh/api-toolkit/v3/routepolicy`
-- `github.com/aatuh/api-toolkit/v3/scheduler`
-- `github.com/aatuh/api-toolkit/v3/scheduler/migrations`
-- `github.com/aatuh/api-toolkit/v3/securityprofile`
-- `github.com/aatuh/api-toolkit/v3/specs`
-- `github.com/aatuh/api-toolkit/v3/swagstub`
-- `github.com/aatuh/api-toolkit/v3/upload`
-- `github.com/aatuh/api-toolkit/v3/webhooks`
+- `github.com/aatuh/api-toolkit/v4/apiclient`
+- `github.com/aatuh/api-toolkit/v4/apitest`
+- `github.com/aatuh/api-toolkit/v4/authorization`
+- `github.com/aatuh/api-toolkit/v4/binding`
+- `github.com/aatuh/api-toolkit/v4/compat/billing`
+- `github.com/aatuh/api-toolkit/v4/contracttest`
+- `github.com/aatuh/api-toolkit/v4/email`
+- `github.com/aatuh/api-toolkit/v4/endpoints/docs`
+- `github.com/aatuh/api-toolkit/v4/endpoints/health`
+- `github.com/aatuh/api-toolkit/v4/endpoints/list`
+- `github.com/aatuh/api-toolkit/v4/endpoints/pprof`
+- `github.com/aatuh/api-toolkit/v4/endpoints/version`
+- `github.com/aatuh/api-toolkit/v4/fielderrors`
+- `github.com/aatuh/api-toolkit/v4/httpcache`
+- `github.com/aatuh/api-toolkit/v4/httpx`
+- `github.com/aatuh/api-toolkit/v4/httpx/identity`
+- `github.com/aatuh/api-toolkit/v4/httpx/recover`
+- `github.com/aatuh/api-toolkit/v4/idempotent`
+- `github.com/aatuh/api-toolkit/v4/middleware/auth/apikey`
+- `github.com/aatuh/api-toolkit/v4/middleware/auth/authz`
+- `github.com/aatuh/api-toolkit/v4/middleware/auth/tenant`
+- `github.com/aatuh/api-toolkit/v4/middleware/deprecation`
+- `github.com/aatuh/api-toolkit/v4/middleware/idempotency`
+- `github.com/aatuh/api-toolkit/v4/middleware/json`
+- `github.com/aatuh/api-toolkit/v4/middleware/maxbody`
+- `github.com/aatuh/api-toolkit/v4/middleware/querylimits`
+- `github.com/aatuh/api-toolkit/v4/middleware/ratelimit`
+- `github.com/aatuh/api-toolkit/v4/middleware/secure`
+- `github.com/aatuh/api-toolkit/v4/middleware/timeout`
+- `github.com/aatuh/api-toolkit/v4/middleware/trace`
+- `github.com/aatuh/api-toolkit/v4/negotiation`
+- `github.com/aatuh/api-toolkit/v4/operations`
+- `github.com/aatuh/api-toolkit/v4/ports`
+- `github.com/aatuh/api-toolkit/v4/queryparams`
+- `github.com/aatuh/api-toolkit/v4/routecontracts`
+- `github.com/aatuh/api-toolkit/v4/routepolicy`
+- `github.com/aatuh/api-toolkit/v4/scheduler`
+- `github.com/aatuh/api-toolkit/v4/scheduler/migrations`
+- `github.com/aatuh/api-toolkit/v4/securityprofile`
+- `github.com/aatuh/api-toolkit/v4/specs`
+- `github.com/aatuh/api-toolkit/v4/swagstub`
+- `github.com/aatuh/api-toolkit/v4/upload`
+- `github.com/aatuh/api-toolkit/v4/webhooks`
 
 ## Compatibility-sensitive stable sub-surfaces
 
 These exports remain compatibility-shaped, but they are not the recommended
 model for new generic boundary design:
 
-- `github.com/aatuh/api-toolkit/v3/compat/billing` keeps the hosted-checkout
+- `github.com/aatuh/api-toolkit/v4/compat/billing` keeps the hosted-checkout
   and invoicing compatibility model explicit. New applications should prefer
   app-owned billing ports unless this model is exactly what they need.
-- `github.com/aatuh/api-toolkit/v3/scheduler/migrations` remains stable for v3
+- `github.com/aatuh/api-toolkit/v4/scheduler/migrations` remains stable for v3
   migration compatibility. New applications should keep migration orchestration
   app-owned or adapter-owned unless this package's exact model is needed.
-- `github.com/aatuh/api-toolkit/v3/swagstub` remains stable for v3 tooling
+- `github.com/aatuh/api-toolkit/v4/swagstub` remains stable for v3 tooling
   compatibility. It is not a recommended runtime abstraction for new
   application code.
-- `github.com/aatuh/api-toolkit/v3/ports` database snapshot contracts are the
-  generic observability path. Driver-shaped counters belong in adapters or
-  compatibility packages, not generic `ports`.
+- `github.com/aatuh/api-toolkit/v4/ports` is intentionally limited to generic
+  logger, clock, and ID utilities. HTTP, persistence, configuration, and
+  domain contracts belong with their consuming package or in contrib/contracts.
 
 Compatibility-sensitive means:
 
@@ -110,18 +108,15 @@ Compatibility-sensitive means:
   maintainer approval recorded through the stable API review board process in
   `docs/governance.md`.
 - For the existing hosted-checkout and invoicing model, new code should import
-  `github.com/aatuh/api-toolkit/v3/compat/billing` or use app-owned ports.
+  `github.com/aatuh/api-toolkit/v4/compat/billing` or use app-owned ports.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
-- Deprecated root `ports` types remain source-compatible throughout v3. Their
-  package-local replacements and earliest v4 removal horizon are recorded in
-  `docs/deprecations.md` and `docs/v3-compatibility-roadmap.md`.
-- The v3 cleanup record covers the removed deprecated `ports/billing.go`
-  aliases, driver-shaped database stats, and legacy `response_writer` package.
+- The v3 compatibility record is historical. V4 replacement ownership and the
+  retained generic ports are recorded in `docs/v4-plan.md` and
+  `docs/ports-v4-migration-ledger.tsv`.
 
 ## Experimental or unstable surfaces
 
-- `github.com/aatuh/api-toolkit/v3/middleware/auth/shared` is an implementation-sharing package for auth middleware and is not part of the stable compatibility promise.
 - Examples, docs, and tooling are not API commitments.
 - Any package explicitly documented as experimental is unstable.
 
@@ -129,8 +124,8 @@ Compatibility-sensitive means:
 
 The contrib module is outside the stable API compatibility promise.
 `make release-api-check` covers only the core module
-`github.com/aatuh/api-toolkit/v3`; it does not cover
-`github.com/aatuh/api-toolkit/contrib/v3`.
+`github.com/aatuh/api-toolkit/v4`; it does not cover
+`github.com/aatuh/api-toolkit/contrib/v4`.
 
 `docs/package-classification.tsv` classifies contrib packages as
 supported-adapter, experimental, wrapper-only, test-only, example-only,

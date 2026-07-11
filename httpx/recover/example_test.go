@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	recovermw "github.com/aatuh/api-toolkit/v3/httpx/recover"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	recovermw "github.com/aatuh/api-toolkit/v4/httpx/recover"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func ExampleNew() {

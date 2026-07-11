@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+	jwtauth "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt"
 )
 
 func TestAliasesExposeComparableDevHeaderSurface(t *testing.T) {

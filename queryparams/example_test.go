@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/aatuh/api-toolkit/v3/queryparams"
+	"github.com/aatuh/api-toolkit/v4/queryparams"
 )
 
 func ExampleParseSort() {

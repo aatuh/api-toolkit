@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 func BenchmarkRouteContractsRegisterAndValidate(b *testing.B) {

@@ -12,11 +12,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
-	requestlog "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog"
-	querylimits "github.com/aatuh/api-toolkit/v3/middleware/querylimits"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics"
+	requestlog "github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog"
+	querylimits "github.com/aatuh/api-toolkit/v4/middleware/querylimits"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 type stubMiddlewareChain struct {

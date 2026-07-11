@@ -13,7 +13,7 @@ OpenTelemetry, CORS, router-adapter, or generated-service dependency weight.
 For v3:
 
 - Keep provider and infrastructure adapters in
-  `github.com/aatuh/api-toolkit/contrib/v3`.
+  `github.com/aatuh/api-toolkit/contrib/v4`.
 - Keep Postgres, Redis, Stripe, Resend, Clerk, OpenTelemetry, CORS, chi,
   validation, logging, metrics, and generated-service wiring outside the root
   stable API promise.

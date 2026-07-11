@@ -50,11 +50,11 @@ Source comments should use Go's `Deprecated:` convention so pkg.go.dev and
 
 | Shim | Existing surface | Preferred import | Purpose | Evidence |
 | --- | --- | --- | --- | --- |
-| `middleware/ratelimit.Limiter` | `ports.RateLimiter` | `github.com/aatuh/api-toolkit/v3/middleware/ratelimit` | Lets v3 users move rate-limit adapter contracts to the package that consumes them before v4 shrinks broad root ports. | `middleware/ratelimit/example_test.go`, `docs/v3-compatibility-roadmap.md`, `docs/api-inventory.md` |
-| `middleware/idempotency.Store` | `ports.IdempotencyStore` | `github.com/aatuh/api-toolkit/v3/middleware/idempotency` | Lets v3 users move idempotency storage contracts to the middleware package before v4. | `middleware/idempotency/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
-| `authorization.Authorizer` | `ports.Authorizer` | `github.com/aatuh/api-toolkit/v3/authorization` | Lets v3 users move authorization and policy contracts to the consuming package before v4. | `authorization/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
-| `endpoints/health.Checker` | `ports.HealthChecker` | `github.com/aatuh/api-toolkit/v3/endpoints/health` | Lets v3 users move health endpoint contracts to the consuming package before v4. | `endpoints/health/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
-| `endpoints/docs.Provider` | `ports.DocsProvider` | `github.com/aatuh/api-toolkit/v3/endpoints/docs` | Lets v3 users move documentation endpoint contracts to the consuming package before v4. | `endpoints/docs/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
+| `middleware/ratelimit.Limiter` | `ports.RateLimiter` | `github.com/aatuh/api-toolkit/v4/middleware/ratelimit` | Lets v3 users move rate-limit adapter contracts to the package that consumes them before v4 shrinks broad root ports. | `middleware/ratelimit/example_test.go`, `docs/v3-compatibility-roadmap.md`, `docs/api-inventory.md` |
+| `middleware/idempotency.Store` | `ports.IdempotencyStore` | `github.com/aatuh/api-toolkit/v4/middleware/idempotency` | Lets v3 users move idempotency storage contracts to the middleware package before v4. | `middleware/idempotency/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
+| `authorization.Authorizer` | `ports.Authorizer` | `github.com/aatuh/api-toolkit/v4/authorization` | Lets v3 users move authorization and policy contracts to the consuming package before v4. | `authorization/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
+| `endpoints/health.Checker` | `ports.HealthChecker` | `github.com/aatuh/api-toolkit/v4/endpoints/health` | Lets v3 users move health endpoint contracts to the consuming package before v4. | `endpoints/health/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
+| `endpoints/docs.Provider` | `ports.DocsProvider` | `github.com/aatuh/api-toolkit/v4/endpoints/docs` | Lets v3 users move documentation endpoint contracts to the consuming package before v4. | `endpoints/docs/interfaces_test.go`, `docs/v3-compatibility-roadmap.md` |
 
 Compatibility-sensitive but not source-deprecated surfaces are tracked in
 [ports-surface.md](ports-surface.md),

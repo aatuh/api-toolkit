@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 type captureLogger struct {

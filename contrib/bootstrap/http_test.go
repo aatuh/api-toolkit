@@ -15,14 +15,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/endpoints/version"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/endpoints/docs"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/endpoints/version"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/ports"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 type stubServerRunner struct {

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/cache"
+	"github.com/aatuh/api-toolkit/contrib/v4/cache"
 )
 
 const webhookEventTypesCacheKey = "catalog:webhook-events"

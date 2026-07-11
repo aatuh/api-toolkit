@@ -3,7 +3,7 @@ package uuid
 import (
 	"github.com/google/uuid"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // UUIDGen generates UUID strings.

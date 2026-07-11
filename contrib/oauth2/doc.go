@@ -1,10 +1,10 @@
 // Package oauth2 provides provider-neutral OAuth2 bearer-token helpers.
 //
-// The package is stable core API. It models validated token claims, scope
-// checks, bearer-token extraction, OpenAPI security-scheme registration, and
-// mapping into authorization.Actor and authorization.Scope. It deliberately does
-// not fetch JWKS documents, cache provider keys, implement issuer-specific
-// validation, or adapt to any single identity provider.
+// It models validated token claims, scope checks, bearer-token extraction,
+// OpenAPI security-scheme registration, and mapping into authorization.Actor
+// and authorization.Scope. It deliberately does not fetch JWKS documents,
+// cache provider keys, implement issuer-specific validation, or adapt to any
+// single identity provider.
 //
 // Application code supplies a Validator or ValidatorFunc that verifies a bearer
 // token and returns TokenClaims. Use RequireScopes for route-level scope checks,
@@ -17,10 +17,10 @@
 // docs/cookbook.md.
 //
 // Purpose: See the package summary above.
-// Import: `github.com/aatuh/api-toolkit/v3/oauth2`.
+// Import: `github.com/aatuh/api-toolkit/contrib/v4/oauth2`.
 // Example: See docs/api-reference.md for package example links and docs/cookbook.md for task recipes.
 // Errors: Constructors, parsers, and handlers return or write documented errors according to their signatures; packages with plain data types do not add hidden error channels.
 // Concurrency: Treat configured middleware and helpers as immutable after construction; request and response values remain request-scoped unless a type documents stronger guarantees.
-// Stability: Stable core API under VERSIONING.md and scripts/apicheck.sh.
+// Stability: Contrib API; it is not part of the stable root API promise.
 // When not to use: Prefer net/http, application-owned types, or narrower helpers when this package contract is not needed.
 package oauth2

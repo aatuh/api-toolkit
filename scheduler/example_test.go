@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/scheduler"
+	"github.com/aatuh/api-toolkit/v4/scheduler"
 )
 
 func ExampleRecorderFunc() {

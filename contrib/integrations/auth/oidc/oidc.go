@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/config"
-	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/config"
+	"github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // Config aliases the OIDC middleware configuration.

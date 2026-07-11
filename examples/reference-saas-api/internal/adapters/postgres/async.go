@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/operations"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/operations"
 
 	"example.com/reference-saas-api/internal/app"
 )
@@ -20,7 +20,7 @@ type WidgetImportOperationStore struct {
 	store *operationpostgres.Store[app.WidgetImportResult]
 }
 
-func NewWidgetImportOperationStore(pool ports.DatabasePool) *WidgetImportOperationStore {
+func NewWidgetImportOperationStore(pool contracts.DatabasePool) *WidgetImportOperationStore {
 	return &WidgetImportOperationStore{store: operationpostgres.New[app.WidgetImportResult](pool, operationpostgres.Options{})}
 }
 
@@ -57,7 +57,7 @@ type leasedWidgetImport struct {
 	OperationID string
 }
 
-func NewWidgetImportOutbox(pool ports.DatabasePool, operations *WidgetImportOperationStore) *WidgetImportOutbox {
+func NewWidgetImportOutbox(pool contracts.DatabasePool, operations *WidgetImportOperationStore) *WidgetImportOutbox {
 	return &WidgetImportOutbox{
 		store:      outboxpostgres.New(pool, outboxpostgres.Options{}),
 		operations: operations,

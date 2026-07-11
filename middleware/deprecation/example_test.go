@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/deprecation"
+	"github.com/aatuh/api-toolkit/v4/middleware/deprecation"
 )
 
 func ExampleNew() {

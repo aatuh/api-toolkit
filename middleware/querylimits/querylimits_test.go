@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func TestQueryLimitsUsesValidationType(t *testing.T) {

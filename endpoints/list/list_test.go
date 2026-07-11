@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
 )
 
 func TestParseListQuerySort(t *testing.T) {

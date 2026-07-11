@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	jsonmw "github.com/aatuh/api-toolkit/v3/middleware/json"
+	jsonmw "github.com/aatuh/api-toolkit/v4/middleware/json"
 )
 
 func ExampleStrictDecoder() {

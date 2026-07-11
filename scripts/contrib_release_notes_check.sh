@@ -35,7 +35,7 @@ reviewed_import_path_for_changed_path() {
   while [ -n "$package_path" ] && [ "$package_path" != "." ] && [ "$package_path" != "contrib" ]; do
     case "$package_path" in
       contrib/*)
-        import_path="github.com/aatuh/api-toolkit/contrib/v3/${package_path#contrib/}"
+        import_path="github.com/aatuh/api-toolkit/contrib/v4/${package_path#contrib/}"
         ;;
       *)
         import_path="github.com/aatuh/api-toolkit/${package_path}"
@@ -43,7 +43,7 @@ reviewed_import_path_for_changed_path() {
     esac
     if awk -F '\t' -v import_path="$import_path" '
       $1 == import_path && $2 == "supported-adapter" { found = 1 }
-      $1 == "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit" && $1 == import_path && $2 == "tooling" { found = 1 }
+      $1 == "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit" && $1 == import_path && $2 == "tooling" { found = 1 }
       END { exit found ? 0 : 1 }
     ' "$classification_manifest"; then
       printf '%s\n' "$import_path"
@@ -147,7 +147,7 @@ if [ "$incompatible_drift_count" -gt 0 ]; then
     if [ -z "$pkg" ]; then
       continue
     fi
-    pkg_suffix="${pkg#github.com/aatuh/api-toolkit/contrib/v3/}"
+    pkg_suffix="${pkg#github.com/aatuh/api-toolkit/contrib/v4/}"
     if ! printf '%s\n' "$release_notes_diff" | grep -Fq "$pkg" && \
        ! printf '%s\n' "$release_notes_diff" | grep -Fq "$pkg_suffix"; then
       echo "Incompatible report-only contrib API drift requires release notes tied to package $pkg." >&2

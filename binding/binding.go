@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 // JSONConfig configures JSON request body decoding.

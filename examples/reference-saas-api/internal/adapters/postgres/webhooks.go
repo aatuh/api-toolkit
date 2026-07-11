@@ -15,10 +15,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
 )
 
 var (
@@ -28,15 +28,15 @@ var (
 )
 
 type WebhookStore struct {
-	pool           ports.DatabasePool
+	pool           contracts.DatabasePool
 	base           *webhookdeliverypostgres.Store
 	secretKey      []byte
 	now            func() time.Time
-	tx             ports.TxManager
+	tx             contracts.TxManager
 	endpointPolicy webhookdelivery.EndpointPolicy
 }
 
-func NewWebhookStore(pool ports.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy) (*WebhookStore, error) {
+func NewWebhookStore(pool contracts.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy) (*WebhookStore, error) {
 	key, err := decodeWebhookSecretKey(secretKey)
 	if err != nil {
 		return nil, err

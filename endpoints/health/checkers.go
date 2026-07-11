@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	compatbilling "github.com/aatuh/api-toolkit/v4/compat/billing"
 )
 
 const defaultCustomCheckerTimeout = 5 * time.Second

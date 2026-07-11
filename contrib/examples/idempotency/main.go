@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/validation"
-	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/validation"
+	compatbilling "github.com/aatuh/api-toolkit/v4/compat/billing"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
 )
 
 type checkoutRequest struct {

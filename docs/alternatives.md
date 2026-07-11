@@ -73,7 +73,7 @@ composable HTTP/API primitives:
 The minimal adoption path is the core module:
 
 ```sh
-go get github.com/aatuh/api-toolkit/v3
+go get github.com/aatuh/api-toolkit/v4
 ```
 
 Add contrib only when you intentionally need maintained adapters, integrations,
@@ -152,7 +152,7 @@ OpenAPI checks, generated client assets, auth/idempotency wiring, deployment
 starters, and repeatable local quality gates.
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service \
+go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service \
   --module example.com/widgets-api \
   --profile saas-api \
   --dir widgets-api

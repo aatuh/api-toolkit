@@ -12,21 +12,24 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotency"
-	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
-	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotency"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool"
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/contrib/v4/bootstrap"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
 
 	objectstorage "example.com/reference-saas-api/internal/adapters/objectstore"
 	"example.com/reference-saas-api/internal/adapters/postgres"
 	rediscache "example.com/reference-saas-api/internal/adapters/redis"
 	"example.com/reference-saas-api/internal/app"
-	"github.com/aatuh/api-toolkit/v3/endpoints/version"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/endpoints/version"
+	rootidempotency "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	rootratelimit "github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v4/ports"
 
 	"example.com/reference-saas-api/internal/httpapi"
 )
@@ -61,12 +64,12 @@ func run(ctx context.Context) error {
 	cacheService := app.NewCacheService(nil)
 
 	// api-toolkit:main-service-defaults
-	var rateLimiter ports.RateLimiter
-	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
+	var rateLimiter rootratelimit.Limiter
+	idempotencyStore := rootidempotency.Store(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
-	var postgresPool ports.DatabasePool
+	var postgresPool contracts.DatabasePool
 	var webhookStore *postgres.WebhookStore
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -256,13 +259,13 @@ func run(ctx context.Context) error {
 		Router:                  router,
 		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
-		RegisterRoutes: func(r ports.HTTPRouter) error {
+		RegisterRoutes: func(r contracts.HTTPRouter) error {
 			return httpapi.RegisterRoutes(r, routerConfig)
 		},
 		BackgroundTasks: backgroundTasks,
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  httpapi.NewHealthHandler(readiness),
-			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
+			Version: version.NewHandler(version.Config{Info: version.Info{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
 			Metrics: metricsmw.PrometheusHandler(),
 			Pprof:   http.DefaultServeMux,
 		},

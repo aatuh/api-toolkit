@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
 )
 
 func ExampleDefaultHash() {

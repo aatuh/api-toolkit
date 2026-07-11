@@ -11,8 +11,8 @@ import (
 	validatev3 "github.com/aatuh/validate/v3"
 	validateerrors "github.com/aatuh/validate/v3/errors"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
 )
 
 // ValidationError represents a validation error with field-specific details.

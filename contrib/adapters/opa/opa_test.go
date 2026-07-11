@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest"
-	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/policytest"
+	"github.com/aatuh/api-toolkit/v4/authorization"
 )
 
 func TestPolicyEngineContract(t *testing.T) {

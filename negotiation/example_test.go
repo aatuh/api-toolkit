@@ -3,7 +3,7 @@ package negotiation_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/negotiation"
+	"github.com/aatuh/api-toolkit/v4/negotiation"
 )
 
 func ExampleNegotiate() {

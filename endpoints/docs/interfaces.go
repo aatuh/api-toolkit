@@ -1,6 +1,10 @@
 package docs
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/aatuh/api-toolkit/v4/specs"
+)
 
 // HTMLMode controls the HTML presentation mode for the docs surface.
 type HTMLMode string
@@ -21,13 +25,7 @@ type Provider interface {
 }
 
 // Info provides documentation metadata.
-type Info struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Contact     string `json:"contact,omitempty"`
-	License     string `json:"license,omitempty"`
-}
+type Info = specs.DocumentationInfo
 
 // ManagerContract defines the package-local documentation manager contract.
 type ManagerContract interface {

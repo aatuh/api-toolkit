@@ -3,7 +3,7 @@ package secure_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/secure"
+	"github.com/aatuh/api-toolkit/v4/middleware/secure"
 )
 
 func ExampleCSPPolicy() {

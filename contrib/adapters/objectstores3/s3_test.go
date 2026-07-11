@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
-	"github.com/aatuh/api-toolkit/contrib/v3/objectstore/objectstoretest"
+	"github.com/aatuh/api-toolkit/contrib/v4/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v4/objectstore/objectstoretest"
 )
 
 func TestObjectStoreContract(t *testing.T) {

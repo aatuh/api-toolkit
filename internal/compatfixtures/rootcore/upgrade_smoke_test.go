@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/binding"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/v4/binding"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/middleware/maxbody"
 )
 
 type createWidgetRequest struct {

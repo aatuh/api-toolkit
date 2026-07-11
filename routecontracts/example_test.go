@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/routecontracts"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/routecontracts"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 type exampleRouteRouter struct {

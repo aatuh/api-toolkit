@@ -15,7 +15,7 @@ business ports.
 ## Install
 
 ```sh
-go get github.com/aatuh/api-toolkit/v3
+go get github.com/aatuh/api-toolkit/v4
 ```
 
 ## Example
@@ -27,10 +27,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/binding"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
-	"github.com/aatuh/api-toolkit/v3/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v4/binding"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/v4/middleware/timeout"
 )
 
 type createWidgetRequest struct {

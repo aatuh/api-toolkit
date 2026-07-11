@@ -9,9 +9,9 @@ import (
 
 	"github.com/MicahParks/keyfunc/v3"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // ValidationConfig configures shared JWT/JWKS middleware setup.

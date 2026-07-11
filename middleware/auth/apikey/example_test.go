@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/apikey"
 )
 
 func ExampleWithPrincipal() {

@@ -20,7 +20,7 @@ instead.
 ## 1) Generate a service
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service \
+go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service \
   --module example.com/my-api \
   --profile saas-api \
   --dir my-api

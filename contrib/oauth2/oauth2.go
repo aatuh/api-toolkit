@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/authorization"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/authorization"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 // TokenClaims captures validated OAuth2 token claims.

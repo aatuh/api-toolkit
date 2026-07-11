@@ -1,8 +1,8 @@
 package pgxpool
 
 import (
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 // Adapter aliases the pgxpool adapter type.

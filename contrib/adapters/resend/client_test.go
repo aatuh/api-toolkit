@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/email"
+	"github.com/aatuh/api-toolkit/v4/email"
 )
 
 func TestNewSetsDefaultHTTPTimeout(t *testing.T) {

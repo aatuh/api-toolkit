@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
-	openapimw "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi"
+	openapimw "github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi"
 )
 
 func main() {

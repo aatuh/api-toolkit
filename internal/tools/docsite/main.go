@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	rootModulePath    = "github.com/aatuh/api-toolkit/v3"
-	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v3"
+	rootModulePath    = "github.com/aatuh/api-toolkit/v4"
+	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v4"
 	githubBlobBase    = "https://github.com/aatuh/api-toolkit/blob/master"
 )
 

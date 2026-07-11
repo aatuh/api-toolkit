@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 func TestWithinTxUsesCleanupContextForRollback(t *testing.T) {

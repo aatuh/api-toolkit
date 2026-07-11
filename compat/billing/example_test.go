@@ -3,7 +3,7 @@ package billing_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v4/compat/billing"
 )
 
 func ExampleCheckoutSessionRequest() {

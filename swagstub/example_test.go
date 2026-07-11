@@ -3,7 +3,7 @@ package swagstub_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/swagstub"
+	"github.com/aatuh/api-toolkit/v4/swagstub"
 )
 
 func ExampleRegister() {

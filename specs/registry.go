@@ -16,6 +16,15 @@ type Info struct {
 	Version     string
 }
 
+// DocumentationInfo describes metadata served by a documentation provider.
+type DocumentationInfo struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Contact     string `json:"contact,omitempty"`
+	License     string `json:"license,omitempty"`
+}
+
 // Server describes an OpenAPI server entry.
 type Server struct {
 	URL         string

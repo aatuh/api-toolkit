@@ -1,6 +1,6 @@
 # Response Writer Removal Record
 
-The public `github.com/aatuh/api-toolkit/v3/response_writer` compatibility-only
+The public `github.com/aatuh/api-toolkit/v4/response_writer` compatibility-only
 package was removed from the v3 stable core surface. New response helpers
 should use `httpx`, and middleware that needs capture should use package-local
 response recorders.
@@ -8,7 +8,7 @@ response recorders.
 ## Current Repository Dependents
 
 No current root or contrib runtime package imports
-`github.com/aatuh/api-toolkit/v3/response_writer`.
+`github.com/aatuh/api-toolkit/v4/response_writer`.
 
 Cleared imports:
 

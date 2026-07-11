@@ -45,11 +45,10 @@ Apply [license-policy.md](license-policy.md) before publishing.
 
 ## Current Footprint Policy
 
-- The root module is allowed to carry JWT/JWK dependencies for the v3 stable JWT
-  middleware, but `docs/auth-dependency-split.md` records the v4 target to move
-  JWT/JWK-heavy auth packages out of the simple-core module graph. New simple
-  HTTP helpers must not add provider, database, Redis, router, OpenTelemetry
-  exporter, or generated-app dependencies.
+- Root v4 carries no JWT/JWK dependencies. JWT/JWK middleware and OAuth2
+  helpers are owned by contrib as recorded in `docs/auth-dependency-split.md`.
+  New simple HTTP helpers must not add provider, database, Redis, router,
+  OpenTelemetry exporter, or generated-app dependencies.
 - Contrib owns adapter-heavy dependencies and keeps supported-adapter drift
   visible through release checks.
 - The minimal-core path should remain free of third-party runtime packages

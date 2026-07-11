@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/webhooks"
+	"github.com/aatuh/api-toolkit/v4/webhooks"
 )
 
 func ExampleNewHMACSHA256Verifier() {

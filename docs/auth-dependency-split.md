@@ -1,58 +1,24 @@
 # Auth Dependency Split Decision
 
-Audience: adopters and maintainers evaluating whether simple api-toolkit
-middleware pulls in JWT/JWK dependency weight.
-
-The v3 root module currently contains both simple HTTP guardrails and stable
-auth packages. Simple packages such as `middleware/maxbody`, `httpx`, and
-`binding` do not compile against JWT/JWK packages, but the root module graph
-still includes JWT/JWK modules because `middleware/auth/jwt` is stable in the
-same module.
+Audience: adopters and maintainers evaluating auth-package dependency cost.
 
 ## Decision
 
-For v3:
+V3 kept JWT/JWK middleware in the root module to preserve its stable import
+path. V4 moves JWT/JWK middleware, shared JWT parsing, OAuth2 helpers, and auth
+test support to `github.com/aatuh/api-toolkit/contrib/v4`. Root v4 has no direct JWT/JWK requirements.
 
-- Keep `middleware/auth/jwt` in the root module to preserve stable import paths.
-- Keep direct root requirements for `github.com/MicahParks/jwkset`,
-  `github.com/MicahParks/keyfunc/v3`, and `github.com/golang-jwt/jwt/v5`
-  because the stable JWT middleware owns those dependencies.
-- Keep simple middleware package imports free of JWT/JWK packages.
-- Document the current module-graph cost instead of pretending simple
-  middleware users have a zero-auth dependency graph in v3.
+| Import path | Ownership and dependency behavior |
+| --- | --- |
+| `github.com/aatuh/api-toolkit/v4/middleware/maxbody` | Root HTTP helper with no JWT/JWK dependency. |
+| `github.com/aatuh/api-toolkit/v4/httpx` | Root HTTP helper with no JWT/JWK dependency. |
+| `github.com/aatuh/api-toolkit/v4/binding` | Root HTTP helper with no JWT/JWK dependency. |
+| `github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt` | Owns JWT/JWK validation and its `keyfunc` and `jwt/v5` dependencies. |
+| `github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/shared` | Shares JWT/JWK implementation details across contrib auth middleware. |
+| `github.com/aatuh/api-toolkit/contrib/v4/oauth2` | Owns bearer-token claim and scope helpers outside the root promise. |
 
-For v4 planning:
-
-- Split JWT/JWK-heavy auth packages into a dedicated auth module or another
-  explicit non-core module.
-- Remove JWT/JWK direct requirements from the root module when the stable JWT
-  package leaves root.
-- Keep API-key and tenant helpers in root only if design review confirms they
-  remain small, provider-neutral HTTP guardrails.
-- Provide migration notes for old root imports before the v4 branch cuts.
-
-## Current Dependency Boundary
-
-| Import path | Current v3 dependency behavior | V4 target |
-| --- | --- | --- |
-| `github.com/aatuh/api-toolkit/v3/middleware/maxbody` | Does not import JWT/JWK packages. Root module graph still includes JWT/JWK direct requirements. | Root users should not inherit JWT/JWK modules. |
-| `github.com/aatuh/api-toolkit/v3/httpx` | Does not import JWT/JWK packages. Root module graph still includes JWT/JWK direct requirements. | Root users should not inherit JWT/JWK modules. |
-| `github.com/aatuh/api-toolkit/v3/binding` | Does not import JWT/JWK packages. Root module graph still includes JWT/JWK direct requirements. | Root users should not inherit JWT/JWK modules. |
-| `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt` | Imports `keyfunc` and `jwt/v5`; owns JWK/JWT behavior. | Move to the auth module or another explicit non-core module. |
-| `github.com/aatuh/api-toolkit/v3/middleware/auth/shared` | Imports `keyfunc` and `jwt/v5`; implementation-sharing package, not stable API. | Move with JWT middleware or stay internal to the auth module. |
-| `github.com/aatuh/api-toolkit/v3/oauth2` | Provider-neutral scope/claim helpers, no direct JWT/JWK imports. | Review with auth split; keep root only if still provider-neutral and dependency-light. |
-
-## Split Requirements
-
-A v4 auth split must include:
-
-- a design issue or decision note for the new auth module path,
-- import migration examples for JWT middleware users,
-- package classification and owner rows for moved packages,
-- release notes that call out dependency graph impact,
-- docscheck guardrails proving minimal-core examples do not use the auth module,
-- release evidence showing root `go.mod` no longer directly requires JWT/JWK
-  modules.
+Migration examples are in [migration/v4.md](migration/v4.md). Existing v3 imports remain unchanged in the v3 release line; v4 has no root aliases that
+would retain the former dependency graph.
 
 ## Non-Goals
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt"
 )
 
 func ExampleWithSubject() {
