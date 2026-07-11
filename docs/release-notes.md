@@ -89,6 +89,9 @@ source of truth is `docs/release-runbook.md`.
   endpoint interfaces, and docs endpoint interfaces. They remain available
   throughout v3; `docs/deprecations.md` records each replacement and the v4
   removal horizon.
+- Published an accountable v4 scope ledger in `docs/v4-plan.md`. Each keep,
+  narrow, split, and removal decision now names an owner, replacement direction,
+  and migration evidence required before a v4 API change.
 
 ## v3 cleanup branch
 
