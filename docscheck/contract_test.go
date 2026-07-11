@@ -7097,6 +7097,42 @@ func TestQualityAuditP1AdoptionPathDocs(t *testing.T) {
 	if !strings.Contains(readme, "Differentiator: production guardrails for conventional Go JSON APIs") {
 		t.Fatal("README.md missing one-sentence differentiator")
 	}
+	for _, source := range []struct {
+		name     string
+		text     string
+		library  string
+		minimal  string
+		scaffold string
+		contrib  string
+	}{
+		{
+			name:     "README.md",
+			text:     readme,
+			library:  "docs/library-first.md",
+			minimal:  "docs/minimal-core.md",
+			scaffold: "docs/scaffold-first.md",
+			contrib:  "docs/contrib-adapters.md",
+		},
+		{
+			name:     "docs/README.md",
+			text:     docsIndex,
+			library:  "library-first.md",
+			minimal:  "minimal-core.md",
+			scaffold: "scaffold-first.md",
+			contrib:  "contrib-adapters.md",
+		},
+	} {
+		libraryAt := strings.Index(source.text, source.library)
+		minimalAt := strings.Index(source.text, source.minimal)
+		scaffoldAt := strings.Index(source.text, source.scaffold)
+		contribAt := strings.Index(source.text, source.contrib)
+		if libraryAt < 0 || minimalAt < 0 || scaffoldAt < 0 || contribAt < 0 {
+			t.Fatalf("%s is missing an adoption path needed for ordering", source.name)
+		}
+		if libraryAt > scaffoldAt || libraryAt > contribAt || minimalAt > scaffoldAt || minimalAt > contribAt {
+			t.Fatalf("%s must present library-first and minimal-core paths before scaffold and contrib paths", source.name)
+		}
+	}
 
 	libraryFirst := readText(t, filepath.Join(repoRoot, "docs", "library-first.md"))
 	for _, required := range []string{
