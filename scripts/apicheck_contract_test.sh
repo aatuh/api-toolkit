@@ -99,9 +99,10 @@ esac
 
 success_dir="$tmp/success"
 init_repo "$success_dir"
+printf 'module github.com/aatuh/api-toolkit/v4\n\ngo 1.25.0\n' >"$success_dir/go.mod"
 mkdir -p "$success_dir/ports"
 printf 'package ports\n' >"$success_dir/ports/ports.go"
-git -C "$success_dir" add ports/ports.go
+git -C "$success_dir" add go.mod ports/ports.go
 git -C "$success_dir" commit -qm base
 git -C "$success_dir" tag v-base
 printf '\nconst Current = true\n' >>"$success_dir/ports/ports.go"
