@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
 )
 
 // Options configures a Redis-backed token bucket rate limiter.
@@ -20,14 +20,14 @@ type Options struct {
 	Clock      func() time.Time
 }
 
-// Limiter implements ports.RateLimiter using Redis.
+// Limiter implements ratelimit.Limiter using Redis.
 type Limiter struct {
 	client redis.UniversalClient
 	opts   Options
 	now    func() time.Time
 }
 
-var _ ports.RateLimiter = (*Limiter)(nil)
+var _ ratelimit.Limiter = (*Limiter)(nil)
 
 var tokenBucketScript = redis.NewScript(`
 local capacity = tonumber(ARGV[1])

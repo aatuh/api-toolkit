@@ -10,8 +10,8 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
 	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const (
@@ -56,7 +56,7 @@ type Options struct {
 
 // Store persists and leases outbox events in Postgres.
 type Store struct {
-	Pool          ports.DatabasePool
+	Pool          contracts.DatabasePool
 	table         string
 	clock         func() time.Time
 	leaseOwner    string
@@ -67,7 +67,7 @@ type Store struct {
 }
 
 // New creates a Postgres-backed outbox store.
-func New(pool ports.DatabasePool, opts Options) *Store {
+func New(pool contracts.DatabasePool, opts Options) *Store {
 	table := strings.TrimSpace(opts.Table)
 	if table == "" {
 		table = defaultTable
@@ -244,21 +244,21 @@ func (s *Store) Fail(ctx context.Context, id string, _ string) error {
 }
 
 // HealthChecker returns a Postgres outbox dependency health checker.
-func (s *Store) HealthChecker() ports.HealthChecker {
-	var pool ports.DatabasePool
+func (s *Store) HealthChecker() health.Checker {
+	var pool contracts.DatabasePool
 	if s != nil {
 		pool = s.Pool
 	}
 	return health.NewCustomChecker(
 		"postgres-outbox",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if pool == nil {
-				return ports.HealthStatusUnhealthy, "postgres outbox pool not configured", nil
+				return health.StatusUnhealthy, "postgres outbox pool not configured", nil
 			}
 			if err := pool.Ping(ctx); err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres outbox ping failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("postgres outbox ping failed: %v", err), nil
 			}
-			return ports.HealthStatusHealthy, "postgres outbox healthy", nil
+			return health.StatusHealthy, "postgres outbox healthy", nil
 		},
 	)
 }

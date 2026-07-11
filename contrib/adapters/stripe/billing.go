@@ -9,7 +9,7 @@ import (
 	stripe "github.com/stripe/stripe-go/v79"
 
 	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 )
 
 // CreateCustomer creates a Stripe customer.
@@ -464,7 +464,7 @@ func normalizeStripeError(err error) error {
 	}
 	var stripeErr *stripe.Error
 	if errors.As(err, &stripeErr) && stripeErr.Code == stripe.ErrorCodeResourceMissing {
-		return errors.Join(ports.ErrResourceMissing, err)
+		return errors.Join(httpx.ErrResourceMissing, err)
 	}
 	return err
 }

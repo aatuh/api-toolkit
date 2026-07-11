@@ -10970,12 +10970,12 @@ func run(ctx context.Context) error {
 {{ if eq .HasEntitlements "true" }}	entitlementService := entitlements.NewService(nil)
 {{ end }}
 	// api-toolkit:main-service-defaults
-	var rateLimiter ports.RateLimiter
-	idempotencyStore := ports.IdempotencyStore(idempotency.NewMemoryStore())
+	var rateLimiter ratelimit.Limiter
+	idempotencyStore := idempotency.Store(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
-	var postgresPool ports.DatabasePool
+	var postgresPool contracts.DatabasePool
 	var webhookStore *postgres.WebhookStore
 	if cfg.DatabaseURL != "" {
 		dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -11185,13 +11185,13 @@ func run(ctx context.Context) error {
 		Router:                  router,
 		MiddlewareOrder:         bootstrap.StrictSaaSAPIMiddlewareOrder(),
 		RequiredMiddlewareOrder: bootstrap.StrictSaaSAPIMiddlewareOrder(),
-		RegisterRoutes: func(r ports.HTTPRouter) error {
+		RegisterRoutes: func(r contracts.HTTPRouter) error {
 			return httpapi.RegisterRoutes(r, routerConfig)
 		},
 		BackgroundTasks: backgroundTasks,
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  httpapi.NewHealthHandler(readiness),
-			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
+			Version: version.NewHandler(version.Config{Info: version.Info{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
 			Metrics: metricsmw.PrometheusHandler(),
 			Pprof:   http.DefaultServeMux,
 		},
@@ -17200,7 +17200,7 @@ type WidgetImportOperationStore struct {
 	store *operationpostgres.Store[app.WidgetImportResult]
 }
 
-func NewWidgetImportOperationStore(pool ports.DatabasePool) *WidgetImportOperationStore {
+func NewWidgetImportOperationStore(pool contracts.DatabasePool) *WidgetImportOperationStore {
 	return &WidgetImportOperationStore{store: operationpostgres.New[app.WidgetImportResult](pool, operationpostgres.Options{})}
 }
 
@@ -17237,7 +17237,7 @@ type leasedWidgetImport struct {
 	OperationID string
 }
 
-func NewWidgetImportOutbox(pool ports.DatabasePool, operations *WidgetImportOperationStore) *WidgetImportOutbox {
+func NewWidgetImportOutbox(pool contracts.DatabasePool, operations *WidgetImportOperationStore) *WidgetImportOutbox {
 	return &WidgetImportOutbox{
 		store:      outboxpostgres.New(pool, outboxpostgres.Options{}),
 		operations: operations,
@@ -17426,15 +17426,15 @@ var (
 )
 
 type WebhookStore struct {
-	pool           ports.DatabasePool
+	pool           contracts.DatabasePool
 	base           *webhookdeliverypostgres.Store
 	secretKey      []byte
 	now            func() time.Time
-	tx             ports.TxManager
+	tx             contracts.TxManager
 	endpointPolicy webhookdelivery.EndpointPolicy
 }
 
-func NewWebhookStore(pool ports.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy) (*WebhookStore, error) {
+func NewWebhookStore(pool contracts.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy) (*WebhookStore, error) {
 	key, err := decodeWebhookSecretKey(secretKey)
 	if err != nil {
 		return nil, err
@@ -17939,7 +17939,7 @@ type fakeWebhookPool struct {
 func (p *fakeWebhookPool) Ping(context.Context) error { return nil }
 func (p *fakeWebhookPool) Close()                     {}
 
-func (p *fakeWebhookPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *fakeWebhookPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	if p.conn == nil {
 		p.conn = &fakeWebhookConn{}
 	}
@@ -17953,32 +17953,32 @@ type fakeWebhookExecCall struct {
 
 type fakeWebhookConn struct {
 	execCalls    []fakeWebhookExecCall
-	row          ports.DatabaseRow
-	rows         ports.DatabaseRows
-	tx           ports.DatabaseTransaction
+	row          contracts.DatabaseRow
+	rows         contracts.DatabaseRows
+	tx           contracts.DatabaseTransaction
 	rowsAffected int64
 }
 
-func (c *fakeWebhookConn) Query(_ context.Context, _ string, _ ...any) (ports.DatabaseRows, error) {
+func (c *fakeWebhookConn) Query(_ context.Context, _ string, _ ...any) (contracts.DatabaseRows, error) {
 	if c.rows != nil {
 		return c.rows, nil
 	}
 	return &fakeWebhookRows{}, nil
 }
 
-func (c *fakeWebhookConn) QueryRow(_ context.Context, _ string, _ ...any) ports.DatabaseRow {
+func (c *fakeWebhookConn) QueryRow(_ context.Context, _ string, _ ...any) contracts.DatabaseRow {
 	if c.row != nil {
 		return c.row
 	}
 	return fakeWebhookRowFunc(func(...any) error { return nil })
 }
 
-func (c *fakeWebhookConn) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (c *fakeWebhookConn) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	c.execCalls = append(c.execCalls, fakeWebhookExecCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeWebhookResult(c.rowsAffected), nil
 }
 
-func (c *fakeWebhookConn) Begin(context.Context) (ports.DatabaseTransaction, error) {
+func (c *fakeWebhookConn) Begin(context.Context) (contracts.DatabaseTransaction, error) {
 	if c.tx == nil {
 		return nil, errors.New("transaction not configured")
 	}
@@ -17992,15 +17992,15 @@ type fakeWebhookTx struct {
 	rowsAffected int64
 }
 
-func (t *fakeWebhookTx) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (t *fakeWebhookTx) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return &fakeWebhookRows{}, nil
 }
 
-func (t *fakeWebhookTx) QueryRow(context.Context, string, ...any) ports.DatabaseRow {
+func (t *fakeWebhookTx) QueryRow(context.Context, string, ...any) contracts.DatabaseRow {
 	return fakeWebhookRowFunc(func(...any) error { return nil })
 }
 
-func (t *fakeWebhookTx) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (t *fakeWebhookTx) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	t.execCalls = append(t.execCalls, fakeWebhookExecCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeWebhookResult(t.rowsAffected), nil
 }
@@ -18299,12 +18299,12 @@ type Cache struct {
 }
 
 type Idempotency struct {
-	Store  ports.IdempotencyStore
+	Store  idempotency.Store
 	client redis.UniversalClient
 }
 
 type RateLimiter struct {
-	Limiter ports.RateLimiter
+	Limiter ratelimit.Limiter
 	client  redis.UniversalClient
 }
 
@@ -19725,7 +19725,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	return cfg.metrics(router)
 }
 
-func RegisterRoutes(r ports.HTTPRouter, cfg RouterConfig) error {
+func RegisterRoutes(r contracts.HTTPRouter, cfg RouterConfig) error {
 	if r == nil {
 		return errors.New("router is required")
 	}
@@ -19854,7 +19854,7 @@ type patchRouter interface {
 	Patch(pattern string, h http.HandlerFunc)
 }
 
-func registerPatch(r ports.HTTPRouter, pattern string, h http.HandlerFunc) {
+func registerPatch(r contracts.HTTPRouter, pattern string, h http.HandlerFunc) {
 	if pr, ok := r.(patchRouter); ok {
 		pr.Patch(pattern, h)
 		return
@@ -19926,7 +19926,7 @@ func NewMetricsMiddleware(recorder metricsmw.MetricsRecorder) (*metricsmw.Middle
 	return metricsmw.New(metricsmw.Options{Recorder: recorder})
 }
 
-func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware, error) {
+func NewRateLimitMiddleware(limiter ratelimit.Limiter) (*ratelimitmw.Middleware, error) {
 	return ratelimitmw.New(ratelimitmw.Options{
 		Capacity:     20,
 		RefillRate:   10,
@@ -19937,7 +19937,7 @@ func NewRateLimitMiddleware(limiter ports.RateLimiter) (*ratelimitmw.Middleware,
 	})
 }
 
-func NewIdempotencyMiddleware(store ports.IdempotencyStore) (*idempotencymw.Middleware, error) {
+func NewIdempotencyMiddleware(store idempotency.Store) (*idempotencymw.Middleware, error) {
 	return idempotencymw.New(idempotencymw.Options{
 		Store:          store,
 		StorageKeyFunc: fullIdempotencyStorageKey,
@@ -20083,7 +20083,7 @@ func idempotencyScope(r *http.Request) (string, string) {
 }
 
 func NewHealthHandler(readiness HealthChecker) *health.Handler {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -20092,14 +20092,14 @@ func NewHealthHandler(readiness HealthChecker) *health.Handler {
 		ReadinessChecks: []string{"basic", "dependencies"},
 	})
 	manager.RegisterChecker(health.NewBasicChecker())
-	manager.RegisterChecker(health.NewCustomChecker("dependencies", func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+	manager.RegisterChecker(health.NewCustomChecker("dependencies", func(ctx context.Context) (health.Status, string, interface{}) {
 		if readiness == nil {
-			return ports.HealthStatusHealthy, "dependencies ready", nil
+			return health.StatusHealthy, "dependencies ready", nil
 		}
 		if err := readiness.Check(ctx); err != nil {
-			return ports.HealthStatusUnhealthy, "dependencies unavailable", nil
+			return health.StatusUnhealthy, "dependencies unavailable", nil
 		}
-		return ports.HealthStatusHealthy, "dependencies ready", nil
+		return health.StatusHealthy, "dependencies ready", nil
 	}))
 	return health.NewHandler(manager)
 }
@@ -24373,18 +24373,18 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: appVers
 	}
 	specs.RegisterProblemCatalog(specRegistry, nil)
 
-	docsManager := docs.NewWithConfig(ports.DocsConfig{
+	docsManager := docs.NewWithConfig(docs.Config{
 		Title:       "SaaS API",
 		Description: "Generated api-toolkit service",
 		Version:     appVersion,
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       docs.DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
-		HTMLMode:    ports.DocsHTMLModeStatic,
+		HTMLMode:    docs.HTMLModeStatic,
 	})
 	docsManager.RegisterProvider(specs.NewRegistryProvider(specRegistry, docsManager.GetInfo(), ""))
 
-	healthManager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	healthManager := health.NewManagerWithConfig(health.Config{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -24491,7 +24491,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: appVers
 				},
 			},
 		},
-		RegisterRoutes: func(r ports.HTTPRouter) error {
+		RegisterRoutes: func(r contracts.HTTPRouter) error {
 			contracts := routecontracts.NewRegistry(r, specRegistry)
 			operation := routepolicy.ApplyMetadata(specs.Operation{
 				Method:  http.MethodPost,
@@ -24551,7 +24551,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: appVers
 		SystemEndpoints: bootstrap.SystemEndpoints{
 			Health:  health.NewHandler(healthManager),
 			Docs:    docs.NewHandler(docsManager),
-			Version: version.NewHandler(version.Config{Info: ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
+			Version: version.NewHandler(version.Config{Info: version.Info{Version: appVersion, Commit: buildCommit, Date: buildDate}}),
 			Metrics: bootstrap.PrometheusMetricsHandler(),
 			Pprof:   http.DefaultServeMux,
 		},
@@ -24708,7 +24708,7 @@ func newTracingShutdown(ctx context.Context) (bootstrap.ShutdownHook, error) {
 	return bootstrap.ShutdownHook{Name: "otel-tracing", Hook: shutdown}, nil
 }
 
-func newRateLimitLimiter(capacity, refillRate float64) (ports.RateLimiter, bootstrap.ShutdownHook, error) {
+func newRateLimitLimiter(capacity, refillRate float64) (ratelimit.Limiter, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("RATE_LIMIT_STORE")))
 	if store == "" {
 		if isProduction() {
@@ -24751,7 +24751,7 @@ func newRateLimitLimiter(capacity, refillRate float64) (ports.RateLimiter, boots
 	}
 }
 
-func newIdempotencyStore() (ports.IdempotencyStore, bootstrap.ShutdownHook, error) {
+func newIdempotencyStore() (idempotency.Store, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
 	if store == "" {
 		if isProduction() {

@@ -2,8 +2,8 @@
 //
 // Use New with a redis.UniversalClient and Options when idempotency middleware
 // needs shared reservation, replay, TTL, and token-aware release behavior.
-// Store implements ports.IdempotencyStore and
-// ports.IdempotencyReservationReleaser for generated services and app-owned
+// Store implements idempotency.Store and
+// idempotency.ReservationReleaser for generated services and app-owned
 // APIs.
 //
 // Legacy tokenless in-flight recovery emits bounded, hashed-key telemetry by

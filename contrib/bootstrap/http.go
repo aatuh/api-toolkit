@@ -12,6 +12,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
 	"github.com/aatuh/api-toolkit/v3/endpoints/docs"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
@@ -31,7 +32,7 @@ type DefaultRouterConfig struct {
 }
 
 // DefaultRouterConfigFromEnv loads router defaults from environment variables.
-func DefaultRouterConfigFromEnv(env ports.EnvVar) (DefaultRouterConfig, error) {
+func DefaultRouterConfigFromEnv(env contracts.EnvVar) (DefaultRouterConfig, error) {
 	if env == nil {
 		env = envvar.New()
 	}
@@ -58,7 +59,7 @@ func DefaultRouterConfigFromEnv(env ports.EnvVar) (DefaultRouterConfig, error) {
 }
 
 // NewDefaultRouter constructs a router with a sensible default middleware stack.
-func NewDefaultRouter(log ports.Logger) (ports.HTTPRouter, error) {
+func NewDefaultRouter(log ports.Logger) (contracts.HTTPRouter, error) {
 	cfg, err := DefaultRouterConfigFromEnv(nil)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func NewDefaultRouter(log ports.Logger) (ports.HTTPRouter, error) {
 }
 
 // NewDefaultRouterWithConfig constructs a router from explicit configuration.
-func NewDefaultRouterWithConfig(log ports.Logger, cfg DefaultRouterConfig) (ports.HTTPRouter, error) {
+func NewDefaultRouterWithConfig(log ports.Logger, cfg DefaultRouterConfig) (contracts.HTTPRouter, error) {
 	r := chi.New()
 
 	resolver := identity.Resolver{HeaderPolicy: identity.HeaderPolicyBoth}
@@ -132,7 +133,7 @@ type SystemEndpointAdminOptions struct {
 // MountSystemEndpoints registers health, docs, version, and metrics endpoints.
 // It preserves convenience behavior; prefer MountSystemEndpointsToWithAdmin
 // when mounting metrics, pprof, or detailed health from new wiring.
-func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
+func MountSystemEndpoints(r contracts.HTTPRouter, se SystemEndpoints) {
 	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{})
 }
 
@@ -140,14 +141,14 @@ func MountSystemEndpoints(r ports.HTTPRouter, se SystemEndpoints) {
 // surface. It preserves convenience behavior; prefer
 // MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
 // health from new wiring.
-func MountSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
+func MountSystemEndpointsTo(r contracts.MethodRouteRegistrar, se SystemEndpoints) {
 	MountSystemEndpointsToWithProfile(r, se, string(SystemProfileProduction))
 }
 
 // MountSystemEndpointsToWithProfile mounts system endpoints only if the profile
 // explicitly opts pprof in. This keeps production/staging defaults off by
 // default.
-func MountSystemEndpointsToWithProfile(r ports.MethodRouteRegistrar, se SystemEndpoints, profile string) {
+func MountSystemEndpointsToWithProfile(r contracts.MethodRouteRegistrar, se SystemEndpoints, profile string) {
 	MountSystemEndpointsToWithOptions(r, se, SystemEndpointOptions{
 		EnablePprof: isProfilePprofEnabled(profile),
 	})
@@ -157,7 +158,7 @@ func MountSystemEndpointsToWithProfile(r ports.MethodRouteRegistrar, se SystemEn
 // runtime options. It preserves convenience behavior; prefer
 // MountSystemEndpointsToWithAdmin when mounting metrics, pprof, or detailed
 // health from new wiring.
-func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointOptions) {
+func MountSystemEndpointsToWithOptions(r contracts.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointOptions) {
 	if r == nil {
 		return
 	}
@@ -190,7 +191,7 @@ func MountSystemEndpointsToWithOptions(r ports.MethodRouteRegistrar, se SystemEn
 // routes normally while mounting operator-only detailed health, metrics, and
 // optional pprof routes behind an explicit authorization or internal-network
 // wrapper.
-func MountSystemEndpointsToWithAdmin(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
+func MountSystemEndpointsToWithAdmin(r contracts.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
 	if opts.RequireAdmin == nil {
 		return errors.New("system endpoint admin routes require an authorization wrapper")
 	}
@@ -201,7 +202,7 @@ func MountSystemEndpointsToWithAdmin(r ports.MethodRouteRegistrar, se SystemEndp
 	return mountAdminSystemEndpointsTo(r, se, opts)
 }
 
-func mountPublicSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints) {
+func mountPublicSystemEndpointsTo(r contracts.MethodRouteRegistrar, se SystemEndpoints) {
 	if r == nil {
 		return
 	}
@@ -216,7 +217,7 @@ func mountPublicSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoin
 	}
 }
 
-func mountAdminSystemEndpointsTo(r ports.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
+func mountAdminSystemEndpointsTo(r contracts.MethodRouteRegistrar, se SystemEndpoints, opts SystemEndpointAdminOptions) error {
 	if opts.RequireAdmin == nil {
 		return errors.New("system endpoint admin routes require an authorization wrapper")
 	}
@@ -257,7 +258,7 @@ func PrometheusMetricsHandler() http.Handler {
 }
 
 type pprofRouter struct {
-	router ports.MethodRouteRegistrar
+	router contracts.MethodRouteRegistrar
 	h      http.Handler
 }
 

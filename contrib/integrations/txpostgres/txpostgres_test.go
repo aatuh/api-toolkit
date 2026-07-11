@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	adaptertx "github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestNewReturnsManager(t *testing.T) {
@@ -70,6 +70,6 @@ type fakePool struct{}
 
 func (*fakePool) Ping(context.Context) error { return nil }
 func (*fakePool) Close()                     {}
-func (*fakePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (*fakePool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	return nil, errors.New("unused")
 }

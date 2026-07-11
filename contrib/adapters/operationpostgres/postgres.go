@@ -10,9 +10,9 @@ import (
 	"unicode"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/operations"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const defaultTable = "operations"
@@ -58,13 +58,13 @@ type Options struct {
 
 // Store persists pollable operation resources in Postgres.
 type Store[T any] struct {
-	Pool  ports.DatabasePool
+	Pool  contracts.DatabasePool
 	table string
 	clock func() time.Time
 }
 
 // New creates a Postgres-backed operation repository.
-func New[T any](pool ports.DatabasePool, opts Options) *Store[T] {
+func New[T any](pool contracts.DatabasePool, opts Options) *Store[T] {
 	table := strings.TrimSpace(opts.Table)
 	if table == "" {
 		table = defaultTable
@@ -200,21 +200,21 @@ func (s *Store[T]) UpdateOperation(ctx context.Context, operation operations.Ope
 }
 
 // HealthChecker returns a Postgres operation dependency health checker.
-func (s *Store[T]) HealthChecker() ports.HealthChecker {
-	var pool ports.DatabasePool
+func (s *Store[T]) HealthChecker() health.Checker {
+	var pool contracts.DatabasePool
 	if s != nil {
 		pool = s.Pool
 	}
 	return health.NewCustomChecker(
 		"postgres-operations",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if pool == nil {
-				return ports.HealthStatusUnhealthy, "postgres operations pool not configured", nil
+				return health.StatusUnhealthy, "postgres operations pool not configured", nil
 			}
 			if err := pool.Ping(ctx); err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres operations ping failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("postgres operations ping failed: %v", err), nil
 			}
-			return ports.HealthStatusHealthy, "postgres operations healthy", nil
+			return health.StatusHealthy, "postgres operations healthy", nil
 		},
 	)
 }

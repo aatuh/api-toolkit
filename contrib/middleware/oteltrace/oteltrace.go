@@ -58,7 +58,7 @@ func New(opts Options) (*Middleware, error) {
 	}, nil
 }
 
-// Middleware implements ports.Middleware by returning Handler adapter.
+// Middleware implements contracts.Middleware by returning Handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }

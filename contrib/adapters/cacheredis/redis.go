@@ -10,7 +10,6 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/cache"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Options configures a Redis-backed cache store.
@@ -84,23 +83,23 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 }
 
 // HealthChecker returns a Redis cache dependency health checker.
-func HealthChecker(client redis.UniversalClient) ports.HealthChecker {
+func HealthChecker(client redis.UniversalClient) health.Checker {
 	return health.NewCustomChecker(
 		"redis-cache",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if client == nil {
-				return ports.HealthStatusUnhealthy, "redis cache client not configured", nil
+				return health.StatusUnhealthy, "redis cache client not configured", nil
 			}
 			if err := client.Ping(ctx).Err(); err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("redis cache ping failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("redis cache ping failed: %v", err), nil
 			}
-			return ports.HealthStatusHealthy, "redis cache healthy", nil
+			return health.StatusHealthy, "redis cache healthy", nil
 		},
 	)
 }
 
 // HealthChecker returns a Redis cache dependency health checker for this store.
-func (s *Store) HealthChecker() ports.HealthChecker {
+func (s *Store) HealthChecker() health.Checker {
 	if s == nil {
 		return HealthChecker(nil)
 	}

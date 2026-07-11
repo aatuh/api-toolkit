@@ -12,7 +12,6 @@ import (
 	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/clerk"
 	"github.com/aatuh/api-toolkit/v3/authorization"
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func main() {
@@ -41,7 +40,7 @@ func main() {
 	admins := map[string]struct{}{
 		"user_admin": {},
 	}
-	authorizer := ports.AuthorizerFunc(func(_ context.Context, subject any, action string, _ any) error {
+	authorizer := authorization.AuthorizerFunc(func(_ context.Context, subject any, action string, _ any) error {
 		subj, ok := subject.(clerk.Subject)
 		if !ok {
 			return httpx.ErrForbidden

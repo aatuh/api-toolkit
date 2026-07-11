@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestNewUsesBoundedStartupContext(t *testing.T) {
 	wantErr := errors.New("stop after context capture")
 
-	_, err := newWithStartupTimeout(Options{}, func(ctx context.Context, opts Options) (ports.Migrator, error) {
+	_, err := newWithStartupTimeout(Options{}, func(ctx context.Context, opts Options) (contracts.Migrator, error) {
 		assertDeadlineWithin(t, ctx, defaultStartupTimeout)
 		if opts.DSN != "" {
 			t.Fatalf("opts.DSN = %q, want empty", opts.DSN)

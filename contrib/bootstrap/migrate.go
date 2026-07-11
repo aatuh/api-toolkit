@@ -9,20 +9,21 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/migrate"
 	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
-type migratorFactory func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (ports.Migrator, error)
+type migratorFactory func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (contracts.Migrator, error)
 
 const defaultStartupTimeout = 5 * time.Second
 
 // NewMigrator builds a migrator with either directories or embedded FS sources.
-func NewMigrator(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
+func NewMigrator(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (contracts.Migrator, error) {
 	return newMigratorWithStartupTimeout(dsn, table, lockKey, allowDown, log, dirs, embedded, NewMigratorWithContext)
 }
 
 // NewMigratorWithContext builds a migrator with either directories or embedded FS sources.
-func NewMigratorWithContext(ctx context.Context, dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
+func NewMigratorWithContext(ctx context.Context, dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (contracts.Migrator, error) {
 	if log == nil {
 		log = ports.NopLogger{}
 	}
@@ -38,20 +39,20 @@ func NewMigratorWithContext(ctx context.Context, dsn, table string, lockKey int6
 	return migrate.NewWithContext(ctx, opts)
 }
 
-func newMigratorWithStartupTimeout(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS, newMigrator migratorFactory) (ports.Migrator, error) {
+func newMigratorWithStartupTimeout(dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS, newMigrator migratorFactory) (contracts.Migrator, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
 	defer cancel()
 	return newMigrator(ctx, dsn, table, lockKey, allowDown, log, dirs, embedded)
 }
 
 // RunUp runs migrations up with context and directory path.
-func RunUp(ctx context.Context, m ports.Migrator, dir string) error { return m.Up(ctx, dir) }
+func RunUp(ctx context.Context, m contracts.Migrator, dir string) error { return m.Up(ctx, dir) }
 
 // RunDown runs migrations down with context and directory path.
-func RunDown(ctx context.Context, m ports.Migrator, dir string) error { return m.Down(ctx, dir) }
+func RunDown(ctx context.Context, m contracts.Migrator, dir string) error { return m.Down(ctx, dir) }
 
 // Status returns a text status of migrations.
-func Status(ctx context.Context, m ports.Migrator, dir string) (string, error) {
+func Status(ctx context.Context, m contracts.Migrator, dir string) (string, error) {
 	return m.Status(ctx, dir)
 }
 

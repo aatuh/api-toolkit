@@ -5,20 +5,20 @@ import (
 
 	"github.com/go-chi/cors"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // Handler provides CORS functionality.
 type Handler struct{}
 
-// New creates a new CORS handler that implements ports.CORSHandler.
-func New() ports.CORSHandler {
+// New creates a new CORS handler that implements contracts.CORSHandler.
+func New() contracts.CORSHandler {
 	return &Handler{}
 }
 
 // DefaultOptions returns sensible default CORS options.
-func DefaultOptions() ports.CORSOptions {
-	return ports.CORSOptions{
+func DefaultOptions() contracts.CORSOptions {
+	return contracts.CORSOptions{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
@@ -28,7 +28,7 @@ func DefaultOptions() ports.CORSOptions {
 }
 
 // Handler returns a CORS handler with the given options.
-func (h *Handler) Handler(opts ports.CORSOptions) func(http.Handler) http.Handler {
+func (h *Handler) Handler(opts contracts.CORSOptions) func(http.Handler) http.Handler {
 	return cors.Handler(cors.Options{
 		AllowedOrigins:   opts.AllowedOrigins,
 		AllowedMethods:   opts.AllowedMethods,

@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // OpenAndPingDB opens a DB pool and verifies connectivity with a short timeout.
-func OpenAndPingDB(ctx context.Context, dsn string, timeout time.Duration) (ports.DatabasePool, error) {
+func OpenAndPingDB(ctx context.Context, dsn string, timeout time.Duration) (contracts.DatabasePool, error) {
 	pool, err := pgxpool.NewWithContext(ctx, dsn)
 	if err != nil {
 		return nil, err
@@ -28,7 +29,7 @@ func OpenAndPingDB(ctx context.Context, dsn string, timeout time.Duration) (port
 }
 
 // OpenPoolOrExit opens a DB pool and terminates the process if it fails.
-func OpenPoolOrExit(ctx context.Context, dsn string, timeout time.Duration, log ports.Logger) ports.DatabasePool {
+func OpenPoolOrExit(ctx context.Context, dsn string, timeout time.Duration, log ports.Logger) contracts.DatabasePool {
 	if log == nil {
 		log = ports.NopLogger{}
 	}

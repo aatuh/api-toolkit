@@ -1,6 +1,6 @@
 // Package operationpostgres provides a supported-adapter Postgres operation repository.
 //
-// Use New with a ports.DatabasePool and Options to persist operations.Operation
+// Use New with a contracts.DatabasePool and Options to persist operations.Operation
 // lifecycle state for async HTTP workflows. Store implements
 // operations.Repository and uses WithTenantID to bind repository calls to the
 // tenant selected by earlier middleware.

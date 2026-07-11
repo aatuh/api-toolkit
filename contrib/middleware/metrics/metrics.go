@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
 	"github.com/aatuh/api-toolkit/v3/ports"
@@ -35,7 +36,7 @@ type MetricsRecorder interface {
 // Implementations must keep labels bounded and must not include dependency
 // names, error strings, request data, tenant identifiers, or health messages.
 type HealthMetricsRecorder interface {
-	RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse)
+	RecordHealthStatusChange(from, to health.Status, result health.DetailedResponse)
 }
 
 // IdempotencyOutcomeMetricsRecorder captures bounded idempotency outcome metrics.
@@ -75,7 +76,7 @@ func (NoopMetrics) IncCounter(_ string, _ Labels) {}
 func (NoopMetrics) ObserveHistogram(_ string, _ float64, _ Labels) {}
 
 // RecordHealthStatusChange is a no-op implementation.
-func (NoopMetrics) RecordHealthStatusChange(_, _ ports.HealthStatus, _ ports.DetailedHealthResponse) {
+func (NoopMetrics) RecordHealthStatusChange(_, _ health.Status, _ health.DetailedResponse) {
 }
 
 // RecordIdempotencyOutcome is a no-op implementation.
@@ -124,7 +125,7 @@ func (mw *Middleware) HandlerFunc() func(http.Handler) http.Handler {
 	return mw.Handler
 }
 
-// Middleware implements ports.Middleware by returning Handler.
+// Middleware implements contracts.Middleware by returning Handler.
 func (mw *Middleware) Middleware() func(http.Handler) http.Handler {
 	if mw == nil {
 		return func(next http.Handler) http.Handler { return next }
@@ -290,7 +291,7 @@ func (p *PrometheusRecorder) ObserveHistogram(_ string, value float64, labels La
 }
 
 // RecordHealthStatusChange records a bounded health-state transition counter.
-func (p *PrometheusRecorder) RecordHealthStatusChange(from, to ports.HealthStatus, _ ports.DetailedHealthResponse) {
+func (p *PrometheusRecorder) RecordHealthStatusChange(from, to health.Status, _ health.DetailedResponse) {
 	if p == nil || p.healthStatusChanges == nil {
 		return
 	}
@@ -369,8 +370,8 @@ func (p *PrometheusRecorder) ObserveWebhookDelivery(ctx context.Context, event w
 
 // HealthStatusChangeHook converts a health scheduler status-change callback
 // into a metrics recorder call.
-func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context, ports.HealthStatus, ports.HealthStatus, ports.DetailedHealthResponse) {
-	return func(_ context.Context, from, to ports.HealthStatus, result ports.DetailedHealthResponse) {
+func HealthStatusChangeHook(recorder HealthMetricsRecorder) func(context.Context, health.Status, health.Status, health.DetailedResponse) {
+	return func(_ context.Context, from, to health.Status, result health.DetailedResponse) {
 		if recorder == nil {
 			return
 		}
@@ -421,7 +422,7 @@ func (h webhookDeliveryHook) ObserveWebhookDelivery(_ context.Context, event web
 
 // HealthStatusChangeLabels returns the bounded label set used for health status
 // transition metrics.
-func HealthStatusChangeLabels(from, to ports.HealthStatus) Labels {
+func HealthStatusChangeLabels(from, to health.Status) Labels {
 	return Labels{
 		"from": sanitizeHealthStatus(from),
 		"to":   sanitizeHealthStatus(to),
@@ -487,16 +488,16 @@ func RoutePolicyLabels(labels Labels) Labels {
 	}
 }
 
-func sanitizeHealthStatus(status ports.HealthStatus) string {
+func sanitizeHealthStatus(status health.Status) string {
 	switch status {
-	case ports.HealthStatusHealthy:
-		return string(ports.HealthStatusHealthy)
-	case ports.HealthStatusUnhealthy:
-		return string(ports.HealthStatusUnhealthy)
-	case ports.HealthStatusDegraded:
-		return string(ports.HealthStatusDegraded)
-	case ports.HealthStatusUnknown, "":
-		return string(ports.HealthStatusUnknown)
+	case health.StatusHealthy:
+		return string(health.StatusHealthy)
+	case health.StatusUnhealthy:
+		return string(health.StatusUnhealthy)
+	case health.StatusDegraded:
+		return string(health.StatusDegraded)
+	case health.StatusUnknown, "":
+		return string(health.StatusUnknown)
 	default:
 		return "other"
 	}

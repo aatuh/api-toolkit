@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestFromCtxReturnsTransactionWhenPresent(t *testing.T) {
@@ -155,7 +155,7 @@ func TestConvenienceHelpers(t *testing.T) {
 }
 
 type recordingPool struct {
-	conn         ports.DatabaseConnection
+	conn         contracts.DatabaseConnection
 	acquireErr   error
 	acquireCount int
 }
@@ -163,7 +163,7 @@ type recordingPool struct {
 func (p *recordingPool) Ping(context.Context) error { return nil }
 func (p *recordingPool) Close()                     {}
 
-func (p *recordingPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *recordingPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	p.acquireCount++
 	if p.acquireErr != nil {
 		return nil, p.acquireErr
@@ -172,10 +172,10 @@ func (p *recordingPool) Acquire(context.Context) (ports.DatabaseConnection, erro
 }
 
 type recordingConn struct {
-	queryRows     ports.DatabaseRows
-	queryRow      ports.DatabaseRow
+	queryRows     contracts.DatabaseRows
+	queryRow      contracts.DatabaseRow
 	queryErr      error
-	execResult    ports.DatabaseResult
+	execResult    contracts.DatabaseResult
 	execErr       error
 	execCount     int
 	queryCount    int
@@ -183,7 +183,7 @@ type recordingConn struct {
 	releaseCount  int
 }
 
-func (c *recordingConn) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (c *recordingConn) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	c.queryCount++
 	if c.queryErr != nil {
 		return nil, c.queryErr
@@ -191,17 +191,17 @@ func (c *recordingConn) Query(context.Context, string, ...any) (ports.DatabaseRo
 	return c.queryRows, nil
 }
 
-func (c *recordingConn) QueryRow(context.Context, string, ...any) ports.DatabaseRow {
+func (c *recordingConn) QueryRow(context.Context, string, ...any) contracts.DatabaseRow {
 	c.queryRowCount++
 	return c.queryRow
 }
 
-func (c *recordingConn) Exec(context.Context, string, ...any) (ports.DatabaseResult, error) {
+func (c *recordingConn) Exec(context.Context, string, ...any) (contracts.DatabaseResult, error) {
 	c.execCount++
 	return c.execResult, c.execErr
 }
 
-func (c *recordingConn) Begin(context.Context) (ports.DatabaseTransaction, error) {
+func (c *recordingConn) Begin(context.Context) (contracts.DatabaseTransaction, error) {
 	return &recordingTx{}, nil
 }
 
@@ -211,15 +211,15 @@ func (c *recordingConn) Release() {
 
 type recordingTx struct{}
 
-func (*recordingTx) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (*recordingTx) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return &recordingRows{}, nil
 }
 
-func (*recordingTx) QueryRow(context.Context, string, ...any) ports.DatabaseRow {
+func (*recordingTx) QueryRow(context.Context, string, ...any) contracts.DatabaseRow {
 	return &recordingRow{}
 }
 
-func (*recordingTx) Exec(context.Context, string, ...any) (ports.DatabaseResult, error) {
+func (*recordingTx) Exec(context.Context, string, ...any) (contracts.DatabaseResult, error) {
 	return recordingResult(0), nil
 }
 

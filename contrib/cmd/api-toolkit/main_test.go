@@ -1202,7 +1202,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"client.Close()",
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",
-		`ports.VersionInfo{Version: appVersion, Commit: buildCommit, Date: buildDate}`,
+		`version.Info{Version: appVersion, Commit: buildCommit, Date: buildDate}`,
 	} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated main.go missing %q", want)
@@ -1642,7 +1642,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated postgres webhooks: %v", err)
 	}
-	for _, want := range []string{"endpointPolicy webhookdelivery.EndpointPolicy", "NewWebhookStore(pool ports.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy)", "EndpointPolicy: endpointPolicy", "webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy)", "RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "s.base.RecordAttempt(ctx, result)"} {
+	for _, want := range []string{"endpointPolicy webhookdelivery.EndpointPolicy", "NewWebhookStore(pool contracts.DatabasePool, secretKey string, endpointPolicy webhookdelivery.EndpointPolicy)", "EndpointPolicy: endpointPolicy", "webhookdelivery.ValidateEndpoint(endpoint, s.endpointPolicy)", "RecordAttempt(ctx context.Context, result webhookdelivery.AttemptResult) error", "s.base.RecordAttempt(ctx, result)"} {
 		if !strings.Contains(string(generatedPostgresWebhooks), want) {
 			t.Fatalf("generated postgres webhooks missing %q", want)
 		}

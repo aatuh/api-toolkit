@@ -13,9 +13,9 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/routecontracts"
 	"github.com/aatuh/api-toolkit/v3/routepolicy"
 	"github.com/aatuh/api-toolkit/v3/specs"
@@ -152,13 +152,13 @@ func TestPrometheusRecorderRecordsHealthStatusChangesWithBoundedLabels(t *testin
 		t.Fatalf("new prometheus recorder: %v", err)
 	}
 
-	recorder.RecordHealthStatusChange(ports.HealthStatusHealthy, ports.HealthStatusUnhealthy, ports.DetailedHealthResponse{
-		Status: ports.HealthStatusUnhealthy,
-		Checks: map[string]ports.HealthResult{
-			"database-primary-with-unbounded-name": {Status: ports.HealthStatusUnhealthy, Message: "dial tcp 10.0.0.1:5432: timeout"},
+	recorder.RecordHealthStatusChange(health.StatusHealthy, health.StatusUnhealthy, health.DetailedResponse{
+		Status: health.StatusUnhealthy,
+		Checks: map[string]health.Result{
+			"database-primary-with-unbounded-name": {Status: health.StatusUnhealthy, Message: "dial tcp 10.0.0.1:5432: timeout"},
 		},
 	})
-	recorder.RecordHealthStatusChange("unexpected-provider-status", "", ports.DetailedHealthResponse{})
+	recorder.RecordHealthStatusChange("unexpected-provider-status", "", health.DetailedResponse{})
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -208,11 +208,11 @@ func TestHealthStatusChangeHookRecordsTransitions(t *testing.T) {
 	recorder := &captureHealthRecorder{}
 	hook := HealthStatusChangeHook(recorder)
 
-	hook(context.Background(), ports.HealthStatusDegraded, ports.HealthStatusHealthy, ports.DetailedHealthResponse{
-		Status: ports.HealthStatusHealthy,
+	hook(context.Background(), health.StatusDegraded, health.StatusHealthy, health.DetailedResponse{
+		Status: health.StatusHealthy,
 	})
 
-	if recorder.from != ports.HealthStatusDegraded || recorder.to != ports.HealthStatusHealthy {
+	if recorder.from != health.StatusDegraded || recorder.to != health.StatusHealthy {
 		t.Fatalf("recorded transition = %q -> %q", recorder.from, recorder.to)
 	}
 }
@@ -689,12 +689,12 @@ func cloneLabels(labels Labels) Labels {
 }
 
 type captureHealthRecorder struct {
-	from   ports.HealthStatus
-	to     ports.HealthStatus
-	result ports.DetailedHealthResponse
+	from   health.Status
+	to     health.Status
+	result health.DetailedResponse
 }
 
-func (r *captureHealthRecorder) RecordHealthStatusChange(from, to ports.HealthStatus, result ports.DetailedHealthResponse) {
+func (r *captureHealthRecorder) RecordHealthStatusChange(from, to health.Status, result health.DetailedResponse) {
 	r.from = from
 	r.to = to
 	r.result = result

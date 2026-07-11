@@ -5,21 +5,21 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 type fakeDatabasePool struct {
 	pingErr error
 }
 
-func (fakeDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (fakeDatabasePool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	return nil, errors.New("not implemented")
 }
 func (p fakeDatabasePool) Ping(context.Context) error { return p.pingErr }
 func (fakeDatabasePool) Close()                       {}
 
 func TestNewWithStartupTimeoutReturnsFactoryPool(t *testing.T) {
-	pool, err := newWithStartupTimeout("postgres://db.example/app", func(ctx context.Context, dsn string) (ports.DatabasePool, error) {
+	pool, err := newWithStartupTimeout("postgres://db.example/app", func(ctx context.Context, dsn string) (contracts.DatabasePool, error) {
 		assertDeadlineWithin(t, ctx, defaultStartupTimeout)
 		if dsn != "postgres://db.example/app" {
 			t.Fatalf("dsn = %q", dsn)

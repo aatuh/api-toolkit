@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
 )
 
 // Config contains deterministic limiter settings for a contract test run.
@@ -19,7 +19,7 @@ type Config struct {
 }
 
 // LimiterFactory builds a fresh limiter for one contract test run.
-type LimiterFactory func(testing.TB, Config) ports.RateLimiter
+type LimiterFactory func(testing.TB, Config) ratelimit.Limiter
 
 // AssertLimiterContract verifies rate limiter behavior shared by supported
 // adapters.
@@ -61,7 +61,7 @@ func AssertLimiterContract(t testing.TB, newLimiter LimiterFactory) {
 	assertAllowed(t, limiter, ctx, primaryKey)
 }
 
-func assertAllowed(t testing.TB, limiter ports.RateLimiter, ctx context.Context, key string) {
+func assertAllowed(t testing.TB, limiter ratelimit.Limiter, ctx context.Context, key string) {
 	t.Helper()
 
 	allowed, retryAfter, err := limiter.Allow(ctx, key)
@@ -73,7 +73,7 @@ func assertAllowed(t testing.TB, limiter ports.RateLimiter, ctx context.Context,
 	}
 }
 
-func assertDenied(t testing.TB, limiter ports.RateLimiter, ctx context.Context, key string, wantRetryAfter time.Duration) time.Duration {
+func assertDenied(t testing.TB, limiter ratelimit.Limiter, ctx context.Context, key string, wantRetryAfter time.Duration) time.Duration {
 	t.Helper()
 
 	allowed, retryAfter, err := limiter.Allow(ctx, key)

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 func TestNewAppliesOptionsAndWebhookHelpers(t *testing.T) {
@@ -59,7 +59,7 @@ func TestHealthCheckerNilAndFailureBehavior(t *testing.T) {
 		t.Fatal("expected checker for provider")
 	}
 	result := checker.Check(context.Background())
-	if result.Status != ports.HealthStatusDegraded {
+	if result.Status != health.StatusDegraded {
 		t.Fatalf("status = %s, want degraded", result.Status)
 	}
 }
@@ -69,7 +69,7 @@ func TestHealthCheckerReportsPriceCount(t *testing.T) {
 		prices: []compatbilling.Price{{ID: "price_1"}, {ID: "price_2"}},
 	})
 	result := checker.Check(context.Background())
-	if result.Status != ports.HealthStatusHealthy {
+	if result.Status != health.StatusHealthy {
 		t.Fatalf("status = %s, want healthy: %s", result.Status, result.Message)
 	}
 	details, ok := result.Details.(map[string]interface{})

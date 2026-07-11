@@ -16,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -197,7 +198,7 @@ func TestHealthCheckerContract(t *testing.T) {
 	defer server.Close()
 
 	checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL, JWKSRefreshTimeout: time.Second}, server.Client())
-	healthchecktest.AssertCheckerContract(t, checker, "oidc", ports.HealthStatusHealthy)
+	healthchecktest.AssertCheckerContract(t, checker, "oidc", health.StatusHealthy)
 	if HealthChecker(Config{Enabled: false, JWKSURL: server.URL}, nil) != nil {
 		t.Fatal("disabled health checker should be nil")
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -21,7 +22,7 @@ func TestRunMigrationsReturnsInitError(t *testing.T) {
 	}
 	wantErr := errors.New("dial failed")
 
-	err := runMigrations(context.Background(), cfg, nil, []fs.FS{fstest.MapFS{}}, func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (ports.Migrator, error) {
+	err := runMigrations(context.Background(), cfg, nil, []fs.FS{fstest.MapFS{}}, func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (contracts.Migrator, error) {
 		return nil, wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -38,7 +39,7 @@ func TestRunMigrationsUsesDirectorySourceAndClosesMigrator(t *testing.T) {
 	}
 	migrator := &stubMigrator{}
 
-	err := runMigrations(context.Background(), cfg, nil, nil, func(_ context.Context, dsn, table string, lockKey int64, allowDown bool, _ ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
+	err := runMigrations(context.Background(), cfg, nil, nil, func(_ context.Context, dsn, table string, lockKey int64, allowDown bool, _ ports.Logger, dirs []string, embedded []fs.FS) (contracts.Migrator, error) {
 		if dsn != cfg.DatabaseURL {
 			t.Fatalf("dsn = %q, want %q", dsn, cfg.DatabaseURL)
 		}
@@ -80,7 +81,7 @@ func TestRunMigrationsUsesEmbeddedSourcesWhenRequested(t *testing.T) {
 	embedded := []fs.FS{fstest.MapFS{"001_init.sql": {Data: []byte("select 1;")}}}
 	migrator := &stubMigrator{}
 
-	err := runMigrations(context.Background(), cfg, nil, embedded, func(_ context.Context, _ string, _ string, _ int64, _ bool, _ ports.Logger, dirs []string, sources []fs.FS) (ports.Migrator, error) {
+	err := runMigrations(context.Background(), cfg, nil, embedded, func(_ context.Context, _ string, _ string, _ int64, _ bool, _ ports.Logger, dirs []string, sources []fs.FS) (contracts.Migrator, error) {
 		if len(dirs) != 0 {
 			t.Fatalf("dirs = %#v, want nil", dirs)
 		}
@@ -106,7 +107,7 @@ func TestRunMigrationsReturnsCloseError(t *testing.T) {
 	}
 	wantErr := errors.New("close failed")
 
-	err := runMigrations(context.Background(), cfg, nil, nil, func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (ports.Migrator, error) {
+	err := runMigrations(context.Background(), cfg, nil, nil, func(context.Context, string, string, int64, bool, ports.Logger, []string, []fs.FS) (contracts.Migrator, error) {
 		return &stubMigrator{closeErr: wantErr}, nil
 	})
 	if !errors.Is(err, wantErr) {
@@ -119,7 +120,7 @@ func TestNewMigratorUsesBoundedStartupContext(t *testing.T) {
 	cfgDirs := []string{"db/migrations"}
 	cfgEmbedded := []fs.FS{fstest.MapFS{}}
 
-	_, err := newMigratorWithStartupTimeout("postgres://db.example/internal", "schema_migrations", 7, true, ports.NopLogger{}, cfgDirs, cfgEmbedded, func(ctx context.Context, dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (ports.Migrator, error) {
+	_, err := newMigratorWithStartupTimeout("postgres://db.example/internal", "schema_migrations", 7, true, ports.NopLogger{}, cfgDirs, cfgEmbedded, func(ctx context.Context, dsn, table string, lockKey int64, allowDown bool, log ports.Logger, dirs []string, embedded []fs.FS) (contracts.Migrator, error) {
 		assertDeadlineWithin(t, ctx, defaultStartupTimeout)
 		if dsn != "postgres://db.example/internal" {
 			t.Fatalf("dsn = %q", dsn)

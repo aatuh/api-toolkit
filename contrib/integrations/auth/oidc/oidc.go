@@ -6,6 +6,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/config"
 	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -39,6 +40,6 @@ func SubjectFromContext(ctx context.Context) (Subject, bool) {
 }
 
 // HealthChecker returns a health checker for OIDC JWKS.
-func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
+func HealthChecker(cfg Config, client *http.Client) health.Checker {
 	return oidc.HealthChecker(cfg, client)
 }

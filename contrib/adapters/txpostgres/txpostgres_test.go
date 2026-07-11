@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestWithinTxUsesCleanupContextForRollback(t *testing.T) {
@@ -146,26 +146,26 @@ func assertRollbackCleanupContext[T comparable](
 }
 
 type fakeDBPool struct {
-	conn ports.DatabaseConnection
+	conn contracts.DatabaseConnection
 }
 
 func (p *fakeDBPool) Ping(context.Context) error { return nil }
 func (p *fakeDBPool) Close()                     {}
 
-func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *fakeDBPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	return p.conn, nil
 }
 
 type fakeDBConnection struct {
-	tx           ports.DatabaseTransaction
-	rows         ports.DatabaseRows
-	row          ports.DatabaseRow
+	tx           contracts.DatabaseTransaction
+	rows         contracts.DatabaseRows
+	row          contracts.DatabaseRow
 	releaseCount int
 }
 
 func (c *fakeDBConnection) Query(
 	context.Context, string, ...any,
-) (ports.DatabaseRows, error) {
+) (contracts.DatabaseRows, error) {
 	if c.rows != nil {
 		return c.rows, nil
 	}
@@ -174,7 +174,7 @@ func (c *fakeDBConnection) Query(
 
 func (c *fakeDBConnection) QueryRow(
 	context.Context, string, ...any,
-) ports.DatabaseRow {
+) contracts.DatabaseRow {
 	if c.row != nil {
 		return c.row
 	}
@@ -183,13 +183,13 @@ func (c *fakeDBConnection) QueryRow(
 
 func (c *fakeDBConnection) Exec(
 	context.Context, string, ...any,
-) (ports.DatabaseResult, error) {
+) (contracts.DatabaseResult, error) {
 	return fakeDBResult(0), nil
 }
 
 func (c *fakeDBConnection) Begin(
 	context.Context,
-) (ports.DatabaseTransaction, error) {
+) (contracts.DatabaseTransaction, error) {
 	return c.tx, nil
 }
 
@@ -205,19 +205,19 @@ type fakeDBTransaction struct {
 
 func (t *fakeDBTransaction) Query(
 	context.Context, string, ...any,
-) (ports.DatabaseRows, error) {
+) (contracts.DatabaseRows, error) {
 	return fakeDBRows{}, nil
 }
 
 func (t *fakeDBTransaction) QueryRow(
 	context.Context, string, ...any,
-) ports.DatabaseRow {
+) contracts.DatabaseRow {
 	return nil
 }
 
 func (t *fakeDBTransaction) Exec(
 	context.Context, string, ...any,
-) (ports.DatabaseResult, error) {
+) (contracts.DatabaseResult, error) {
 	return fakeDBResult(0), nil
 }
 

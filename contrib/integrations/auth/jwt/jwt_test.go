@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 func TestLoadConfigReadsClaimRequirementsFromEnv(t *testing.T) {
@@ -86,7 +86,7 @@ func TestHealthCheckerUsesConfiguredClient(t *testing.T) {
 		t.Fatal("expected health checker")
 	}
 	result := checker.Check(context.Background())
-	if result.Status != ports.HealthStatusHealthy {
+	if result.Status != health.StatusHealthy {
 		t.Fatalf("status = %s, want healthy: %s", result.Status, result.Message)
 	}
 }

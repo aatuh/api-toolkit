@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // HealthChecker returns a Resend health checker or nil when disabled.
-func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
+func HealthChecker(cfg Config, client *http.Client) health.Checker {
 	if !cfg.Enabled || cfg.APIKey == "" {
 		return nil
 	}
@@ -27,16 +26,16 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 	return health.NewCustomCheckerWithTimeout(
 		"resend",
 		5*time.Second,
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/domains", nil)
 			if err != nil {
-				return ports.HealthStatusDegraded, fmt.Sprintf("resend request failed: %v", err), nil
+				return health.StatusDegraded, fmt.Sprintf("resend request failed: %v", err), nil
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
 
 			resp, err := client.Do(req)
 			if err != nil {
-				return ports.HealthStatusDegraded, fmt.Sprintf("resend request failed: %v", err), nil
+				return health.StatusDegraded, fmt.Sprintf("resend request failed: %v", err), nil
 			}
 			defer func() {
 				_ = resp.Body.Close()
@@ -50,7 +49,7 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 			if resp.StatusCode == http.StatusOK {
-				return ports.HealthStatusHealthy, "resend reachable", map[string]interface{}{
+				return health.StatusHealthy, "resend reachable", map[string]interface{}{
 					"status_code": resp.StatusCode,
 				}
 			}
@@ -58,7 +57,7 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 			var payload resendError
 			_ = json.Unmarshal(body, &payload)
 			if resp.StatusCode == http.StatusUnauthorized && payload.Name == "restricted_api_key" {
-				return ports.HealthStatusHealthy, "resend key is send-only; domains listing restricted", map[string]interface{}{
+				return health.StatusHealthy, "resend key is send-only; domains listing restricted", map[string]interface{}{
 					"status_code": resp.StatusCode,
 					"name":        payload.Name,
 				}
@@ -68,7 +67,7 @@ func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
 			if payload.Message != "" {
 				message = fmt.Sprintf("resend check failed: %s", payload.Message)
 			}
-			return ports.HealthStatusDegraded, message, map[string]interface{}{
+			return health.StatusDegraded, message, map[string]interface{}{
 				"status_code": resp.StatusCode,
 				"name":        payload.Name,
 			}

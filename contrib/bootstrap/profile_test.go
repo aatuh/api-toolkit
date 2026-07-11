@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
 	requestlog "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog"
 	querylimits "github.com/aatuh/api-toolkit/v3/middleware/querylimits"
@@ -477,7 +478,7 @@ func TestProfileStrictAPIAppliesExplicitCORSAllowlist(t *testing.T) {
 	profile, err := ProfileStrictAPI(
 		ports.NopLogger{},
 		WithMetricsRecorder(metricsmw.NoopMetrics{}),
-		WithCORSOptions(ports.CORSOptions{
+		WithCORSOptions(contracts.CORSOptions{
 			AllowedOrigins: []string{"https://app.example.com"},
 			AllowedMethods: []string{http.MethodGet, http.MethodOptions},
 			AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},

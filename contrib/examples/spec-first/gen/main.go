@@ -134,7 +134,7 @@ func writeRoutes(buf *bytes.Buffer, ops []operation) {
 		fmt.Fprintf(buf, "\t%s(http.ResponseWriter, *http.Request)\n", op.Name)
 	}
 	buf.WriteString("}\n\n")
-	buf.WriteString("func RegisterRoutes(r ports.HTTPRouter, h Handlers) {\n")
+	buf.WriteString("func RegisterRoutes(r contracts.HTTPRouter, h Handlers) {\n")
 	buf.WriteString("\tif r == nil || h == nil {\n\t\treturn\n\t}\n")
 	for _, op := range ops {
 		switch op.Method {

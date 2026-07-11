@@ -5,7 +5,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/resend"
 	"github.com/aatuh/api-toolkit/contrib/v3/config"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 // Client aliases the Resend client type.
@@ -35,6 +35,6 @@ func LoadConfig(loader *config.Loader) Config {
 }
 
 // HealthChecker returns a health checker for Resend.
-func HealthChecker(cfg Config, client *http.Client) ports.HealthChecker {
+func HealthChecker(cfg Config, client *http.Client) health.Checker {
 	return resend.HealthChecker(cfg, client)
 }

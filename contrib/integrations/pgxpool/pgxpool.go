@@ -2,7 +2,7 @@ package pgxpool
 
 import (
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // Adapter aliases the pgxpool adapter type.
@@ -24,13 +24,13 @@ type Result = pgxpool.Result
 type Transaction = pgxpool.Transaction
 
 // Stats aliases the legacy pgxpool stats wrapper type.
-// New code should prefer Adapter.StatSnapshot and ports.DatabasePoolSnapshot.
+// New code should prefer Adapter.StatSnapshot and contracts.DatabasePoolSnapshot.
 type Stats = pgxpool.Stats
 
 // Snapshot aliases the preferred plain-value pool stats type for new code.
-type Snapshot = ports.DatabasePoolSnapshot
+type Snapshot = contracts.DatabasePoolSnapshot
 
 // New constructs a pgx-backed database pool adapter.
-func New(dsn string) (ports.DatabasePool, error) {
+func New(dsn string) (contracts.DatabasePool, error) {
 	return pgxpool.New(dsn)
 }

@@ -13,8 +13,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/contrib/v3/telemetry"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Options configures the outbound HTTP client.
@@ -54,7 +54,7 @@ type retryConfig struct {
 	retryOn          func(*http.Response, error) bool
 }
 
-// Client implements ports.HTTPClient.
+// Client implements contracts.HTTPClient.
 type Client struct {
 	client         *http.Client
 	retry          retryConfig
@@ -65,7 +65,7 @@ type Client struct {
 	bulkhead       Bulkhead
 }
 
-var _ ports.HTTPClient = (*Client)(nil)
+var _ contracts.HTTPClient = (*Client)(nil)
 
 // New constructs an outbound HTTP client with sane defaults.
 func New(opts Options) *Client {

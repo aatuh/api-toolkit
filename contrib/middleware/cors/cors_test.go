@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestDefaultOptions(t *testing.T) {
-	want := ports.CORSOptions{
+	want := contracts.CORSOptions{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
@@ -27,7 +27,7 @@ func TestDefaultOptions(t *testing.T) {
 
 func TestHandlerAppliesPreflightHeaders(t *testing.T) {
 	var called bool
-	handler := New().Handler(ports.CORSOptions{
+	handler := New().Handler(contracts.CORSOptions{
 		AllowedOrigins: []string{"https://app.example"},
 		AllowedMethods: []string{"GET", "POST"},
 		AllowedHeaders: []string{"Authorization", "Content-Type"},
@@ -67,7 +67,7 @@ func TestHandlerAppliesPreflightHeaders(t *testing.T) {
 
 func TestHandlerPassesSimpleRequest(t *testing.T) {
 	var called bool
-	handler := New().Handler(ports.CORSOptions{
+	handler := New().Handler(contracts.CORSOptions{
 		AllowedOrigins: []string{"https://app.example"},
 		AllowedMethods: []string{"GET"},
 		AllowedHeaders: []string{"Authorization"},

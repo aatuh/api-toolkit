@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 // AssertCheckerContract verifies common readiness-check result semantics for a
 // contrib adapter. If allowedStatuses is non-empty, the check result must match
 // one of those statuses.
-func AssertCheckerContract(t testing.TB, checker ports.HealthChecker, wantName string, allowedStatuses ...ports.HealthStatus) ports.HealthResult {
+func AssertCheckerContract(t testing.TB, checker health.Checker, wantName string, allowedStatuses ...health.Status) health.Result {
 	t.Helper()
 	if checker == nil {
 		t.Fatal("checker is nil")
@@ -53,19 +53,19 @@ func AssertCheckerContract(t testing.TB, checker ports.HealthChecker, wantName s
 	return result
 }
 
-func isValidStatus(status ports.HealthStatus) bool {
+func isValidStatus(status health.Status) bool {
 	switch status {
-	case ports.HealthStatusHealthy,
-		ports.HealthStatusUnhealthy,
-		ports.HealthStatusDegraded,
-		ports.HealthStatusUnknown:
+	case health.StatusHealthy,
+		health.StatusUnhealthy,
+		health.StatusDegraded,
+		health.StatusUnknown:
 		return true
 	default:
 		return false
 	}
 }
 
-func statusAllowed(status ports.HealthStatus, allowed []ports.HealthStatus) bool {
+func statusAllowed(status health.Status, allowed []health.Status) bool {
 	for _, candidate := range allowed {
 		if status == candidate {
 			return true

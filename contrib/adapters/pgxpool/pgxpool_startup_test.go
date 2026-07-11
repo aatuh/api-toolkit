@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestNewUsesBoundedStartupContext(t *testing.T) {
 	wantErr := errors.New("stop after context capture")
 
-	_, err := newWithStartupTimeout("postgres://db.example/internal", func(ctx context.Context, dsn string) (ports.DatabasePool, error) {
+	_, err := newWithStartupTimeout("postgres://db.example/internal", func(ctx context.Context, dsn string) (contracts.DatabasePool, error) {
 		assertDeadlineWithin(t, ctx, defaultStartupTimeout)
 		if dsn != "postgres://db.example/internal" {
 			t.Fatalf("dsn = %q", dsn)
