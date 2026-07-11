@@ -5,25 +5,23 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Manager implements ManagerContract for managing health checks.
 type Manager struct {
-	config     ports.HealthCheckConfig
+	config     Config
 	checkers   map[string]Checker
-	cache      map[string]ports.HealthResult
+	cache      map[string]Result
 	cacheMutex sync.RWMutex
 	mu         sync.RWMutex
-	snapshot   ports.HealthResponse
+	snapshot   Response
 	snapshotMu sync.RWMutex
 	snapshotOK bool
 }
 
 // New creates a new health manager with default configuration.
 func New() ManagerContract {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -36,16 +34,16 @@ func New() ManagerContract {
 }
 
 // NewManagerWithConfig creates a new health manager and returns the concrete type.
-func NewManagerWithConfig(config ports.HealthCheckConfig) *Manager {
+func NewManagerWithConfig(config Config) *Manager {
 	return &Manager{
 		config:   config,
 		checkers: make(map[string]Checker),
-		cache:    make(map[string]ports.HealthResult),
+		cache:    make(map[string]Result),
 	}
 }
 
 // NewWithConfig creates a new health manager with custom configuration.
-func NewWithConfig(config ports.HealthCheckConfig) ManagerContract {
+func NewWithConfig(config Config) ManagerContract {
 	return NewManagerWithConfig(config)
 }
 
@@ -76,9 +74,9 @@ func (m *Manager) RegisterCheckers(checkers ...Checker) {
 }
 
 // GetLiveness performs liveness checks.
-func (m *Manager) GetLiveness(ctx context.Context) ports.HealthResult {
+func (m *Manager) GetLiveness(ctx context.Context) Result {
 	result := m.performChecks(ctx, m.config.LivenessChecks)
-	m.storeSnapshot(ports.HealthResponse{
+	m.storeSnapshot(Response{
 		Status:    result.Status,
 		Timestamp: result.Timestamp,
 		Message:   result.Message,
@@ -87,9 +85,9 @@ func (m *Manager) GetLiveness(ctx context.Context) ports.HealthResult {
 }
 
 // GetReadiness performs readiness checks.
-func (m *Manager) GetReadiness(ctx context.Context) ports.HealthResult {
+func (m *Manager) GetReadiness(ctx context.Context) Result {
 	result := m.performChecks(ctx, m.config.ReadinessChecks)
-	m.storeSnapshot(ports.HealthResponse{
+	m.storeSnapshot(Response{
 		Status:    result.Status,
 		Timestamp: result.Timestamp,
 		Message:   result.Message,
@@ -98,9 +96,9 @@ func (m *Manager) GetReadiness(ctx context.Context) ports.HealthResult {
 }
 
 // GetHealth performs basic health checks.
-func (m *Manager) GetHealth(ctx context.Context) ports.HealthResponse {
+func (m *Manager) GetHealth(ctx context.Context) Response {
 	result := m.GetReadiness(ctx)
-	response := ports.HealthResponse{
+	response := Response{
 		Status:    result.Status,
 		Timestamp: result.Timestamp,
 		Message:   result.Message,
@@ -110,7 +108,7 @@ func (m *Manager) GetHealth(ctx context.Context) ports.HealthResponse {
 }
 
 // GetDetailedHealth performs detailed health checks.
-func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthResponse {
+func (m *Manager) GetDetailedHealth(ctx context.Context) DetailedResponse {
 	ctx = normalizeContext(ctx)
 	m.mu.RLock()
 	checkerNames := make([]string, 0, len(m.checkers))
@@ -122,44 +120,44 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 	checkCtx, cancel := context.WithTimeout(ctx, m.config.Timeout)
 	defer cancel()
 
-	checks := make(map[string]ports.HealthResult)
-	summary := ports.HealthSummary{Total: len(checkerNames)}
+	checks := make(map[string]Result)
+	summary := Summary{Total: len(checkerNames)}
 
 	for _, name := range checkerNames {
 		result := m.performCheck(checkCtx, name)
 		checks[name] = result
 
 		switch result.Status {
-		case ports.HealthStatusHealthy:
+		case StatusHealthy:
 			summary.Healthy++
-		case ports.HealthStatusUnhealthy:
+		case StatusUnhealthy:
 			summary.Unhealthy++
-		case ports.HealthStatusDegraded:
+		case StatusDegraded:
 			summary.Degraded++
-		case ports.HealthStatusUnknown:
+		case StatusUnknown:
 			summary.Unknown++
 		}
 	}
 
 	// Determine overall status
-	var overallStatus ports.HealthStatus
+	var overallStatus Status
 	if summary.Unhealthy > 0 {
-		overallStatus = ports.HealthStatusUnhealthy
+		overallStatus = StatusUnhealthy
 	} else if summary.Degraded > 0 {
-		overallStatus = ports.HealthStatusDegraded
+		overallStatus = StatusDegraded
 	} else if summary.Healthy > 0 {
-		overallStatus = ports.HealthStatusHealthy
+		overallStatus = StatusHealthy
 	} else {
-		overallStatus = ports.HealthStatusUnknown
+		overallStatus = StatusUnknown
 	}
 
-	response := ports.DetailedHealthResponse{
+	response := DetailedResponse{
 		Status:    overallStatus,
 		Timestamp: time.Now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
-	m.storeSnapshot(ports.HealthResponse{
+	m.storeSnapshot(Response{
 		Status:    response.Status,
 		Timestamp: response.Timestamp,
 	})
@@ -167,7 +165,7 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) ports.DetailedHealthRes
 }
 
 // RefreshAll runs all registered checks and updates the cache.
-func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
+func (m *Manager) RefreshAll(ctx context.Context) DetailedResponse {
 	ctx = normalizeContext(ctx)
 	m.mu.RLock()
 	checkerNames := make([]string, 0, len(m.checkers))
@@ -179,43 +177,43 @@ func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
 	checkCtx, cancel := context.WithTimeout(ctx, m.config.Timeout)
 	defer cancel()
 
-	checks := make(map[string]ports.HealthResult)
-	summary := ports.HealthSummary{Total: len(checkerNames)}
+	checks := make(map[string]Result)
+	summary := Summary{Total: len(checkerNames)}
 
 	for _, name := range checkerNames {
 		result := m.performCheckNoCache(checkCtx, name)
 		checks[name] = result
 
 		switch result.Status {
-		case ports.HealthStatusHealthy:
+		case StatusHealthy:
 			summary.Healthy++
-		case ports.HealthStatusUnhealthy:
+		case StatusUnhealthy:
 			summary.Unhealthy++
-		case ports.HealthStatusDegraded:
+		case StatusDegraded:
 			summary.Degraded++
-		case ports.HealthStatusUnknown:
+		case StatusUnknown:
 			summary.Unknown++
 		}
 	}
 
-	var overallStatus ports.HealthStatus
+	var overallStatus Status
 	if summary.Unhealthy > 0 {
-		overallStatus = ports.HealthStatusUnhealthy
+		overallStatus = StatusUnhealthy
 	} else if summary.Degraded > 0 {
-		overallStatus = ports.HealthStatusDegraded
+		overallStatus = StatusDegraded
 	} else if summary.Healthy > 0 {
-		overallStatus = ports.HealthStatusHealthy
+		overallStatus = StatusHealthy
 	} else {
-		overallStatus = ports.HealthStatusUnknown
+		overallStatus = StatusUnknown
 	}
 
-	response := ports.DetailedHealthResponse{
+	response := DetailedResponse{
 		Status:    overallStatus,
 		Timestamp: time.Now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
-	m.storeSnapshot(ports.HealthResponse{
+	m.storeSnapshot(Response{
 		Status:    response.Status,
 		Timestamp: response.Timestamp,
 	})
@@ -223,24 +221,24 @@ func (m *Manager) RefreshAll(ctx context.Context) ports.DetailedHealthResponse {
 }
 
 // CachedHealth returns the most recent health snapshot produced by this manager.
-func (m *Manager) CachedHealth() (ports.HealthResponse, bool) {
+func (m *Manager) CachedHealth() (Response, bool) {
 	if m == nil {
-		return ports.HealthResponse{}, false
+		return Response{}, false
 	}
 	m.snapshotMu.RLock()
 	defer m.snapshotMu.RUnlock()
 	if !m.snapshotOK {
-		return ports.HealthResponse{}, false
+		return Response{}, false
 	}
 	return m.snapshot, true
 }
 
 // performChecks performs multiple health checks.
-func (m *Manager) performChecks(ctx context.Context, checkerNames []string) ports.HealthResult {
+func (m *Manager) performChecks(ctx context.Context, checkerNames []string) Result {
 	ctx = normalizeContext(ctx)
 	if len(checkerNames) == 0 {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnhealthy,
+		return Result{
+			Status:    StatusUnhealthy,
 			Message:   "health check configuration is invalid: no checks configured",
 			Timestamp: time.Now(),
 		}
@@ -250,46 +248,46 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) port
 	checkCtx, cancel := context.WithTimeout(ctx, m.config.Timeout)
 	defer cancel()
 
-	results := make([]ports.HealthResult, 0, len(checkerNames))
+	results := make([]Result, 0, len(checkerNames))
 
 	for _, name := range checkerNames {
 		result := m.performCheck(checkCtx, name)
 		results = append(results, result)
 
 		// If any check is unhealthy, return immediately
-		if result.Status == ports.HealthStatusUnhealthy {
+		if result.Status == StatusUnhealthy {
 			return result
 		}
 	}
 
 	// Determine overall status
-	var overallStatus ports.HealthStatus
+	var overallStatus Status
 	var messages []string
 
 	for _, result := range results {
 		switch result.Status {
-		case ports.HealthStatusUnhealthy:
-			overallStatus = ports.HealthStatusUnhealthy
+		case StatusUnhealthy:
+			overallStatus = StatusUnhealthy
 			if result.Message != "" {
 				messages = append(messages, result.Message)
 			}
-		case ports.HealthStatusDegraded:
-			if overallStatus != ports.HealthStatusUnhealthy {
-				overallStatus = ports.HealthStatusDegraded
+		case StatusDegraded:
+			if overallStatus != StatusUnhealthy {
+				overallStatus = StatusDegraded
 				if result.Message != "" {
 					messages = append(messages, result.Message)
 				}
 			}
-		case ports.HealthStatusUnknown:
-			if overallStatus == "" || overallStatus == ports.HealthStatusHealthy {
-				overallStatus = ports.HealthStatusUnknown
+		case StatusUnknown:
+			if overallStatus == "" || overallStatus == StatusHealthy {
+				overallStatus = StatusUnknown
 				if result.Message != "" {
 					messages = append(messages, result.Message)
 				}
 			}
-		case ports.HealthStatusHealthy:
+		case StatusHealthy:
 			if overallStatus == "" {
-				overallStatus = ports.HealthStatusHealthy
+				overallStatus = StatusHealthy
 			}
 		}
 	}
@@ -299,7 +297,7 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) port
 		message = fmt.Sprintf("Issues: %s", fmt.Sprintf("%v", messages))
 	}
 
-	return ports.HealthResult{
+	return Result{
 		Status:    overallStatus,
 		Message:   message,
 		Timestamp: time.Now(),
@@ -318,7 +316,7 @@ func (m *Manager) cachingEnabled() bool {
 }
 
 // performCheck performs a single health check with caching.
-func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthResult {
+func (m *Manager) performCheck(ctx context.Context, name string) Result {
 	// Check cache first
 	if m.cachingEnabled() {
 		m.cacheMutex.RLock()
@@ -337,8 +335,8 @@ func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthRes
 	m.mu.RUnlock()
 
 	if !exists {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnhealthy,
+		return Result{
+			Status:    StatusUnhealthy,
 			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
 			Timestamp: time.Now(),
 		}
@@ -360,15 +358,15 @@ func (m *Manager) performCheck(ctx context.Context, name string) ports.HealthRes
 	return result
 }
 
-func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.HealthResult {
+func (m *Manager) performCheckNoCache(ctx context.Context, name string) Result {
 	// Get checker
 	m.mu.RLock()
 	checker, exists := m.checkers[name]
 	m.mu.RUnlock()
 
 	if !exists {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnhealthy,
+		return Result{
+			Status:    StatusUnhealthy,
 			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
 			Timestamp: time.Now(),
 		}
@@ -388,12 +386,12 @@ func (m *Manager) performCheckNoCache(ctx context.Context, name string) ports.He
 	return result
 }
 
-func (m *Manager) storeSnapshot(response ports.HealthResponse) {
+func (m *Manager) storeSnapshot(response Response) {
 	if m == nil {
 		return
 	}
 	if response.Status == "" {
-		response.Status = ports.HealthStatusUnknown
+		response.Status = StatusUnknown
 	}
 	if response.Timestamp.IsZero() {
 		response.Timestamp = time.Now()

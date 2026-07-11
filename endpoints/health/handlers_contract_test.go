@@ -8,8 +8,21 @@ import (
 	"time"
 
 	health "github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
+)
+
+type Response = health.Response
+type Result = health.Result
+type DetailedResponse = health.DetailedResponse
+type Summary = health.Summary
+type Checker = health.Checker
+type ManagerContract = health.ManagerContract
+type DetailedManager = health.DetailedManager
+type CachedManager = health.CachedManager
+
+const (
+	StatusHealthy   = health.StatusHealthy
+	StatusUnhealthy = health.StatusUnhealthy
 )
 
 type contractRouteRegistrar struct {
@@ -22,41 +35,41 @@ func (r *contractRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
 
 type externalCapabilityHealthManager struct {
 	detailed       bool
-	cached         ports.HealthResponse
+	cached         Response
 	cachedOK       bool
 	getHealthCalls int
 }
 
-var _ ports.HealthManager = (*externalCapabilityHealthManager)(nil)
-var _ ports.DetailedHealthManager = (*externalCapabilityHealthManager)(nil)
-var _ ports.CachedHealthManager = (*externalCapabilityHealthManager)(nil)
+var _ ManagerContract = (*externalCapabilityHealthManager)(nil)
+var _ DetailedManager = (*externalCapabilityHealthManager)(nil)
+var _ CachedManager = (*externalCapabilityHealthManager)(nil)
 
-func (*externalCapabilityHealthManager) RegisterChecker(ports.HealthChecker) {}
+func (*externalCapabilityHealthManager) RegisterChecker(Checker) {}
 
-func (*externalCapabilityHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+func (*externalCapabilityHealthManager) RegisterCheckers(...Checker) {}
 
-func (*externalCapabilityHealthManager) GetLiveness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (*externalCapabilityHealthManager) GetLiveness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (*externalCapabilityHealthManager) GetReadiness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (*externalCapabilityHealthManager) GetReadiness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (m *externalCapabilityHealthManager) GetHealth(context.Context) ports.HealthResponse {
+func (m *externalCapabilityHealthManager) GetHealth(context.Context) Response {
 	m.getHealthCalls++
-	return ports.HealthResponse{Status: ports.HealthStatusUnhealthy, Timestamp: time.Now()}
+	return Response{Status: StatusUnhealthy, Timestamp: time.Now()}
 }
 
-func (*externalCapabilityHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
+func (*externalCapabilityHealthManager) GetDetailedHealth(context.Context) DetailedResponse {
 	now := time.Now()
-	return ports.DetailedHealthResponse{
-		Status:    ports.HealthStatusHealthy,
+	return DetailedResponse{
+		Status:    StatusHealthy,
 		Timestamp: now,
-		Checks: map[string]ports.HealthResult{
-			"basic": {Status: ports.HealthStatusHealthy, Timestamp: now},
+		Checks: map[string]Result{
+			"basic": {Status: StatusHealthy, Timestamp: now},
 		},
-		Summary: ports.HealthSummary{Total: 1, Healthy: 1},
+		Summary: Summary{Total: 1, Healthy: 1},
 	}
 }
 
@@ -64,7 +77,7 @@ func (m *externalCapabilityHealthManager) DetailedHealthEnabled() bool {
 	return m.detailed
 }
 
-func (m *externalCapabilityHealthManager) CachedHealth() (ports.HealthResponse, bool) {
+func (m *externalCapabilityHealthManager) CachedHealth() (Response, bool) {
 	return m.cached, m.cachedOK
 }
 
@@ -79,7 +92,7 @@ func TestRegisterRoutesToIncludesDetailedHealthForExportedCapability(t *testing.
 			return
 		}
 	}
-	t.Fatalf("expected %q route when manager opts in through ports.DetailedHealthManager", specs.HealthDetailed)
+	t.Fatalf("expected %q route when manager opts in through DetailedManager", specs.HealthDetailed)
 }
 
 func TestDetailedHealthHandlerServesExternalManagerThatOptsIn(t *testing.T) {
@@ -98,8 +111,8 @@ func TestMiddlewareUsesCachedHealthFromExportedCapability(t *testing.T) {
 	timestamp := time.Unix(123, 0).UTC()
 	manager := &externalCapabilityHealthManager{
 		cachedOK: true,
-		cached: ports.HealthResponse{
-			Status:    ports.HealthStatusHealthy,
+		cached: Response{
+			Status:    StatusHealthy,
 			Timestamp: timestamp,
 			Message:   "cached",
 		},
@@ -114,7 +127,7 @@ func TestMiddlewareUsesCachedHealthFromExportedCapability(t *testing.T) {
 		if !ok {
 			t.Fatal("expected health status in context")
 		}
-		if status != ports.HealthStatusHealthy {
+		if status != StatusHealthy {
 			t.Fatalf("expected cached healthy status, got %q", status)
 		}
 		gotTimestamp, ok := health.HealthTimestampFromContext(r.Context())

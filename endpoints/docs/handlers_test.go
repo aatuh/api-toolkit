@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
@@ -29,7 +28,7 @@ type stubDocsProvider struct {
 	openAPI    []byte
 	openAPIErr error
 	version    string
-	info       ports.DocsInfo
+	info       Info
 }
 
 func (p stubDocsProvider) GetHTML() (string, error) {
@@ -47,7 +46,7 @@ func (p stubDocsProvider) GetVersion() (string, error) {
 	return p.version, nil
 }
 
-func (p stubDocsProvider) GetInfo() ports.DocsInfo {
+func (p stubDocsProvider) GetInfo() Info {
 	return p.info
 }
 
@@ -120,8 +119,8 @@ func TestNewDefaultsToStaticMode(t *testing.T) {
 	if !ok {
 		t.Fatal("expected concrete docs manager")
 	}
-	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
-		t.Fatalf("default html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	if got := manager.HTMLMode(); got != HTMLModeStatic {
+		t.Fatalf("default html mode = %q, want %q", got, HTMLModeStatic)
 	}
 }
 
@@ -130,8 +129,8 @@ func TestNewStrictUsesStaticFirstPartyHTML(t *testing.T) {
 	if !ok {
 		t.Fatal("expected concrete docs manager")
 	}
-	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
-		t.Fatalf("strict html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	if got := manager.HTMLMode(); got != HTMLModeStatic {
+		t.Fatalf("strict html mode = %q, want %q", got, HTMLModeStatic)
 	}
 	html, err := manager.GetHTML()
 	if err != nil {
@@ -147,25 +146,25 @@ func TestNewSwaggerUIUsesSwaggerMode(t *testing.T) {
 	if !ok {
 		t.Fatal("expected concrete docs manager")
 	}
-	if got := manager.HTMLMode(); got != ports.DocsHTMLModeSwaggerUI {
-		t.Fatalf("swagger html mode = %q, want %q", got, ports.DocsHTMLModeSwaggerUI)
+	if got := manager.HTMLMode(); got != HTMLModeSwaggerUI {
+		t.Fatalf("swagger html mode = %q, want %q", got, HTMLModeSwaggerUI)
 	}
 }
 
 func TestNewWithConfigDefaultsBlankModeToStatic(t *testing.T) {
-	manager, ok := NewWithConfig(ports.DocsConfig{
+	manager, ok := NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "Default mode",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
 	}).(*Manager)
 	if !ok {
 		t.Fatal("expected concrete docs manager")
 	}
-	if got := manager.HTMLMode(); got != ports.DocsHTMLModeStatic {
-		t.Fatalf("blank html mode = %q, want %q", got, ports.DocsHTMLModeStatic)
+	if got := manager.HTMLMode(); got != HTMLModeStatic {
+		t.Fatalf("blank html mode = %q, want %q", got, HTMLModeStatic)
 	}
 }
 
@@ -192,14 +191,14 @@ func TestHTMLHandlerUsesStrictCSPByDefault(t *testing.T) {
 }
 
 func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Strict Docs",
 		Description: "First-party docs",
 		Version:     "1.2.3",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
-		HTMLMode:    ports.DocsHTMLModeStatic,
+		HTMLMode:    HTMLModeStatic,
 	}))
 
 	rec := httptest.NewRecorder()
@@ -222,14 +221,14 @@ func TestHTMLHandlerUsesStrictCSPForStaticMode(t *testing.T) {
 }
 
 func TestHTMLHandlerUsesSwaggerUICSPWhenOptedIn(t *testing.T) {
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Docs UI",
 		Description: "Swagger UI docs",
 		Version:     "1.2.3",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
-		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
+		HTMLMode:    HTMLModeSwaggerUI,
 	}))
 
 	rec := httptest.NewRecorder()
@@ -252,11 +251,11 @@ func TestHTMLHandlerUsesSwaggerUICSPWhenOptedIn(t *testing.T) {
 }
 
 func TestHTMLHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "Disabled HTML",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  false,
 		EnableJSON:  true,
 	}))
@@ -275,11 +274,11 @@ func TestHTMLHandlerEscapesConfiguredValues(t *testing.T) {
 	description := `Desc <b>raw</b>`
 	openAPIPath := `/docs/openapi.json";window.pwned=true;//`
 
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       title,
 		Description: description,
 		Version:     "1.0.0",
-		Paths: ports.DocsPaths{
+		Paths: Paths{
 			HTML:    "/docs",
 			OpenAPI: openAPIPath,
 			Version: "/docs/version",
@@ -287,7 +286,7 @@ func TestHTMLHandlerEscapesConfiguredValues(t *testing.T) {
 		},
 		EnableHTML: true,
 		EnableJSON: true,
-		HTMLMode:   ports.DocsHTMLModeSwaggerUI,
+		HTMLMode:   HTMLModeSwaggerUI,
 	}))
 
 	rec := httptest.NewRecorder()
@@ -319,11 +318,11 @@ func TestOpenAPIHandlerServesJSONFromDiscoveredSpec(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeTestFile(t, "docs/openapi.json", `{"openapi":"3.0.0","info":{"title":"Docs","version":"1.0.0"}}`)
 
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "JSON spec",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
 	}))
@@ -347,11 +346,11 @@ func TestOpenAPIHandlerReturnsNotFoundWhenJSONDisabled(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeTestFile(t, "docs/openapi.json", `{"openapi":"3.0.0","info":{"title":"Docs","version":"1.0.0"}}`)
 
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "JSON disabled",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  false,
 	}))
@@ -369,11 +368,11 @@ func TestOpenAPIHandlerServesYAMLWhenEnabled(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeTestFile(t, "docs/openapi.yaml", "openapi: 3.0.0\ninfo:\n  title: Docs\n  version: 1.0.0\n")
 
-	handler := NewHandler(NewWithConfig(ports.DocsConfig{
+	handler := NewHandler(NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "YAML spec",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  false,
 		EnableYAML:  true,
@@ -395,11 +394,11 @@ func TestOpenAPIHandlerServesYAMLWhenEnabled(t *testing.T) {
 }
 
 func TestOpenAPIReturnsNotFoundWhenAllFormatsDisabled(t *testing.T) {
-	manager, ok := NewWithConfig(ports.DocsConfig{
+	manager, ok := NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "Formats disabled",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  false,
 		EnableYAML:  false,
@@ -414,11 +413,11 @@ func TestOpenAPIReturnsNotFoundWhenAllFormatsDisabled(t *testing.T) {
 }
 
 func TestOpenAPIProviderOutputMustMatchEnabledFormat(t *testing.T) {
-	manager, ok := NewWithConfig(ports.DocsConfig{
+	manager, ok := NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "Only YAML enabled",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  false,
 		EnableYAML:  true,
@@ -436,11 +435,11 @@ func TestOpenAPIProviderOutputMustMatchEnabledFormat(t *testing.T) {
 }
 
 func TestOpenAPIProviderPreservesFormatContentType(t *testing.T) {
-	manager, ok := NewWithConfig(ports.DocsConfig{
+	manager, ok := NewWithConfig(Config{
 		Title:       "Docs",
 		Description: "YAML provider",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  false,
 		EnableYAML:  true,
@@ -465,11 +464,11 @@ func TestOpenAPIProviderPreservesFormatContentType(t *testing.T) {
 }
 
 func TestProviderVersionAndInfoOverrideConfig(t *testing.T) {
-	manager, ok := NewWithConfig(ports.DocsConfig{
+	manager, ok := NewWithConfig(Config{
 		Title:       "Configured",
 		Description: "Configured docs",
 		Version:     "0.0.1",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
 	}).(*Manager)
@@ -478,7 +477,7 @@ func TestProviderVersionAndInfoOverrideConfig(t *testing.T) {
 	}
 	manager.RegisterProvider(stubDocsProvider{
 		version: "9.9.9",
-		info: ports.DocsInfo{
+		info: Info{
 			Title:       "Provided",
 			Description: "Provided docs",
 			Version:     "9.9.9",

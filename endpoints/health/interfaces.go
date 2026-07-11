@@ -1,30 +1,122 @@
 package health
 
-import "github.com/aatuh/api-toolkit/v3/ports"
+import (
+	"context"
+	"net/http"
+	"time"
+)
 
-// Checker is the package-local health check contract.
-//
-// It is an alias for ports.HealthChecker during v3 compatibility. New health
-// integrations should import this package instead of adding to root ports.
-type Checker = ports.HealthChecker
+// Checker defines the package-local health check contract.
+type Checker interface {
+	Name() string
+	Check(ctx context.Context) Result
+}
 
-// ManagerContract is the package-local health manager contract.
-//
-// It is an alias for ports.HealthManager during v3 compatibility. The name
-// avoids colliding with this package's concrete Manager implementation.
-type ManagerContract = ports.HealthManager
+// Status represents a health check status.
+type Status string
 
-// DetailedManager is the optional detailed health capability contract.
-//
-// It is an alias for ports.DetailedHealthManager during v3 compatibility.
-type DetailedManager = ports.DetailedHealthManager
+const (
+	// StatusHealthy indicates all checks are passing.
+	StatusHealthy Status = "healthy"
+	// StatusUnhealthy indicates one or more checks failed.
+	StatusUnhealthy Status = "unhealthy"
+	// StatusDegraded indicates partial degradation.
+	StatusDegraded Status = "degraded"
+	// StatusUnknown indicates indeterminate health.
+	StatusUnknown Status = "unknown"
+)
 
-// CachedManager is the optional cached health capability contract.
-//
-// It is an alias for ports.CachedHealthManager during v3 compatibility.
-type CachedManager = ports.CachedHealthManager
+// Result represents one health check result.
+type Result struct {
+	Status    Status        `json:"status"`
+	Message   string        `json:"message,omitempty"`
+	Details   interface{}   `json:"details,omitempty"`
+	Timestamp time.Time     `json:"timestamp"`
+	Duration  time.Duration `json:"duration,omitempty"`
+}
+
+// Response represents the overall health response.
+type Response struct {
+	Status    Status    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	Message   string    `json:"message,omitempty"`
+}
+
+// DetailedResponse represents detailed health output with individual checks.
+type DetailedResponse struct {
+	Status    Status            `json:"status"`
+	Timestamp time.Time         `json:"timestamp"`
+	Checks    map[string]Result `json:"checks"`
+	Summary   Summary           `json:"summary"`
+}
+
+// Summary provides a summary of health check results.
+type Summary struct {
+	Total     int `json:"total"`
+	Healthy   int `json:"healthy"`
+	Unhealthy int `json:"unhealthy"`
+	Degraded  int `json:"degraded"`
+	Unknown   int `json:"unknown"`
+}
+
+// Config defines health manager configuration.
+type Config struct {
+	Timeout         time.Duration `json:"timeout"`
+	CacheDuration   time.Duration `json:"cache_duration"`
+	EnableCaching   bool          `json:"enable_caching"`
+	EnableDetailed  bool          `json:"enable_detailed"`
+	LivenessChecks  []string      `json:"liveness_checks"`
+	ReadinessChecks []string      `json:"readiness_checks"`
+}
+
+// ManagerContract defines the package-local health manager contract.
+type ManagerContract interface {
+	RegisterChecker(checker Checker)
+	RegisterCheckers(checkers ...Checker)
+	GetLiveness(ctx context.Context) Result
+	GetReadiness(ctx context.Context) Result
+	GetHealth(ctx context.Context) Response
+	GetDetailedHealth(ctx context.Context) DetailedResponse
+}
+
+// DetailedManager is an optional detailed health capability contract.
+type DetailedManager interface {
+	DetailedHealthEnabled() bool
+}
+
+// CachedManager exposes a reusable health snapshot.
+type CachedManager interface {
+	CachedHealth() (Response, bool)
+}
 
 // RouteRegistrar is the minimal health route registration contract.
-//
-// It is an alias for ports.MethodRouteRegistrar during v3 compatibility.
-type RouteRegistrar = ports.MethodRouteRegistrar
+type RouteRegistrar interface {
+	Get(pattern string, h http.HandlerFunc)
+}
+
+// DatabasePool is the narrow database capability used by health probes.
+type DatabasePool interface {
+	Ping(ctx context.Context) error
+}
+
+// DatabasePoolSnapshot captures optional plain-value connection-pool stats.
+type DatabasePoolSnapshot struct {
+	AcquireCount  int64
+	AcquiredConns int32
+	IdleConns     int32
+	MaxConns      int32
+	TotalConns    int32
+}
+
+// DatabasePoolSnapshotProvider exposes an optional pool snapshot.
+type DatabasePoolSnapshotProvider interface {
+	StatSnapshot() DatabasePoolSnapshot
+}
+
+// SnapshotDatabasePoolStats returns an optional pool snapshot.
+func SnapshotDatabasePoolStats(pool DatabasePool) DatabasePoolSnapshot {
+	if snapshotter, ok := pool.(DatabasePoolSnapshotProvider); ok {
+		return snapshotter.StatSnapshot()
+	}
+	return DatabasePoolSnapshot{}
+}

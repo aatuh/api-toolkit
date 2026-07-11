@@ -2,8 +2,6 @@ package docs
 
 import (
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
@@ -16,12 +14,12 @@ func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
 	requirePortsHTMLModeProvider(htmlModeProvider)
 }
 
-func requirePortsManagerFactory(func() ports.DocsManager) {}
+func requirePortsManagerFactory(func() ManagerContract) {}
 
-func requirePortsHandlerFactory(func(ports.DocsManager) *Handler) {}
+func requirePortsHandlerFactory(func(ManagerContract) *Handler) {}
 
-func requirePortsProviderRegistration(func(*Manager, ports.DocsProvider)) {}
+func requirePortsProviderRegistration(func(*Manager, Provider)) {}
 
-func requirePortsRouteRegistration(func(*Handler, ports.MethodRouteRegistrar)) {}
+func requirePortsRouteRegistration(func(*Handler, RouteRegistrar)) {}
 
-func requirePortsHTMLModeProvider(ports.DocsHTMLModeProvider) {}
+func requirePortsHTMLModeProvider(HTMLModeProvider) {}

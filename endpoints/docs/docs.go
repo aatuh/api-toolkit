@@ -11,12 +11,11 @@ import (
 	"strings"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Manager implements ManagerContract for managing documentation.
 type Manager struct {
-	config   ports.DocsConfig
+	config   Config
 	provider Provider
 }
 
@@ -97,15 +96,15 @@ var staticHTMLTemplate = template.Must(template.New("docs-static").Parse(`<!DOCT
 
 // New creates a new docs manager with default configuration.
 func New() ManagerContract {
-	return NewWithConfig(ports.DocsConfig{
+	return NewWithConfig(Config{
 		Title:       "API Documentation",
 		Description: "REST API Documentation",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
 		EnableYAML:  false,
-		HTMLMode:    ports.DocsHTMLModeStatic,
+		HTMLMode:    HTMLModeStatic,
 	})
 }
 
@@ -116,22 +115,22 @@ func NewStrict() ManagerContract {
 
 // NewSwaggerUI creates a docs manager that opts into the CDN-backed Swagger UI surface.
 func NewSwaggerUI() ManagerContract {
-	return NewWithConfig(ports.DocsConfig{
+	return NewWithConfig(Config{
 		Title:       "API Documentation",
 		Description: "REST API Documentation",
 		Version:     "1.0.0",
-		Paths:       ports.DefaultDocsPaths(),
+		Paths:       DefaultPaths(),
 		EnableHTML:  true,
 		EnableJSON:  true,
 		EnableYAML:  false,
-		HTMLMode:    ports.DocsHTMLModeSwaggerUI,
+		HTMLMode:    HTMLModeSwaggerUI,
 	})
 }
 
 // NewWithConfig creates a new docs manager with custom configuration.
-func NewWithConfig(config ports.DocsConfig) ManagerContract {
+func NewWithConfig(config Config) ManagerContract {
 	if config.HTMLMode == "" {
-		config.HTMLMode = ports.DocsHTMLModeStatic
+		config.HTMLMode = HTMLModeStatic
 	}
 	return &Manager{
 		config: config,
@@ -151,7 +150,7 @@ func (m *Manager) GetHTML() (string, error) {
 	if m.provider != nil {
 		return m.provider.GetHTML()
 	}
-	if m.config.HTMLMode == ports.DocsHTMLModeStatic {
+	if m.config.HTMLMode == HTMLModeStatic {
 		return m.generateStaticHTML(), nil
 	}
 	return m.generateDefaultHTML(), nil
@@ -196,11 +195,11 @@ func (m *Manager) GetVersion() (string, error) {
 }
 
 // GetInfo returns the documentation info.
-func (m *Manager) GetInfo() ports.DocsInfo {
+func (m *Manager) GetInfo() Info {
 	if m.provider != nil {
 		return m.provider.GetInfo()
 	}
-	return ports.DocsInfo{
+	return Info{
 		Title:       m.config.Title,
 		Description: m.config.Description,
 		Version:     m.config.Version,
@@ -210,12 +209,12 @@ func (m *Manager) GetInfo() ports.DocsInfo {
 }
 
 // HTMLMode reports the configured docs HTML rendering mode.
-func (m *Manager) HTMLMode() ports.DocsHTMLMode {
+func (m *Manager) HTMLMode() HTMLMode {
 	if m == nil {
-		return ports.DocsHTMLModeStatic
+		return HTMLModeStatic
 	}
 	if m.config.HTMLMode == "" {
-		return ports.DocsHTMLModeStatic
+		return HTMLModeStatic
 	}
 	return m.config.HTMLMode
 }
@@ -294,12 +293,12 @@ func (m *Manager) generateDefaultHTML() string {
 		Title:       m.config.Title,
 		Description: m.config.Description,
 		Version:     m.config.Version,
-		OpenAPIPath: defaultPath(m.config.Paths.OpenAPI, ports.DefaultDocsPaths().OpenAPI),
+		OpenAPIPath: defaultPath(m.config.Paths.OpenAPI, DefaultPaths().OpenAPI),
 	})
 }
 
 func (m *Manager) generateStaticHTML() string {
-	defaultPaths := ports.DefaultDocsPaths()
+	defaultPaths := DefaultPaths()
 	return renderDocsTemplate(staticHTMLTemplate, docsPageData{
 		Title:       m.config.Title,
 		Description: m.config.Description,
