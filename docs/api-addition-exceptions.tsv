@@ -3,6 +3,9 @@
 # identifiers when a compile-checked example would be misleading or redundant.
 # The API additions gate still requires a source doc comment, current
 # docs/api-inventory.md entry, and package-tied release note for every symbol.
+github.com/aatuh/api-toolkit/v3/middleware/idempotency	Store	V3 package-local alias is covered by existing idempotency middleware and adapter contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/middleware/idempotency	ReservationReleaser	V3 package-local alias is covered by token-aware release contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/middleware/idempotency	ReleasableStore	V3 package-local alias is covered by adapter contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/endpoints/health	Checker	V3 package-local alias is covered by existing checker constructor examples; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/endpoints/health	ManagerContract	V3 package-local alias is covered by existing manager and handler examples; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/endpoints/health	DetailedManager	V3 capability alias is covered by detailed health handler contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11

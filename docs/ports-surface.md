@@ -55,6 +55,8 @@ design, not current invitations to widen generic core ports.
   `StatSnapshot()` methods.
 - New rate-limit examples should use `middleware/ratelimit.Limiter` rather than
   importing `ports.RateLimiter` directly.
+- New idempotency stores should use `middleware/idempotency.Store`,
+  `ReservationReleaser`, and `ReleasableStore`.
 - New health integrations should use `endpoints/health.Checker`,
   `ManagerContract`, `DetailedManager`, `CachedManager`, and `RouteRegistrar`.
 - New documentation integrations should use `endpoints/docs.Provider`,

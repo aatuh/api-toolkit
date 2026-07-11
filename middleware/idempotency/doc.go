@@ -17,7 +17,7 @@
 //
 // Token-aware release helpers:
 //
-//   - Store implementations must implement ports.IdempotencyReservationReleaser
+//   - Store implementations must implement ReservationReleaser
 //     so middleware releases only the current tokened in-flight reservation.
 //     Maintained stores pass the token-aware adapter contract tests for token
 //     mismatch, missing-token legacy cleanup, completed record preservation, and

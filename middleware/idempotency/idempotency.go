@@ -24,7 +24,7 @@ const tenantScopedStorageKeyPrefix = "atk:v1:"
 
 // Options configures the idempotency middleware.
 type Options struct {
-	Store            ports.IdempotencyStore
+	Store            Store
 	HeaderName       string
 	KeyFunc          KeyFunc
 	StorageKeyFunc   StorageKeyFunc
@@ -79,7 +79,7 @@ type Options struct {
 // Middleware enforces Idempotency-Key semantics.
 type Middleware struct {
 	opts                       Options
-	reservationReleaser        ports.IdempotencyReservationReleaser
+	reservationReleaser        ReservationReleaser
 	legacyClockSkewWarningOnce sync.Once
 	legacyRecoveryStoreType    string
 }
@@ -89,7 +89,7 @@ func New(opts Options) (*Middleware, error) {
 	if opts.Store == nil {
 		return nil, errors.New("idempotency store is required")
 	}
-	reservationReleaser, ok := opts.Store.(ports.IdempotencyReservationReleaser)
+	reservationReleaser, ok := opts.Store.(ReservationReleaser)
 	if !ok {
 		return nil, errors.New("idempotency store must implement token-aware release semantics")
 	}

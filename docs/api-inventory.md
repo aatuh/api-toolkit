@@ -1019,7 +1019,10 @@ Stability tier: `stable`
 | `OutcomeEvent.StoreType` | field | v3 compatibility surface | active |
 | `OutcomeEventName` | type | v3 compatibility surface | active |
 | `OutcomeHandler` | type | v3 compatibility surface | active |
+| `ReleasableStore` | type | v3 compatibility surface | active |
+| `ReservationReleaser` | type | v3 compatibility surface | active |
 | `StorageKeyFunc` | type | v3 compatibility surface | active |
+| `Store` | type | v3 compatibility surface | active |
 | `TenantScopedStorageKeyFunc` | func | v3 compatibility surface | active |
 
 ## `github.com/aatuh/api-toolkit/v3/middleware/json`

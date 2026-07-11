@@ -74,6 +74,11 @@ source of truth is `docs/release-runbook.md`.
   `docs.HTMLModeProvider`, and `docs.RouteRegistrar`. They preserve exact v3
   source compatibility with their root `ports` counterparts while giving new
   health and documentation integrations a consuming-package import path.
+- Added package-local idempotency store aliases: `idempotency.Store`,
+  `idempotency.ReservationReleaser`, and `idempotency.ReleasableStore`. New
+  integrations can adopt them after updating to a root version that contains
+  these aliases; they retain exact v3 source compatibility with the root
+  contracts.
 
 ## v3 cleanup branch
 

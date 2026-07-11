@@ -33,6 +33,9 @@ surface, are implemented by users, or are needed by multiple stable packages.
 | `middleware/auth/apikey.Verifier` | implemented by user or auth adapter | API key verification belongs to app/provider. |
 | `middleware/idempotency.LegacyInFlightCompatibilityEventSink` | implemented by operators | Compatibility telemetry sink. |
 | `middleware/idempotency.LegacyInFlightCompatibilityMetricSink` | implemented by operators | Compatibility metric sink. |
+| `middleware/idempotency.Store` | package-local v3 alias | New idempotency stores should use this alias instead of `ports.IdempotencyStore`. |
+| `middleware/idempotency.ReservationReleaser` | package-local v3 alias | Token-aware reservation release alias. |
+| `middleware/idempotency.ReleasableStore` | package-local v3 alias | Combined store and token-aware release alias. |
 | `oauth2.Validator` | implemented by user or auth adapter | Token validation boundary; provider-specific code stays out of root. |
 | `ports.Authorizer` | compatibility-sensitive app-owned | Prefer package-local or app-owned authorization interfaces for new code. |
 | `ports.CachedHealthManager` | compatibility-sensitive adapter-owned | Root health compatibility surface. |

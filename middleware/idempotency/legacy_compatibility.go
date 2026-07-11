@@ -207,7 +207,7 @@ func legacyInFlightCompatibilityOutcome(err error) LegacyInFlightCompatibilityEv
 	}
 }
 
-func resolvedStoreType(store ports.IdempotencyStore) string {
+func resolvedStoreType(store Store) string {
 	if store == nil {
 		return "unknown"
 	}
