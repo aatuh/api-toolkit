@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Owner exposes ownership information for BOLA checks.
@@ -19,7 +18,7 @@ type TenantOwned interface {
 }
 
 // Require calls the provided authorizer or returns an error when missing.
-func Require(ctx context.Context, auth ports.Authorizer, subject any, action string, resource any) error {
+func Require(ctx context.Context, auth Authorizer, subject any, action string, resource any) error {
 	if auth == nil {
 		return errors.New("authorizer not configured")
 	}

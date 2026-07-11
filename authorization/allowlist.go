@@ -7,23 +7,22 @@ import (
 	"sync"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // AllowlistAuthorizer enforces explicit allow rules for actions.
 // Missing rules default to forbidden.
 type AllowlistAuthorizer struct {
 	mu    sync.RWMutex
-	rules map[string]ports.Authorizer
+	rules map[string]Authorizer
 }
 
 // NewAllowlistAuthorizer creates an allowlist-based authorizer.
 func NewAllowlistAuthorizer() *AllowlistAuthorizer {
-	return &AllowlistAuthorizer{rules: make(map[string]ports.Authorizer)}
+	return &AllowlistAuthorizer{rules: make(map[string]Authorizer)}
 }
 
 // Allow registers an authorizer for a specific action.
-func (a *AllowlistAuthorizer) Allow(action string, auth ports.Authorizer) error {
+func (a *AllowlistAuthorizer) Allow(action string, auth Authorizer) error {
 	if a == nil {
 		return errors.New("authorizer is nil")
 	}
@@ -41,7 +40,7 @@ func (a *AllowlistAuthorizer) Allow(action string, auth ports.Authorizer) error 
 }
 
 // AllowFunc registers an authorizer function for a specific action.
-func (a *AllowlistAuthorizer) AllowFunc(action string, fn ports.AuthorizerFunc) error {
+func (a *AllowlistAuthorizer) AllowFunc(action string, fn AuthorizerFunc) error {
 	if fn == nil {
 		return errors.New("authorizer function is required")
 	}
@@ -50,7 +49,7 @@ func (a *AllowlistAuthorizer) AllowFunc(action string, fn ports.AuthorizerFunc) 
 
 // AllowAny permits the specified action without additional checks.
 func (a *AllowlistAuthorizer) AllowAny(action string) error {
-	return a.Allow(action, ports.AuthorizerFunc(func(context.Context, any, string, any) error {
+	return a.Allow(action, AuthorizerFunc(func(context.Context, any, string, any) error {
 		return nil
 	}))
 }

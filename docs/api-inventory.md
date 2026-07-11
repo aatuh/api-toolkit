@@ -80,6 +80,8 @@ Stability tier: `stable`
 | `AllowlistAuthorizer.AllowFunc` | method | v3 compatibility surface | active |
 | `AllowlistAuthorizer.Can` | method | v3 compatibility surface | active |
 | `ApplyScope` | func | v3 compatibility surface | active |
+| `Authorizer` | type | v3 compatibility surface | active |
+| `AuthorizerFunc` | type | v3 compatibility surface | active |
 | `MaskFields` | func | v3 compatibility surface | active |
 | `NewAllowlistAuthorizer` | func | v3 compatibility surface | active |
 | `NewPolicyAuthorizer` | func | v3 compatibility surface | active |
@@ -91,6 +93,9 @@ Stability tier: `stable`
 | `PolicyAuthorizerOptions.ContextProvider` | field | v3 compatibility surface | active |
 | `PolicyAuthorizerOptions.DenyOnError` | field | v3 compatibility surface | active |
 | `PolicyContextProvider` | type | v3 compatibility surface | active |
+| `PolicyDecision` | type | v3 compatibility surface | active |
+| `PolicyEngine` | type | v3 compatibility surface | active |
+| `PolicyRequest` | type | v3 compatibility surface | active |
 | `ProjectFields` | func | v3 compatibility surface | active |
 | `Require` | func | v3 compatibility surface | active |
 | `RequireOwner` | func | v3 compatibility surface | active |

@@ -79,6 +79,11 @@ source of truth is `docs/release-runbook.md`.
   integrations can adopt them after updating to a root version that contains
   these aliases; they retain exact v3 source compatibility with the root
   contracts.
+- Added package-local authorization aliases: `authorization.Authorizer`,
+  `authorization.AuthorizerFunc`, `authorization.PolicyEngine`,
+  `authorization.PolicyRequest`, and `authorization.PolicyDecision`. They do
+  not change default-deny, owner, tenant, or policy-engine behavior and remain
+  source-compatible with the v3 root contracts.
 
 ## v3 cleanup branch
 

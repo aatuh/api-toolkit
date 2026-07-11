@@ -3,6 +3,11 @@
 # identifiers when a compile-checked example would be misleading or redundant.
 # The API additions gate still requires a source doc comment, current
 # docs/api-inventory.md entry, and package-tied release note for every symbol.
+github.com/aatuh/api-toolkit/v3/authorization	Authorizer	V3 package-local alias is covered by default-deny and policy authorization tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/authorization	AuthorizerFunc	V3 package-local function alias is covered by allowlist tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/authorization	PolicyEngine	V3 package-local alias is covered by policy authorization tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/authorization	PolicyRequest	V3 package-local value alias is covered by policy authorization tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
+github.com/aatuh/api-toolkit/v3/authorization	PolicyDecision	V3 package-local value alias is covered by policy authorization tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/middleware/idempotency	Store	V3 package-local alias is covered by existing idempotency middleware and adapter contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/middleware/idempotency	ReservationReleaser	V3 package-local alias is covered by token-aware release contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11
 github.com/aatuh/api-toolkit/v3/middleware/idempotency	ReleasableStore	V3 package-local alias is covered by adapter contract tests; a standalone alias example would be redundant.	core-maintainers	2026-07-11

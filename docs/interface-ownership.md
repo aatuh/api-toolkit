@@ -13,6 +13,11 @@ surface, are implemented by users, or are needed by multiple stable packages.
 | --- | --- | --- |
 | `authorization.Owner` | implemented by user | Domain resource ownership shape. |
 | `authorization.TenantOwned` | implemented by user | Domain tenant ownership shape. |
+| `authorization.Authorizer` | package-local v3 alias | New authorization integrations should use this alias instead of `ports.Authorizer`. |
+| `authorization.AuthorizerFunc` | package-local v3 alias | Function adapter for the package-local authorization contract. |
+| `authorization.PolicyEngine` | package-local v3 alias | New policy integrations should use this alias instead of `ports.PolicyEngine`. |
+| `authorization.PolicyRequest` | package-local v3 alias | Package-local policy evaluation input alias. |
+| `authorization.PolicyDecision` | package-local v3 alias | Package-local policy evaluation result alias. |
 | `compat/billing.PaymentProvider` | compatibility-only adapter-owned | Hosted-checkout compatibility surface; new provider workflows should be app-owned or contrib-owned. |
 | `compat/billing.BillingProvider` | compatibility-only adapter-owned | Broad v3 billing compatibility surface, not a new generic boundary. |
 | `email.Sender` | implemented by adapter or app | Tiny email send boundary; provider details stay contrib or app-owned. |

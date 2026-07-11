@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // PolicyContextProvider supplies contextual attributes for policy evaluation.
@@ -20,13 +19,13 @@ type PolicyAuthorizerOptions struct {
 
 // PolicyAuthorizer adapts a policy engine to the Authorizer interface.
 type PolicyAuthorizer struct {
-	engine          ports.PolicyEngine
+	engine          PolicyEngine
 	contextProvider PolicyContextProvider
 	denyOnError     bool
 }
 
 // NewPolicyAuthorizer creates an authorizer backed by a policy engine.
-func NewPolicyAuthorizer(engine ports.PolicyEngine, opts PolicyAuthorizerOptions) *PolicyAuthorizer {
+func NewPolicyAuthorizer(engine PolicyEngine, opts PolicyAuthorizerOptions) *PolicyAuthorizer {
 	return &PolicyAuthorizer{
 		engine:          engine,
 		contextProvider: opts.ContextProvider,
@@ -39,7 +38,7 @@ func (p *PolicyAuthorizer) Can(ctx context.Context, subject any, action string, 
 	if p == nil || p.engine == nil {
 		return errors.New("policy engine not configured")
 	}
-	req := ports.PolicyRequest{
+	req := PolicyRequest{
 		Subject:  subject,
 		Action:   action,
 		Resource: resource,
