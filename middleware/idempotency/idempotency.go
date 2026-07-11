@@ -294,19 +294,19 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 
 		if found {
 			switch record.State {
-			case ports.IdempotencyStateCompleted:
+			case StateCompleted:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
 				writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 				return
-			case ports.IdempotencyStateInFlight:
+			case StateInFlight:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
 				writeInFlight(w, m.opts.InFlightTTL)
 				return
-			case ports.IdempotencyStateAmbiguous:
+			case StateAmbiguous:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeAmbiguous, http.StatusServiceUnavailable, false)
 				writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
 				return
-			case ports.IdempotencyStateUnknown:
+			case StateUnknown:
 				// Fall through to process as a fresh request.
 			}
 		}
@@ -314,8 +314,8 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		reserved := false
 		token := ""
 		for attempt := 0; attempt < 2; attempt++ {
-			inFlight := ports.IdempotencyRecord{
-				State:       ports.IdempotencyStateInFlight,
+			inFlight := Record{
+				State:       StateInFlight,
 				RequestHash: hash,
 				CreatedAt:   m.opts.Clock.Now(),
 			}
@@ -402,19 +402,19 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					continue
 				}
 				switch record.State {
-				case ports.IdempotencyStateCompleted:
+				case StateCompleted:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
 					writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 					return
-				case ports.IdempotencyStateInFlight:
+				case StateInFlight:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
 					writeInFlight(w, m.opts.InFlightTTL)
 					return
-				case ports.IdempotencyStateAmbiguous:
+				case StateAmbiguous:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeAmbiguous, http.StatusServiceUnavailable, false)
 					writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
 					return
-				case ports.IdempotencyStateUnknown:
+				case StateUnknown:
 					// Fall through to fail closed below.
 				}
 			}
@@ -451,14 +451,14 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				m.opts.OnError(err)
 			}
 			m.emitOutcome(ctx, r, IdempotencyOutcomeResponseTooLarge, http.StatusServiceUnavailable, false)
-			writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(ports.IdempotencyRecord{
+			writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(Record{
 				CreatedAt: m.opts.Clock.Now(),
 			}, m.opts.TTL, m.opts.Clock))
 			return
 		}
 
-		record = ports.IdempotencyRecord{
-			State:       ports.IdempotencyStateCompleted,
+		record = Record{
+			State:       StateCompleted,
 			RequestHash: hash,
 			Status:      capture.Status(),
 			Header:      filterHeaders(capture.Header(), m.opts.ResponseHeaderAllow, m.opts.ResponseHeaderDeny),
@@ -482,7 +482,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					}
 				}
 				m.emitOutcome(ctx, r, IdempotencyOutcomePersistenceFailed, http.StatusServiceUnavailable, false)
-				writeAmbiguousPersistenceFailure(w, ambiguousRetryAfter(ports.IdempotencyRecord{
+				writeAmbiguousPersistenceFailure(w, ambiguousRetryAfter(Record{
 					CreatedAt: m.opts.Clock.Now(),
 				}, m.opts.TTL, m.opts.Clock))
 				return
@@ -512,8 +512,8 @@ func (m *Middleware) markAmbiguous(ctx context.Context, key, hash string) error 
 	if key == "" || m == nil || m.opts.Store == nil {
 		return nil
 	}
-	record := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateAmbiguous,
+	record := Record{
+		State:       StateAmbiguous,
 		RequestHash: hash,
 		CreatedAt:   m.opts.Clock.Now(),
 	}
@@ -679,7 +679,7 @@ func bodyErrorStatus(err error) int {
 	return http.StatusBadRequest
 }
 
-func replayStatus(record ports.IdempotencyRecord) int {
+func replayStatus(record Record) int {
 	if record.Status == 0 {
 		return http.StatusOK
 	}
@@ -721,7 +721,7 @@ func writeReservationStateUnavailable(w http.ResponseWriter) {
 	})
 }
 
-func ambiguousRetryAfter(record ports.IdempotencyRecord, ttl time.Duration, clock ports.Clock) time.Duration {
+func ambiguousRetryAfter(record Record, ttl time.Duration, clock ports.Clock) time.Duration {
 	if ttl <= 0 || record.CreatedAt.IsZero() || clock == nil {
 		return 0
 	}
@@ -745,7 +745,7 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
-func writeReplay(w http.ResponseWriter, key string, record ports.IdempotencyRecord, replayHeader string) {
+func writeReplay(w http.ResponseWriter, key string, record Record, replayHeader string) {
 	if record.Header != nil {
 		headers := stripReplayOwnedHeaders(record.Header, replayHeader)
 		for k, v := range headers {

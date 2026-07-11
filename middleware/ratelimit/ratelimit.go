@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
@@ -17,9 +18,9 @@ import (
 type KeyFn func(*http.Request) string
 
 // Limiter is the package-local rate limiter contract for middleware users.
-// It is a v3 migration shim over ports.RateLimiter so applications can move
-// their imports toward middleware/ratelimit before v4 shrinks broad root ports.
-type Limiter = ports.RateLimiter
+type Limiter interface {
+	Allow(ctx context.Context, key string) (allowed bool, retryAfter time.Duration, err error)
+}
 
 // Options configures the rate limit middleware.
 type Options struct {
@@ -29,7 +30,7 @@ type Options struct {
 	RetryAfter time.Duration
 	Clock      ports.Clock
 	// Limiter overrides the default in-memory limiter with a shared limiter.
-	Limiter ports.RateLimiter
+	Limiter Limiter
 	// ClientIPResolver derives client identity from trusted proxies.
 	ClientIPResolver identity.Resolver
 	// StateTTL evicts buckets that have been idle for this duration.

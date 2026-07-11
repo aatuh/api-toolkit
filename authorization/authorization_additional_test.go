@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type ownerResource string
@@ -22,7 +21,7 @@ func TestRequireAndOwnershipHelpers(t *testing.T) {
 	if err := Require(context.Background(), nil, "user", "read", nil); err == nil {
 		t.Fatal("expected missing authorizer error")
 	}
-	allowed := ports.AuthorizerFunc(func(context.Context, any, string, any) error { return nil })
+	allowed := AuthorizerFunc(func(context.Context, any, string, any) error { return nil })
 	if err := Require(context.Background(), allowed, "user", "read", nil); err != nil {
 		t.Fatalf("Require() error = %v", err)
 	}
@@ -115,7 +114,7 @@ func TestAuthorizationContextHelpers(t *testing.T) {
 
 func TestAllowlistAndPolicyErrorBranches(t *testing.T) {
 	var nilAllowlist *AllowlistAuthorizer
-	if err := nilAllowlist.Allow("read", ports.AuthorizerFunc(func(context.Context, any, string, any) error { return nil })); err == nil {
+	if err := nilAllowlist.Allow("read", AuthorizerFunc(func(context.Context, any, string, any) error { return nil })); err == nil {
 		t.Fatal("expected nil allowlist error")
 	}
 	allowlist := NewAllowlistAuthorizer()
@@ -138,7 +137,7 @@ func TestAllowlistAndPolicyErrorBranches(t *testing.T) {
 	if err := policy.Can(context.Background(), "user", "read", nil); !errors.Is(err, engineErr) {
 		t.Fatalf("policy engine error = %v", err)
 	}
-	engine = &stubPolicyEngine{decision: ports.PolicyDecision{Allow: false, Reason: "scope missing"}}
+	engine = &stubPolicyEngine{decision: PolicyDecision{Allow: false, Reason: "scope missing"}}
 	policy = NewPolicyAuthorizer(engine, PolicyAuthorizerOptions{})
 	if err := policy.Can(context.Background(), "user", "read", nil); !errors.Is(err, httpx.ErrForbidden) {
 		t.Fatalf("policy denial error = %v", err)

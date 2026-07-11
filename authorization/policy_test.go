@@ -6,23 +6,22 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type stubPolicyEngine struct {
-	lastReq  ports.PolicyRequest
-	decision ports.PolicyDecision
+	lastReq  PolicyRequest
+	decision PolicyDecision
 	err      error
 }
 
-func (s *stubPolicyEngine) Evaluate(_ context.Context, req ports.PolicyRequest) (ports.PolicyDecision, error) {
+func (s *stubPolicyEngine) Evaluate(_ context.Context, req PolicyRequest) (PolicyDecision, error) {
 	s.lastReq = req
 	return s.decision, s.err
 }
 
 func TestPolicyAuthorizerAllows(t *testing.T) {
 	engine := &stubPolicyEngine{
-		decision: ports.PolicyDecision{Allow: true},
+		decision: PolicyDecision{Allow: true},
 	}
 	auth := NewPolicyAuthorizer(engine, PolicyAuthorizerOptions{
 		ContextProvider: func(_ context.Context) any {
@@ -42,7 +41,7 @@ func TestPolicyAuthorizerAllows(t *testing.T) {
 
 func TestPolicyAuthorizerDenies(t *testing.T) {
 	engine := &stubPolicyEngine{
-		decision: ports.PolicyDecision{Allow: false},
+		decision: PolicyDecision{Allow: false},
 	}
 	auth := NewPolicyAuthorizer(engine, PolicyAuthorizerOptions{})
 	if err := auth.Can(context.Background(), "user", "read", "resource"); !errors.Is(err, httpx.ErrForbidden) {
