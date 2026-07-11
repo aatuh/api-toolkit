@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 type adapterExtensions interface {
@@ -17,7 +17,7 @@ type adapterExtensions interface {
 }
 
 var (
-	_ ports.EnvVar      = (*Adapter)(nil)
+	_ contracts.EnvVar  = (*Adapter)(nil)
 	_ adapterExtensions = (*Adapter)(nil)
 )
 

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 // EngineFactory constructs a policy engine for a contract scenario.
-type EngineFactory func(t *testing.T) ports.PolicyEngine
+type EngineFactory func(t *testing.T) authorization.PolicyEngine
 
 // AssertEngineContract verifies provider-neutral policy engine behavior shared
 // by adapters such as OPA and Cedar.
@@ -48,8 +48,8 @@ func AssertEngineContract(t *testing.T, allow, deny, malformed EngineFactory) {
 	})
 }
 
-func contractRequest() ports.PolicyRequest {
-	return ports.PolicyRequest{
+func contractRequest() authorization.PolicyRequest {
+	return authorization.PolicyRequest{
 		Subject: map[string]any{
 			"id": "user_123",
 		},

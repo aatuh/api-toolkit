@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 )
 
 // StoreFactory builds a fresh store for one contract test run.
-type StoreFactory func(testing.TB) ports.ReservationReleasableIdempotencyStore
+type StoreFactory func(testing.TB) idempotency.ReleasableStore
 
 // AssertReservationReleaseContract verifies token-aware reservation release
 // behavior shared by idempotency stores.
@@ -27,8 +27,8 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}
 
 	completedKey := "completed"
-	if err := store.Save(ctx, completedKey, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateCompleted,
+	if err := store.Save(ctx, completedKey, idempotency.Record{
+		State:       idempotency.StateCompleted,
 		RequestHash: "hash-completed",
 		Status:      http.StatusCreated,
 		CreatedAt:   now,
@@ -40,13 +40,13 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}
 	if record, found, err := store.Get(ctx, completedKey); err != nil {
 		t.Fatalf("get completed: %v", err)
-	} else if !found || record.State != ports.IdempotencyStateCompleted {
+	} else if !found || record.State != idempotency.StateCompleted {
 		t.Fatalf("completed record should remain after release: found=%v record=%#v", found, record)
 	}
 
 	ambiguousKey := "ambiguous"
-	if err := store.Save(ctx, ambiguousKey, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateAmbiguous,
+	if err := store.Save(ctx, ambiguousKey, idempotency.Record{
+		State:       idempotency.StateAmbiguous,
 		RequestHash: "hash-ambiguous",
 		CreatedAt:   now,
 	}, time.Minute); err != nil {
@@ -57,13 +57,13 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}
 	if record, found, err := store.Get(ctx, ambiguousKey); err != nil {
 		t.Fatalf("get ambiguous: %v", err)
-	} else if !found || record.State != ports.IdempotencyStateAmbiguous {
+	} else if !found || record.State != idempotency.StateAmbiguous {
 		t.Fatalf("ambiguous record should remain after release: found=%v record=%#v", found, record)
 	}
 
 	tokenedKey := "tokened"
-	if ok, err := store.TryBegin(ctx, tokenedKey, ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	if ok, err := store.TryBegin(ctx, tokenedKey, idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-tokened",
 		ReservationToken: "token-a",
 		CreatedAt:        now,
@@ -90,14 +90,14 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}
 
 	legacyKey := "legacy"
-	if err := store.Save(ctx, legacyKey, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := store.Save(ctx, legacyKey, idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-legacy",
 		CreatedAt:   now,
 	}, time.Minute); err != nil {
 		t.Fatalf("save legacy: %v", err)
 	}
-	if err := store.ReleaseReservation(ctx, legacyKey, "unexpected-token"); !errors.Is(err, ports.ErrLegacyInFlightTokenMismatch) {
+	if err := store.ReleaseReservation(ctx, legacyKey, "unexpected-token"); !errors.Is(err, idempotency.ErrLegacyInFlightTokenMismatch) {
 		t.Fatalf("legacy release with token error = %v", err)
 	}
 	if _, found, err := store.Get(ctx, legacyKey); err != nil {
@@ -105,7 +105,7 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	} else if !found {
 		t.Fatal("legacy tokenless record should remain after non-empty token")
 	}
-	if err := store.ReleaseReservation(ctx, legacyKey, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
+	if err := store.ReleaseReservation(ctx, legacyKey, ""); !errors.Is(err, idempotency.ErrLegacyInFlightReservationMissingToken) {
 		t.Fatalf("legacy release without token error = %v", err)
 	}
 	if _, found, err := store.Get(ctx, legacyKey); err != nil {
@@ -115,8 +115,8 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}
 
 	expiredKey := "expired"
-	if err := store.Save(ctx, expiredKey, ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	if err := store.Save(ctx, expiredKey, idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-expired",
 		ReservationToken: "token-expired",
 		CreatedAt:        now,

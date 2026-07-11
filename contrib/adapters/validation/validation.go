@@ -11,8 +11,8 @@ import (
 	validatev3 "github.com/aatuh/validate/v3"
 	validateerrors "github.com/aatuh/validate/v3/errors"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // ValidationError represents a validation error with field-specific details.
@@ -101,17 +101,17 @@ type validateValidator struct {
 
 // NewBasicValidator retains the old constructor name and returns the default
 // validate-backed validator.
-func NewBasicValidator() ports.Validator {
+func NewBasicValidator() contracts.Validator {
 	return NewValidateValidator()
 }
 
 // New returns the default validator implementation.
-func New() ports.Validator {
+func New() contracts.Validator {
 	return NewValidateValidator()
 }
 
 // NewValidateValidator constructs a validator backed by github.com/aatuh/validate/v3.
-func NewValidateValidator() ports.Validator {
+func NewValidateValidator() contracts.Validator {
 	return &validateValidator{validator: validatev3.New()}
 }
 
@@ -119,7 +119,7 @@ func NewValidateValidator() ports.Validator {
 //
 // Deprecated: use NewValidateValidator. This constructor no longer uses
 // github.com/go-playground/validator/v10.
-func NewPlaygroundValidator() ports.Validator {
+func NewPlaygroundValidator() contracts.Validator {
 	return NewValidateValidator()
 }
 

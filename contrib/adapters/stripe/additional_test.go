@@ -10,8 +10,8 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
 	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestProviderOptionsAndWebhookContextHelpers(t *testing.T) {
@@ -61,7 +61,7 @@ func TestHealthCheckerNilProvider(t *testing.T) {
 func TestHealthCheckerContract(t *testing.T) {
 	t.Parallel()
 
-	healthchecktest.AssertCheckerContract(t, HealthChecker(healthCheckPaymentProvider{}), "stripe", ports.HealthStatusHealthy)
+	healthchecktest.AssertCheckerContract(t, HealthChecker(healthCheckPaymentProvider{}), "stripe", health.StatusHealthy)
 }
 
 type healthCheckPaymentProvider struct{}

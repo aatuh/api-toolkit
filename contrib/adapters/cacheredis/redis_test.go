@@ -10,7 +10,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/cache"
 	"github.com/aatuh/api-toolkit/contrib/v3/cache/cachetest"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 func TestStoreContract(t *testing.T) {
@@ -63,13 +63,13 @@ func TestHealthChecker(t *testing.T) {
 
 	checker := HealthChecker(client)
 	result := checker.Check(context.Background())
-	if result.Status != ports.HealthStatusHealthy {
+	if result.Status != health.StatusHealthy {
 		t.Fatalf("healthy status = %q message=%q", result.Status, result.Message)
 	}
 
 	mini.Close()
 	result = checker.Check(context.Background())
-	if result.Status != ports.HealthStatusUnhealthy {
+	if result.Status != health.StatusUnhealthy {
 		t.Fatalf("closed status = %q message=%q", result.Status, result.Message)
 	}
 }

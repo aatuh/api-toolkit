@@ -8,12 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 const defaultStartupTimeout = 5 * time.Second
 
-type poolFactory func(context.Context, string) (ports.DatabasePool, error)
+type poolFactory func(context.Context, string) (contracts.DatabasePool, error)
 
 type poolStatsSnapshotSource interface {
 	AcquireCount() int64
@@ -28,19 +28,19 @@ type poolStatsSnapshotSource interface {
 	TotalConns() int32
 }
 
-// Adapter wraps pgxpool.Pool to implement ports.DatabasePool.
+// Adapter wraps pgxpool.Pool to implement contracts.DatabasePool.
 type Adapter struct {
 	*pgxpool.Pool
 }
 
 // New creates a new database pool adapter using a bounded startup context.
 // Callers that need direct context control should use NewWithContext.
-func New(dsn string) (ports.DatabasePool, error) {
+func New(dsn string) (contracts.DatabasePool, error) {
 	return newWithStartupTimeout(dsn, NewWithContext)
 }
 
 // NewWithContext creates a new database pool adapter with a context.
-func NewWithContext(ctx context.Context, dsn string) (ports.DatabasePool, error) {
+func NewWithContext(ctx context.Context, dsn string) (contracts.DatabasePool, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, err
@@ -48,14 +48,14 @@ func NewWithContext(ctx context.Context, dsn string) (ports.DatabasePool, error)
 	return &Adapter{Pool: pool}, nil
 }
 
-func newWithStartupTimeout(dsn string, open poolFactory) (ports.DatabasePool, error) {
+func newWithStartupTimeout(dsn string, open poolFactory) (contracts.DatabasePool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
 	defer cancel()
 	return open(ctx, dsn)
 }
 
 // Acquire gets a connection from the pool.
-func (a *Adapter) Acquire(ctx context.Context) (ports.DatabaseConnection, error) {
+func (a *Adapter) Acquire(ctx context.Context) (contracts.DatabaseConnection, error) {
 	conn, err := a.Pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -69,20 +69,20 @@ func (a *Adapter) Stat() *Stats {
 }
 
 // StatSnapshot returns pool statistics as plain values for new call sites.
-func (a *Adapter) StatSnapshot() ports.DatabasePoolSnapshot {
+func (a *Adapter) StatSnapshot() contracts.DatabasePoolSnapshot {
 	if a == nil || a.Pool == nil {
-		return ports.DatabasePoolSnapshot{}
+		return contracts.DatabasePoolSnapshot{}
 	}
 	return snapshotFromPoolStats(a.Pool.Stat())
 }
 
-// Connection wraps pgxpool.Conn to implement ports.DatabaseConnection.
+// Connection wraps pgxpool.Conn to implement contracts.DatabaseConnection.
 type Connection struct {
 	*pgxpool.Conn
 }
 
 // Query executes a query and returns rows.
-func (c *Connection) Query(ctx context.Context, sql string, args ...any) (ports.DatabaseRows, error) {
+func (c *Connection) Query(ctx context.Context, sql string, args ...any) (contracts.DatabaseRows, error) {
 	rows, err := c.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -91,13 +91,13 @@ func (c *Connection) Query(ctx context.Context, sql string, args ...any) (ports.
 }
 
 // QueryRow executes a query and returns a single row.
-func (c *Connection) QueryRow(ctx context.Context, sql string, args ...any) ports.DatabaseRow {
+func (c *Connection) QueryRow(ctx context.Context, sql string, args ...any) contracts.DatabaseRow {
 	row := c.Conn.QueryRow(ctx, sql, args...)
 	return &Row{Row: row}
 }
 
 // Exec executes a query without returning rows.
-func (c *Connection) Exec(ctx context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (c *Connection) Exec(ctx context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	result, err := c.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (c *Connection) Exec(ctx context.Context, sql string, args ...any) (ports.D
 }
 
 // Begin starts a transaction.
-func (c *Connection) Begin(ctx context.Context) (ports.DatabaseTransaction, error) {
+func (c *Connection) Begin(ctx context.Context) (contracts.DatabaseTransaction, error) {
 	tx, err := c.Conn.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -114,28 +114,28 @@ func (c *Connection) Begin(ctx context.Context) (ports.DatabaseTransaction, erro
 	return &Transaction{Tx: tx}, nil
 }
 
-// Rows wraps pgx.Rows to implement ports.DatabaseRows.
+// Rows wraps pgx.Rows to implement contracts.DatabaseRows.
 type Rows struct {
 	pgx.Rows
 }
 
-// Row wraps pgx.Row to implement ports.DatabaseRow.
+// Row wraps pgx.Row to implement contracts.DatabaseRow.
 type Row struct {
 	pgx.Row
 }
 
-// Result wraps pgconn.CommandTag to implement ports.DatabaseResult.
+// Result wraps pgconn.CommandTag to implement contracts.DatabaseResult.
 type Result struct {
 	pgconn.CommandTag
 }
 
-// Transaction wraps pgx.Tx to implement ports.DatabaseTransaction.
+// Transaction wraps pgx.Tx to implement contracts.DatabaseTransaction.
 type Transaction struct {
 	pgx.Tx
 }
 
 // Query executes a query and returns rows.
-func (t *Transaction) Query(ctx context.Context, sql string, args ...any) (ports.DatabaseRows, error) {
+func (t *Transaction) Query(ctx context.Context, sql string, args ...any) (contracts.DatabaseRows, error) {
 	rows, err := t.Tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -144,13 +144,13 @@ func (t *Transaction) Query(ctx context.Context, sql string, args ...any) (ports
 }
 
 // QueryRow executes a query and returns a single row.
-func (t *Transaction) QueryRow(ctx context.Context, sql string, args ...any) ports.DatabaseRow {
+func (t *Transaction) QueryRow(ctx context.Context, sql string, args ...any) contracts.DatabaseRow {
 	row := t.Tx.QueryRow(ctx, sql, args...)
 	return &Row{Row: row}
 }
 
 // Exec executes a query without returning rows.
-func (t *Transaction) Exec(ctx context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (t *Transaction) Exec(ctx context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	result, err := t.Tx.Exec(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -163,12 +163,12 @@ type Stats struct {
 	*pgxpool.Stat
 }
 
-func snapshotFromPoolStats(stats poolStatsSnapshotSource) ports.DatabasePoolSnapshot {
+func snapshotFromPoolStats(stats poolStatsSnapshotSource) contracts.DatabasePoolSnapshot {
 	if stats == nil {
-		return ports.DatabasePoolSnapshot{}
+		return contracts.DatabasePoolSnapshot{}
 	}
 
-	return ports.DatabasePoolSnapshot{
+	return contracts.DatabasePoolSnapshot{
 		AcquireCount:         stats.AcquireCount(),
 		AcquireDuration:      stats.AcquireDuration(),
 		AcquiredConns:        stats.AcquiredConns(),

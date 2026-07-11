@@ -11,8 +11,8 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
 	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const defaultTable = "audit_events"
@@ -32,13 +32,13 @@ type Options struct {
 
 // Store writes audit events to Postgres.
 type Store struct {
-	Pool  ports.DatabasePool
+	Pool  contracts.DatabasePool
 	table string
 	clock func() time.Time
 }
 
 // New creates a Postgres-backed audit recorder.
-func New(pool ports.DatabasePool, opts Options) *Store {
+func New(pool contracts.DatabasePool, opts Options) *Store {
 	table := opts.Table
 	if strings.TrimSpace(table) == "" {
 		table = defaultTable
@@ -109,21 +109,21 @@ func (s *Store) Record(ctx context.Context, event audit.Event) error {
 }
 
 // HealthChecker returns a Postgres audit dependency health checker.
-func (s *Store) HealthChecker() ports.HealthChecker {
-	var pool ports.DatabasePool
+func (s *Store) HealthChecker() health.Checker {
+	var pool contracts.DatabasePool
 	if s != nil {
 		pool = s.Pool
 	}
 	return health.NewCustomChecker(
 		"postgres-audit",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if pool == nil {
-				return ports.HealthStatusUnhealthy, "postgres audit pool not configured", nil
+				return health.StatusUnhealthy, "postgres audit pool not configured", nil
 			}
 			if err := pool.Ping(ctx); err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres audit ping failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("postgres audit ping failed: %v", err), nil
 			}
-			return ports.HealthStatusHealthy, "postgres audit healthy", nil
+			return health.StatusHealthy, "postgres audit healthy", nil
 		},
 	)
 }

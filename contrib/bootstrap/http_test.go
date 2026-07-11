@@ -16,6 +16,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/endpoints/docs"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/endpoints/version"
@@ -409,7 +410,7 @@ func TestMountSystemEndpointsToWithAdminRequiresWrapper(t *testing.T) {
 }
 
 func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *testing.T) {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -478,7 +479,7 @@ func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *tes
 }
 
 func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -489,7 +490,7 @@ func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
 	service, err := NewAPIService(APIServiceConfig{
 		Addr: ":0",
 		Log:  ports.NopLogger{},
-		RegisterRoutes: func(r ports.HTTPRouter) error {
+		RegisterRoutes: func(r contracts.HTTPRouter) error {
 			r.Get("/hello", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusNoContent)
 			})
@@ -532,7 +533,7 @@ func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
 }
 
 func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -593,14 +594,14 @@ func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
 }
 
 func TestNewAPIServicePublicLivenessDoesNotDependOnReadiness(t *testing.T) {
-	manager := health.NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := health.NewManagerWithConfig(health.Config{
 		Timeout:         time.Second,
 		LivenessChecks:  []string{"basic"},
 		ReadinessChecks: []string{"database"},
 	})
 	manager.RegisterChecker(health.NewBasicChecker())
-	manager.RegisterChecker(health.NewCustomChecker("database", func(context.Context) (ports.HealthStatus, string, interface{}) {
-		return ports.HealthStatusUnhealthy, "database unavailable", nil
+	manager.RegisterChecker(health.NewCustomChecker("database", func(context.Context) (health.Status, string, interface{}) {
+		return health.StatusUnhealthy, "database unavailable", nil
 	}))
 
 	service, err := NewAPIService(APIServiceConfig{
@@ -635,7 +636,7 @@ func TestNewAPIServiceReturnsRouteRegistrationError(t *testing.T) {
 	_, err := NewAPIService(APIServiceConfig{
 		Addr: ":0",
 		Log:  ports.NopLogger{},
-		RegisterRoutes: func(ports.HTTPRouter) error {
+		RegisterRoutes: func(contracts.HTTPRouter) error {
 			return errors.New("route table invalid")
 		},
 	})

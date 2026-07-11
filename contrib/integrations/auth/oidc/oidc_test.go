@@ -9,6 +9,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/config"
 	"github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -36,7 +37,7 @@ func TestHealthCheckerDelegatesToMiddleware(t *testing.T) {
 
 	checker := HealthChecker(oidc.Config{Enabled: true, JWKSURL: server.URL, JWKSRefreshTimeout: time.Second}, server.Client())
 	result := checker.Check(context.Background())
-	if result.Status != ports.HealthStatusHealthy {
+	if result.Status != health.StatusHealthy {
 		t.Fatalf("status = %s", result.Status)
 	}
 }

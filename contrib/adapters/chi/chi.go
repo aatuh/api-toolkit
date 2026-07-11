@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/middleware/auth/authz"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
@@ -19,10 +20,10 @@ type ChiRouter struct {
 	*chi.Mux
 }
 
-var _ ports.HTTPRouter = (*ChiRouter)(nil)
+var _ contracts.HTTPRouter = (*ChiRouter)(nil)
 
-// New creates a new chi router that implements ports.HTTPRouter.
-func New() ports.HTTPRouter {
+// New creates a new chi router that implements contracts.HTTPRouter.
+func New() contracts.HTTPRouter {
 	return &ChiRouter{Mux: chi.NewRouter()}
 }
 
@@ -34,10 +35,10 @@ func NewMux() *chi.Mux {
 // Middleware provides common middleware functions.
 type Middleware struct{}
 
-var _ ports.HTTPMiddleware = (*Middleware)(nil)
+var _ contracts.HTTPMiddleware = (*Middleware)(nil)
 
-// NewMiddleware creates a new middleware instance that implements ports.HTTPMiddleware.
-func NewMiddleware() ports.HTTPMiddleware {
+// NewMiddleware creates a new middleware instance that implements contracts.HTTPMiddleware.
+func NewMiddleware() contracts.HTTPMiddleware {
 	return &Middleware{}
 }
 
@@ -56,13 +57,13 @@ func (m *Middleware) Recoverer() func(http.Handler) http.Handler {
 	return middleware.Recoverer
 }
 
-// URLParamExtractor implements ports.URLParamExtractor.
+// URLParamExtractor implements contracts.URLParamExtractor.
 type URLParamExtractor struct{}
 
-var _ ports.URLParamExtractor = (*URLParamExtractor)(nil)
+var _ contracts.URLParamExtractor = (*URLParamExtractor)(nil)
 
 // NewURLParamExtractor creates a new URL parameter extractor.
-func NewURLParamExtractor() ports.URLParamExtractor {
+func NewURLParamExtractor() contracts.URLParamExtractor {
 	return &URLParamExtractor{}
 }
 

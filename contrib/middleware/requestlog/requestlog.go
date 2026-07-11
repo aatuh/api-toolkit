@@ -206,7 +206,7 @@ func New(log ports.Logger, opts ...Option) (*Middleware, error) {
 	}, nil
 }
 
-// Middleware implements ports.Middleware via Handler adapter.
+// Middleware implements contracts.Middleware via Handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }

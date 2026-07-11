@@ -127,7 +127,7 @@ func NewFromFile(path string, opts ...Option) (*Middleware, error) {
 	return New(spec, opts...)
 }
 
-// Middleware implements ports.Middleware by returning the handler adapter.
+// Middleware implements contracts.Middleware by returning the handler adapter.
 func (m *Middleware) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }

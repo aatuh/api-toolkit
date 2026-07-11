@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
@@ -37,9 +38,9 @@ type APIServiceConfig struct {
 	Addr                    string
 	AdminAddr               string
 	Log                     ports.Logger
-	Router                  ports.HTTPRouter
-	AdminRouter             ports.HTTPRouter
-	RegisterRoutes          func(ports.HTTPRouter) error
+	Router                  contracts.HTTPRouter
+	AdminRouter             contracts.HTTPRouter
+	RegisterRoutes          func(contracts.HTTPRouter) error
 	SystemEndpoints         SystemEndpoints
 	Admin                   SystemEndpointAdminOptions
 	MiddlewareOrder         []MiddlewareStage
@@ -55,8 +56,8 @@ type APIService struct {
 	addr            string
 	adminAddr       string
 	log             ports.Logger
-	router          ports.HTTPRouter
-	adminRouter     ports.HTTPRouter
+	router          contracts.HTTPRouter
+	adminRouter     contracts.HTTPRouter
 	serverOptions   []ServerOption
 	shutdownHooks   []ShutdownHook
 	backgroundTasks []BackgroundTask
@@ -90,7 +91,7 @@ func NewAPIService(config APIServiceConfig) (*APIService, error) {
 		}
 	}
 	adminAddr := strings.TrimSpace(config.AdminAddr)
-	var adminRouter ports.HTTPRouter
+	var adminRouter contracts.HTTPRouter
 	if adminAddr != "" {
 		adminRouter = config.AdminRouter
 		if adminRouter == nil {

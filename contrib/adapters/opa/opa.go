@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 const defaultTimeout = 5 * time.Second
@@ -66,12 +66,12 @@ func New(cfg Config) (*Client, error) {
 }
 
 // Evaluate calls OPA with the given policy request.
-func (c *Client) Evaluate(ctx context.Context, req ports.PolicyRequest) (ports.PolicyDecision, error) {
+func (c *Client) Evaluate(ctx context.Context, req authorization.PolicyRequest) (authorization.PolicyDecision, error) {
 	if c == nil {
-		return ports.PolicyDecision{}, errors.New("opa client is nil")
+		return authorization.PolicyDecision{}, errors.New("opa client is nil")
 	}
 	if ctx == nil {
-		return ports.PolicyDecision{}, errors.New("context is nil")
+		return authorization.PolicyDecision{}, errors.New("context is nil")
 	}
 	input := map[string]any{}
 	if req.Subject != nil {
@@ -88,11 +88,11 @@ func (c *Client) Evaluate(ctx context.Context, req ports.PolicyRequest) (ports.P
 	}
 	body, err := json.Marshal(map[string]any{"input": input})
 	if err != nil {
-		return ports.PolicyDecision{}, fmt.Errorf("opa request marshal: %w", err)
+		return authorization.PolicyDecision{}, fmt.Errorf("opa request marshal: %w", err)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
-		return ports.PolicyDecision{}, fmt.Errorf("opa request: %w", err)
+		return authorization.PolicyDecision{}, fmt.Errorf("opa request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	for k, v := range c.headers {
@@ -100,24 +100,24 @@ func (c *Client) Evaluate(ctx context.Context, req ports.PolicyRequest) (ports.P
 	}
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return ports.PolicyDecision{}, fmt.Errorf("opa request: %w", err)
+		return authorization.PolicyDecision{}, fmt.Errorf("opa request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return ports.PolicyDecision{}, fmt.Errorf("opa decision failed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(detail)))
+		return authorization.PolicyDecision{}, fmt.Errorf("opa decision failed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(detail)))
 	}
 	var payload struct {
 		Result any `json:"result"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return ports.PolicyDecision{}, fmt.Errorf("opa response decode: %w", err)
+		return authorization.PolicyDecision{}, fmt.Errorf("opa response decode: %w", err)
 	}
 	allow, err := parseResult(payload.Result, c.resultKey)
 	if err != nil {
-		return ports.PolicyDecision{}, err
+		return authorization.PolicyDecision{}, err
 	}
-	return ports.PolicyDecision{Allow: allow, Data: payload.Result}, nil
+	return authorization.PolicyDecision{Allow: allow, Data: payload.Result}, nil
 }
 
 func resolveDecisionURL(cfg Config) (string, error) {

@@ -9,13 +9,13 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
 )
 
 func TestLimiterContract(t *testing.T) {
 	t.Parallel()
 
-	ratelimittest.AssertLimiterContract(t, func(t testing.TB, cfg ratelimittest.Config) ports.RateLimiter {
+	ratelimittest.AssertLimiterContract(t, func(t testing.TB, cfg ratelimittest.Config) ratelimit.Limiter {
 		t.Helper()
 		mini := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mini.Addr()})

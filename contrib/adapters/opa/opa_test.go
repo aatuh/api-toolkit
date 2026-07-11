@@ -8,18 +8,18 @@ import (
 	"testing"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 func TestPolicyEngineContract(t *testing.T) {
 	policytest.AssertEngineContract(t,
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractClient(t, `{"result": true}`)
 		},
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractClient(t, `{"result": false}`)
 		},
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractClient(t, `{"result": {"allow": "super-secret-token"}}`)
 		},
 	)
@@ -46,7 +46,7 @@ func TestEvaluateAllowsBooleanResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	decision, err := client.Evaluate(context.Background(), ports.PolicyRequest{
+	decision, err := client.Evaluate(context.Background(), authorization.PolicyRequest{
 		Subject:  map[string]any{"id": "user"},
 		Action:   "read",
 		Resource: map[string]any{"id": "doc"},
@@ -60,7 +60,7 @@ func TestEvaluateAllowsBooleanResult(t *testing.T) {
 	}
 }
 
-func newContractClient(t *testing.T, response string) ports.PolicyEngine {
+func newContractClient(t *testing.T, response string) authorization.PolicyEngine {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]any
@@ -97,7 +97,7 @@ func TestEvaluateResultKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	decision, err := client.Evaluate(context.Background(), ports.PolicyRequest{Action: "read"})
+	decision, err := client.Evaluate(context.Background(), authorization.PolicyRequest{Action: "read"})
 	if err != nil {
 		t.Fatalf("evaluate: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestEvaluateNonSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	if _, err := client.Evaluate(context.Background(), ports.PolicyRequest{Action: "read"}); err == nil {
+	if _, err := client.Evaluate(context.Background(), authorization.PolicyRequest{Action: "read"}); err == nil {
 		t.Fatal("expected error")
 	}
 }

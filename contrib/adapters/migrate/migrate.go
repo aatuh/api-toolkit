@@ -10,6 +10,7 @@ import (
 	// Register pgx stdlib driver for database/sql usage.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/contrib/v3/migrator"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
@@ -34,16 +35,16 @@ type Options struct {
 
 const defaultStartupTimeout = 5 * time.Second
 
-type adapterFactory func(context.Context, Options) (ports.Migrator, error)
+type adapterFactory func(context.Context, Options) (contracts.Migrator, error)
 
 // New builds an Adapter and pings the database using a bounded startup context.
 // Callers that need direct context control should use NewWithContext.
-func New(opts Options) (ports.Migrator, error) {
+func New(opts Options) (contracts.Migrator, error) {
 	return newWithStartupTimeout(opts, NewWithContext)
 }
 
 // NewWithContext builds an Adapter and pings the database with a context.
-func NewWithContext(ctx context.Context, opts Options) (ports.Migrator, error) {
+func NewWithContext(ctx context.Context, opts Options) (contracts.Migrator, error) {
 	if opts.Log == nil {
 		return nil, fmt.Errorf("logger is required")
 	}
@@ -73,7 +74,7 @@ func NewWithContext(ctx context.Context, opts Options) (ports.Migrator, error) {
 	return &Adapter{log: opts.Log, db: db, runner: r}, nil
 }
 
-func newWithStartupTimeout(opts Options, init adapterFactory) (ports.Migrator, error) {
+func newWithStartupTimeout(opts Options, init adapterFactory) (contracts.Migrator, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultStartupTimeout)
 	defer cancel()
 	return init(ctx, opts)

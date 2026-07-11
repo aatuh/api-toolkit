@@ -14,7 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencytest"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 )
 
 func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
@@ -30,8 +30,8 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 	ctx := context.Background()
 	key := "order:123"
 	inFlightTTL := 2 * time.Minute
-	inFlight := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	inFlight := idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-a",
 		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
 	}
@@ -64,8 +64,8 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 		t.Fatalf("Get() created at = %v, want %v", got.CreatedAt, inFlight.CreatedAt)
 	}
 
-	ok, err = store.TryBegin(ctx, key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	ok, err = store.TryBegin(ctx, key, idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-b",
 	}, inFlightTTL)
 	if err != nil {
@@ -76,8 +76,8 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 	}
 
 	completedTTL := 5 * time.Minute
-	completed := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateCompleted,
+	completed := idempotency.Record{
+		State:       idempotency.StateCompleted,
 		RequestHash: inFlight.RequestHash,
 		Status:      http.StatusCreated,
 		Header: http.Header{
@@ -124,12 +124,12 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() after completed Release error = %v", err)
 	}
-	if !found || got.State != ports.IdempotencyStateCompleted {
+	if !found || got.State != idempotency.StateCompleted {
 		t.Fatalf("expected completed record to remain after Release, got found=%v record=%#v", found, got)
 	}
 
-	tokened := ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	tokened := idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-tokened",
 		ReservationToken: "reservation-legacy-release",
 		CreatedAt:        inFlight.CreatedAt,
@@ -150,7 +150,7 @@ func TestStoreTryBeginGetSaveAndRelease(t *testing.T) {
 func TestStoreReleaseContract(t *testing.T) {
 	t.Parallel()
 
-	idempotencytest.AssertReservationReleaseContract(t, func(t testing.TB) ports.ReservationReleasableIdempotencyStore {
+	idempotencytest.AssertReservationReleaseContract(t, func(t testing.TB) idempotency.ReleasableStore {
 		t.Helper()
 		mini := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
@@ -174,8 +174,8 @@ func TestStoreReleaseRequiresMatchingToken(t *testing.T) {
 	ctx := context.Background()
 	key := "order:tokenized"
 	inFlightTTL := 2 * time.Minute
-	inFlight := ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	inFlight := idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-a",
 		ReservationToken: "token-abc",
 		CreatedAt:        time.Unix(1_700_000_000, 123_000_000).UTC(),
@@ -223,8 +223,8 @@ func TestStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 	ctx := context.Background()
 	key := "order:legacy-recovery"
 	inFlightTTL := 2 * time.Minute
-	inFlight := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	inFlight := idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-a",
 		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
 	}
@@ -237,8 +237,8 @@ func TestStoreReleaseRecoversLegacyTokenlessInflightRecord(t *testing.T) {
 		t.Fatal("expected legacy tokenless record to be saved")
 	}
 
-	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
-		t.Fatalf("Release() error = %v, want %v", err, ports.ErrLegacyInFlightReservationMissingToken)
+	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, idempotency.ErrLegacyInFlightReservationMissingToken) {
+		t.Fatalf("Release() error = %v, want %v", err, idempotency.ErrLegacyInFlightReservationMissingToken)
 	}
 	if len(events) != 1 {
 		t.Fatalf("expected one legacy recovery event, got %d", len(events))
@@ -276,8 +276,8 @@ func TestStoreReleaseReportsLegacyRecoveryTokenMismatch(t *testing.T) {
 	ctx := context.Background()
 	key := "order:legacy-recovery-mismatch"
 	inFlightTTL := 2 * time.Minute
-	inFlight := ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	inFlight := idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-a",
 		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
 	}
@@ -319,8 +319,8 @@ func TestStoreReleaseReservationDoesNotDeleteSuccessorReservation(t *testing.T) 
 	ctx := context.Background()
 	key := "order:successor"
 	now := time.Unix(1_700_000_000, 123_000_000).UTC()
-	if err := store.Save(ctx, key, ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	if err := store.Save(ctx, key, idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-old",
 		ReservationToken: "token-old",
 		CreatedAt:        now,
@@ -328,8 +328,8 @@ func TestStoreReleaseReservationDoesNotDeleteSuccessorReservation(t *testing.T) 
 		t.Fatalf("Save() old reservation error = %v", err)
 	}
 	mini.FastForward(2 * time.Millisecond)
-	ok, err := store.TryBegin(ctx, key, ports.IdempotencyRecord{
-		State:            ports.IdempotencyStateInFlight,
+	ok, err := store.TryBegin(ctx, key, idempotency.Record{
+		State:            idempotency.StateInFlight,
 		RequestHash:      "hash-new",
 		ReservationToken: "token-new",
 		CreatedAt:        now.Add(time.Second),
@@ -341,8 +341,8 @@ func TestStoreReleaseReservationDoesNotDeleteSuccessorReservation(t *testing.T) 
 		t.Fatal("TryBegin() successor = false, want true after expiry")
 	}
 
-	if err := store.ReleaseReservation(ctx, key, "token-old"); !errors.Is(err, ports.ErrLegacyInFlightTokenMismatch) {
-		t.Fatalf("ReleaseReservation() stale token error = %v, want %v", err, ports.ErrLegacyInFlightTokenMismatch)
+	if err := store.ReleaseReservation(ctx, key, "token-old"); !errors.Is(err, idempotency.ErrLegacyInFlightTokenMismatch) {
+		t.Fatalf("ReleaseReservation() stale token error = %v, want %v", err, idempotency.ErrLegacyInFlightTokenMismatch)
 	}
 	got, found, err := store.Get(ctx, key)
 	if err != nil {
@@ -372,16 +372,16 @@ func TestStoreReleaseReservationRawKeyRequiresOptIn(t *testing.T) {
 	})
 	ctx := context.Background()
 	key := "order:raw-key"
-	if err := store.Save(ctx, key, ports.IdempotencyRecord{
-		State:       ports.IdempotencyStateInFlight,
+	if err := store.Save(ctx, key, idempotency.Record{
+		State:       idempotency.StateInFlight,
 		RequestHash: "hash-a",
 		CreatedAt:   time.Unix(1_700_000_000, 123_000_000).UTC(),
 	}, time.Minute); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, ports.ErrLegacyInFlightReservationMissingToken) {
-		t.Fatalf("ReleaseReservation() error = %v, want %v", err, ports.ErrLegacyInFlightReservationMissingToken)
+	if err := store.ReleaseReservation(ctx, key, ""); !errors.Is(err, idempotency.ErrLegacyInFlightReservationMissingToken) {
+		t.Fatalf("ReleaseReservation() error = %v, want %v", err, idempotency.ErrLegacyInFlightReservationMissingToken)
 	}
 	if len(events) != 1 {
 		t.Fatalf("expected one event, got %d", len(events))

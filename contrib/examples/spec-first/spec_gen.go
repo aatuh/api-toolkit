@@ -4,8 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const (
@@ -20,7 +20,7 @@ type Handlers interface {
 	ListPets(http.ResponseWriter, *http.Request)
 }
 
-func RegisterRoutes(r ports.HTTPRouter, h Handlers) {
+func RegisterRoutes(r contracts.HTTPRouter, h Handlers) {
 	if r == nil || h == nil {
 		return
 	}

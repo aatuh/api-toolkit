@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/contrib/v3/middleware/cors"
 	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
 	oteltrace "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace"
@@ -30,12 +31,12 @@ type Profile struct {
 }
 
 // Apply attaches the profile middlewares to the router.
-func (p Profile) Apply(r ports.HTTPRouter) {
+func (p Profile) Apply(r contracts.HTTPRouter) {
 	p.ApplyTo(r)
 }
 
 // ApplyTo attaches the profile middlewares to a minimal middleware chain.
-func (p Profile) ApplyTo(r ports.MiddlewareChain) {
+func (p Profile) ApplyTo(r contracts.MiddlewareChain) {
 	if r == nil {
 		return
 	}
@@ -50,7 +51,7 @@ type profileConfig struct {
 	metrics           metricsmw.MetricsRecorder
 	rateLimit         rateln.Options
 	enableRateLimit   bool
-	corsOptions       ports.CORSOptions
+	corsOptions       contracts.CORSOptions
 	secureOptions     []securemw.Option
 	timeout           time.Duration
 	maxBodyBytes      int64
@@ -87,7 +88,7 @@ func WithRateLimitDisabled() ProfileOption {
 }
 
 // WithCORSOptions overrides CORS options.
-func WithCORSOptions(opts ports.CORSOptions) ProfileOption {
+func WithCORSOptions(opts contracts.CORSOptions) ProfileOption {
 	return func(cfg *profileConfig) {
 		cfg.corsOptions = opts
 	}
@@ -168,7 +169,7 @@ func ProfileStrictAPI(log ports.Logger, opts ...ProfileOption) (Profile, error) 
 			SkipEnabled: false,
 		},
 		enableRateLimit:   true,
-		corsOptions:       ports.CORSOptions{},
+		corsOptions:       contracts.CORSOptions{},
 		timeout:           5 * time.Second,
 		maxBodyBytes:      1 << 20,
 		enableQueryLimits: true,
@@ -400,7 +401,7 @@ func queryLimitsMiddleware(enabled bool, mw *querylimits.Middleware) func(http.H
 	return mw.Middleware()
 }
 
-func corsMiddleware(handler ports.CORSHandler, opts ports.CORSOptions) func(http.Handler) http.Handler {
+func corsMiddleware(handler contracts.CORSHandler, opts contracts.CORSOptions) func(http.Handler) http.Handler {
 	if handler == nil || len(opts.AllowedOrigins) == 0 {
 		return func(next http.Handler) http.Handler { return next }
 	}

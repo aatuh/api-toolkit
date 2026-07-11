@@ -9,9 +9,9 @@ import (
 	"unicode"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const (
@@ -59,25 +59,25 @@ type Options struct {
 	OutboxTable    string
 	Clock          func() time.Time
 	SecretResolver SecretResolver
-	TxManager      ports.TxManager
+	TxManager      contracts.TxManager
 	EndpointPolicy webhookdelivery.EndpointPolicy
 }
 
 // Store implements tenant-scoped webhook endpoint lookup, delivery enqueue,
 // attempt recording, and replay scheduling over Postgres tables.
 type Store struct {
-	Pool           ports.DatabasePool
+	Pool           contracts.DatabasePool
 	endpointTable  string
 	deliveryTable  string
 	outboxTable    string
 	clock          func() time.Time
 	secretResolver SecretResolver
-	tx             ports.TxManager
+	tx             contracts.TxManager
 	endpointPolicy webhookdelivery.EndpointPolicy
 }
 
 // New creates a Postgres-backed webhook delivery store.
-func New(pool ports.DatabasePool, opts Options) *Store {
+func New(pool contracts.DatabasePool, opts Options) *Store {
 	endpointTable := strings.TrimSpace(opts.EndpointTable)
 	if endpointTable == "" {
 		endpointTable = defaultEndpointTable
@@ -286,26 +286,26 @@ func (s *Store) ReplayDelivery(ctx context.Context, tenantID, deliveryID string,
 }
 
 // HealthChecker returns a Postgres webhook delivery dependency health checker.
-func (s *Store) HealthChecker() ports.HealthChecker {
-	var pool ports.DatabasePool
+func (s *Store) HealthChecker() health.Checker {
+	var pool contracts.DatabasePool
 	if s != nil {
 		pool = s.Pool
 	}
 	return health.NewCustomChecker(
 		"postgres-webhook-delivery",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if pool == nil {
-				return ports.HealthStatusUnhealthy, "postgres webhook delivery pool not configured", nil
+				return health.StatusUnhealthy, "postgres webhook delivery pool not configured", nil
 			}
 			if err := pool.Ping(ctx); err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("postgres webhook delivery ping failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("postgres webhook delivery ping failed: %v", err), nil
 			}
-			return ports.HealthStatusHealthy, "postgres webhook delivery healthy", nil
+			return health.StatusHealthy, "postgres webhook delivery healthy", nil
 		},
 	)
 }
 
-func (s *Store) scanEndpointRow(ctx context.Context, rows ports.DatabaseRows) (webhookdelivery.Endpoint, error) {
+func (s *Store) scanEndpointRow(ctx context.Context, rows contracts.DatabaseRows) (webhookdelivery.Endpoint, error) {
 	var endpoint webhookdelivery.Endpoint
 	if err := rows.Scan(&endpoint.ID, &endpoint.TenantID, &endpoint.URL, &endpoint.Events, &endpoint.Disabled, &endpoint.CreatedAt); err != nil {
 		return webhookdelivery.Endpoint{}, err
@@ -321,7 +321,7 @@ func (s *Store) scanEndpointRow(ctx context.Context, rows ports.DatabaseRows) (w
 	return endpoint, nil
 }
 
-func (s *Store) scanEndpoint(ctx context.Context, row ports.DatabaseRow) (webhookdelivery.Endpoint, error) {
+func (s *Store) scanEndpoint(ctx context.Context, row contracts.DatabaseRow) (webhookdelivery.Endpoint, error) {
 	var endpoint webhookdelivery.Endpoint
 	if err := row.Scan(&endpoint.ID, &endpoint.TenantID, &endpoint.URL, &endpoint.Events, &endpoint.Disabled, &endpoint.CreatedAt); err != nil {
 		return webhookdelivery.Endpoint{}, err

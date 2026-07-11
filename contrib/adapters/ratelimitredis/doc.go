@@ -1,7 +1,7 @@
 // Package ratelimitredis provides the supported-adapter Redis rate limiter.
 //
 // Use New with a redis.UniversalClient and Options to implement
-// ports.RateLimiter with token-bucket state shared across API replicas. Options
+// ratelimit.Limiter with token-bucket state shared across API replicas. Options
 // configure capacity, refill rate, state TTL, key prefix, and clock source for
 // deterministic tests.
 //

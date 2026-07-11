@@ -3,7 +3,7 @@ package pgxpool
 import (
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestNewRejectsInvalidDSN(t *testing.T) {
@@ -13,8 +13,8 @@ func TestNewRejectsInvalidDSN(t *testing.T) {
 }
 
 func TestAdapterAliasesSatisfyPortInterfaces(t *testing.T) {
-	var _ ports.DatabasePool = (*Adapter)(nil)
-	var _ ports.DatabasePoolSnapshotProvider = (*Adapter)(nil)
+	var _ contracts.DatabasePool = (*Adapter)(nil)
+	var _ contracts.DatabasePoolSnapshotProvider = (*Adapter)(nil)
 }
 
 func TestSnapshotAliasMatchesPortsSnapshot(t *testing.T) {
@@ -29,6 +29,6 @@ func TestSnapshotAliasMatchesPortsSnapshot(t *testing.T) {
 	}
 }
 
-func acceptPortsSnapshot(snapshot ports.DatabasePoolSnapshot) ports.DatabasePoolSnapshot {
+func acceptPortsSnapshot(snapshot contracts.DatabasePoolSnapshot) contracts.DatabasePoolSnapshot {
 	return snapshot
 }

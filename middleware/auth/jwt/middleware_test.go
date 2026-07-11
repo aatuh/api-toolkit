@@ -16,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/httpx/identity"
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
@@ -664,7 +665,7 @@ func TestHealthCheckerReportsJWKSReadiness(t *testing.T) {
 			t.Fatalf("checker name = %q, want jwt", checker.Name())
 		}
 		result := checker.Check(context.Background())
-		if result.Status != ports.HealthStatusHealthy {
+		if result.Status != health.StatusHealthy {
 			t.Fatalf("status = %s, want healthy; message=%q", result.Status, result.Message)
 		}
 	})
@@ -677,7 +678,7 @@ func TestHealthCheckerReportsJWKSReadiness(t *testing.T) {
 
 		checker := HealthChecker(Config{Enabled: true, JWKSURL: server.URL}, server.Client())
 		result := checker.Check(context.Background())
-		if result.Status != ports.HealthStatusDegraded {
+		if result.Status != health.StatusDegraded {
 			t.Fatalf("status = %s, want degraded", result.Status)
 		}
 		if !strings.Contains(result.Message, "unexpected status 503") {

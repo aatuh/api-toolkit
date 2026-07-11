@@ -18,7 +18,6 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const (
@@ -278,36 +277,36 @@ func (s *Store) SignedURL(ctx context.Context, ref objectstore.Ref, opts objects
 }
 
 // HealthChecker returns a bucket-level health checker for this store.
-func (s *Store) HealthChecker() ports.HealthChecker {
+func (s *Store) HealthChecker() health.Checker {
 	return health.NewCustomChecker(
 		"s3-objectstore",
-		func(ctx context.Context) (ports.HealthStatus, string, interface{}) {
+		func(ctx context.Context) (health.Status, string, interface{}) {
 			if s == nil || s.endpoint == nil || s.client == nil {
-				return ports.HealthStatusUnhealthy, "s3 object store not configured", nil
+				return health.StatusUnhealthy, "s3 object store not configured", nil
 			}
 			bucket := strings.TrimSpace(s.defaultBucket)
 			if bucket == "" {
-				return ports.HealthStatusHealthy, "s3 object store configured without default bucket", nil
+				return health.StatusHealthy, "s3 object store configured without default bucket", nil
 			}
 			req, err := http.NewRequestWithContext(ctx, http.MethodHead, s.objectURL(objectstore.Ref{Bucket: bucket, Key: "healthcheck"}).String(), nil) // #nosec G107 -- endpoint is operator-controlled object storage configuration.
 			if err != nil {
-				return ports.HealthStatusUnhealthy, "s3 object store health request failed", nil
+				return health.StatusUnhealthy, "s3 object store health request failed", nil
 			}
 			if err := s.signRequest(req, unsignedPayload); err != nil {
-				return ports.HealthStatusUnhealthy, "s3 object store signing failed", nil
+				return health.StatusUnhealthy, "s3 object store signing failed", nil
 			}
 			resp, err := s.client.Do(req)
 			if err != nil {
-				return ports.HealthStatusUnhealthy, fmt.Sprintf("s3 object store health failed: %v", err), nil
+				return health.StatusUnhealthy, fmt.Sprintf("s3 object store health failed: %v", err), nil
 			}
 			defer func() {
 				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 				_ = resp.Body.Close()
 			}()
 			if resp.StatusCode == http.StatusNotFound || (resp.StatusCode >= 200 && resp.StatusCode < 300) {
-				return ports.HealthStatusHealthy, "s3 object store healthy", nil
+				return health.StatusHealthy, "s3 object store healthy", nil
 			}
-			return ports.HealthStatusUnhealthy, fmt.Sprintf("s3 object store health status %d", resp.StatusCode), nil
+			return health.StatusUnhealthy, fmt.Sprintf("s3 object store health status %d", resp.StatusCode), nil
 		},
 	)
 }

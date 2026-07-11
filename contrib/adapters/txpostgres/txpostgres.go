@@ -9,14 +9,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // DBer is satisfied by transactions and the pool facade below.
 type DBer interface {
-	Exec(ctx context.Context, sql string, args ...any) (ports.DatabaseResult, error)
-	Query(ctx context.Context, sql string, args ...any) (ports.DatabaseRows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) ports.DatabaseRow
+	Exec(ctx context.Context, sql string, args ...any) (contracts.DatabaseResult, error)
+	Query(ctx context.Context, sql string, args ...any) (contracts.DatabaseRows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) contracts.DatabaseRow
 }
 
 type txKeyType struct{}
@@ -28,13 +28,13 @@ const rollbackCleanupTimeout = 5 * time.Second
 // ErrPoolNotConfigured reports that the transaction adapter was constructed without a database pool.
 var ErrPoolNotConfigured = errors.New("database pool not configured")
 
-// Manager implements ports.TxManager using a pgx-like pool.
+// Manager implements contracts.TxManager using a pgx-like pool.
 type Manager struct {
-	Pool ports.DatabasePool
+	Pool contracts.DatabasePool
 }
 
 // New constructs a transaction manager over a DatabasePool.
-func New(pool ports.DatabasePool) ports.TxManager {
+func New(pool contracts.DatabasePool) contracts.TxManager {
 	if pool == nil {
 		return invalidManager{err: ErrPoolNotConfigured}
 	}
@@ -83,10 +83,10 @@ func (m *Manager) WithinTx(
 
 // FromCtx returns the active transaction if present; otherwise a
 // facade that acquires/releases a connection per call (no leaks).
-func FromCtx(ctx context.Context, pool ports.DatabasePool) DBer {
+func FromCtx(ctx context.Context, pool contracts.DatabasePool) DBer {
 	if ctx != nil {
 		if v := ctx.Value(txKey); v != nil {
-			if tx, ok := v.(ports.DatabaseTransaction); ok {
+			if tx, ok := v.(contracts.DatabaseTransaction); ok {
 				return tx
 			}
 		}
@@ -96,12 +96,12 @@ func FromCtx(ctx context.Context, pool ports.DatabasePool) DBer {
 
 // pooledFacade acquires/releases a connection for each operation.
 type pooledFacade struct {
-	pool ports.DatabasePool
+	pool contracts.DatabasePool
 }
 
 func (p pooledFacade) Exec(
 	ctx context.Context, sql string, args ...any,
-) (ports.DatabaseResult, error) {
+) (contracts.DatabaseResult, error) {
 	if p.pool == nil {
 		return nil, ErrPoolNotConfigured
 	}
@@ -115,7 +115,7 @@ func (p pooledFacade) Exec(
 
 func (p pooledFacade) Query(
 	ctx context.Context, sql string, args ...any,
-) (ports.DatabaseRows, error) {
+) (contracts.DatabaseRows, error) {
 	if p.pool == nil {
 		return nil, ErrPoolNotConfigured
 	}
@@ -134,7 +134,7 @@ func (p pooledFacade) Query(
 
 func (p pooledFacade) QueryRow(
 	ctx context.Context, sql string, args ...any,
-) ports.DatabaseRow {
+) contracts.DatabaseRow {
 	if p.pool == nil {
 		return errRow{err: ErrPoolNotConfigured}
 	}
@@ -149,8 +149,8 @@ func (p pooledFacade) QueryRow(
 
 // rowsWithRelease releases the connection when Close is called.
 type rowsWithRelease struct {
-	rows        ports.DatabaseRows
-	conn        ports.DatabaseConnection
+	rows        contracts.DatabaseRows
+	conn        contracts.DatabaseConnection
 	releaseOnce sync.Once
 }
 
@@ -166,8 +166,8 @@ func (r *rowsWithRelease) Close() {
 
 // rowWithRelease releases the connection after Scan returns.
 type rowWithRelease struct {
-	row         ports.DatabaseRow
-	conn        ports.DatabaseConnection
+	row         contracts.DatabaseRow
+	conn        contracts.DatabaseConnection
 	releaseOnce sync.Once
 }
 

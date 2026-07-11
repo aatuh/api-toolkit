@@ -5,17 +5,17 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/scheduler"
 )
 
 // RunsRepo stores scheduler job executions.
 type RunsRepo struct {
-	Pool ports.DatabasePool
+	Pool contracts.DatabasePool
 }
 
 // NewRunsRepo creates a runs repository backed by Postgres.
-func NewRunsRepo(pool ports.DatabasePool) *RunsRepo {
+func NewRunsRepo(pool contracts.DatabasePool) *RunsRepo {
 	return &RunsRepo{Pool: pool}
 }
 

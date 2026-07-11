@@ -8,7 +8,7 @@ import (
 
 	cedarcore "github.com/cedar-policy/cedar-go"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 // Config configures the Cedar adapter.
@@ -22,7 +22,7 @@ type Config struct {
 }
 
 // RequestBuilder converts a policy request into a Cedar request.
-type RequestBuilder func(req ports.PolicyRequest) (cedarcore.Request, error)
+type RequestBuilder func(req authorization.PolicyRequest) (cedarcore.Request, error)
 
 // Engine evaluates policies using cedar-go.
 type Engine struct {
@@ -51,13 +51,13 @@ func New(cfg Config) (*Engine, error) {
 }
 
 // Evaluate evaluates a policy request.
-func (e *Engine) Evaluate(ctx context.Context, req ports.PolicyRequest) (ports.PolicyDecision, error) {
+func (e *Engine) Evaluate(ctx context.Context, req authorization.PolicyRequest) (authorization.PolicyDecision, error) {
 	if e == nil {
-		return ports.PolicyDecision{}, errors.New("cedar engine is nil")
+		return authorization.PolicyDecision{}, errors.New("cedar engine is nil")
 	}
 	cedarReq, err := e.build(req)
 	if err != nil {
-		return ports.PolicyDecision{}, err
+		return authorization.PolicyDecision{}, err
 	}
 	decision, diag := cedarcore.Authorize(e.policies, e.entities, cedarReq)
 	if len(diag.Errors) > 0 {
@@ -65,13 +65,13 @@ func (e *Engine) Evaluate(ctx context.Context, req ports.PolicyRequest) (ports.P
 		for _, diagErr := range diag.Errors {
 			errs = append(errs, fmt.Errorf("policy %s: %s", diagErr.PolicyID, diagErr.Message))
 		}
-		return ports.PolicyDecision{}, errors.Join(errs...)
+		return authorization.PolicyDecision{}, errors.Join(errs...)
 	}
-	return ports.PolicyDecision{Allow: decision == cedarcore.Allow, Data: diag}, nil
+	return authorization.PolicyDecision{Allow: decision == cedarcore.Allow, Data: diag}, nil
 }
 
 func defaultRequestBuilder(cfg Config) RequestBuilder {
-	return func(req ports.PolicyRequest) (cedarcore.Request, error) {
+	return func(req authorization.PolicyRequest) (cedarcore.Request, error) {
 		principal, err := entityUIDFromValue(req.Subject, cfg.PrincipalType)
 		if err != nil {
 			return cedarcore.Request{}, fmt.Errorf("principal: %w", err)

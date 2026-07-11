@@ -10,9 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 	"github.com/aatuh/api-toolkit/v3/httpx"
 	"github.com/aatuh/api-toolkit/v3/operations"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type operationResult struct {
@@ -200,21 +201,21 @@ func TestHealthChecker(t *testing.T) {
 
 	store := New[operationResult](&fakeDBPool{}, Options{})
 	result := store.HealthChecker().Check(context.Background())
-	if result.Status != ports.HealthStatusHealthy || result.Message != "postgres operations healthy" {
+	if result.Status != health.StatusHealthy || result.Message != "postgres operations healthy" {
 		t.Fatalf("healthy result = %#v", result)
 	}
 	failed := New[operationResult](&fakeDBPool{pingErr: errors.New("down")}, Options{})
 	result = failed.HealthChecker().Check(context.Background())
-	if result.Status != ports.HealthStatusUnhealthy || !strings.Contains(result.Message, "postgres operations ping failed") {
+	if result.Status != health.StatusUnhealthy || !strings.Contains(result.Message, "postgres operations ping failed") {
 		t.Fatalf("unhealthy result = %#v", result)
 	}
-	if result := (*Store[operationResult])(nil).HealthChecker().Check(context.Background()); result.Status != ports.HealthStatusUnhealthy {
+	if result := (*Store[operationResult])(nil).HealthChecker().Check(context.Background()); result.Status != health.StatusUnhealthy {
 		t.Fatalf("nil store result = %#v", result)
 	}
 }
 
 type fakeDBPool struct {
-	conn         ports.DatabaseConnection
+	conn         contracts.DatabaseConnection
 	pingErr      error
 	acquireCount int
 }
@@ -222,7 +223,7 @@ type fakeDBPool struct {
 func (p *fakeDBPool) Ping(context.Context) error { return p.pingErr }
 func (p *fakeDBPool) Close()                     {}
 
-func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *fakeDBPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	p.acquireCount++
 	return p.conn, nil
 }
@@ -236,16 +237,16 @@ type fakeDBConnection struct {
 	execCalls    []execCall
 	queryRowSQL  string
 	queryRowArgs []any
-	row          ports.DatabaseRow
+	row          contracts.DatabaseRow
 	rowsAffected int64
 	releaseCount int
 }
 
-func (c *fakeDBConnection) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (c *fakeDBConnection) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return fakeDBRows{}, nil
 }
 
-func (c *fakeDBConnection) QueryRow(_ context.Context, sql string, args ...any) ports.DatabaseRow {
+func (c *fakeDBConnection) QueryRow(_ context.Context, sql string, args ...any) contracts.DatabaseRow {
 	c.queryRowSQL = sql
 	c.queryRowArgs = append([]any(nil), args...)
 	if c.row != nil {
@@ -254,12 +255,12 @@ func (c *fakeDBConnection) QueryRow(_ context.Context, sql string, args ...any) 
 	return scanFuncRow(func(...any) error { return nil })
 }
 
-func (c *fakeDBConnection) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (c *fakeDBConnection) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	c.execCalls = append(c.execCalls, execCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeDBResult(c.rowsAffected), nil
 }
 
-func (c *fakeDBConnection) Begin(context.Context) (ports.DatabaseTransaction, error) {
+func (c *fakeDBConnection) Begin(context.Context) (contracts.DatabaseTransaction, error) {
 	return nil, errors.New("transactions are not supported by fake connection")
 }
 

@@ -11,7 +11,7 @@ import (
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
 	"github.com/aatuh/api-toolkit/v3/email"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/endpoints/health"
 )
 
 func TestSendSuccessAndRequestContract(t *testing.T) {
@@ -87,18 +87,18 @@ func TestHealthCheckerDisabledAndProviderResponses(t *testing.T) {
 	defer server.Close()
 
 	checker := HealthChecker(Config{Enabled: true, APIKey: "key", BaseURL: server.URL}, server.Client())
-	if result := checker.Check(context.Background()); result.Status != ports.HealthStatusHealthy {
+	if result := checker.Check(context.Background()); result.Status != health.StatusHealthy {
 		t.Fatalf("healthy status = %q", result.Status)
 	}
-	healthchecktest.AssertCheckerContract(t, checker, "resend", ports.HealthStatusHealthy)
+	healthchecktest.AssertCheckerContract(t, checker, "resend", health.StatusHealthy)
 	mode = "restricted"
 	checker = HealthChecker(Config{Enabled: true, APIKey: "key", BaseURL: server.URL}, server.Client())
-	if result := checker.Check(context.Background()); result.Status != ports.HealthStatusHealthy || !strings.Contains(result.Message, "send-only") {
+	if result := checker.Check(context.Background()); result.Status != health.StatusHealthy || !strings.Contains(result.Message, "send-only") {
 		t.Fatalf("restricted status = %#v", result)
 	}
 	mode = "degraded"
 	checker = HealthChecker(Config{Enabled: true, APIKey: "key", BaseURL: server.URL}, server.Client())
-	if result := checker.Check(context.Background()); result.Status != ports.HealthStatusDegraded {
+	if result := checker.Check(context.Background()); result.Status != health.StatusDegraded {
 		t.Fatalf("degraded status = %#v", result)
 	}
 }

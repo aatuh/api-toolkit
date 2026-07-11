@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type stubPoolStats struct{}
@@ -66,7 +66,7 @@ func TestSnapshotFromPoolStatsCopiesPlainValues(t *testing.T) {
 func TestSnapshotFromPoolStatsNil(t *testing.T) {
 	t.Parallel()
 
-	if got := snapshotFromPoolStats(nil); got != (ports.DatabasePoolSnapshot{}) {
+	if got := snapshotFromPoolStats(nil); got != (contracts.DatabasePoolSnapshot{}) {
 		t.Fatalf("expected zero snapshot, got %+v", got)
 	}
 }
@@ -75,7 +75,7 @@ func TestAdapterStatSnapshotNilAdapter(t *testing.T) {
 	t.Parallel()
 
 	var adapter *Adapter
-	if got := adapter.StatSnapshot(); got != (ports.DatabasePoolSnapshot{}) {
+	if got := adapter.StatSnapshot(); got != (contracts.DatabasePoolSnapshot{}) {
 		t.Fatalf("expected zero snapshot, got %+v", got)
 	}
 }
@@ -158,7 +158,7 @@ func TestNewWithContextExposesAdapterStatsAndAcquireErrors(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	snapshotter, ok := pool.(ports.DatabasePoolSnapshotProvider)
+	snapshotter, ok := pool.(contracts.DatabasePoolSnapshotProvider)
 	if !ok {
 		t.Fatal("pool does not expose snapshot stats")
 	}
@@ -174,14 +174,14 @@ func TestDatabaseHealthCheckerMapsPingReadiness(t *testing.T) {
 	t.Parallel()
 
 	healthy := health.NewDatabaseChecker(fakeDatabasePool{})
-	if result := healthy.Check(context.Background()); result.Status != ports.HealthStatusHealthy {
+	if result := healthy.Check(context.Background()); result.Status != health.StatusHealthy {
 		t.Fatalf("healthy status = %#v", result)
 	}
 
 	wantErr := errors.New("postgres down")
 	unhealthy := health.NewDatabaseChecker(fakeDatabasePool{pingErr: wantErr})
 	result := unhealthy.Check(context.Background())
-	if result.Status != ports.HealthStatusUnhealthy || result.Message == "" {
+	if result.Status != health.StatusUnhealthy || result.Message == "" {
 		t.Fatalf("unhealthy result = %#v", result)
 	}
 }

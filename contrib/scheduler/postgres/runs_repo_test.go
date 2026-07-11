@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 func TestRunsRepoRecordUsesPooledFacade(t *testing.T) {
@@ -151,7 +151,7 @@ func TestRunsRepoRecordUsesTransactionFromContext(t *testing.T) {
 }
 
 type fakeDBPool struct {
-	conn         ports.DatabaseConnection
+	conn         contracts.DatabaseConnection
 	acquireErr   error
 	acquireCount int
 }
@@ -159,7 +159,7 @@ type fakeDBPool struct {
 func (p *fakeDBPool) Ping(context.Context) error { return nil }
 func (p *fakeDBPool) Close()                     {}
 
-func (p *fakeDBPool) Acquire(context.Context) (ports.DatabaseConnection, error) {
+func (p *fakeDBPool) Acquire(context.Context) (contracts.DatabaseConnection, error) {
 	p.acquireCount++
 	if p.acquireErr != nil {
 		return nil, p.acquireErr
@@ -176,27 +176,27 @@ type fakeDBConnection struct {
 	execCalls    []execCall
 	queryRowSQL  string
 	queryRowArgs []any
-	row          ports.DatabaseRow
-	tx           ports.DatabaseTransaction
+	row          contracts.DatabaseRow
+	tx           contracts.DatabaseTransaction
 	releaseCount int
 }
 
-func (c *fakeDBConnection) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (c *fakeDBConnection) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return fakeDBRows{}, nil
 }
 
-func (c *fakeDBConnection) QueryRow(_ context.Context, sql string, args ...any) ports.DatabaseRow {
+func (c *fakeDBConnection) QueryRow(_ context.Context, sql string, args ...any) contracts.DatabaseRow {
 	c.queryRowSQL = sql
 	c.queryRowArgs = append([]any(nil), args...)
 	return c.row
 }
 
-func (c *fakeDBConnection) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (c *fakeDBConnection) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	c.execCalls = append(c.execCalls, execCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeDBResult(1), nil
 }
 
-func (c *fakeDBConnection) Begin(context.Context) (ports.DatabaseTransaction, error) {
+func (c *fakeDBConnection) Begin(context.Context) (contracts.DatabaseTransaction, error) {
 	return c.tx, nil
 }
 
@@ -210,15 +210,15 @@ type fakeDBTransaction struct {
 	rollbackCount int
 }
 
-func (t *fakeDBTransaction) Query(context.Context, string, ...any) (ports.DatabaseRows, error) {
+func (t *fakeDBTransaction) Query(context.Context, string, ...any) (contracts.DatabaseRows, error) {
 	return fakeDBRows{}, nil
 }
 
-func (t *fakeDBTransaction) QueryRow(context.Context, string, ...any) ports.DatabaseRow {
+func (t *fakeDBTransaction) QueryRow(context.Context, string, ...any) contracts.DatabaseRow {
 	return nil
 }
 
-func (t *fakeDBTransaction) Exec(_ context.Context, sql string, args ...any) (ports.DatabaseResult, error) {
+func (t *fakeDBTransaction) Exec(_ context.Context, sql string, args ...any) (contracts.DatabaseResult, error) {
 	t.execCalls = append(t.execCalls, execCall{sql: sql, args: append([]any(nil), args...)})
 	return fakeDBResult(1), nil
 }

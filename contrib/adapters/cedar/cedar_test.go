@@ -7,26 +7,26 @@ import (
 	cedarcore "github.com/cedar-policy/cedar-go"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/policytest"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/authorization"
 )
 
 func TestPolicyEngineContract(t *testing.T) {
 	policytest.AssertEngineContract(t,
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractEngine(t, `permit (
 				principal == User::"user_123",
 				action == Action::"read",
 				resource == Document::"doc_123"
 			) when { context.tenant == "tenant_123" };`, false)
 		},
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractEngine(t, `forbid (
 				principal == User::"user_123",
 				action == Action::"read",
 				resource == Document::"doc_123"
 			);`, false)
 		},
-		func(t *testing.T) ports.PolicyEngine {
+		func(t *testing.T) authorization.PolicyEngine {
 			return newContractEngine(t, `permit (principal, action, resource);`, true)
 		},
 	)
@@ -49,7 +49,7 @@ func TestEvaluateAllows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}
-	decision, err := engine.Evaluate(context.Background(), ports.PolicyRequest{
+	decision, err := engine.Evaluate(context.Background(), authorization.PolicyRequest{
 		Subject:  cedarcore.NewEntityUID("User", "alice"),
 		Action:   "view",
 		Resource: cedarcore.NewEntityUID("Photo", "pic1"),
@@ -79,7 +79,7 @@ func TestEvaluateWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}
-	decision, err := engine.Evaluate(context.Background(), ports.PolicyRequest{
+	decision, err := engine.Evaluate(context.Background(), authorization.PolicyRequest{
 		Subject:  cedarcore.NewEntityUID("User", "alice"),
 		Action:   "view",
 		Resource: cedarcore.NewEntityUID("Photo", "pic1"),
@@ -99,7 +99,7 @@ func TestRecordFromMapValidatesKeys(t *testing.T) {
 	}
 }
 
-func newContractEngine(t *testing.T, policyText string, malformed bool) ports.PolicyEngine {
+func newContractEngine(t *testing.T, policyText string, malformed bool) authorization.PolicyEngine {
 	t.Helper()
 	var policy cedarcore.Policy
 	if err := policy.UnmarshalCedar([]byte(policyText)); err != nil {
@@ -109,7 +109,7 @@ func newContractEngine(t *testing.T, policyText string, malformed bool) ports.Po
 	policies.Add("policy0", &policy)
 	engine, err := New(Config{
 		Policies: policies,
-		RequestBuilder: func(req ports.PolicyRequest) (cedarcore.Request, error) {
+		RequestBuilder: func(req authorization.PolicyRequest) (cedarcore.Request, error) {
 			if malformed {
 				return cedarcore.Request{}, context.Canceled
 			}

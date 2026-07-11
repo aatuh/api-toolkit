@@ -13,16 +13,16 @@ import (
 	"github.com/aatuh/envvar/v2"
 	"github.com/aatuh/envvar/v2/loaders"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // Adapter provides environment variable access using the envvar library.
 type Adapter struct{}
 
-var _ ports.EnvVar = (*Adapter)(nil)
+var _ contracts.EnvVar = (*Adapter)(nil)
 
-// New creates a new envvar adapter that satisfies ports.EnvVar.
-func New() ports.EnvVar { return &Adapter{} }
+// New creates a new envvar adapter that satisfies contracts.EnvVar.
+func New() contracts.EnvVar { return &Adapter{} }
 
 // LoadEnvFiles loads environment variables from files.
 // Tries .env then /env/.env by default.

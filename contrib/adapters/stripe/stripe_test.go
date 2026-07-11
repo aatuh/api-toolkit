@@ -16,8 +16,8 @@ import (
 	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 
 	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
+	"github.com/aatuh/api-toolkit/v3/httpx"
 	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestParseWebhookRequiresVerificationWhenBypassIsNotAllowed(t *testing.T) {
@@ -329,8 +329,8 @@ func TestProviderNormalizesStripeResourceMissingErrors(t *testing.T) {
 			t.Parallel()
 
 			err := tc.run()
-			if !errors.Is(err, ports.ErrResourceMissing) {
-				t.Fatalf("expected ports.ErrResourceMissing, got %v", err)
+			if !errors.Is(err, httpx.ErrResourceMissing) {
+				t.Fatalf("expected httpx.ErrResourceMissing, got %v", err)
 			}
 
 			var stripeErr *stripeapi.Error

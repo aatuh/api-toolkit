@@ -6,7 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // DBer aliases the transaction-aware query interface.
@@ -16,10 +16,10 @@ type DBer = txpostgres.DBer
 type Manager = txpostgres.Manager
 
 // New constructs a transaction manager over a pgx pool.
-func New(pool ports.DatabasePool) ports.TxManager { return txpostgres.New(pool) }
+func New(pool contracts.DatabasePool) contracts.TxManager { return txpostgres.New(pool) }
 
 // FromCtx retrieves the active connection/tx from context.
-func FromCtx(ctx context.Context, pool ports.DatabasePool) DBer {
+func FromCtx(ctx context.Context, pool contracts.DatabasePool) DBer {
 	return txpostgres.FromCtx(ctx, pool)
 }
 

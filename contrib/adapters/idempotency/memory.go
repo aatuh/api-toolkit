@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 )
 
 const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
@@ -59,10 +59,10 @@ type MemoryStore struct {
 	legacyRecoveryRawKey     bool
 }
 
-var _ ports.ReservationReleasableIdempotencyStore = (*MemoryStore)(nil)
+var _ idempotency.ReleasableStore = (*MemoryStore)(nil)
 
 type memoryEntry struct {
-	record    ports.IdempotencyRecord
+	record    idempotency.Record
 	expiresAt time.Time
 }
 
@@ -83,26 +83,26 @@ func NewMemoryStoreWithOptions(opts MemoryStoreOptions) *MemoryStore {
 }
 
 // Get returns an idempotency record if present and not expired.
-func (m *MemoryStore) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (m *MemoryStore) Get(ctx context.Context, key string) (idempotency.Record, bool, error) {
 	if m == nil {
-		return ports.IdempotencyRecord{}, false, nil
+		return idempotency.Record{}, false, nil
 	}
 	_ = ctx
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	entry, ok := m.data[key]
 	if !ok {
-		return ports.IdempotencyRecord{}, false, nil
+		return idempotency.Record{}, false, nil
 	}
 	if m.isExpired(entry) {
 		delete(m.data, key)
-		return ports.IdempotencyRecord{}, false, nil
+		return idempotency.Record{}, false, nil
 	}
 	return cloneRecord(entry.record), true, nil
 }
 
 // TryBegin reserves a key for an in-flight request.
-func (m *MemoryStore) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (m *MemoryStore) TryBegin(ctx context.Context, key string, record idempotency.Record, ttl time.Duration) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
@@ -120,7 +120,7 @@ func (m *MemoryStore) TryBegin(ctx context.Context, key string, record ports.Ide
 }
 
 // Save persists a completed idempotency record.
-func (m *MemoryStore) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (m *MemoryStore) Save(ctx context.Context, key string, record idempotency.Record, ttl time.Duration) error {
 	if m == nil {
 		return nil
 	}
@@ -159,7 +159,7 @@ func (m *MemoryStore) release(ctx context.Context, key, token string, requireTok
 	if !ok {
 		return nil
 	}
-	if entry.record.State != ports.IdempotencyStateInFlight {
+	if entry.record.State != idempotency.StateInFlight {
 		return nil
 	}
 	if !requireToken {
@@ -173,13 +173,13 @@ func (m *MemoryStore) release(ctx context.Context, key, token string, requireTok
 		if token == "" {
 			delete(m.data, key)
 			m.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryRecovered)
-			return ports.ErrLegacyInFlightReservationMissingToken
+			return idempotency.ErrLegacyInFlightReservationMissingToken
 		}
 		m.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryTokenMismatch)
-		return ports.ErrLegacyInFlightTokenMismatch
+		return idempotency.ErrLegacyInFlightTokenMismatch
 	}
 	if entry.record.ReservationToken != token {
-		return ports.ErrLegacyInFlightTokenMismatch
+		return idempotency.ErrLegacyInFlightTokenMismatch
 	}
 	delete(m.data, key)
 	return nil
@@ -221,7 +221,7 @@ func (m *MemoryStore) isExpired(entry memoryEntry) bool {
 	return m.now().After(entry.expiresAt)
 }
 
-func cloneRecord(record ports.IdempotencyRecord) ports.IdempotencyRecord {
+func cloneRecord(record idempotency.Record) idempotency.Record {
 	out := record
 	if record.Header != nil {
 		out.Header = record.Header.Clone()

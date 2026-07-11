@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/contrib/v3/adapters/envvar"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
 )
 
 // Loader reads env vars with defaults and aggregates errors.
 type Loader struct {
-	env  ports.EnvVar
+	env  contracts.EnvVar
 	errs []error
 }
 
@@ -128,7 +128,7 @@ func (l *Loader) Err() error {
 	return errors.Join(l.errs...)
 }
 
-func (l *Loader) ensureEnv() ports.EnvVar {
+func (l *Loader) ensureEnv() contracts.EnvVar {
 	if l == nil {
 		return envvar.New()
 	}

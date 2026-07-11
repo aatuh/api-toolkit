@@ -12,7 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
 )
 
 const legacyInFlightRecoveryUnknownKeyValue = "[redacted]"
@@ -69,7 +69,7 @@ type Options struct {
 	LegacyInFlightRecoveryRawKey bool
 }
 
-// Store implements ports.IdempotencyStore using Redis.
+// Store implements idempotency.Store using Redis.
 type Store struct {
 	client                   redis.UniversalClient
 	prefix                   string
@@ -77,7 +77,7 @@ type Store struct {
 	legacyRecoveryRawKey     bool
 }
 
-var _ ports.ReservationReleasableIdempotencyStore = (*Store)(nil)
+var _ idempotency.ReleasableStore = (*Store)(nil)
 
 // New constructs a Redis-backed idempotency store.
 func New(client redis.UniversalClient, opts Options) *Store {
@@ -124,26 +124,26 @@ return "deleted"
 `)
 
 // Get returns an idempotency record if present.
-func (s *Store) Get(ctx context.Context, key string) (ports.IdempotencyRecord, bool, error) {
+func (s *Store) Get(ctx context.Context, key string) (idempotency.Record, bool, error) {
 	if s == nil || s.client == nil {
-		return ports.IdempotencyRecord{}, false, nil
+		return idempotency.Record{}, false, nil
 	}
 	val, err := s.client.Get(ctx, s.key(key)).Bytes()
 	if errors.Is(err, redis.Nil) {
-		return ports.IdempotencyRecord{}, false, nil
+		return idempotency.Record{}, false, nil
 	}
 	if err != nil {
-		return ports.IdempotencyRecord{}, false, err
+		return idempotency.Record{}, false, err
 	}
-	var record ports.IdempotencyRecord
+	var record idempotency.Record
 	if err := json.Unmarshal(val, &record); err != nil {
-		return ports.IdempotencyRecord{}, false, fmt.Errorf("decode idempotency record: %w", err)
+		return idempotency.Record{}, false, fmt.Errorf("decode idempotency record: %w", err)
 	}
 	return record, true, nil
 }
 
 // TryBegin reserves a key for an in-flight request.
-func (s *Store) TryBegin(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) (bool, error) {
+func (s *Store) TryBegin(ctx context.Context, key string, record idempotency.Record, ttl time.Duration) (bool, error) {
 	if s == nil || s.client == nil {
 		return false, nil
 	}
@@ -159,7 +159,7 @@ func (s *Store) TryBegin(ctx context.Context, key string, record ports.Idempoten
 }
 
 // Save persists a completed idempotency record.
-func (s *Store) Save(ctx context.Context, key string, record ports.IdempotencyRecord, ttl time.Duration) error {
+func (s *Store) Save(ctx context.Context, key string, record idempotency.Record, ttl time.Duration) error {
 	if s == nil || s.client == nil {
 		return nil
 	}
@@ -198,11 +198,11 @@ func (s *Store) release(ctx context.Context, key, token string, requireToken boo
 		}
 		return err
 	}
-	var record ports.IdempotencyRecord
+	var record idempotency.Record
 	if err := json.Unmarshal([]byte(raw), &record); err != nil {
 		return err
 	}
-	if record.State != ports.IdempotencyStateInFlight {
+	if record.State != idempotency.StateInFlight {
 		return nil
 	}
 	if !requireToken {
@@ -217,13 +217,13 @@ func (s *Store) release(ctx context.Context, key, token string, requireToken boo
 				return err
 			}
 			s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryRecovered)
-			return ports.ErrLegacyInFlightReservationMissingToken
+			return idempotency.ErrLegacyInFlightReservationMissingToken
 		}
 		s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryTokenMismatch)
-		return ports.ErrLegacyInFlightTokenMismatch
+		return idempotency.ErrLegacyInFlightTokenMismatch
 	}
 	if record.ReservationToken != token {
-		return ports.ErrLegacyInFlightTokenMismatch
+		return idempotency.ErrLegacyInFlightTokenMismatch
 	}
 	return s.client.Del(ctx, s.key(key)).Err()
 }
@@ -238,12 +238,12 @@ func (s *Store) releaseReservationAtomic(ctx context.Context, key, token string)
 		return nil
 	case "legacy_deleted":
 		s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryRecovered)
-		return ports.ErrLegacyInFlightReservationMissingToken
+		return idempotency.ErrLegacyInFlightReservationMissingToken
 	case "legacy_mismatch", "token_mismatch":
 		if result == "legacy_mismatch" {
 			s.emitLegacyInFlightRecovery(ctx, key, LegacyInFlightRecoveryTokenMismatch)
 		}
-		return ports.ErrLegacyInFlightTokenMismatch
+		return idempotency.ErrLegacyInFlightTokenMismatch
 	case "malformed":
 		return errors.New("decode idempotency record: malformed redis idempotency record")
 	default:

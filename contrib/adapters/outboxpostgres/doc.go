@@ -1,6 +1,6 @@
 // Package outboxpostgres provides a supported-adapter Postgres transactional outbox.
 //
-// Use New with a ports.DatabasePool and Options when async workers need an
+// Use New with a contracts.DatabasePool and Options when async workers need an
 // async.Store backed by Postgres. Store preserves enqueue, lease, complete,
 // retry/dead-letter, stuck-lease recovery, table-name validation, and readiness
 // health behavior.
