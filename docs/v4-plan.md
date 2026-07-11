@@ -43,7 +43,7 @@ instead of default adoption paths:
 
 | Package or surface | Accountable owner | V4 target | Replacement direction | Required migration evidence |
 | --- | --- | --- | --- | --- |
-| `github.com/aatuh/api-toolkit/v3/ports` | `core-maintainers` | Narrow root `ports`; move broad database/router/config abstractions to package-local, contrib-owned, or app-owned interfaces where practical. | Use the package-local aliases in `middleware/ratelimit`, `middleware/idempotency`, `authorization`, `endpoints/health`, and `endpoints/docs`; use app or contrib interfaces for the remaining broad contracts. | Symbol-level ledger with consumers and implementations, two-implementation or root-consumer evidence for every survivor, v3 deprecation evidence, API diff, and import migration snippets. |
+| `github.com/aatuh/api-toolkit/v3/ports` | `core-maintainers` | Narrow root `ports`; move broad database/router/config abstractions to package-local, contrib-owned, or app-owned interfaces where practical. | Use the package-local aliases in `middleware/ratelimit`, `middleware/idempotency`, `authorization`, `endpoints/health`, and `endpoints/docs`; use app or contrib interfaces for the remaining broad contracts. | [`docs/ports-v4-migration-ledger.tsv`](ports-v4-migration-ledger.tsv) records every current export, consumer, implementation evidence, v3 deprecation status, and v4 decision; add two-implementation or root-consumer evidence for every survivor, API diff, and import migration snippets. |
 | `github.com/aatuh/api-toolkit/v3/compat/billing` | `core-maintainers` | Demote from root default path; keep only as a compatibility module or move to a separate billing compatibility module. | Keep billing workflows app-owned unless the hosted-checkout model is exact. | Exact package or symbol decision, compat import migration example, consumer evidence, API diff, and release note. |
 | `github.com/aatuh/api-toolkit/v3/scheduler/migrations` | `core-maintainers` | Demote or move to contrib/app-owned migration orchestration. | Use app-owned migration commands or contrib migration adapters. | Package consumer inventory, import migration example, generated-service review, API diff, and release note. |
 | `github.com/aatuh/api-toolkit/v3/swagstub` | `core-maintainers` | Demote or remove from root stable surface if v4 tooling no longer needs it. | Move the stub behind internal tooling or retain it only in contrib tooling. | Generated-output import audit, tooling migration example, API diff, and release note. |
@@ -85,6 +85,9 @@ Before any v4 cleanup lands:
 - Update `VERSIONING.md`, `docs/package-classification.tsv`,
   `docs/package-owners.tsv`, `docs/api-inventory.md`, and `docs/release-notes.md`.
 - Add migration snippets for every moved or removed public import path.
+- Keep `docs/ports-v4-migration-ledger.tsv` current with the AST-checked
+  `internal/tools/portsledger` output before deciding whether any root port may
+  survive v4.
 - Keep `make release-api-check` covering the v3 baseline until the v4 branch
   intentionally changes the stable surface.
 - Add docscheck guardrails so public examples use v4 replacement APIs.

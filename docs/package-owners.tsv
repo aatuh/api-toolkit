@@ -27,6 +27,7 @@ github.com/aatuh/api-toolkit/v3/internal/tools/apiinventory	repo-tooling-maintai
 github.com/aatuh/api-toolkit/v3/internal/tools/coveragetrend	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/docsite	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/internal/tools/mutationsmoke	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
+github.com/aatuh/api-toolkit/v3/internal/tools/portsledger	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v3/middleware/auth/apikey	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v3/middleware/auth/authz	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v3/middleware/auth/jwt	core-maintainers	stable	core-test-maintainers	release-blocking-stable

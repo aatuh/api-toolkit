@@ -97,6 +97,8 @@ source of truth is `docs/release-runbook.md`.
   without independent adoption or family-specific release-cadence evidence.
 - Clarified that CLI and scaffold behavior releases through contrib tooling
   ownership and release-note review, never through the root stable API promise.
+- Published an AST-verified root-port migration ledger with all current exports,
+  consumers, implementation evidence, deprecation state, and v4 dispositions.
 
 ## v3 cleanup branch
 

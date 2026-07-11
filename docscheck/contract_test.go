@@ -6016,7 +6016,7 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 		"CLI and generated scaffolds",
 		"Provider adapters and integrations",
 		"Deprecated APIs with `// Deprecated:` comments",
-		"Symbol-level ledger with consumers and implementations",
+		"docs/ports-v4-migration-ledger.tsv",
 		"old-to-new import examples",
 		"Per-family consumer and dependency report",
 		"Generated-project upgrade test",
@@ -6028,6 +6028,29 @@ func TestV4ScopeCleanupPlanDocumentsPackageDispositions(t *testing.T) {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("v4 scope cleanup plan missing %q", required)
 		}
+	}
+}
+
+func TestPortsV4MigrationLedgerMatchesCurrentPorts(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	ledgerPath := filepath.Join(repoRoot, "docs", "ports-v4-migration-ledger.tsv")
+	ledger := readText(t, ledgerPath)
+
+	for _, required := range []string{
+		"symbol\tkind\tconsumers\timplementations\treplacement_path\tv3_deprecation_status\tv4_disposition\tmigration_evidence",
+		"Authorizer\ttype",
+		"DatabasePool\ttype",
+		"HealthChecker\ttype",
+		"RateLimiter\ttype",
+		"VersionInfo\ttype",
+	} {
+		if !strings.Contains(ledger, required) {
+			t.Fatalf("ports v4 migration ledger missing %q", required)
+		}
+	}
+	out, err := runGoCmd(repoRoot, "run", "./internal/tools/portsledger", "-verify", "docs/ports-v4-migration-ledger.tsv")
+	if err != nil {
+		t.Fatalf("ports v4 migration ledger drift:\n%s\nerror: %v", out, err)
 	}
 }
 
