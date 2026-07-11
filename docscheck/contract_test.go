@@ -98,12 +98,12 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 		t.Fatalf("generate getting-started service:\n%s\nerror: %v", out, err)
 	}
 
-	out, err := runGoCmd(serviceDir, "mod", "tidy")
+	out, err := runGoCmdOutsideWorkspace(serviceDir, "mod", "tidy")
 	if err != nil {
 		t.Fatalf("getting-started guide dependencies do not resolve:\n%s\nerror: %v", out, err)
 	}
 
-	out, err = runGoCmd(serviceDir, "test", "./...")
+	out, err = runGoCmdOutsideWorkspace(serviceDir, "test", "./...")
 	if err != nil {
 		t.Fatalf("getting-started guide does not build:\n%s\nerror: %v", out, err)
 	}
@@ -9480,6 +9480,13 @@ func runGoCmd(dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(context.Background(), "go", args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
+	return cmd.CombinedOutput()
+}
+
+func runGoCmdOutsideWorkspace(dir string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(context.Background(), "go", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOWORK=off")
 	return cmd.CombinedOutput()
 }
 
