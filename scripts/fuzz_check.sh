@@ -34,7 +34,7 @@ for mod in "${modules[@]}"; do
       fi
       for fuzzer in "${fuzzers[@]}"; do
         echo "==> $pkg $fuzzer"
-        "$go_cmd" test "$pkg" -run='^$' -fuzz="^${fuzzer}$" -fuzztime="$fuzztime"
+        "$go_cmd" test "$pkg" -run='^$' -fuzz="^${fuzzer}$" -fuzztime="$fuzztime" -parallel=1
       done
     done < <("$go_cmd" list ./...)
   )
