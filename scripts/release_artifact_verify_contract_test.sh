@@ -278,9 +278,8 @@ PY
   fi
   tar -C "$logs_dir" -czf "$dir/release-evidence-logs.tgz" .
 
-  for report in dependency-licenses-root.tsv dependency-licenses-contrib.tsv; do
-    printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/%s\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/%s@v1.0.0\n' "$report" "$report" >"$dir/$report"
-  done
+  printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\n' >"$dir/dependency-licenses-root.tsv"
+  printf 'module\tversion\tlicense_expression\tstatus\tsource_purls\nexample.com/dependency-licenses-contrib.tsv\tv1.0.0\tMIT\tdetected\tpkg:golang/example.com/dependency-licenses-contrib.tsv@v1.0.0\n' >"$dir/dependency-licenses-contrib.tsv"
 
   for asset in \
     sbom-root.spdx.json sbom-contrib.spdx.json \
