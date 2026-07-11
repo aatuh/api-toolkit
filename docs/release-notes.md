@@ -64,6 +64,17 @@ source of truth is `docs/release-runbook.md`.
   documented v2-to-v3 transition evidence.
 - Use `docs/release-manifests.md` when interpreting `docs/package-classification.tsv`, `docs/contrib-api-drift-dispositions.tsv`, and `docs/vulnerability-dispositions.tsv`.
 
+## 2026-07-11
+
+### Migration
+
+- Added package-local endpoint aliases for `health.Checker`,
+  `health.ManagerContract`, `health.DetailedManager`, `health.CachedManager`,
+  `health.RouteRegistrar`, `docs.Provider`, `docs.ManagerContract`,
+  `docs.HTMLModeProvider`, and `docs.RouteRegistrar`. They preserve exact v3
+  source compatibility with their root `ports` counterparts while giving new
+  health and documentation integrations a consuming-package import path.
+
 ## v3 cleanup branch
 
 ### Security and dependencies

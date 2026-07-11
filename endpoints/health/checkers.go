@@ -19,7 +19,7 @@ const defaultCustomCheckerTimeout = 5 * time.Second
 type BasicChecker struct{}
 
 // NewBasicChecker returns a health checker that always reports healthy.
-func NewBasicChecker() ports.HealthChecker {
+func NewBasicChecker() Checker {
 	return &BasicChecker{}
 }
 
@@ -43,7 +43,7 @@ type DatabaseChecker struct {
 }
 
 // NewDatabaseChecker returns a database ping health checker.
-func NewDatabaseChecker(pool ports.DatabasePool) ports.HealthChecker {
+func NewDatabaseChecker(pool ports.DatabasePool) Checker {
 	return &DatabaseChecker{pool: pool}
 }
 
@@ -107,7 +107,7 @@ type MemoryChecker struct {
 }
 
 // NewMemoryChecker returns a memory usage health checker.
-func NewMemoryChecker(maxMemoryMB int64) ports.HealthChecker {
+func NewMemoryChecker(maxMemoryMB int64) Checker {
 	return &MemoryChecker{maxMemoryMB: maxMemoryMB}
 }
 
@@ -164,7 +164,7 @@ type CustomChecker struct {
 }
 
 // NewCustomChecker returns a checker that calls the provided function.
-func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) ports.HealthChecker {
+func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) Checker {
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
@@ -173,7 +173,7 @@ func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.He
 }
 
 // NewCustomCheckerWithTimeout returns a checker with a custom timeout.
-func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) ports.HealthChecker {
+func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) Checker {
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
@@ -225,11 +225,11 @@ func normalizeCustomCheckerTimeout(timeout time.Duration) time.Duration {
 // CompositeChecker implements a composite health check that combines multiple checks.
 type CompositeChecker struct {
 	name     string
-	checkers []ports.HealthChecker
+	checkers []Checker
 }
 
 // NewCompositeChecker returns a checker that aggregates other checkers.
-func NewCompositeChecker(name string, checkers ...ports.HealthChecker) ports.HealthChecker {
+func NewCompositeChecker(name string, checkers ...Checker) Checker {
 	return &CompositeChecker{
 		name:     name,
 		checkers: checkers,
@@ -340,7 +340,7 @@ type HTTPCheckerOption func(*HTTPChecker)
 // request parameters or other untrusted input. If a target can be influenced
 // externally, configure a client with SSRF guardrails and pass it with
 // WithHTTPClient.
-func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) ports.HealthChecker {
+func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) Checker {
 	checker := &HTTPChecker{
 		name:          name,
 		url:           url,
@@ -516,7 +516,7 @@ type PaymentProviderChecker struct {
 type PaymentProviderCheckerOption func(*PaymentProviderChecker)
 
 // NewPaymentProviderChecker returns a checker for payment providers.
-func NewPaymentProviderChecker(provider compatbilling.PaymentProvider, opts ...PaymentProviderCheckerOption) ports.HealthChecker {
+func NewPaymentProviderChecker(provider compatbilling.PaymentProvider, opts ...PaymentProviderCheckerOption) Checker {
 	checker := &PaymentProviderChecker{
 		name:          "payments",
 		provider:      provider,

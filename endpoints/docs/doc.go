@@ -6,7 +6,9 @@
 // prefer RegisterProvider when the OpenAPI source is known at wiring time.
 //
 // Custom docs managers can expose HTML-mode-specific handler behavior by
-// implementing ports.DocsHTMLModeProvider in addition to ports.DocsManager.
+// implementing HTMLModeProvider in addition to ManagerContract. These
+// package-local aliases remain exactly source-compatible with their root ports
+// counterparts during v3.
 //
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v3/endpoints/docs`.

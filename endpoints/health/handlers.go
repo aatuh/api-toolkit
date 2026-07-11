@@ -13,11 +13,11 @@ import (
 
 // Handler provides HTTP handlers for health endpoints.
 type Handler struct {
-	manager ports.HealthManager
+	manager ManagerContract
 }
 
 // NewHandler creates a new health handler.
-func NewHandler(manager ports.HealthManager) *Handler {
+func NewHandler(manager ManagerContract) *Handler {
 	if manager == nil {
 		manager = New()
 	}
@@ -41,7 +41,7 @@ func NewDefaultHandler(pool ports.DatabasePool) *Handler {
 		LivenessChecks:  []string{"basic", "memory"},
 		ReadinessChecks: []string{"basic", "memory"},
 	}
-	checkers := []ports.HealthChecker{
+	checkers := []Checker{
 		NewBasicChecker(),
 		NewMemoryChecker(1024),
 	}
@@ -174,7 +174,7 @@ func (h *Handler) RegisterRoutes(router interface {
 // RegisterRoutesTo registers all enabled health endpoints on the given registrar.
 // When detailed health is enabled, prefer registering public probes separately
 // and mounting DetailedHealthHandler with RegisterAdminDetailedHealthRoute.
-func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+func (h *Handler) RegisterRoutesTo(router RouteRegistrar) {
 	h.RegisterPublicRoutesTo(router)
 	if h == nil || router == nil {
 		return
@@ -187,7 +187,7 @@ func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
 // RegisterPublicRoutesTo registers only public health probe endpoints on the
 // given registrar. It never mounts detailed dependency health, even when
 // detailed health is enabled on the manager.
-func (h *Handler) RegisterPublicRoutesTo(router ports.MethodRouteRegistrar) {
+func (h *Handler) RegisterPublicRoutesTo(router RouteRegistrar) {
 	if h == nil || router == nil {
 		return
 	}
@@ -202,7 +202,7 @@ func (h *Handler) RegisterPublicRoutesTo(router ports.MethodRouteRegistrar) {
 // behind an explicit authorization or internal-network wrapper. Passing nil
 // fails closed so operator-only dependency detail cannot be mounted without
 // policy.
-func (h *Handler) RegisterAdminDetailedHealthRoute(router ports.MethodRouteRegistrar, requireAdmin func(http.Handler) http.Handler) error {
+func (h *Handler) RegisterAdminDetailedHealthRoute(router RouteRegistrar, requireAdmin func(http.Handler) http.Handler) error {
 	if h == nil || router == nil {
 		return nil
 	}
@@ -230,7 +230,7 @@ func (h *Handler) RegisterCustomRoutes(router interface {
 // RegisterCustomRoutesTo registers health endpoints with custom paths. When
 // DetailedHealth is set, prefer RegisterAdminDetailedHealthRoute for the
 // detailed route unless an upstream internal-only policy already protects it.
-func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, paths HealthPaths) {
+func (h *Handler) RegisterCustomRoutesTo(router RouteRegistrar, paths HealthPaths) {
 	if h == nil || router == nil {
 		return
 	}
@@ -293,7 +293,7 @@ func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
 	if h == nil || h.manager == nil {
 		return response
 	}
-	cached, ok := h.manager.(ports.CachedHealthManager)
+	cached, ok := h.manager.(CachedManager)
 	if !ok {
 		return response
 	}
@@ -345,7 +345,7 @@ func (h *Handler) detailedHealthEnabled() bool {
 	if h == nil {
 		return false
 	}
-	mgr, ok := h.manager.(ports.DetailedHealthManager)
+	mgr, ok := h.manager.(DetailedManager)
 	if !ok {
 		return false
 	}

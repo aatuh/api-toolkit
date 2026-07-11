@@ -9,10 +9,10 @@ import (
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
-// Manager implements ports.HealthManager for managing health checks.
+// Manager implements ManagerContract for managing health checks.
 type Manager struct {
 	config     ports.HealthCheckConfig
-	checkers   map[string]ports.HealthChecker
+	checkers   map[string]Checker
 	cache      map[string]ports.HealthResult
 	cacheMutex sync.RWMutex
 	mu         sync.RWMutex
@@ -22,7 +22,7 @@ type Manager struct {
 }
 
 // New creates a new health manager with default configuration.
-func New() ports.HealthManager {
+func New() ManagerContract {
 	manager := NewManagerWithConfig(ports.HealthCheckConfig{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
@@ -39,13 +39,13 @@ func New() ports.HealthManager {
 func NewManagerWithConfig(config ports.HealthCheckConfig) *Manager {
 	return &Manager{
 		config:   config,
-		checkers: make(map[string]ports.HealthChecker),
+		checkers: make(map[string]Checker),
 		cache:    make(map[string]ports.HealthResult),
 	}
 }
 
 // NewWithConfig creates a new health manager with custom configuration.
-func NewWithConfig(config ports.HealthCheckConfig) ports.HealthManager {
+func NewWithConfig(config ports.HealthCheckConfig) ManagerContract {
 	return NewManagerWithConfig(config)
 }
 
@@ -59,7 +59,7 @@ func (m *Manager) DetailedHealthEnabled() bool {
 }
 
 // RegisterChecker registers a single health checker.
-func (m *Manager) RegisterChecker(checker ports.HealthChecker) {
+func (m *Manager) RegisterChecker(checker Checker) {
 	if checker == nil {
 		return
 	}
@@ -69,7 +69,7 @@ func (m *Manager) RegisterChecker(checker ports.HealthChecker) {
 }
 
 // RegisterCheckers registers multiple health checkers.
-func (m *Manager) RegisterCheckers(checkers ...ports.HealthChecker) {
+func (m *Manager) RegisterCheckers(checkers ...Checker) {
 	for _, checker := range checkers {
 		m.RegisterChecker(checker)
 	}

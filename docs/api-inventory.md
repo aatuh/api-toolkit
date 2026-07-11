@@ -322,6 +322,7 @@ Stability tier: `stable`
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
+| `HTMLModeProvider` | type | v3 compatibility surface | active |
 | `Handler` | type | v3 compatibility surface | active |
 | `Handler.HTMLHandler` | method | v3 compatibility surface | active |
 | `Handler.InfoHandler` | method | v3 compatibility surface | active |
@@ -343,12 +344,15 @@ Stability tier: `stable`
 | `Manager.ServeInfo` | method | v3 compatibility surface | active |
 | `Manager.ServeOpenAPI` | method | v3 compatibility surface | active |
 | `Manager.ServeVersion` | method | v3 compatibility surface | active |
+| `ManagerContract` | type | v3 compatibility surface | active |
 | `New` | func | v3 compatibility surface | active |
 | `NewDefaultHandler` | func | v3 compatibility surface | active |
 | `NewHandler` | func | v3 compatibility surface | active |
 | `NewStrict` | func | v3 compatibility surface | active |
 | `NewSwaggerUI` | func | v3 compatibility surface | active |
 | `NewWithConfig` | func | v3 compatibility surface | active |
+| `Provider` | type | v3 compatibility surface | active |
+| `RouteRegistrar` | type | v3 compatibility surface | active |
 
 ## `github.com/aatuh/api-toolkit/v3/endpoints/health`
 
@@ -359,6 +363,8 @@ Stability tier: `stable`
 | `BasicChecker` | type | v3 compatibility surface | active |
 | `BasicChecker.Check` | method | v3 compatibility surface | active |
 | `BasicChecker.Name` | method | v3 compatibility surface | active |
+| `CachedManager` | type | v3 compatibility surface | active |
+| `Checker` | type | v3 compatibility surface | active |
 | `CompositeChecker` | type | v3 compatibility surface | active |
 | `CompositeChecker.Check` | method | v3 compatibility surface | active |
 | `CompositeChecker.Name` | method | v3 compatibility surface | active |
@@ -377,6 +383,7 @@ Stability tier: `stable`
 | `DetailedHealthResponse.Status` | field | v3 compatibility surface | active |
 | `DetailedHealthResponse.Summary` | field | v3 compatibility surface | active |
 | `DetailedHealthResponse.Timestamp` | field | v3 compatibility surface | active |
+| `DetailedManager` | type | v3 compatibility surface | active |
 | `DurationLoader` | type | v3 compatibility surface | active |
 | `DurationLoader.Duration` | interface method | v3 compatibility surface | active |
 | `HTTPChecker` | type | v3 compatibility surface | active |
@@ -429,6 +436,7 @@ Stability tier: `stable`
 | `Manager.RefreshAll` | method | v3 compatibility surface | active |
 | `Manager.RegisterChecker` | method | v3 compatibility surface | active |
 | `Manager.RegisterCheckers` | method | v3 compatibility surface | active |
+| `ManagerContract` | type | v3 compatibility surface | active |
 | `MemoryChecker` | type | v3 compatibility surface | active |
 | `MemoryChecker.Check` | method | v3 compatibility surface | active |
 | `MemoryChecker.Name` | method | v3 compatibility surface | active |
@@ -453,6 +461,7 @@ Stability tier: `stable`
 | `PaymentProviderCheckerOption` | type | v3 compatibility surface | active |
 | `RefreshManager` | type | v3 compatibility surface | active |
 | `RefreshManager.RefreshAll` | interface method | v3 compatibility surface | active |
+| `RouteRegistrar` | type | v3 compatibility surface | active |
 | `Scheduler` | type | v3 compatibility surface | active |
 | `Scheduler.Start` | method | v3 compatibility surface | active |
 | `SchedulerConfig` | type | v3 compatibility surface | active |

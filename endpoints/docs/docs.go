@@ -14,10 +14,10 @@ import (
 	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
-// Manager implements ports.DocsManager for managing documentation.
+// Manager implements ManagerContract for managing documentation.
 type Manager struct {
 	config   ports.DocsConfig
-	provider ports.DocsProvider
+	provider Provider
 }
 
 type openAPIDocument struct {
@@ -96,7 +96,7 @@ var staticHTMLTemplate = template.Must(template.New("docs-static").Parse(`<!DOCT
 </html>`))
 
 // New creates a new docs manager with default configuration.
-func New() ports.DocsManager {
+func New() ManagerContract {
 	return NewWithConfig(ports.DocsConfig{
 		Title:       "API Documentation",
 		Description: "REST API Documentation",
@@ -110,12 +110,12 @@ func New() ports.DocsManager {
 }
 
 // NewStrict creates a docs manager that avoids third-party assets in HTML mode.
-func NewStrict() ports.DocsManager {
+func NewStrict() ManagerContract {
 	return New()
 }
 
 // NewSwaggerUI creates a docs manager that opts into the CDN-backed Swagger UI surface.
-func NewSwaggerUI() ports.DocsManager {
+func NewSwaggerUI() ManagerContract {
 	return NewWithConfig(ports.DocsConfig{
 		Title:       "API Documentation",
 		Description: "REST API Documentation",
@@ -129,7 +129,7 @@ func NewSwaggerUI() ports.DocsManager {
 }
 
 // NewWithConfig creates a new docs manager with custom configuration.
-func NewWithConfig(config ports.DocsConfig) ports.DocsManager {
+func NewWithConfig(config ports.DocsConfig) ManagerContract {
 	if config.HTMLMode == "" {
 		config.HTMLMode = ports.DocsHTMLModeStatic
 	}
@@ -139,7 +139,7 @@ func NewWithConfig(config ports.DocsConfig) ports.DocsManager {
 }
 
 // RegisterProvider registers a documentation provider.
-func (m *Manager) RegisterProvider(provider ports.DocsProvider) {
+func (m *Manager) RegisterProvider(provider Provider) {
 	m.provider = provider
 }
 

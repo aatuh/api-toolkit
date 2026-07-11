@@ -11,8 +11,9 @@
 //     and RegisterCustomRoutesTo detailed-health mounts as compatibility
 //     convenience behavior that should be wrapped by callers before public use.
 //   - Custom managers can opt into detailed route exposure and cached snapshot
-//     middleware behavior by implementing ports.DetailedHealthManager and
-//     ports.CachedHealthManager in addition to ports.HealthManager.
+//     middleware behavior by implementing DetailedManager and CachedManager in
+//     addition to ManagerContract. These package-local aliases remain exactly
+//     source-compatible with their root ports counterparts during v3.
 //   - When caching is enabled, cached checker results may be reused across
 //     liveness, readiness, and detailed responses until CacheDuration expires.
 //   - LoadConfig falls back to a 30-second refresh interval and a cache

@@ -18,8 +18,17 @@ surface, are implemented by users, or are needed by multiple stable packages.
 | `email.Sender` | implemented by adapter or app | Tiny email send boundary; provider details stay contrib or app-owned. |
 | `endpoints/health.DurationLoader` | implemented by user or config adapter | Reads health cache duration from app config. |
 | `endpoints/health.RefreshManager` | implemented by scheduler/integration | Refresh hook for health status. |
+| `endpoints/health.Checker` | package-local v3 alias | New health integrations should use this alias instead of `ports.HealthChecker`. |
+| `endpoints/health.ManagerContract` | package-local v3 alias | New health integrations should use this alias instead of `ports.HealthManager`. |
+| `endpoints/health.DetailedManager` | package-local v3 alias | Optional detailed health capability alias. |
+| `endpoints/health.CachedManager` | package-local v3 alias | Optional cached health capability alias. |
+| `endpoints/health.RouteRegistrar` | package-local v3 alias | Minimal health endpoint registration alias. |
 | `endpoints/list.CursorCodec` | implemented by package or user | Cursor encoding boundary for list endpoints. |
 | `endpoints/pprof.Router` | implemented by router adapter | Minimal route registration shape. |
+| `endpoints/docs.Provider` | package-local v3 alias | New docs integrations should use this alias instead of `ports.DocsProvider`. |
+| `endpoints/docs.ManagerContract` | package-local v3 alias | New docs integrations should use this alias instead of `ports.DocsManager`. |
+| `endpoints/docs.HTMLModeProvider` | package-local v3 alias | Optional docs HTML mode capability alias. |
+| `endpoints/docs.RouteRegistrar` | package-local v3 alias | Minimal docs endpoint registration alias. |
 | `fielderrors.Provider` | implemented by validation errors | Exposes field errors for Problem Details mapping. |
 | `middleware/auth/apikey.Verifier` | implemented by user or auth adapter | API key verification belongs to app/provider. |
 | `middleware/idempotency.LegacyInFlightCompatibilityEventSink` | implemented by operators | Compatibility telemetry sink. |

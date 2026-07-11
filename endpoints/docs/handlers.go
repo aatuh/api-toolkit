@@ -12,11 +12,11 @@ const strictDocsCSP = "default-src 'self'; base-uri 'none'; connect-src 'self'; 
 
 // Handler provides HTTP handlers for documentation endpoints.
 type Handler struct {
-	manager ports.DocsManager
+	manager ManagerContract
 }
 
 // NewHandler creates a new docs handler.
-func NewHandler(manager ports.DocsManager) *Handler {
+func NewHandler(manager ManagerContract) *Handler {
 	if manager == nil {
 		manager = New()
 	}
@@ -75,7 +75,7 @@ func (h *Handler) RegisterRoutes(router interface {
 }
 
 // RegisterRoutesTo registers all documentation endpoints on the given registrar.
-func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+func (h *Handler) RegisterRoutesTo(router RouteRegistrar) {
 	if h == nil || router == nil {
 		return
 	}
@@ -97,7 +97,7 @@ func (h *Handler) RegisterCustomRoutes(router interface {
 }
 
 // RegisterCustomRoutesTo registers documentation endpoints with custom paths.
-func (h *Handler) RegisterCustomRoutesTo(router ports.MethodRouteRegistrar, paths ports.DocsPaths) {
+func (h *Handler) RegisterCustomRoutesTo(router RouteRegistrar, paths ports.DocsPaths) {
 	if h == nil || router == nil {
 		return
 	}
@@ -136,8 +136,8 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 	}
 }
 
-func docsCSP(manager ports.DocsManager) string {
-	if provider, ok := manager.(ports.DocsHTMLModeProvider); ok {
+func docsCSP(manager ManagerContract) string {
+	if provider, ok := manager.(HTMLModeProvider); ok {
 		if provider.HTMLMode() == ports.DocsHTMLModeSwaggerUI {
 			return defaultDocsCSP
 		}

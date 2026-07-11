@@ -55,6 +55,10 @@ design, not current invitations to widen generic core ports.
   `StatSnapshot()` methods.
 - New rate-limit examples should use `middleware/ratelimit.Limiter` rather than
   importing `ports.RateLimiter` directly.
+- New health integrations should use `endpoints/health.Checker`,
+  `ManagerContract`, `DetailedManager`, `CachedManager`, and `RouteRegistrar`.
+- New documentation integrations should use `endpoints/docs.Provider`,
+  `ManagerContract`, `HTMLModeProvider`, and `RouteRegistrar`.
 - New response examples must use `httpx`; middleware that needs capture should
   keep package-local recorders.
 
