@@ -95,6 +95,8 @@ source of truth is `docs/release-runbook.md`.
 - Assessed provider extension-module candidates using ownership, dependency,
   contract, realism, and drift evidence. No family is approved for extraction
   without independent adoption or family-specific release-cadence evidence.
+- Clarified that CLI and scaffold behavior releases through contrib tooling
+  ownership and release-note review, never through the root stable API promise.
 
 ## v3 cleanup branch
 

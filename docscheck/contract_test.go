@@ -6076,6 +6076,9 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
 	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
 	roadmap := readText(t, filepath.Join(repoRoot, "ROADMAP.md"))
+	classification := readText(t, filepath.Join(repoRoot, "docs", "package-classification.tsv"))
+	owners := readText(t, filepath.Join(repoRoot, "docs", "package-owners.tsv"))
+	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
 	combined := decision + "\n" + readme + "\n" + docsIndex + "\n" + roadmap
 
 	for _, required := range []string{
@@ -6091,12 +6094,27 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 		"`docs/minimal-core.md`",
 		"`docs/v4-plan.md`",
 		"`docs/adr/0001-module-boundaries.md`",
+		"## Release And Ownership Boundary",
+		"contrib-tooling-maintainers",
+		"touch-scoped-tooling",
+		"make contrib-release-notes-check",
+		"make generated-upgrade-compat-check",
+		"docs/extension-module-assessment.md",
 		"docs/cli-scaffold-identity.md",
 		"[CLI and scaffold identity](cli-scaffold-identity.md)",
 	} {
 		if !strings.Contains(combined, required) {
 			t.Fatalf("CLI/scaffold identity decision missing %q", required)
 		}
+	}
+	if !strings.Contains(classification, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit\ttooling") {
+		t.Fatal("contrib CLI must remain classified as tooling")
+	}
+	if !strings.Contains(owners, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit\tcontrib-tooling-maintainers\ttooling") {
+		t.Fatal("contrib CLI must retain tooling ownership")
+	}
+	if strings.Contains(versioning, "github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit") {
+		t.Fatal("contrib CLI must not enter the root stable package list")
 	}
 }
 
