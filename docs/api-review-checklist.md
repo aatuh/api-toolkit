@@ -58,6 +58,11 @@ package, the gate requires all of these:
 - a package-tied `docs/release-notes.md` entry naming the symbol or
   package-qualified symbol.
 
+For a new `github.com/aatuh/api-toolkit/v3/ports` export, the gate also
+requires an exact `docs/ports-export-exceptions.tsv` row pointing to an
+accepted ADR. The ADR must prove adapter neutrality, at least two real
+implementations, and why the application should not own the interface.
+
 ## Review Outcomes
 
 | Outcome | Meaning |

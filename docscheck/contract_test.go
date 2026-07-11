@@ -5137,6 +5137,7 @@ func TestCompatibilitySensitivePortsGovernanceDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
 	portsSurface := readText(t, filepath.Join(repoRoot, "docs", "ports-surface.md"))
+	portsExceptions := readText(t, filepath.Join(repoRoot, "docs", "ports-export-exceptions.tsv"))
 	releaseNotes := readText(t, filepath.Join(repoRoot, "docs", "release-notes.md"))
 
 	for _, required := range []string{
@@ -5160,6 +5161,27 @@ func TestCompatibilitySensitivePortsGovernanceDocs(t *testing.T) {
 	}
 	if !strings.Contains(versioning, "docs/package-classification.tsv") || !strings.Contains(versioning, "Compatibility-sensitive") {
 		t.Fatal("VERSIONING.md must keep package classification and compatibility-sensitive policy together")
+	}
+	for _, required := range []string{
+		"import_path\tsymbol\tdesign_note\tmaintainer_owner\treviewed_on",
+		"accepted ADR",
+		"adapter neutrality",
+		"at least two real implementations",
+		"application should not own",
+	} {
+		if !strings.Contains(portsExceptions, required) {
+			t.Fatalf("docs/ports-export-exceptions.tsv missing root ports exception requirement %q", required)
+		}
+	}
+	for _, required := range []string{
+		"accepted ADR",
+		"adapter neutrality",
+		"at least two real implementations",
+		"application should not own",
+	} {
+		if !strings.Contains(portsSurface, required) {
+			t.Fatalf("docs/ports-surface.md missing root ports exception requirement %q", required)
+		}
 	}
 }
 

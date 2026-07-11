@@ -63,3 +63,8 @@ design, not current invitations to widen generic core ports.
 If the stable ports surface changes, update `VERSIONING.md`,
 `docs/package-classification.tsv`, `docs/v3-compatibility-roadmap.md`,
 docscheck coverage, and `docs/release-notes.md` in the same change.
+
+`make api-additions-check` rejects every new root `ports` export unless
+`docs/ports-export-exceptions.tsv` has an exact record that points to an
+accepted ADR. The ADR must prove adapter neutrality, at least two real
+implementations, and why the application should not own the interface.

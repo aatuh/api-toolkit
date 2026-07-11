@@ -19,6 +19,7 @@ type config struct {
 	CurrentInventory string
 	ReleaseNotes     string
 	Exceptions       string
+	PortsExceptions  string
 }
 
 type inventoryEntry struct {
@@ -32,6 +33,10 @@ type symbolEvidence struct {
 	HasExample bool
 }
 
+type portsException struct {
+	DesignNote string
+}
+
 func main() {
 	cfg := config{}
 	flag.StringVar(&cfg.Root, "root", ".", "repository root")
@@ -39,6 +44,7 @@ func main() {
 	flag.StringVar(&cfg.CurrentInventory, "current-inventory", "docs/api-inventory.md", "current docs/api-inventory.md path")
 	flag.StringVar(&cfg.ReleaseNotes, "release-notes", "docs/release-notes.md", "release notes or changelog path")
 	flag.StringVar(&cfg.Exceptions, "exceptions", "docs/api-addition-exceptions.tsv", "exact example-exception manifest path")
+	flag.StringVar(&cfg.PortsExceptions, "ports-exceptions", "docs/ports-export-exceptions.tsv", "accepted root ports export exception manifest path")
 	flag.Parse()
 
 	if err := run(cfg); err != nil {
@@ -83,6 +89,15 @@ func run(cfg config) error {
 	if err != nil {
 		return err
 	}
+	portsExceptionsConfig := cfg.PortsExceptions
+	if portsExceptionsConfig == "" {
+		portsExceptionsConfig = "docs/ports-export-exceptions.tsv"
+	}
+	portsExceptionsPath := resolvePath(root, portsExceptionsConfig)
+	portsExceptions, err := readPortsExceptions(portsExceptionsPath)
+	if err != nil {
+		return err
+	}
 	// #nosec G304 -- releaseNotesPath is an explicit local operator path resolved from the repository root.
 	releaseNotesBytes, err := os.ReadFile(releaseNotesPath)
 	if err != nil {
@@ -106,6 +121,16 @@ func run(cfg config) error {
 		}
 		if !releaseNotesMentionSymbol(releaseNotes, entry) {
 			problems = append(problems, fmt.Sprintf("%s.%s missing package-tied release note or changelog entry", entry.ImportPath, entry.Symbol))
+		}
+		if entry.ImportPath == modulePath+"/ports" {
+			exception, ok := portsExceptions[key]
+			if !ok {
+				problems = append(problems, fmt.Sprintf("%s.%s missing exact accepted design exception in docs/ports-export-exceptions.tsv", entry.ImportPath, entry.Symbol))
+				continue
+			}
+			if err := validatePortsException(root, exception); err != nil {
+				problems = append(problems, fmt.Sprintf("%s.%s has invalid root ports exception: %v", entry.ImportPath, entry.Symbol, err))
+			}
 		}
 	}
 	if len(problems) > 0 {
@@ -446,6 +471,82 @@ func readExceptions(path string) (map[string]bool, error) {
 		exceptions[cols[0]+"\t"+cols[1]] = true
 	}
 	return exceptions, nil
+}
+
+func readPortsExceptions(path string) (map[string]portsException, error) {
+	// #nosec G304 -- path is an explicit local ports exception manifest selected by the operator.
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read root ports exceptions: %w", err)
+	}
+
+	const expectedHeader = "import_path\tsymbol\tdesign_note\tmaintainer_owner\treviewed_on"
+	exceptions := map[string]portsException{}
+	headerSeen := false
+	for lineNo, raw := range strings.Split(string(content), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !headerSeen {
+			if line != expectedHeader {
+				return nil, fmt.Errorf("%s:%d header = %q, want %q", path, lineNo+1, line, expectedHeader)
+			}
+			headerSeen = true
+			continue
+		}
+		cols := strings.Split(line, "\t")
+		if len(cols) != 5 {
+			return nil, fmt.Errorf("%s:%d expected 5 tab-separated fields", path, lineNo+1)
+		}
+		for i, col := range cols {
+			cols[i] = strings.TrimSpace(col)
+			if cols[i] == "" {
+				return nil, fmt.Errorf("%s:%d contains an empty field", path, lineNo+1)
+			}
+		}
+		if !strings.HasSuffix(cols[0], "/ports") {
+			return nil, fmt.Errorf("%s:%d import path %q is not a root ports package", path, lineNo+1, cols[0])
+		}
+		key := cols[0] + "\t" + cols[1]
+		if _, exists := exceptions[key]; exists {
+			return nil, fmt.Errorf("%s:%d duplicates root ports exception for %s", path, lineNo+1, key)
+		}
+		exceptions[key] = portsException{DesignNote: cols[2]}
+	}
+	if !headerSeen {
+		return nil, fmt.Errorf("%s missing header %q", path, expectedHeader)
+	}
+	return exceptions, nil
+}
+
+func validatePortsException(root string, exception portsException) error {
+	designNote := resolvePath(root, exception.DesignNote)
+	rel, err := filepath.Rel(root, designNote)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("design note %q escapes repository root", exception.DesignNote)
+	}
+	rel = filepath.ToSlash(rel)
+	if !strings.HasPrefix(rel, "docs/adr/") || !strings.HasSuffix(rel, ".md") {
+		return fmt.Errorf("design note %q must be an ADR under docs/adr", exception.DesignNote)
+	}
+	// #nosec G304 -- designNote is constrained to an ADR under the selected local repository root.
+	content, err := os.ReadFile(designNote)
+	if err != nil {
+		return fmt.Errorf("read design note %q: %w", exception.DesignNote, err)
+	}
+	normalized := strings.ToLower(string(content))
+	for _, required := range []string{
+		"status: accepted",
+		"adapter-neutral",
+		"at least two real implementations",
+		"application should not own",
+	} {
+		if !strings.Contains(normalized, required) {
+			return fmt.Errorf("design note %q missing %q", exception.DesignNote, required)
+		}
+	}
+	return nil
 }
 
 func releaseNotesMentionSymbol(notes string, entry inventoryEntry) bool {

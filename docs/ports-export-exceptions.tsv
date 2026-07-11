@@ -1,0 +1,3 @@
+# import_path	symbol	design_note	maintainer_owner	reviewed_on
+# Exact accepted design records for newly added root ports exports. A record must point to an accepted ADR that proves adapter neutrality, at least two real implementations, and why the application should not own the interface.
+import_path	symbol	design_note	maintainer_owner	reviewed_on
