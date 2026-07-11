@@ -12,12 +12,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	idempotencymw "github.com/aatuh/api-toolkit/v3/middleware/idempotency"
-	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v3/ports"
-	"github.com/aatuh/api-toolkit/v3/routepolicy"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	idempotencymw "github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	timeoutmw "github.com/aatuh/api-toolkit/v4/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v4/ports"
+	"github.com/aatuh/api-toolkit/v4/routepolicy"
 )
 
 // Labels is a simple key:value map for metric dimensions.

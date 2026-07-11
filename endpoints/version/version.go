@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 // Info describes the build metadata exposed by the version endpoint.

@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/authorization"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/authorization"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 const cleanupTimeout = 5 * time.Second

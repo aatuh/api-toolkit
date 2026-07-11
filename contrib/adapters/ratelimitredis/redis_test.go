@@ -8,8 +8,8 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest"
-	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimittest"
+	"github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 func TestLimiterContract(t *testing.T) {

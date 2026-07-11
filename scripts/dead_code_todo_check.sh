@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root="${TODO_GATE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 classification="${TODO_GATE_CLASSIFICATION:-$repo_root/docs/package-classification.tsv}"
 exceptions="${TODO_GATE_EXCEPTIONS:-$repo_root/docs/todo-exceptions.tsv}"
-root_module="${TODO_GATE_ROOT_MODULE:-github.com/aatuh/api-toolkit/v3}"
+root_module="${TODO_GATE_ROOT_MODULE:-github.com/aatuh/api-toolkit/v4}"
 
 if [ ! -f "$classification" ]; then
   echo "package classification manifest not found: $classification" >&2

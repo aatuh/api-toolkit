@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/timeout"
+	"github.com/aatuh/api-toolkit/v4/middleware/timeout"
 )
 
 func ExampleNewPropagator() {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func TestCreatePetValidationErrorUsesProblemDetails(t *testing.T) {

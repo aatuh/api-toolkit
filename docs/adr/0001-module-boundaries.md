@@ -8,13 +8,14 @@ Date: 2026-06-05
 
 `api-toolkit` has two modules:
 
-- `github.com/aatuh/api-toolkit/v3` for stable root packages,
-- `github.com/aatuh/api-toolkit/contrib/v3` for adapters, integrations,
+- `github.com/aatuh/api-toolkit/v4` for stable root packages,
+- `github.com/aatuh/api-toolkit/contrib/v4` for adapters, integrations,
   examples, and generator tooling.
 
-The root module already carries JWT/JWK dependencies for stable auth middleware.
-Contrib carries the heavier provider, database, Redis, OpenTelemetry, router,
-validation, email, Stripe, and generator dependencies.
+V3 root carried JWT/JWK dependencies for stable auth middleware. V4 moves the
+JWT/JWK and OAuth2 packages into contrib, which carries provider, database,
+Redis, OpenTelemetry, router, validation, email, Stripe, and generator
+dependencies.
 
 The audit backlog asked whether to split modules further so users of simple
 HTTP helpers do not inherit unrelated dependency risk.
@@ -29,8 +30,8 @@ Keep the current two-module layout for v3:
    application dependency may move into root.
 4. New root dependencies require the review gates in
    `docs/dependency-policy.md`.
-5. A v4 plan may split auth-heavy packages or scaffold/CLI tooling only after
-   compatibility shims and migration evidence exist.
+5. V4 keeps auth-heavy packages and scaffold/CLI tooling in contrib with
+   migration evidence and no root compatibility aliases.
 
 ## Rationale
 
@@ -39,10 +40,9 @@ adoption event. The current v3 promise is more valuable if the project holds the
 line on future root growth, keeps contrib dependency-heavy code outside stable
 core, and publishes dependency footprint evidence for reviewers.
 
-The root JWT/JWK dependency inheritance is accepted for v3 because
-`middleware/auth/jwt` is already stable. The mitigation is documentation,
-footprint reporting, and a v4 cleanup plan if simple-core users need a smaller
-module graph.
+V3 accepted root JWT/JWK dependency inheritance because `middleware/auth/jwt`
+was stable. V4 removes that inheritance by moving JWT/JWK and OAuth2 packages
+to contrib.
 
 ## Consequences
 

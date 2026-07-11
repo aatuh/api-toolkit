@@ -44,9 +44,9 @@ Dependency note legend:
 | `authorization` | Principal, tenant, and scope context. | Middleware needs a shared request identity model. | Identity is app-owned and not shared. | stable | root-only | [example](../authorization/example_test.go) |
 | `middleware/auth/apikey` | API key authentication. | Local or service-to-service APIs use API keys. | OAuth/OIDC is the primary identity source. | stable | root-only | [example](../middleware/auth/apikey/example_test.go) |
 | `middleware/auth/authz` | Role authorization. | Routes need simple role checks. | Policy engines or ABAC own authorization. | stable | root-only | [example](../middleware/auth/authz/example_test.go) |
-| `middleware/auth/jwt` | JWT/JWK bearer validation. | You want root-owned JWT middleware. | A provider integration or gateway already validates tokens. | stable | auth/JWK | [example](../middleware/auth/jwt/example_test.go) |
+| `contrib/middleware/auth/jwt` | JWT/JWK bearer validation. | You need local JWT/JWKS validation. | A provider integration or gateway already validates tokens. | contrib | auth/JWK | [example](../contrib/middleware/auth/jwt/example_test.go) |
 | `middleware/auth/tenant` | Tenant header/context checks. | Tenant identity must be explicit per request. | Tenancy is derived only from server-side session state. | stable | root-only | [example](../middleware/auth/tenant/example_test.go) |
-| `oauth2` | Provider-neutral claims and scopes. | You need typed bearer-token claims. | Provider SDK types are sufficient and isolated. | stable | root-only | [example](../oauth2/example_test.go) |
+| `contrib/oauth2` | Provider-neutral claims and scopes. | You need typed bearer-token claims. | Provider SDK types are sufficient and isolated. | contrib | contrib | [example](../contrib/oauth2/example_test.go) |
 | `httpx/identity` | Client IP and identity helpers. | Middleware needs trusted proxy-aware identity. | Identity is enforced only by upstream infrastructure. | stable | root-only | [example](../httpx/identity/example_test.go) |
 
 ## Endpoint And Contract Matrix
@@ -75,7 +75,7 @@ Dependency note legend:
 | `httpx/recover` | Panic recovery middleware. | You need deterministic Problem Details for panics. | Another recovery layer already owns panic handling. | stable | root-only | [example](../httpx/recover/example_test.go) |
 | `email` | Email sender contract types. | You need a tiny app-owned email boundary. | Provider-specific workflow belongs in app code. | stable | root-only | [example](../email/example_test.go) |
 | `scheduler` | Scheduler abstractions and recorder helpers. | Background jobs need toolkit-compatible contracts. | A workflow engine owns scheduling. | stable | root-only | [example](../scheduler/example_test.go) |
-| `ports` | Legacy root contracts. | Existing v3 code already depends on them. | New app-specific code can define package-local interfaces. | stable | root-only | [example](../ports/idempotency_example_test.go) |
+| `ports` | Generic logger, clock, and ID contracts. | You need an adapter-neutral utility shared across independent packages. | The contract belongs to HTTP, persistence, or a domain package. | stable | root-only | [example](../ports/example_test.go) |
 | `compat/billing` | Hosted-checkout compatibility model. | Existing v3 billing compatibility is required. | You design new billing workflows. | compatibility-only | compat | [example](../compat/billing/example_test.go) |
 | `scheduler/migrations` | Migration compatibility asset. | Existing migration compatibility needs it. | New migration orchestration is app-owned. | compatibility-only | compat | [example](../scheduler/migrations/example_test.go) |
 | `swagstub` | Tooling compatibility shim. | Existing v3 tooling expects it. | New runtime code needs docs behavior. | compatibility-only | compat | [example](../swagstub/example_test.go) |

@@ -3,6 +3,7 @@ set -euo pipefail
 
 go_cmd="${GO:-go}"
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+workspace="${GOWORK:-$repo_root/go.work}"
 out_dir="${OUTPUT_DIR:-.ci-result}/dependencies"
 api_base_ref="${API_BASE_REF:-}"
 
@@ -28,7 +29,11 @@ require_counts() {
 
 module_list() {
   local dir="$1"
-  (cd "$dir" && GOWORK=off "$go_cmd" list -m all) | tail -n +2 | sort
+  local module_workspace=off
+  if [[ "$dir" == "$repo_root" || "$dir" == "$repo_root/"* ]]; then
+    module_workspace="$workspace"
+  fi
+  (cd "$dir" && GOWORK="$module_workspace" "$go_cmd" list -m all) | tail -n +2 | sort
 }
 
 write_module_report() {
@@ -52,13 +57,13 @@ write_minimal_core_report() {
 
   (
     cd "$repo_root"
-    GOWORK=off "$go_cmd" list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' \
+    GOWORK="$workspace" "$go_cmd" list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' \
       ./httpx ./binding ./middleware/maxbody ./middleware/timeout
   ) | sed '/^$/d' | sort -u >"$packages"
 
   local total toolkit third_party
   total="$(wc -l <"$packages" | tr -d ' ')"
-  toolkit="$(grep -c '^github.com/aatuh/api-toolkit/v3' "$packages" || true)"
+  toolkit="$(grep -c '^github.com/aatuh/api-toolkit/v4' "$packages" || true)"
   third_party=$((total - toolkit))
 
   {

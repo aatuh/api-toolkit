@@ -100,7 +100,7 @@ import (
 	"time"
 
 	"example.com/full-api/internal/app"
-	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
+	timeoutmw "github.com/aatuh/api-toolkit/v4/middleware/timeout"
 )
 
 const (
@@ -266,8 +266,8 @@ import (
 	"time"
 
 	"example.com/full-jwt/internal/httpapi"
-	jwtauth "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	jwtauth "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func TestGeneratedFailureBadJWKSURLFailsClosed(t *testing.T) {

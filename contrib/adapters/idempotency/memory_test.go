@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencytest"
-	"github.com/aatuh/api-toolkit/v3/middleware/idempotency"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencytest"
+	"github.com/aatuh/api-toolkit/v4/middleware/idempotency"
 )
 
 func TestMemoryStoreReleaseContract(t *testing.T) {

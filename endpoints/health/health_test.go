@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	compatbilling "github.com/aatuh/api-toolkit/v4/compat/billing"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func TestProbeChecksReturnUnhealthyForInvalidConfiguration(t *testing.T) {
@@ -622,10 +622,6 @@ func (s *stubDatabasePool) Ping(context.Context) error {
 }
 
 func (*stubDatabasePool) Close() {}
-
-func (*stubDatabasePool) Acquire(context.Context) (ports.DatabaseConnection, error) {
-	return nil, errors.New("not implemented")
-}
 
 func (s *stubDatabasePool) StatSnapshot() DatabasePoolSnapshot {
 	if s.snapshot == nil {

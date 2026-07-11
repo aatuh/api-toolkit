@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 // DBer is satisfied by transactions and the pool facade below.

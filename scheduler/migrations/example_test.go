@@ -3,7 +3,7 @@ package migrations_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/scheduler/migrations"
+	"github.com/aatuh/api-toolkit/v4/scheduler/migrations"
 )
 
 func ExampleMigrations() {

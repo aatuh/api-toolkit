@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 // AllowlistAuthorizer enforces explicit allow rules for actions.

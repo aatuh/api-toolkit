@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pprofendpoint "github.com/aatuh/api-toolkit/v3/endpoints/pprof"
+	pprofendpoint "github.com/aatuh/api-toolkit/v4/endpoints/pprof"
 )
 
 type examplePprofRouter struct {

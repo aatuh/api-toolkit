@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 type stubPoolStats struct{}

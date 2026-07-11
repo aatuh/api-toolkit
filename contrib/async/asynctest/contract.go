@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
 )
 
 // StoreFactory constructs a fresh async store for one contract test run.

@@ -3,7 +3,7 @@ package operations_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/v4/operations"
 )
 
 func ExampleTransitionOperation() {

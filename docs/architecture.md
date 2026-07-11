@@ -90,7 +90,7 @@ it through the governance workflow and `make docs-check`.
 
 - Most of `ports` is intended to stay adapter-neutral and reusable across applications.
 - Hosted-checkout billing contracts live in the explicit compatibility package
-  `github.com/aatuh/api-toolkit/v3/compat/billing`; generic `ports` should not
+  `github.com/aatuh/api-toolkit/v4/compat/billing`; generic `ports` should not
   grow provider-shaped billing APIs.
 - Database pool observability should prefer `DatabasePoolSnapshotProvider`,
   `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods so

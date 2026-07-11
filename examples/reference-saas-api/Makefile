@@ -1,5 +1,5 @@
 GO ?= go
-API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit
+API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose

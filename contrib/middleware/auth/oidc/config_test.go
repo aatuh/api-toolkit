@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/config"
+	"github.com/aatuh/api-toolkit/contrib/v4/config"
 )
 
 func TestLoadConfig(t *testing.T) {

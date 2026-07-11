@@ -10,7 +10,7 @@ go_cmd="${GO:-go}"
 out_dir="${OUTPUT_DIR:-.ci-result}/coverage"
 repo_root="$(pwd)"
 classification="$repo_root/docs/package-classification.tsv"
-root_module="github.com/aatuh/api-toolkit/v3"
+root_module="github.com/aatuh/api-toolkit/v4"
 mkdir -p "$out_dir"
 
 root_min="${ROOT_COVERAGE_MIN:-70.0}"
@@ -63,44 +63,44 @@ coverage_floor() {
 
 coverage_floor_env() {
   case "$1" in
-    github.com/aatuh/api-toolkit/v3/apiclient) printf '%s' "APICLIENT_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/apitest) printf '%s' "APITEST_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/oauth2) printf '%s' "OAUTH2_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/upload) printf '%s' "UPLOAD_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/contracttest) printf '%s' "CONTRACTTEST_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/endpoints/docs) printf '%s' "ENDPOINTS_DOCS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/endpoints/health) printf '%s' "HEALTH_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/httpx/identity) printf '%s' "HTTPX_IDENTITY_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/httpx/recover) printf '%s' "HTTPX_RECOVER_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/auth/apikey) printf '%s' "AUTH_APIKEY_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/auth/authz) printf '%s' "AUTH_AUTHZ_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/auth/jwt) printf '%s' "AUTH_JWT_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/auth/tenant) printf '%s' "AUTH_TENANT_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/idempotency) printf '%s' "IDEMPOTENCY_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/json) printf '%s' "JSON_MIDDLEWARE_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/maxbody) printf '%s' "MAXBODY_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/querylimits) printf '%s' "QUERYLIMITS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/ratelimit) printf '%s' "RATELIMIT_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/routecontracts) printf '%s' "ROUTECONTRACTS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/securityprofile) printf '%s' "SECURITYPROFILE_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/specs) printf '%s' "SPECS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/v3/webhooks) printf '%s' "WEBHOOKS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres) printf '%s' "CONTRIB_AUDITPOSTGRES_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis) printf '%s' "CONTRIB_CACHEREDIS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis) printf '%s' "CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3) printf '%s' "CONTRIB_OBJECTSTORES3_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres) printf '%s' "CONTRIB_OPERATIONPOSTGRES_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres) printf '%s' "CONTRIB_OUTBOXPOSTGRES_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool) printf '%s' "CONTRIB_PGXPOOL_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis) printf '%s' "CONTRIB_RATELIMITREDIS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres) printf '%s' "CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/bootstrap) printf '%s' "CONTRIB_BOOTSTRAP_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc) printf '%s' "CONTRIB_AUTH_OIDC_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics) printf '%s' "CONTRIB_METRICS_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi) printf '%s' "CONTRIB_OPENAPI_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace) printf '%s' "CONTRIB_OTELTRACE_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog) printf '%s' "CONTRIB_REQUESTLOG_COVERAGE_MIN" ;;
-    github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery) printf '%s' "CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/apiclient) printf '%s' "APICLIENT_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/apitest) printf '%s' "APITEST_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/oauth2) printf '%s' "OAUTH2_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/upload) printf '%s' "UPLOAD_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/contracttest) printf '%s' "CONTRACTTEST_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/endpoints/docs) printf '%s' "ENDPOINTS_DOCS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/endpoints/health) printf '%s' "HEALTH_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/httpx/identity) printf '%s' "HTTPX_IDENTITY_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/httpx/recover) printf '%s' "HTTPX_RECOVER_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/auth/apikey) printf '%s' "AUTH_APIKEY_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/auth/authz) printf '%s' "AUTH_AUTHZ_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt) printf '%s' "AUTH_JWT_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/auth/tenant) printf '%s' "AUTH_TENANT_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/idempotency) printf '%s' "IDEMPOTENCY_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/json) printf '%s' "JSON_MIDDLEWARE_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/maxbody) printf '%s' "MAXBODY_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/querylimits) printf '%s' "QUERYLIMITS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/middleware/ratelimit) printf '%s' "RATELIMIT_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/routecontracts) printf '%s' "ROUTECONTRACTS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/securityprofile) printf '%s' "SECURITYPROFILE_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/specs) printf '%s' "SPECS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/v4/webhooks) printf '%s' "WEBHOOKS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres) printf '%s' "CONTRIB_AUDITPOSTGRES_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis) printf '%s' "CONTRIB_CACHEREDIS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis) printf '%s' "CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3) printf '%s' "CONTRIB_OBJECTSTORES3_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres) printf '%s' "CONTRIB_OPERATIONPOSTGRES_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres) printf '%s' "CONTRIB_OUTBOXPOSTGRES_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool) printf '%s' "CONTRIB_PGXPOOL_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis) printf '%s' "CONTRIB_RATELIMITREDIS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres) printf '%s' "CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/bootstrap) printf '%s' "CONTRIB_BOOTSTRAP_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc) printf '%s' "CONTRIB_AUTH_OIDC_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics) printf '%s' "CONTRIB_METRICS_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi) printf '%s' "CONTRIB_OPENAPI_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/oteltrace) printf '%s' "CONTRIB_OTELTRACE_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog) printf '%s' "CONTRIB_REQUESTLOG_COVERAGE_MIN" ;;
+    github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery) printf '%s' "CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN" ;;
     *) printf '%s' "not-enforced" ;;
   esac
 }
@@ -151,19 +151,19 @@ coverage_default_floor() {
 
 coverage_branch_notes() {
   case "$1" in
-    github.com/aatuh/api-toolkit/v3/middleware/auth/*|github.com/aatuh/api-toolkit/v3/oauth2)
+    github.com/aatuh/api-toolkit/v4/middleware/auth/*|github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/*|github.com/aatuh/api-toolkit/contrib/v4/oauth2)
       printf '%s' "auth/security branches: invalid credentials, bypass controls, claims, and failure paths" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/idempotency|github.com/aatuh/api-toolkit/v3/idempotent)
+    github.com/aatuh/api-toolkit/v4/middleware/idempotency|github.com/aatuh/api-toolkit/v4/idempotent)
       printf '%s' "idempotency branches: replay, conflict, ambiguous, store failure, and body/response limits" ;;
-    github.com/aatuh/api-toolkit/v3/middleware/timeout|github.com/aatuh/api-toolkit/v3/httpx/recover)
+    github.com/aatuh/api-toolkit/v4/middleware/timeout|github.com/aatuh/api-toolkit/v4/httpx/recover)
       printf '%s' "runtime branches: timeout, panic, committed response, and capture overflow behavior" ;;
-    github.com/aatuh/api-toolkit/v3/binding|github.com/aatuh/api-toolkit/v3/upload|github.com/aatuh/api-toolkit/v3/queryparams|github.com/aatuh/api-toolkit/v3/middleware/querylimits|github.com/aatuh/api-toolkit/v3/middleware/json|github.com/aatuh/api-toolkit/v3/middleware/maxbody|github.com/aatuh/api-toolkit/v3/negotiation|github.com/aatuh/api-toolkit/v3/webhooks)
+    github.com/aatuh/api-toolkit/v4/binding|github.com/aatuh/api-toolkit/v4/upload|github.com/aatuh/api-toolkit/v4/queryparams|github.com/aatuh/api-toolkit/v4/middleware/querylimits|github.com/aatuh/api-toolkit/v4/middleware/json|github.com/aatuh/api-toolkit/v4/middleware/maxbody|github.com/aatuh/api-toolkit/v4/negotiation|github.com/aatuh/api-toolkit/v4/webhooks)
       printf '%s' "input branches: malformed input, size limits, missing fields, content type, and parse failures" ;;
-    github.com/aatuh/api-toolkit/v3/endpoints/*|github.com/aatuh/api-toolkit/v3/httpx|github.com/aatuh/api-toolkit/v3/httpcache|github.com/aatuh/api-toolkit/v3/fielderrors)
+    github.com/aatuh/api-toolkit/v4/endpoints/*|github.com/aatuh/api-toolkit/v4/httpx|github.com/aatuh/api-toolkit/v4/httpcache|github.com/aatuh/api-toolkit/v4/fielderrors)
       printf '%s' "HTTP output branches: status selection, headers, Problem Details, cache validators, and field errors" ;;
-    github.com/aatuh/api-toolkit/v3/securityprofile|github.com/aatuh/api-toolkit/v3/routepolicy|github.com/aatuh/api-toolkit/v3/routecontracts|github.com/aatuh/api-toolkit/v3/contracttest)
+    github.com/aatuh/api-toolkit/v4/securityprofile|github.com/aatuh/api-toolkit/v4/routepolicy|github.com/aatuh/api-toolkit/v4/routecontracts|github.com/aatuh/api-toolkit/v4/contracttest)
       printf '%s' "contract branches: route policy, security profile composition, OpenAPI metadata, and validation failures" ;;
-    github.com/aatuh/api-toolkit/v3/scheduler|github.com/aatuh/api-toolkit/v3/scheduler/migrations|github.com/aatuh/api-toolkit/v3/operations|github.com/aatuh/api-toolkit/v3/ports)
+    github.com/aatuh/api-toolkit/v4/scheduler|github.com/aatuh/api-toolkit/v4/scheduler/migrations|github.com/aatuh/api-toolkit/v4/operations|github.com/aatuh/api-toolkit/v4/ports)
       printf '%s' "lifecycle branches: cancellation, recorder/store failures, operation states, and compatibility ports" ;;
     *)
       printf '%s' "statement coverage reported; branch risk reviewed through direct package tests before floor changes" ;;
@@ -240,22 +240,22 @@ echo "coverage-summary: contrib total ${contrib_total}%"
 
   stable_root_coverage_rows
 
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/bootstrap" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog" "supported-adapter" "direct-tests"
-  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/bootstrap" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/oteltrace" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog" "supported-adapter" "direct-tests"
+  coverage_row contrib "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery" "supported-adapter" "direct-tests"
 } >"$package_summary"
 
 cat >"$out_dir/summary.md" <<EOF_SUMMARY
@@ -279,43 +279,43 @@ if [[ "$check" -eq 1 ]]; then
   check_min "root aggregate" "$root_total" "$root_min"
   check_min "contrib aggregate" "$contrib_total" "$contrib_min"
 
-  check_min "github.com/aatuh/api-toolkit/v3/apiclient" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apiclient")" "${APICLIENT_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/apitest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/apitest")" "${APITEST_COVERAGE_MIN:-75.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/oauth2" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/contracttest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/contracttest")" "${CONTRACTTEST_COVERAGE_MIN:-83.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/endpoints/docs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/docs")" "${ENDPOINTS_DOCS_COVERAGE_MIN:-70.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/endpoints/health" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/endpoints/health")" "${HEALTH_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/httpx/identity" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/identity")" "${HTTPX_IDENTITY_COVERAGE_MIN:-70.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/httpx/recover" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/httpx/recover")" "${HTTPX_RECOVER_COVERAGE_MIN:-55.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/apikey")" "${AUTH_APIKEY_COVERAGE_MIN:-79.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/authz" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/authz")" "${AUTH_AUTHZ_COVERAGE_MIN:-77.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/jwt")" "${AUTH_JWT_COVERAGE_MIN:-90.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/auth/tenant" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/auth/tenant")" "${AUTH_TENANT_COVERAGE_MIN:-84.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/idempotency" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/idempotency")" "${IDEMPOTENCY_COVERAGE_MIN:-71.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/json" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/json")" "${JSON_MIDDLEWARE_COVERAGE_MIN:-70.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/maxbody" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/maxbody")" "${MAXBODY_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/querylimits" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/querylimits")" "${QUERYLIMITS_COVERAGE_MIN:-90.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/middleware/ratelimit" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/middleware/ratelimit")" "${RATELIMIT_COVERAGE_MIN:-68.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/routecontracts" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/routecontracts")" "${ROUTECONTRACTS_COVERAGE_MIN:-83.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/securityprofile" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/securityprofile")" "${SECURITYPROFILE_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/specs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/specs")" "${SPECS_COVERAGE_MIN:-82.0}"
-  check_min "github.com/aatuh/api-toolkit/v3/webhooks" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v3/webhooks")" "${WEBHOOKS_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/apiclient" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/apiclient")" "${APICLIENT_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/apitest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/apitest")" "${APITEST_COVERAGE_MIN:-75.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/oauth2" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/oauth2")" "${OAUTH2_COVERAGE_MIN:-85.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/upload" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/upload")" "${UPLOAD_COVERAGE_MIN:-85.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/contracttest" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/contracttest")" "${CONTRACTTEST_COVERAGE_MIN:-83.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/endpoints/docs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/endpoints/docs")" "${ENDPOINTS_DOCS_COVERAGE_MIN:-70.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/endpoints/health" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/endpoints/health")" "${HEALTH_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/httpx/identity" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/httpx/identity")" "${HTTPX_IDENTITY_COVERAGE_MIN:-70.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/httpx/recover" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/httpx/recover")" "${HTTPX_RECOVER_COVERAGE_MIN:-55.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/auth/apikey" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/auth/apikey")" "${AUTH_APIKEY_COVERAGE_MIN:-79.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/auth/authz" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/auth/authz")" "${AUTH_AUTHZ_COVERAGE_MIN:-77.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt")" "${AUTH_JWT_COVERAGE_MIN:-90.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/auth/tenant" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/auth/tenant")" "${AUTH_TENANT_COVERAGE_MIN:-84.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/idempotency" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/idempotency")" "${IDEMPOTENCY_COVERAGE_MIN:-71.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/json" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/json")" "${JSON_MIDDLEWARE_COVERAGE_MIN:-70.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/maxbody" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/maxbody")" "${MAXBODY_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/querylimits" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/querylimits")" "${QUERYLIMITS_COVERAGE_MIN:-90.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/middleware/ratelimit" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/middleware/ratelimit")" "${RATELIMIT_COVERAGE_MIN:-68.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/routecontracts" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/routecontracts")" "${ROUTECONTRACTS_COVERAGE_MIN:-83.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/securityprofile" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/securityprofile")" "${SECURITYPROFILE_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/specs" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/specs")" "${SPECS_COVERAGE_MIN:-82.0}"
+  check_min "github.com/aatuh/api-toolkit/v4/webhooks" "$(package_coverage "$out_dir/root.log" "github.com/aatuh/api-toolkit/v4/webhooks")" "${WEBHOOKS_COVERAGE_MIN:-80.0}"
 
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres")" "${CONTRIB_AUDITPOSTGRES_COVERAGE_MIN:-90.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis")" "${CONTRIB_CACHEREDIS_COVERAGE_MIN:-74.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis")" "${CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN:-68.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3")" "${CONTRIB_OBJECTSTORES3_COVERAGE_MIN:-75.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres")" "${CONTRIB_OPERATIONPOSTGRES_COVERAGE_MIN:-80.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres")" "${CONTRIB_OUTBOXPOSTGRES_COVERAGE_MIN:-86.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool")" "${CONTRIB_PGXPOOL_COVERAGE_MIN:-71.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis")" "${CONTRIB_RATELIMITREDIS_COVERAGE_MIN:-65.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres")" "${CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN:-93.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/bootstrap" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/bootstrap")" "${CONTRIB_BOOTSTRAP_COVERAGE_MIN:-71.5}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc")" "${CONTRIB_AUTH_OIDC_COVERAGE_MIN:-76.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics")" "${CONTRIB_METRICS_COVERAGE_MIN:-82.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi")" "${CONTRIB_OPENAPI_COVERAGE_MIN:-85.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/oteltrace")" "${CONTRIB_OTELTRACE_COVERAGE_MIN:-90.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog")" "${CONTRIB_REQUESTLOG_COVERAGE_MIN:-81.0}"
-  check_min "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery")" "${CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN:-88.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres")" "${CONTRIB_AUDITPOSTGRES_COVERAGE_MIN:-90.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis")" "${CONTRIB_CACHEREDIS_COVERAGE_MIN:-74.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis")" "${CONTRIB_IDEMPOTENCYREDIS_COVERAGE_MIN:-68.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3")" "${CONTRIB_OBJECTSTORES3_COVERAGE_MIN:-75.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres")" "${CONTRIB_OPERATIONPOSTGRES_COVERAGE_MIN:-80.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres")" "${CONTRIB_OUTBOXPOSTGRES_COVERAGE_MIN:-86.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool")" "${CONTRIB_PGXPOOL_COVERAGE_MIN:-71.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis")" "${CONTRIB_RATELIMITREDIS_COVERAGE_MIN:-65.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres")" "${CONTRIB_WEBHOOKDELIVERYPOSTGRES_COVERAGE_MIN:-93.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/bootstrap" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/bootstrap")" "${CONTRIB_BOOTSTRAP_COVERAGE_MIN:-71.5}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc")" "${CONTRIB_AUTH_OIDC_COVERAGE_MIN:-76.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics")" "${CONTRIB_METRICS_COVERAGE_MIN:-82.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi")" "${CONTRIB_OPENAPI_COVERAGE_MIN:-85.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/oteltrace" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/oteltrace")" "${CONTRIB_OTELTRACE_COVERAGE_MIN:-90.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog")" "${CONTRIB_REQUESTLOG_COVERAGE_MIN:-81.0}"
+  check_min "github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery" "$(package_coverage "$out_dir/contrib.log" "github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery")" "${CONTRIB_WEBHOOKDELIVERY_COVERAGE_MIN:-88.0}"
 fi

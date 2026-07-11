@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aatuh/api-toolkit/v3/routepolicy"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/routepolicy"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 // Router is the minimal router contract used by Registry.

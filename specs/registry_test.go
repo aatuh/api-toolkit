@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestRegistryOpenAPIIncludesOperationMetadata(t *testing.T) {
@@ -396,7 +394,7 @@ func TestRegistryOpenAPIOutputIsDeterministic(t *testing.T) {
 func TestRegistryProviderUsesDefaultsAndRegistryDocument(t *testing.T) {
 	registry := NewRegistry(Info{Title: "Registry", Version: "v1"})
 	registry.Register(Operation{Method: http.MethodGet, Path: "/healthz"})
-	provider := NewRegistryProvider(registry, ports.DocsInfo{
+	provider := NewRegistryProvider(registry, DocumentationInfo{
 		Title:       "Docs",
 		Description: "Documentation",
 		Version:     "v1",
@@ -412,7 +410,7 @@ func TestRegistryProviderUsesDefaultsAndRegistryDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHTML() error = %v", err)
 	}
-	if !containsAll(html, "Docs", "Documentation", ports.DefaultDocsPaths().OpenAPI) {
+	if !containsAll(html, "Docs", "Documentation", DocsOpenAPI) {
 		t.Fatalf("GetHTML() missing docs metadata: %s", html)
 	}
 	openAPI, err := provider.GetOpenAPI()
@@ -424,7 +422,7 @@ func TestRegistryProviderUsesDefaultsAndRegistryDocument(t *testing.T) {
 }
 
 func TestRegistryProviderRequiresRegistry(t *testing.T) {
-	provider := NewRegistryProvider(nil, ports.DocsInfo{}, "")
+	provider := NewRegistryProvider(nil, DocumentationInfo{}, "")
 	if _, err := provider.GetOpenAPI(); err == nil {
 		t.Fatal("expected error for missing registry")
 	}

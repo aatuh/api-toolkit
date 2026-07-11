@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 func TestFromCtxReturnsTransactionWhenPresent(t *testing.T) {

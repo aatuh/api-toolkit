@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/healthchecktest"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func TestSubjectContextAndDisabledMiddleware(t *testing.T) {

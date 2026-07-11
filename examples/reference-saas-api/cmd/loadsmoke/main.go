@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	ratelimitmw "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	ratelimitmw "github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 
 	"example.com/reference-saas-api/internal/httpapi"
 )

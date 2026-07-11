@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/version"
+	"github.com/aatuh/api-toolkit/v4/endpoints/version"
 )
 
 func ExampleNewHandler() {

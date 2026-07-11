@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // StartupCheck validates application wiring before the service starts.

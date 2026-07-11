@@ -3,7 +3,7 @@ package pgxpool
 import (
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 func TestNewRejectsInvalidDSN(t *testing.T) {

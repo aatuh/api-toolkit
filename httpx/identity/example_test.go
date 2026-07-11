@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
 func ExampleResolver_ClientIPString() {

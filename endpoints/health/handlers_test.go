@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 type stubRouteRegistrar struct {

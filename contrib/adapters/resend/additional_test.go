@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest"
-	"github.com/aatuh/api-toolkit/v3/email"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/healthchecktest"
+	"github.com/aatuh/api-toolkit/v4/email"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func TestSendSuccessAndRequestContract(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/v4/operations"
 )
 
 func TestAsyncServiceCompletesWidgetImport(t *testing.T) {

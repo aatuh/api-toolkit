@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/logzap"
-	"github.com/aatuh/api-toolkit/contrib/v3/bootstrap"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/logzap"
+	"github.com/aatuh/api-toolkit/contrib/v4/bootstrap"
 )
 
 func main() {

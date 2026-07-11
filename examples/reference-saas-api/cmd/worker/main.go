@@ -12,12 +12,12 @@ import (
 
 	"example.com/reference-saas-api/internal/adapters/postgres"
 	"example.com/reference-saas-api/internal/app"
-	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v3/adapters/pgxpool"
-	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	metricsmw "github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics"
-	"github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	pgxpooladapter "github.com/aatuh/api-toolkit/contrib/v4/adapters/pgxpool"
+	webhookdeliverypostgres "github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	metricsmw "github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics"
+	"github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 func main() {

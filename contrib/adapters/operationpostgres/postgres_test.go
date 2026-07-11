@@ -10,10 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/operations"
 )
 
 type operationResult struct {

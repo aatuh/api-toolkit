@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 // ETag is an HTTP entity tag, including quotes and optional weak prefix.

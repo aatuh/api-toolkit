@@ -5,8 +5,8 @@ import (
 
 	"github.com/MicahParks/keyfunc/v3"
 
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/testutil/authtest"
+	"github.com/aatuh/api-toolkit/contrib/v4/testutil/authtest"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
 func TestParityBearerTokenCases(t *testing.T) {

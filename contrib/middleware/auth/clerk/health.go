@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 // HealthChecker returns a Clerk JWKS health checker or nil when disabled.

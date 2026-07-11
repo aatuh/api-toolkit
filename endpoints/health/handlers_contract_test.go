@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	health "github.com/aatuh/api-toolkit/v3/endpoints/health"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	health "github.com/aatuh/api-toolkit/v4/endpoints/health"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 type Response = health.Response

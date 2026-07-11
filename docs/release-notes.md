@@ -66,6 +66,21 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-07-11
 
+### V4 migration release
+
+- Published the v4 root and contrib module paths with the mechanical import
+  replacements documented in [migration/v4.md](migration/v4.md).
+- Reduced root `ports` to generic logger, clock, and identifier contracts;
+  endpoint, middleware, authorization, HTTP, and platform contracts now have
+  package-local or contrib-owned v4 destinations.
+- Moved JWT/JWK middleware, shared auth internals, OAuth2 helpers, and auth
+  test support into contrib. Root v4 has no direct JWT/JWK requirements;
+  issuer, audience, algorithm, JWKS, and trusted-proxy bypass validation
+  behavior is unchanged.
+- Added workspace, root/contrib module, generated-scaffold, reference-service,
+  root-port ledger, API transition, dependency, coverage, race, fuzz, lint,
+  vulnerability, and `gosec` release evidence.
+
 ### Migration
 
 - Added package-local endpoint aliases for `health.Checker`,
@@ -112,8 +127,8 @@ source of truth is `docs/release-runbook.md`.
 
 ### Breaking cleanup
 
-- The module paths are now `github.com/aatuh/api-toolkit/v3` and `github.com/aatuh/api-toolkit/contrib/v3`.
-- Provider-shaped billing exports were removed from root `ports`; use `github.com/aatuh/api-toolkit/v3/compat/billing` for the hosted-checkout compatibility model or define app-owned billing ports.
+- The module paths are now `github.com/aatuh/api-toolkit/v4` and `github.com/aatuh/api-toolkit/contrib/v4`.
+- Provider-shaped billing exports were removed from root `ports`; use `github.com/aatuh/api-toolkit/v4/compat/billing` for the hosted-checkout compatibility model or define app-owned billing ports.
 - `ports.DatabasePool.Stat`, `ports.DatabaseStats`, `ports.SnapshotDatabaseStats`, and the public `response_writer` package were removed. Use `ports.DatabasePoolSnapshotProvider`, `ports.SnapshotDatabasePoolStats`, adapter `StatSnapshot()` methods, and `httpx`.
 - Idempotency middleware now requires token-aware release through `ports.IdempotencyReservationReleaser`.
 - `authz.NewRequireRoleMiddleware` now validates at construction time and returns `(*RequireRoleMiddleware, error)`.
@@ -135,7 +150,7 @@ source of truth is `docs/release-runbook.md`.
 
 ### Test evidence and compatibility
 
-- Added experimental `github.com/aatuh/api-toolkit/v3/compatkit` downstream
+- Added experimental `github.com/aatuh/api-toolkit/v4/compatkit` downstream
   compatibility test support. Services can run readiness, version, Problem
   Details, OpenAPI compatibility, and custom HTTP checks against an in-process
   handler or explicit base URL without promoting the package to the stable API
@@ -289,7 +304,7 @@ source of truth is `docs/release-runbook.md`.
   covers both root `v*` tags and contrib module `contrib/v*` tags.
 - Removed the local root-module `replace` directive from `contrib/go.mod` so
   the contrib CLI can be installed with
-  `go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@vX.Y.Z`.
+  `go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@vX.Y.Z`.
 - Added `docs/coverage-hardening-backlog.md` to make the next JWT, health,
   pgxpool, OpenAPI middleware, and webhook delivery coverage floor increases
   conditional on behavior-test evidence rather than numeric threshold churn.
@@ -408,7 +423,7 @@ source of truth is `docs/release-runbook.md`.
   The workflow composes with `--with stripe-billing` by updating app-owned
   billing mappings before entitlement changes, without adding Stripe-shaped
   ports to core.
-- `github.com/aatuh/api-toolkit/contrib/v3/entitlements` now provides
+- `github.com/aatuh/api-toolkit/contrib/v4/entitlements` now provides
   provider-neutral feature and quota contracts, low-cardinality decisions,
   reusable store contract tests, and HTTP enforcement middleware that avoids
   exposing tenant or billing identifiers in Problem Details responses.
@@ -666,60 +681,60 @@ source of truth is `docs/release-runbook.md`.
   against the fetched PR base ref, so supported-adapter incompatible drift
   fails before merge without making contrib part of the stable core API promise.
 - `make contrib-release-notes-check` now reviews
-  `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` behavior files in
+  `github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit` behavior files in
   addition to supported adapters, integrations, middleware, bootstrap, and
   telemetry, so scaffold and contract-tooling behavior changes require
   release-note coverage.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap` now exposes
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap` now exposes
   `APIService` and `APIServiceConfig` as a supported composition root for
   generated services, with safe admin-wrapper system endpoint mounting and
   startup checks.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap.APIServiceConfig` now
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap.APIServiceConfig` now
   accepts `AdminAddr` and `AdminRouter` for a separate admin listener, and
   `APIService.AdminHandler()` exposes the composed admin handler for tests and
   custom server wiring.
-- `github.com/aatuh/api-toolkit/contrib/v3/cache` and
-  `github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis` add
+- `github.com/aatuh/api-toolkit/contrib/v4/cache` and
+  `github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis` add
   supported contrib cache contracts and a Redis-backed cache adapter with TTL,
   delete, health-check, and reusable adapter-contract coverage.
-- `github.com/aatuh/api-toolkit/contrib/v3/audit` and
-  `github.com/aatuh/api-toolkit/contrib/v3/adapters/auditpostgres` add
+- `github.com/aatuh/api-toolkit/contrib/v4/audit` and
+  `github.com/aatuh/api-toolkit/contrib/v4/adapters/auditpostgres` add
   supported contrib audit-event contracts, reusable recorder-contract tests, and a
   transaction-aware Postgres audit recorder that stores actor type, tenant,
   action, resource, result, request ID, and redaction-checked metadata. The
   generated `saas-api-full` audit migration now includes `actor_type`.
-- `github.com/aatuh/api-toolkit/v3/operations` adds additive write-side
+- `github.com/aatuh/api-toolkit/v4/operations` adds additive write-side
   repository contracts plus lifecycle helpers for validating operation states,
   terminal states, and pending/running/succeeded/failed/canceled transitions.
-- `github.com/aatuh/api-toolkit/contrib/v3/async` adds a supported contrib durable
+- `github.com/aatuh/api-toolkit/contrib/v4/async` adds a supported contrib durable
   async worker runner with lease/complete/fail store contracts, bounded
   concurrency, graceful shutdown, low-cardinality metric hooks, and logs that
   avoid job payloads and raw handler errors.
-- `github.com/aatuh/api-toolkit/contrib/v3/async` now includes an
+- `github.com/aatuh/api-toolkit/contrib/v4/async` now includes an
   fail-closed handler mux for routing leased jobs by sanitized
   low-cardinality kind, allowing one durable queue or outbox to back multiple
   worker concerns without inspecting job payloads.
-- `github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres` adds an
+- `github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres` adds an
   supported Postgres-backed operation repository for pollable async
   operations, including tenant-scoped context helpers, JSON result/problem
   storage, create/update support, and fail-closed tenant validation.
-- `github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres` adds an
+- `github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres` adds an
   supported Postgres transactional outbox adapter with enqueue, due-event
   leasing using `FOR UPDATE SKIP LOCKED`, lease-owner completion, retry
   backoff, dead-letter transition, and `contrib/async.Store` compatibility.
-- `github.com/aatuh/api-toolkit/contrib/v3/objectstore` and
-  `github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3` add
+- `github.com/aatuh/api-toolkit/contrib/v4/objectstore` and
+  `github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3` add
   supported contrib object storage contracts, reusable contract-test helpers, and a
   raw HTTP S3-compatible adapter with SigV4 request signing, presigned URL
   hooks, content-type and object-size policy checks, metadata secret-shape
   rejection, not-found mapping, and a bucket health checker.
-- `github.com/aatuh/api-toolkit/contrib/v3/webhookdelivery` adds
+- `github.com/aatuh/api-toolkit/contrib/v4/webhookdelivery` adds
   supported contrib outbound webhook delivery contracts with a fail-closed event
   catalog, tenant-scoped endpoint matching, HMAC-signed HTTP delivery, bounded
   retry backoff helpers, replay commands, sanitized attempt results, and
   `contrib/async` worker integration that keeps endpoint signing secrets out
   of durable job payloads.
-- `github.com/aatuh/api-toolkit/contrib/v3/adapters/webhookdeliverypostgres`
+- `github.com/aatuh/api-toolkit/contrib/v4/adapters/webhookdeliverypostgres`
   adds a supported Postgres adapter for outbound webhook endpoint lookup,
   delivery enqueue, outbox job creation, attempt recording, and operator
   replay. Endpoint signing secrets are loaded through an application-owned
@@ -729,24 +744,24 @@ source of truth is `docs/release-runbook.md`.
   shared `webhookdelivery.EndpointPolicy` so generated development and
   integration services can allow localhost HTTP webhook targets without
   weakening production HTTPS defaults.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` and
-  `github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog` now expose
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` and
+  `github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog` now expose
   outbound webhook delivery observation hooks with bounded event type, outcome,
   and status-class labels that omit tenants, endpoint IDs, delivery IDs, URLs,
   payloads, secrets, and raw error strings.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/oidc` and
-  `github.com/aatuh/api-toolkit/contrib/v3/integrations/auth/oidc` add
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/oidc` and
+  `github.com/aatuh/api-toolkit/contrib/v4/integrations/auth/oidc` add
   supported provider-neutral OIDC/JWKS bearer-token middleware with optional
   discovery, issuer/audience and algorithm validation, tenant and scope claim
   mapping, JWKS health checks, env loading, and generated `saas-api-full`
   `--auth oidc` wiring.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap.APIServiceConfig` now
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap.APIServiceConfig` now
   accepts named shutdown hooks so composed services can close auth, telemetry,
   or adapter background resources after the HTTP server stops.
 - `middleware/auth/tenant.Options.RequireAllSources` now lets services require
   every configured tenant source to be present and equal before a handler runs,
   which supports authenticated-tenant-to-header mismatch checks.
-- `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` adds the
+- `github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit` adds the
   developer CLI with `new service`, `contracts lint`, `contracts diff`, and
   `version` commands. The generated `saas-api` service uses chi-backed
   bootstrap defaults, code-first route contracts, OpenAPI output, public
@@ -797,10 +812,10 @@ source of truth is `docs/release-runbook.md`.
 - `middleware/idempotency.Options.OnOutcome` now emits bounded request-path
   idempotency outcome events, and `OutcomeEvent.MetricLabels()` exposes only
   method, store class, outcome, and status class for metrics.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now records
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now records
   bounded `idempotency_outcomes_total` Prometheus counters through
   `IdempotencyOutcomeHook`, and
-  `github.com/aatuh/api-toolkit/contrib/v3/middleware/requestlog` now provides
+  `github.com/aatuh/api-toolkit/contrib/v4/middleware/requestlog` now provides
   `IdempotencyOutcomeLogHook` with the same low-cardinality outcome shape.
   Generated `saas-api` services wire both hooks by default.
 - `middleware/idempotency` now supports `Options.StorageKeyFunc` plus
@@ -808,11 +823,11 @@ source of truth is `docs/release-runbook.md`.
   client-supplied idempotency keys with tenant and actor scope before shared
   storage access. Generated `saas-api` services opt into the helper while
   preserving the original `Idempotency-Key` response header on replay.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now records
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now records
   bounded `health_status_changes_total` Prometheus counters through
   `HealthStatusChangeHook`, using only `from` and `to` health-status labels for
   scheduler transitions.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now treats
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now treats
   `net/http.ServeMux` request patterns as route labels when chi route context is
   unavailable, preserving low-cardinality HTTP metrics for stdlib routers.
 - Routes registered through `routecontracts` now attach bounded
@@ -820,7 +835,7 @@ source of truth is `docs/release-runbook.md`.
   `http_route_policy_requests_total`, and contrib request logging emits
   `policy_*` fields without raw scopes, tenant sources, rate-limit policy
   names, or admin policy names.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now exposes
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now exposes
   `RoutePolicyLabels` so custom recorders can reuse the same bounded
   route-policy label normalization as the Prometheus recorder.
 - `middleware/idempotency.Options` now includes additive `RequireKey` support.
@@ -845,7 +860,7 @@ source of truth is `docs/release-runbook.md`.
 - Generated compose files now include a Redis service, healthcheck, persistent
   volume, and container-safe Redis address overrides for idempotency and rate
   limiting.
-- `github.com/aatuh/api-toolkit/contrib/v3/telemetry.InitTracing` now returns
+- `github.com/aatuh/api-toolkit/contrib/v4/telemetry.InitTracing` now returns
   an error when tracing is explicitly enabled without an OTLP endpoint instead
   of silently installing a noop exporter.
 - `api-toolkit version` now prints Go runtime, main module, core module,
@@ -873,7 +888,7 @@ source of truth is `docs/release-runbook.md`.
 - Generated service Makefiles now include optional `sbom-local` output through
   Syft, writing SPDX JSON to `.ci-result/sbom/sbom.spdx.json` without adding
   Syft to the default finalize path.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap.APIServiceConfig` now
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap.APIServiceConfig` now
   supports named `BackgroundTasks` that run with the service context, fail the
   service on unexpected task errors, and stop during graceful shutdown.
   Generated `saas-api` services use this to run health refreshes with bounded
@@ -928,19 +943,19 @@ source of truth is `docs/release-runbook.md`.
 - `contracttest.OpenAPICompatibilityFindings` now reports the same conservative
   OpenAPI component and inline request/response schema drift findings, so
   library tests and CLI release review stay aligned.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap` now exposes middleware
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap` now exposes middleware
   stage identifiers, strict/dev middleware order helpers, and startup
   validation for custom APIService middleware order declarations.
-- `github.com/aatuh/api-toolkit/contrib/v3/bootstrap` now exposes
+- `github.com/aatuh/api-toolkit/contrib/v4/bootstrap` now exposes
   `StrictSaaSAPIMiddlewareOrder` for services that require the full production
   policy sequence of auth, tenant, and idempotency after the transport
   middleware stack, and generated `saas-api` services declare that order during
   startup validation.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now
   canonicalizes Prometheus HTTP metric labels so methods stay within standard
   HTTP verbs plus `OTHER`/`UNKNOWN`, invalid statuses collapse to `0`, and route
   labels are trimmed before series creation.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/openapi` response
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi` response
   validation now accepts `ResponseValidationOptions.ShouldValidate` so services
   can skip response buffering for streaming, upgrade, or large-download routes
   while keeping request validation enabled.
@@ -948,7 +963,7 @@ source of truth is `docs/release-runbook.md`.
   bounded operator metadata for timeout, panic, and response-capture overflow
   outcomes without exposing panic values, paths, query strings, headers, or
   bodies.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now exposes
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now exposes
   `HardTimeoutEventHook` and records bounded hard-timeout outcomes in
   `http_hard_timeout_events_total`; request logging now exposes
   `HardTimeoutEventLogHook` with the same bounded event shape.
@@ -981,10 +996,10 @@ source of truth is `docs/release-runbook.md`.
   direct-test/release-drift evidence for every `supported-adapter` contrib
   package. The chi router adapter and zap logger adapter are promoted to
   `supported-adapter` and included in the contrib drift gate.
-- `github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimittest` adds reusable
+- `github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimittest` adds reusable
   rate limiter adapter contract coverage, and `ratelimitredis` now runs it to
   prove empty-key bypass, per-key isolation, retry-after, and refill behavior.
-- `github.com/aatuh/api-toolkit/contrib/v3/adapters/healthchecktest` adds
+- `github.com/aatuh/api-toolkit/contrib/v4/adapters/healthchecktest` adds
   reusable health checker adapter contract coverage for supported Stripe,
   Resend, and Clerk readiness checks.
 
@@ -1080,11 +1095,11 @@ source of truth is `docs/release-runbook.md`.
 
 ### Contrib behavior and compatibility notes
 
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders` now
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/devheaders` now
   requires explicit dangerous-bypass opt-in and trusted-proxy configuration
   when enabled, while keeping exported config and middleware values comparable
   for v2 source compatibility.
-- `github.com/aatuh/api-toolkit/contrib/v3/middleware/metrics` now keeps the
+- `github.com/aatuh/api-toolkit/contrib/v4/middleware/metrics` now keeps the
   existing `NewPrometheusRecorder` signature for v2 source compatibility and
   adds `NewPrometheusRecorderChecked` for callers that want collector
   registration conflicts returned as errors.
@@ -1114,7 +1129,7 @@ source of truth is `docs/release-runbook.md`.
   current package-tied disposition. Contrib drift remains report-only; this
   guidance helps migration review but does not extend the stable v2 API promise
   to contrib.
-- For `github.com/aatuh/api-toolkit/contrib/v3/middleware/auth/devheaders`,
+- For `github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/devheaders`,
   set `AllowDangerousDevBypasses` and `TrustedProxies` explicitly when enabling
   debug-header auth. `TrustedProxies` is a comma-separated CIDR list.
 - V3 preparation guidance is now consolidated in
@@ -1386,12 +1401,12 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-04-23
 
-- Billing contracts in `ports/billing.go` are now formally deprecated for new code. The same Stripe-shaped v2 model is available through the new compatibility package `github.com/aatuh/api-toolkit/v3/compat/billing`.
+- Billing contracts in `ports/billing.go` are now formally deprecated for new code. The same Stripe-shaped v2 model is available through the new compatibility package `github.com/aatuh/api-toolkit/v4/compat/billing`.
 - `contrib/adapters/pgxpool.Adapter.StatSnapshot()` now copies plain-value pool stats directly from pgxpool instead of routing through the legacy `DatabaseStats` wrapper path.
 
 ### Upgrade notes
 
-- Existing code that imports billing contracts from `ports` keeps working for the rest of v2, but new code should migrate to `github.com/aatuh/api-toolkit/v3/compat/billing` so the provider-shaped dependency is explicit before v3 extraction.
+- Existing code that imports billing contracts from `ports` keeps working for the rest of v2, but new code should migrate to `github.com/aatuh/api-toolkit/v4/compat/billing` so the provider-shaped dependency is explicit before v3 extraction.
 - If your health or observability code still reads `DatabasePool.Stat()` or depends on `DatabaseStats`, move it to `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, or adapter `StatSnapshot()` methods. The legacy counter interface remains for compatibility adapters, not as the preferred generic path.
 
 ## 2026-04-19

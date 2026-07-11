@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 const defaultHardTimeoutStatus = http.StatusGatewayTimeout

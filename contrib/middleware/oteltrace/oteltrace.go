@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 const (

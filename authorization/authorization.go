@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 // Owner exposes ownership information for BOLA checks.

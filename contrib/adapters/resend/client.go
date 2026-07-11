@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/email"
+	"github.com/aatuh/api-toolkit/v4/email"
 )
 
 const defaultBaseURL = "https://api.resend.com"

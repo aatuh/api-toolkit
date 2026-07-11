@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func TestMiddlewareConcurrentSameKeyRace(t *testing.T) {

@@ -12,7 +12,7 @@ not the identity of the root module.
 
 For v3:
 
-- Keep the CLI at `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit`.
+- Keep the CLI at `github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit`.
 - Keep generated service scaffolds under contrib tooling and generated outputs.
 - Keep CLI, scaffold, and generated-service packages outside the root stable
   API promise.
@@ -35,11 +35,11 @@ For v4 planning:
 
 | Surface | Current location | Status | Ownership rule |
 | --- | --- | --- | --- |
-| Stable HTTP guardrails | `github.com/aatuh/api-toolkit/v3` | Stable core API | Release API gate and SemVer protect exported stable packages. |
-| CLI and contract tools | `github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` | Tooling | Pin versions in CI and review behavior changes through release notes. |
+| Stable HTTP guardrails | `github.com/aatuh/api-toolkit/v4` | Stable core API | Release API gate and SemVer protect exported stable packages. |
+| CLI and contract tools | `github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit` | Tooling | Pin versions in CI and review behavior changes through release notes. |
 | Service scaffolds | contrib CLI templates and generated outputs | Tooling/generated | Generated services are app-owned code; downstream services own product changes. |
 | Reference service | `examples/reference-saas-api` | Adoption evidence | Maintainers use it as checked-in scaffold evidence, not a root API contract. |
-| Contrib adapters | `github.com/aatuh/api-toolkit/contrib/v3/...` | Supported-adapter, experimental, wrapper-only, tooling, or generated | Contrib remains outside the stable core API promise. |
+| Contrib adapters | `github.com/aatuh/api-toolkit/contrib/v4/...` | Supported-adapter, experimental, wrapper-only, tooling, or generated | Contrib remains outside the stable core API promise. |
 
 ## Split Triggers
 
@@ -59,7 +59,7 @@ release evidence, and another compatibility story.
 ## Release And Ownership Boundary
 
 `docs/package-owners.tsv` assigns
-`github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit` to
+`github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit` to
 `contrib-tooling-maintainers` with the `tooling` tier and a
 `touch-scoped-tooling` release blocker. It is not a root stable package and
 must never be added to the stable package list in `VERSIONING.md`.

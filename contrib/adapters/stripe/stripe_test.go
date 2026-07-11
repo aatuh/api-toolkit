@@ -15,9 +15,9 @@ import (
 	"github.com/stripe/stripe-go/v79/form"
 	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 
-	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	compatbilling "github.com/aatuh/api-toolkit/v4/compat/billing"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
 func TestParseWebhookRequiresVerificationWhenBypassIsNotAllowed(t *testing.T) {

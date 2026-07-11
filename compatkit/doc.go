@@ -9,7 +9,7 @@
 //
 // Purpose: Run downstream service compatibility checks without depending on
 // generated scaffold internals.
-// Import: `github.com/aatuh/api-toolkit/v3/compatkit`.
+// Import: `github.com/aatuh/api-toolkit/v4/compatkit`.
 // Example: See compatkit/example_test.go and docs/downstream-compatibility.md.
 // Errors: RunChecks returns structured findings; Run fails the supplied test
 // when any finding is present.

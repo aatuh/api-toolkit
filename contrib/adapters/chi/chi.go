@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/authz"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/authz"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // ChiRouter wraps chi.Router to implement our interface.

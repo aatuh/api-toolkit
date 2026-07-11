@@ -8,9 +8,9 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/cache"
-	"github.com/aatuh/api-toolkit/contrib/v3/cache/cachetest"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/cache"
+	"github.com/aatuh/api-toolkit/contrib/v4/cache/cachetest"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func TestStoreContract(t *testing.T) {

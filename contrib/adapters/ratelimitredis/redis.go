@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 // Options configures a Redis-backed token bucket rate limiter.

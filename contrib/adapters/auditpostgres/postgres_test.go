@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/audit"
-	"github.com/aatuh/api-toolkit/contrib/v3/audit/audittest"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/audit"
+	"github.com/aatuh/api-toolkit/contrib/v4/audit/audittest"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func TestStoreContract(t *testing.T) {

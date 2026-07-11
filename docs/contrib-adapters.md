@@ -10,7 +10,7 @@ as root stable packages.
 Install contrib only when the service needs a third-party adapter or the CLI:
 
 ```sh
-go get github.com/aatuh/api-toolkit/contrib/v3
+go get github.com/aatuh/api-toolkit/contrib/v4
 ```
 
 ## Adapter decision table

@@ -145,7 +145,7 @@ import (
 	"testing"
 	"time"
 
-	ratelimitmw "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	ratelimitmw "github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 const (

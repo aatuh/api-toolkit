@@ -57,8 +57,8 @@ run_ref() {
       --dir "$service_dir"
 
     cd "$service_dir"
-    go mod edit -replace=github.com/aatuh/api-toolkit/v3="$repo_root"
-    go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v3="$repo_root/contrib"
+    go mod edit -replace=github.com/aatuh/api-toolkit/v4="$repo_root"
+    go mod edit -replace=github.com/aatuh/api-toolkit/contrib/v4="$repo_root/contrib"
     go mod tidy
     go test ./...
     make openapi-check

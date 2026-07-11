@@ -1,4 +1,4 @@
-package ports
+package contracts
 
 import (
 	"context"
@@ -46,7 +46,6 @@ func TestSnapshotDatabasePoolStatsUsesSnapshotProvider(t *testing.T) {
 	}
 
 	got := SnapshotDatabasePoolStats(pool)
-
 	if got != pool.snapshot {
 		t.Fatalf("expected snapshot %+v, got %+v", pool.snapshot, got)
 	}

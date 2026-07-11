@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/routecontracts"
-	"github.com/aatuh/api-toolkit/v3/routepolicy"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/routecontracts"
+	"github.com/aatuh/api-toolkit/v4/routepolicy"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 func TestContractAssertionsPassForCoveredRoute(t *testing.T) {

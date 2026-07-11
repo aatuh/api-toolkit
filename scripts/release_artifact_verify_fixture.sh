@@ -69,8 +69,8 @@ summary = {
         "previous_ref": "v2.1.0",
         "checked_package_count": 2,
         "checked_packages": [
-            "github.com/aatuh/api-toolkit/v3/httpx",
-            "github.com/aatuh/api-toolkit/v3/middleware/maxbody",
+            "github.com/aatuh/api-toolkit/v4/httpx",
+            "github.com/aatuh/api-toolkit/v4/middleware/maxbody",
         ],
         "incompatible_change_count": 0,
         "ignored_exception_count": 0,

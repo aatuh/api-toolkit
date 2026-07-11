@@ -1,6 +1,6 @@
 MODULES := . contrib
 GO ?= go
-GOWORK ?= off
+WORKSPACE := $(abspath go.work)
 FUZZTIME ?= 10s
 BENCHTIME ?= 1x
 COVERAGE_TREND_RELEASE ?=
@@ -8,8 +8,6 @@ COVERAGE_TREND_COMMIT ?=
 MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_LIMIT ?= 12
 MUTATION_TIMEOUT ?= 30s
-export GOWORK
-
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 GOLANGCI_LINT_VERSION ?= v2.11.4
@@ -60,7 +58,7 @@ api-check: tools ## Run local API compatibility check with fallback base selecti
 	@scripts/apicheck.sh
 
 release-api-check: tools ## Run fail-closed API compatibility check; requires API_BASE_REF
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-api-check; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-api-check; use the latest published baseline, for example API_BASE_REF=v3.1.2 for the v4 transition"; exit 2; }
 	@API_CHECK_REQUIRE_BASE=1 scripts/apicheck.sh
 
 api-check-contract: ## Run API compatibility script mode contract tests
@@ -95,13 +93,13 @@ contrib-release-notes-check: tools ## Review gate requiring release notes for su
 	@CONTRIB_RELEASE_BASE_REF="$${CONTRIB_RELEASE_BASE_REF:-$${API_BASE_REF:-HEAD~1}}" scripts/contrib_release_notes_check.sh
 
 dependency-report: ## Write root/contrib dependency footprint and optional API_BASE_REF diff
-	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" GO="$(GO)" scripts/dependency_report.sh
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GO="$(GO)" scripts/dependency_report.sh
 
 dependency-boundary-check: ## Verify stable core import boundaries
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" GO="$(GO)" scripts/dependency_boundary_check.sh
 
 full-profile-scaffold-check: ## Generate and validate the saas-api-full scaffold, clients, contracts, resource generator, providers, and web profile
-	@(cd contrib && GOWORK="$${GOWORK:-off}" $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
+	@(cd contrib && GOWORK="$(WORKSPACE)" $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
 
 generated-integration-check: ## Opt-in Docker-backed generated saas-api-full integration check
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_integration_check.sh
@@ -196,48 +194,48 @@ docs-check: ## Run documentation contract checks
 fmt: ## Run gofmt and rewrite formatted Go files
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) fmt ./...); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) fmt ./...); \
 	done
 
 lint: tools ## Run golangci-lint
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && golangci-lint run ./...); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" golangci-lint run ./...); \
 	done
 	@$(MAKE) dead-code-todo-check
 
 vuln: tools ## Run govulncheck
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && govulncheck -show verbose ./...); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" govulncheck -show verbose ./...); \
 	done
 
 gosec: tools ## Run gosec
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
 		if [ "$$mod" = "." ]; then \
-			(cd $$mod && gosec -exclude-dir=contrib ./...); \
+			(cd $$mod && GOWORK="$(WORKSPACE)" gosec -exclude-dir=contrib ./...); \
 		else \
-			(cd $$mod && gosec ./...); \
+			(cd $$mod && GOWORK="$(WORKSPACE)" gosec ./...); \
 		fi; \
 	done
 
 tidy: ## Run go mod tidy and rewrite module files
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) mod tidy); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) mod tidy); \
 	done
 
 test: ## Run unit tests
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) test ./...); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) test ./...); \
 	done
 
 example-compile-check: ## Compile package examples and tested README snippets
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod examples"; \
-		(cd $$mod && $(GO) test ./... -run '^Example'); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) test ./... -run '^Example'); \
 	done
 	@$(GO) test ./docscheck -count=1 -run 'TestReadmeGoSnippetsMatchTestedSources|TestStableAPIPackagesHaveCompileCheckedExamples|TestExampleOnlyPackagesBuildSmoke'
 
@@ -263,7 +261,7 @@ fast-check: ## Run non-installing local checks without rewriting files
 test-race: ## Run unit tests with race detector
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) test ./... -race -count=1); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) test ./... -race -count=1); \
 	done
 
 timeout-determinism-check: ## Run repeated timeout middleware determinism and race checks
@@ -280,13 +278,13 @@ mutation-smoke: ## Run non-blocking stable-core mutation smoke
 benchmark-smoke: ## Run package benchmark smoke without performance claims
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) test ./... -run='^$$' -bench='Benchmark' -benchmem -benchtime=$(BENCHTIME)); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) test ./... -run='^$$' -bench='Benchmark' -benchmem -benchtime=$(BENCHTIME)); \
 	done
 
 clean: ## Clean test cache
 	@set -e; for mod in $(MODULES); do \
 		echo "==> $$mod"; \
-		(cd $$mod && $(GO) clean -testcache); \
+		(cd $$mod && GOWORK="$(WORKSPACE)" $(GO) clean -testcache); \
 	done
 
 finalize: ## Run QA; installs tools and may rewrite formatted/tidy files

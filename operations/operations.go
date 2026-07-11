@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 // State describes the lifecycle state of an asynchronous operation.

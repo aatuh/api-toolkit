@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/authz"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/authz"
 )
 
 func ExampleNewRequireRoleMiddlewareChecked() {

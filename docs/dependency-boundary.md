@@ -31,7 +31,7 @@ governance job, and `make docs-check` also covers the same docscheck package.
 
 These dependencies belong in `contrib/go.mod`, not root `go.mod`:
 
-- `github.com/aatuh/api-toolkit/contrib/v3`
+- `github.com/aatuh/api-toolkit/contrib/v4`
 - `github.com/alicebob/miniredis/v2`
 - `github.com/redis/go-redis/v9`
 

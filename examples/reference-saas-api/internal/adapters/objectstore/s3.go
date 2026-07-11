@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/objectstores3"
-	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v3/objectstore"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/objectstores3"
+	toolkitobjectstore "github.com/aatuh/api-toolkit/contrib/v4/objectstore"
 
 	"example.com/reference-saas-api/internal/app"
 )

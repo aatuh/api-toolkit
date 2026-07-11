@@ -17,7 +17,7 @@
 // panic, and capture-overflow outcomes.
 //
 // Purpose: See the package summary above.
-// Import: `github.com/aatuh/api-toolkit/v3/middleware/timeout`.
+// Import: `github.com/aatuh/api-toolkit/v4/middleware/timeout`.
 // Example: See docs/api-reference.md for package example links and docs/cookbook.md for task recipes.
 // Errors: Constructors, parsers, and handlers return or write documented errors according to their signatures; packages with plain data types do not add hidden error channels.
 // Concurrency: Treat configured middleware and helpers as immutable after construction; request and response values remain request-scoped unless a type documents stronger guarantees.

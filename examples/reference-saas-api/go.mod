@@ -3,8 +3,8 @@ module example.com/reference-saas-api
 go 1.25.0
 
 require (
-	github.com/aatuh/api-toolkit/contrib/v3 v3.1.2
-	github.com/aatuh/api-toolkit/v3 v3.1.2
+	github.com/aatuh/api-toolkit/contrib/v4 v4.0.0
+	github.com/aatuh/api-toolkit/v4 v4.0.0
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/redis/go-redis/v9 v9.19.0
@@ -50,6 +50,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/aatuh/api-toolkit/v3 => ../..
+replace github.com/aatuh/api-toolkit/v4 => ../..
 
-replace github.com/aatuh/api-toolkit/contrib/v3 => ../../contrib
+replace github.com/aatuh/api-toolkit/contrib/v4 => ../../contrib

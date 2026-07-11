@@ -23,6 +23,7 @@ without scanning the root README.
 | [Adopter story](adopters.md) | Evaluators and maintainers | Read the maintainer-owned reference-service outcome, friction, changes, and evidence limits without treating it as a customer case study. |
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
 | [V3 migration guide](migration/v3.md) | Application teams upgrading dependencies | Upgrade root, contrib, and generated-service adoption paths within the v3 line. |
+| [V4 migration guide](migration/v4.md) | Application teams upgrading major versions | Update module paths and replace removed root-port contracts. |
 | [Troubleshooting](troubleshooting.md) | Application developers and maintainers | Diagnose Go version, contrib tier, timeout buffering, health, idempotency, auth, and generated-service issues. |
 | [Test coverage evidence](test-coverage.md) | Maintainers and release reviewers | Read the coverage gate outputs, package-level floor summary, and release-evidence relationship. |
 | [Package coverage trend](coverage-trend.md) | Maintainers and release reviewers | Compare root and selected contrib package coverage across published releases. |
@@ -35,7 +36,7 @@ without scanning the root README.
 The contrib CLI can scaffold the fuller reusable service baseline:
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v3/cmd/api-toolkit@latest new service \
+go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service \
   --module example.com/my-api \
   --profile saas-api \
   --auth api-key \

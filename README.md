@@ -19,7 +19,7 @@ app-owned business ports.
 Core-only install:
 
 ```sh
-go get github.com/aatuh/api-toolkit/v3
+go get github.com/aatuh/api-toolkit/v4
 ```
 
 Stable core package list: `VERSIONING.md` is the source of truth, and
@@ -38,8 +38,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/middleware/maxbody"
 )
 
 func main() {
@@ -112,14 +112,14 @@ accepting funds.
 
 | Module | Import path | Use for |
 | --- | --- | --- |
-| Core | `github.com/aatuh/api-toolkit/v3` | Stable HTTP/API primitives, middleware, helpers, route contracts, and compatibility-gated root packages. |
-| Contrib | `github.com/aatuh/api-toolkit/contrib/v3` | Third-party adapters, integrations, runnable examples, and generator tooling outside the stable core API promise. |
+| Core | `github.com/aatuh/api-toolkit/v4` | Stable HTTP/API primitives, middleware, helpers, route contracts, and compatibility-gated root packages. |
+| Contrib | `github.com/aatuh/api-toolkit/contrib/v4` | Third-party adapters, integrations, runnable examples, and generator tooling outside the stable core API promise. |
 
 Install contrib only when you need maintained adapters, generated scaffolds, or
 contrib examples:
 
 ```sh
-go get github.com/aatuh/api-toolkit/contrib/v3
+go get github.com/aatuh/api-toolkit/contrib/v4
 ```
 
 Supported development and CI toolchain policy: root and contrib target Go 1.25.x.

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/aatuh/api-toolkit/v3/endpoints/list"
+	"github.com/aatuh/api-toolkit/v4/endpoints/list"
 )
 
 func ExampleParseListQueryChecked() {

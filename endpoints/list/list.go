@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
 )
 
 // ListQuery captures pagination, search, and filter inputs from a request.

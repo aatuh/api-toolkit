@@ -10,7 +10,7 @@ Added version currently records the v3 compatibility surface, not the
 original historical commit for each symbol. Use release notes for finer
 history when a symbol was added after the v3 baseline.
 
-## `github.com/aatuh/api-toolkit/v3/apiclient`
+## `github.com/aatuh/api-toolkit/v4/apiclient`
 
 Stability tier: `stable`
 
@@ -46,7 +46,7 @@ Stability tier: `stable`
 | `WebhookSignerTransport.RoundTrip` | method | v3 compatibility surface | active |
 | `WebhookSignerTransport.Signer` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/apitest`
+## `github.com/aatuh/api-toolkit/v4/apitest`
 
 Stability tier: `stable`
 
@@ -65,7 +65,7 @@ Stability tier: `stable`
 | `AssertValidationFields` | func | v3 compatibility surface | active |
 | `AssertWebhookSignature` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/authorization`
+## `github.com/aatuh/api-toolkit/v4/authorization`
 
 Stability tier: `stable`
 
@@ -81,7 +81,9 @@ Stability tier: `stable`
 | `AllowlistAuthorizer.Can` | method | v3 compatibility surface | active |
 | `ApplyScope` | func | v3 compatibility surface | active |
 | `Authorizer` | type | v3 compatibility surface | active |
+| `Authorizer.Can` | interface method | v3 compatibility surface | active |
 | `AuthorizerFunc` | type | v3 compatibility surface | active |
+| `AuthorizerFunc.Can` | method | v3 compatibility surface | active |
 | `MaskFields` | func | v3 compatibility surface | active |
 | `NewAllowlistAuthorizer` | func | v3 compatibility surface | active |
 | `NewPolicyAuthorizer` | func | v3 compatibility surface | active |
@@ -94,8 +96,16 @@ Stability tier: `stable`
 | `PolicyAuthorizerOptions.DenyOnError` | field | v3 compatibility surface | active |
 | `PolicyContextProvider` | type | v3 compatibility surface | active |
 | `PolicyDecision` | type | v3 compatibility surface | active |
+| `PolicyDecision.Allow` | field | v3 compatibility surface | active |
+| `PolicyDecision.Data` | field | v3 compatibility surface | active |
+| `PolicyDecision.Reason` | field | v3 compatibility surface | active |
 | `PolicyEngine` | type | v3 compatibility surface | active |
+| `PolicyEngine.Evaluate` | interface method | v3 compatibility surface | active |
 | `PolicyRequest` | type | v3 compatibility surface | active |
+| `PolicyRequest.Action` | field | v3 compatibility surface | active |
+| `PolicyRequest.Context` | field | v3 compatibility surface | active |
+| `PolicyRequest.Resource` | field | v3 compatibility surface | active |
+| `PolicyRequest.Subject` | field | v3 compatibility surface | active |
 | `ProjectFields` | func | v3 compatibility surface | active |
 | `Require` | func | v3 compatibility surface | active |
 | `RequireOwner` | func | v3 compatibility surface | active |
@@ -112,7 +122,7 @@ Stability tier: `stable`
 | `WithActor` | func | v3 compatibility surface | active |
 | `WithScope` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/binding`
+## `github.com/aatuh/api-toolkit/v4/binding`
 
 Stability tier: `stable`
 
@@ -131,7 +141,7 @@ Stability tier: `stable`
 | `ValidationProblem` | func | v3 compatibility surface | active |
 | `WriteValidationProblem` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/compat/billing`
+## `github.com/aatuh/api-toolkit/v4/compat/billing`
 
 Stability tier: `compatibility-only`
 
@@ -274,7 +284,7 @@ Stability tier: `compatibility-only`
 | `WebhookEvent.Payload` | field | v3 compatibility surface | active |
 | `WebhookEvent.Type` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/contracttest`
+## `github.com/aatuh/api-toolkit/v4/contracttest`
 
 Stability tier: `stable`
 
@@ -305,7 +315,7 @@ Stability tier: `stable`
 | `OpenAPICompatibilityFindings` | func | v3 compatibility surface | active |
 | `SecuritySchemeDefinitionFindings` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/email`
+## `github.com/aatuh/api-toolkit/v4/email`
 
 Stability tier: `stable`
 
@@ -321,13 +331,29 @@ Stability tier: `stable`
 | `Sender` | type | v3 compatibility surface | active |
 | `Sender.Send` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/endpoints/docs`
+## `github.com/aatuh/api-toolkit/v4/endpoints/docs`
 
 Stability tier: `stable`
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
+| `Config` | type | v3 compatibility surface | active |
+| `Config.Contact` | field | v3 compatibility surface | active |
+| `Config.Description` | field | v3 compatibility surface | active |
+| `Config.EnableHTML` | field | v3 compatibility surface | active |
+| `Config.EnableJSON` | field | v3 compatibility surface | active |
+| `Config.EnableYAML` | field | v3 compatibility surface | active |
+| `Config.HTMLMode` | field | v3 compatibility surface | active |
+| `Config.License` | field | v3 compatibility surface | active |
+| `Config.Paths` | field | v3 compatibility surface | active |
+| `Config.Title` | field | v3 compatibility surface | active |
+| `Config.Version` | field | v3 compatibility surface | active |
+| `DefaultPaths` | func | v3 compatibility surface | active |
+| `HTMLMode` | type | v3 compatibility surface | active |
 | `HTMLModeProvider` | type | v3 compatibility surface | active |
+| `HTMLModeProvider.HTMLMode` | interface method | v3 compatibility surface | active |
+| `HTMLModeStatic` | const | v3 compatibility surface | active |
+| `HTMLModeSwaggerUI` | const | v3 compatibility surface | active |
 | `Handler` | type | v3 compatibility surface | active |
 | `Handler.HTMLHandler` | method | v3 compatibility surface | active |
 | `Handler.InfoHandler` | method | v3 compatibility surface | active |
@@ -338,6 +364,7 @@ Stability tier: `stable`
 | `Handler.RegisterRoutes` | method | v3 compatibility surface | active |
 | `Handler.RegisterRoutesTo` | method | v3 compatibility surface | active |
 | `Handler.VersionHandler` | method | v3 compatibility surface | active |
+| `Info` | type | v3 compatibility surface | active |
 | `Manager` | type | v3 compatibility surface | active |
 | `Manager.GetHTML` | method | v3 compatibility surface | active |
 | `Manager.GetInfo` | method | v3 compatibility surface | active |
@@ -350,16 +377,35 @@ Stability tier: `stable`
 | `Manager.ServeOpenAPI` | method | v3 compatibility surface | active |
 | `Manager.ServeVersion` | method | v3 compatibility surface | active |
 | `ManagerContract` | type | v3 compatibility surface | active |
+| `ManagerContract.GetHTML` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetInfo` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetOpenAPI` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetVersion` | interface method | v3 compatibility surface | active |
+| `ManagerContract.RegisterProvider` | interface method | v3 compatibility surface | active |
+| `ManagerContract.ServeHTML` | interface method | v3 compatibility surface | active |
+| `ManagerContract.ServeInfo` | interface method | v3 compatibility surface | active |
+| `ManagerContract.ServeOpenAPI` | interface method | v3 compatibility surface | active |
+| `ManagerContract.ServeVersion` | interface method | v3 compatibility surface | active |
 | `New` | func | v3 compatibility surface | active |
 | `NewDefaultHandler` | func | v3 compatibility surface | active |
 | `NewHandler` | func | v3 compatibility surface | active |
 | `NewStrict` | func | v3 compatibility surface | active |
 | `NewSwaggerUI` | func | v3 compatibility surface | active |
 | `NewWithConfig` | func | v3 compatibility surface | active |
+| `Paths` | type | v3 compatibility surface | active |
+| `Paths.HTML` | field | v3 compatibility surface | active |
+| `Paths.Info` | field | v3 compatibility surface | active |
+| `Paths.OpenAPI` | field | v3 compatibility surface | active |
+| `Paths.Version` | field | v3 compatibility surface | active |
 | `Provider` | type | v3 compatibility surface | active |
+| `Provider.GetHTML` | interface method | v3 compatibility surface | active |
+| `Provider.GetInfo` | interface method | v3 compatibility surface | active |
+| `Provider.GetOpenAPI` | interface method | v3 compatibility surface | active |
+| `Provider.GetVersion` | interface method | v3 compatibility surface | active |
 | `RouteRegistrar` | type | v3 compatibility surface | active |
+| `RouteRegistrar.Get` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/endpoints/health`
+## `github.com/aatuh/api-toolkit/v4/endpoints/health`
 
 Stability tier: `stable`
 
@@ -369,19 +415,36 @@ Stability tier: `stable`
 | `BasicChecker.Check` | method | v3 compatibility surface | active |
 | `BasicChecker.Name` | method | v3 compatibility surface | active |
 | `CachedManager` | type | v3 compatibility surface | active |
+| `CachedManager.CachedHealth` | interface method | v3 compatibility surface | active |
 | `Checker` | type | v3 compatibility surface | active |
+| `Checker.Check` | interface method | v3 compatibility surface | active |
+| `Checker.Name` | interface method | v3 compatibility surface | active |
 | `CompositeChecker` | type | v3 compatibility surface | active |
 | `CompositeChecker.Check` | method | v3 compatibility surface | active |
 | `CompositeChecker.Name` | method | v3 compatibility surface | active |
 | `Config` | type | v3 compatibility surface | active |
 | `Config.CacheDuration` | field | v3 compatibility surface | active |
-| `Config.RefreshInterval` | field | v3 compatibility surface | active |
+| `Config.EnableCaching` | field | v3 compatibility surface | active |
+| `Config.EnableDetailed` | field | v3 compatibility surface | active |
+| `Config.LivenessChecks` | field | v3 compatibility surface | active |
+| `Config.ReadinessChecks` | field | v3 compatibility surface | active |
+| `Config.Timeout` | field | v3 compatibility surface | active |
 | `CustomChecker` | type | v3 compatibility surface | active |
 | `CustomChecker.Check` | method | v3 compatibility surface | active |
 | `CustomChecker.Name` | method | v3 compatibility surface | active |
 | `DatabaseChecker` | type | v3 compatibility surface | active |
 | `DatabaseChecker.Check` | method | v3 compatibility surface | active |
 | `DatabaseChecker.Name` | method | v3 compatibility surface | active |
+| `DatabasePool` | type | v3 compatibility surface | active |
+| `DatabasePool.Ping` | interface method | v3 compatibility surface | active |
+| `DatabasePoolSnapshot` | type | v3 compatibility surface | active |
+| `DatabasePoolSnapshot.AcquireCount` | field | v3 compatibility surface | active |
+| `DatabasePoolSnapshot.AcquiredConns` | field | v3 compatibility surface | active |
+| `DatabasePoolSnapshot.IdleConns` | field | v3 compatibility surface | active |
+| `DatabasePoolSnapshot.MaxConns` | field | v3 compatibility surface | active |
+| `DatabasePoolSnapshot.TotalConns` | field | v3 compatibility surface | active |
+| `DatabasePoolSnapshotProvider` | type | v3 compatibility surface | active |
+| `DatabasePoolSnapshotProvider.StatSnapshot` | interface method | v3 compatibility surface | active |
 | `DefaultHealthPaths` | func | v3 compatibility surface | active |
 | `DetailedHealthResponse` | type | v3 compatibility surface | active |
 | `DetailedHealthResponse.Checks` | field | v3 compatibility surface | active |
@@ -389,6 +452,12 @@ Stability tier: `stable`
 | `DetailedHealthResponse.Summary` | field | v3 compatibility surface | active |
 | `DetailedHealthResponse.Timestamp` | field | v3 compatibility surface | active |
 | `DetailedManager` | type | v3 compatibility surface | active |
+| `DetailedManager.DetailedHealthEnabled` | interface method | v3 compatibility surface | active |
+| `DetailedResponse` | type | v3 compatibility surface | active |
+| `DetailedResponse.Checks` | field | v3 compatibility surface | active |
+| `DetailedResponse.Status` | field | v3 compatibility surface | active |
+| `DetailedResponse.Summary` | field | v3 compatibility surface | active |
+| `DetailedResponse.Timestamp` | field | v3 compatibility surface | active |
 | `DurationLoader` | type | v3 compatibility surface | active |
 | `DurationLoader.Duration` | interface method | v3 compatibility surface | active |
 | `HTTPChecker` | type | v3 compatibility surface | active |
@@ -442,6 +511,12 @@ Stability tier: `stable`
 | `Manager.RegisterChecker` | method | v3 compatibility surface | active |
 | `Manager.RegisterCheckers` | method | v3 compatibility surface | active |
 | `ManagerContract` | type | v3 compatibility surface | active |
+| `ManagerContract.GetDetailedHealth` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetHealth` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetLiveness` | interface method | v3 compatibility surface | active |
+| `ManagerContract.GetReadiness` | interface method | v3 compatibility surface | active |
+| `ManagerContract.RegisterChecker` | interface method | v3 compatibility surface | active |
+| `ManagerContract.RegisterCheckers` | interface method | v3 compatibility surface | active |
 | `MemoryChecker` | type | v3 compatibility surface | active |
 | `MemoryChecker.Check` | method | v3 compatibility surface | active |
 | `MemoryChecker.Name` | method | v3 compatibility surface | active |
@@ -464,9 +539,23 @@ Stability tier: `stable`
 | `PaymentProviderChecker.Check` | method | v3 compatibility surface | active |
 | `PaymentProviderChecker.Name` | method | v3 compatibility surface | active |
 | `PaymentProviderCheckerOption` | type | v3 compatibility surface | active |
+| `RefreshConfig` | type | v3 compatibility surface | active |
+| `RefreshConfig.CacheDuration` | field | v3 compatibility surface | active |
+| `RefreshConfig.RefreshInterval` | field | v3 compatibility surface | active |
 | `RefreshManager` | type | v3 compatibility surface | active |
 | `RefreshManager.RefreshAll` | interface method | v3 compatibility surface | active |
+| `Response` | type | v3 compatibility surface | active |
+| `Response.Message` | field | v3 compatibility surface | active |
+| `Response.Status` | field | v3 compatibility surface | active |
+| `Response.Timestamp` | field | v3 compatibility surface | active |
+| `Result` | type | v3 compatibility surface | active |
+| `Result.Details` | field | v3 compatibility surface | active |
+| `Result.Duration` | field | v3 compatibility surface | active |
+| `Result.Message` | field | v3 compatibility surface | active |
+| `Result.Status` | field | v3 compatibility surface | active |
+| `Result.Timestamp` | field | v3 compatibility surface | active |
 | `RouteRegistrar` | type | v3 compatibility surface | active |
+| `RouteRegistrar.Get` | interface method | v3 compatibility surface | active |
 | `Scheduler` | type | v3 compatibility surface | active |
 | `Scheduler.Start` | method | v3 compatibility surface | active |
 | `SchedulerConfig` | type | v3 compatibility surface | active |
@@ -474,6 +563,18 @@ Stability tier: `stable`
 | `SchedulerConfig.Logger` | field | v3 compatibility surface | active |
 | `SchedulerConfig.OnStatusChange` | field | v3 compatibility surface | active |
 | `SchedulerConfig.OnUpdate` | field | v3 compatibility surface | active |
+| `SnapshotDatabasePoolStats` | func | v3 compatibility surface | active |
+| `Status` | type | v3 compatibility surface | active |
+| `StatusDegraded` | const | v3 compatibility surface | active |
+| `StatusHealthy` | const | v3 compatibility surface | active |
+| `StatusUnhealthy` | const | v3 compatibility surface | active |
+| `StatusUnknown` | const | v3 compatibility surface | active |
+| `Summary` | type | v3 compatibility surface | active |
+| `Summary.Degraded` | field | v3 compatibility surface | active |
+| `Summary.Healthy` | field | v3 compatibility surface | active |
+| `Summary.Total` | field | v3 compatibility surface | active |
+| `Summary.Unhealthy` | field | v3 compatibility surface | active |
+| `Summary.Unknown` | field | v3 compatibility surface | active |
 | `WithHTTPClient` | func | v3 compatibility surface | active |
 | `WithHTTPFailureStatus` | func | v3 compatibility surface | active |
 | `WithHTTPHeader` | func | v3 compatibility surface | active |
@@ -484,7 +585,7 @@ Stability tier: `stable`
 | `WithPaymentProviderFailureStatus` | func | v3 compatibility surface | active |
 | `WithPaymentProviderName` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/endpoints/list`
+## `github.com/aatuh/api-toolkit/v4/endpoints/list`
 
 Stability tier: `stable`
 
@@ -556,7 +657,7 @@ Stability tier: `stable`
 | `SortField.Desc` | field | v3 compatibility surface | active |
 | `SortField.Field` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/endpoints/pprof`
+## `github.com/aatuh/api-toolkit/v4/endpoints/pprof`
 
 Stability tier: `stable`
 
@@ -567,7 +668,7 @@ Stability tier: `stable`
 | `Router` | type | v3 compatibility surface | active |
 | `Router.Get` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/endpoints/version`
+## `github.com/aatuh/api-toolkit/v4/endpoints/version`
 
 Stability tier: `stable`
 
@@ -580,9 +681,15 @@ Stability tier: `stable`
 | `Handler.Handler` | method | v3 compatibility surface | active |
 | `Handler.RegisterRoutes` | method | v3 compatibility surface | active |
 | `Handler.RegisterRoutesTo` | method | v3 compatibility surface | active |
+| `Info` | type | v3 compatibility surface | active |
+| `Info.Commit` | field | v3 compatibility surface | active |
+| `Info.Date` | field | v3 compatibility surface | active |
+| `Info.Version` | field | v3 compatibility surface | active |
 | `NewHandler` | func | v3 compatibility surface | active |
+| `RouteRegistrar` | type | v3 compatibility surface | active |
+| `RouteRegistrar.Get` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/fielderrors`
+## `github.com/aatuh/api-toolkit/v4/fielderrors`
 
 Stability tier: `stable`
 
@@ -600,7 +707,7 @@ Stability tier: `stable`
 | `Provider` | type | v3 compatibility surface | active |
 | `Provider.FieldErrors` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/httpcache`
+## `github.com/aatuh/api-toolkit/v4/httpcache`
 
 Stability tier: `stable`
 
@@ -626,7 +733,7 @@ Stability tier: `stable`
 | `WriteNotModified` | func | v3 compatibility surface | active |
 | `WritePreconditionFailed` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/httpx`
+## `github.com/aatuh/api-toolkit/v4/httpx`
 
 Stability tier: `stable`
 
@@ -640,6 +747,7 @@ Stability tier: `stable`
 | `ErrForbidden` | var | v3 compatibility surface | active |
 | `ErrHeaderBytesExceeded` | var | v3 compatibility surface | active |
 | `ErrHeaderCountExceeded` | var | v3 compatibility surface | active |
+| `ErrResourceMissing` | var | v3 compatibility surface | active |
 | `ErrTooManyRequests` | var | v3 compatibility surface | active |
 | `ErrUnauthorized` | var | v3 compatibility surface | active |
 | `ErrorMode` | type | v3 compatibility surface | active |
@@ -735,7 +843,7 @@ Stability tier: `stable`
 | `WriteProblemWithFieldErrors` | func | v3 compatibility surface | active |
 | `WriteSimpleProblem` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/httpx/identity`
+## `github.com/aatuh/api-toolkit/v4/httpx/identity`
 
 Stability tier: `stable`
 
@@ -764,7 +872,7 @@ Stability tier: `stable`
 | `Resolver.TrustedProxies` | field | v3 compatibility surface | active |
 | `Resolver.TrustsRemoteAddr` | method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/httpx/recover`
+## `github.com/aatuh/api-toolkit/v4/httpx/recover`
 
 Stability tier: `stable`
 
@@ -776,7 +884,7 @@ Stability tier: `stable`
 | `WithLogger` | func | v3 compatibility surface | active |
 | `WithStackLogging` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/idempotent`
+## `github.com/aatuh/api-toolkit/v4/idempotent`
 
 Stability tier: `stable`
 
@@ -800,7 +908,7 @@ Stability tier: `stable`
 | `WriteAcceptedReplay` | func | v3 compatibility surface | active |
 | `WriteConflict` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/auth/apikey`
+## `github.com/aatuh/api-toolkit/v4/middleware/auth/apikey`
 
 Stability tier: `stable`
 
@@ -831,7 +939,7 @@ Stability tier: `stable`
 | `VerifierFunc.VerifyAPIKey` | method | v3 compatibility surface | active |
 | `WithPrincipal` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/auth/authz`
+## `github.com/aatuh/api-toolkit/v4/middleware/auth/authz`
 
 Stability tier: `stable`
 
@@ -851,48 +959,7 @@ Stability tier: `stable`
 | `ValidateRequireRoleMiddleware` | func | v3 compatibility surface | active |
 | `ValidateRequireRoleMiddlewareRoutes` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/auth/jwt`
-
-Stability tier: `stable`
-
-| Symbol | Kind | Added version | Deprecation status |
-| --- | --- | --- | --- |
-| `ClaimRequirements` | type | v3 compatibility surface | active |
-| `ClaimRequirements.RequireExpiration` | field | v3 compatibility surface | active |
-| `ClaimRequirements.RequireIssuedAt` | field | v3 compatibility surface | active |
-| `ClaimRequirements.RequireNotBefore` | field | v3 compatibility surface | active |
-| `ClaimRequirements.RequireSubject` | field | v3 compatibility surface | active |
-| `Config` | type | v3 compatibility surface | active |
-| `Config.AllowDangerousDevBypasses` | field | v3 compatibility surface | active |
-| `Config.AllowedAlgorithms` | field | v3 compatibility surface | active |
-| `Config.AllowedClockSkew` | field | v3 compatibility surface | active |
-| `Config.Audience` | field | v3 compatibility surface | active |
-| `Config.Enabled` | field | v3 compatibility surface | active |
-| `Config.Issuer` | field | v3 compatibility surface | active |
-| `Config.JWKSRefreshInterval` | field | v3 compatibility surface | active |
-| `Config.JWKSRefreshTimeout` | field | v3 compatibility surface | active |
-| `Config.JWKSURL` | field | v3 compatibility surface | active |
-| `Config.RequiredClaims` | field | v3 compatibility surface | active |
-| `Config.SkipHeaderEnabled` | field | v3 compatibility surface | active |
-| `Config.SkipHeaderName` | field | v3 compatibility surface | active |
-| `Config.SkipTrustedProxies` | field | v3 compatibility surface | active |
-| `HealthChecker` | func | v3 compatibility surface | active |
-| `Middleware` | type | v3 compatibility surface | active |
-| `Middleware.Close` | method | v3 compatibility surface | active |
-| `Middleware.Handler` | method | v3 compatibility surface | active |
-| `Middleware.OptionalHandler` | method | v3 compatibility surface | active |
-| `NewMiddleware` | func | v3 compatibility surface | active |
-| `Subject` | type | v3 compatibility surface | active |
-| `Subject.Claims` | field | v3 compatibility surface | active |
-| `Subject.Email` | field | v3 compatibility surface | active |
-| `Subject.First` | field | v3 compatibility surface | active |
-| `Subject.Language` | field | v3 compatibility surface | active |
-| `Subject.Last` | field | v3 compatibility surface | active |
-| `Subject.UserID` | field | v3 compatibility surface | active |
-| `SubjectFromContext` | func | v3 compatibility surface | active |
-| `WithSubject` | func | v3 compatibility surface | active |
-
-## `github.com/aatuh/api-toolkit/v3/middleware/auth/tenant`
+## `github.com/aatuh/api-toolkit/v4/middleware/auth/tenant`
 
 Stability tier: `stable`
 
@@ -911,8 +978,10 @@ Stability tier: `stable`
 | `Options.URLParam` | field | v3 compatibility surface | active |
 | `Options.URLParamExtractor` | field | v3 compatibility surface | active |
 | `TenantFromContext` | type | v3 compatibility surface | active |
+| `URLParamExtractor` | type | v3 compatibility surface | active |
+| `URLParamExtractor.URLParam` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/deprecation`
+## `github.com/aatuh/api-toolkit/v4/middleware/deprecation`
 
 Stability tier: `stable`
 
@@ -933,7 +1002,7 @@ Stability tier: `stable`
 | `Middleware.Handler` | method | v3 compatibility surface | active |
 | `New` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/idempotency`
+## `github.com/aatuh/api-toolkit/v4/middleware/idempotency`
 
 Stability tier: `stable`
 
@@ -941,7 +1010,9 @@ Stability tier: `stable`
 | --- | --- | --- | --- |
 | `DefaultHash` | func | v3 compatibility surface | active |
 | `ErrLegacyInFlightClockSkewPreflightRisk` | var | v3 compatibility surface | active |
+| `ErrLegacyInFlightReservationMissingToken` | var | v3 compatibility surface | active |
 | `ErrLegacyInFlightTTLMismatch` | var | v3 compatibility surface | active |
+| `ErrLegacyInFlightTokenMismatch` | var | v3 compatibility surface | active |
 | `HashFunc` | type | v3 compatibility surface | active |
 | `IdempotencyOutcomeAmbiguous` | const | v3 compatibility surface | active |
 | `IdempotencyOutcomeCompletedReleased` | const | v3 compatibility surface | active |
@@ -1024,13 +1095,32 @@ Stability tier: `stable`
 | `OutcomeEvent.StoreType` | field | v3 compatibility surface | active |
 | `OutcomeEventName` | type | v3 compatibility surface | active |
 | `OutcomeHandler` | type | v3 compatibility surface | active |
+| `Record` | type | v3 compatibility surface | active |
+| `Record.Body` | field | v3 compatibility surface | active |
+| `Record.CreatedAt` | field | v3 compatibility surface | active |
+| `Record.Header` | field | v3 compatibility surface | active |
+| `Record.RequestHash` | field | v3 compatibility surface | active |
+| `Record.ReservationToken` | field | v3 compatibility surface | active |
+| `Record.State` | field | v3 compatibility surface | active |
+| `Record.Status` | field | v3 compatibility surface | active |
 | `ReleasableStore` | type | v3 compatibility surface | active |
+| `ReleasableStore.ReservationReleaser` | interface method | v3 compatibility surface | active |
+| `ReleasableStore.Store` | interface method | v3 compatibility surface | active |
 | `ReservationReleaser` | type | v3 compatibility surface | active |
+| `ReservationReleaser.ReleaseReservation` | interface method | v3 compatibility surface | active |
+| `State` | type | v3 compatibility surface | active |
+| `StateAmbiguous` | const | v3 compatibility surface | active |
+| `StateCompleted` | const | v3 compatibility surface | active |
+| `StateInFlight` | const | v3 compatibility surface | active |
+| `StateUnknown` | const | v3 compatibility surface | active |
 | `StorageKeyFunc` | type | v3 compatibility surface | active |
 | `Store` | type | v3 compatibility surface | active |
+| `Store.Get` | interface method | v3 compatibility surface | active |
+| `Store.Save` | interface method | v3 compatibility surface | active |
+| `Store.TryBegin` | interface method | v3 compatibility surface | active |
 | `TenantScopedStorageKeyFunc` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/json`
+## `github.com/aatuh/api-toolkit/v4/middleware/json`
 
 Stability tier: `stable`
 
@@ -1045,7 +1135,7 @@ Stability tier: `stable`
 | `Options.RequireJSON` | field | v3 compatibility surface | active |
 | `StrictDecoder` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/maxbody`
+## `github.com/aatuh/api-toolkit/v4/middleware/maxbody`
 
 Stability tier: `stable`
 
@@ -1059,7 +1149,7 @@ Stability tier: `stable`
 | `Options` | type | v3 compatibility surface | active |
 | `Options.MaxBytes` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/querylimits`
+## `github.com/aatuh/api-toolkit/v4/middleware/querylimits`
 
 Stability tier: `stable`
 
@@ -1078,7 +1168,7 @@ Stability tier: `stable`
 | `Options.MaxParams` | field | v3 compatibility surface | active |
 | `Options.MaxValueLength` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/ratelimit`
+## `github.com/aatuh/api-toolkit/v4/middleware/ratelimit`
 
 Stability tier: `stable`
 
@@ -1097,6 +1187,7 @@ Stability tier: `stable`
 | `HeaderConfig.RetryAfterHeader` | field | v3 compatibility surface | active |
 | `KeyFn` | type | v3 compatibility surface | active |
 | `Limiter` | type | v3 compatibility surface | active |
+| `Limiter.Allow` | interface method | v3 compatibility surface | active |
 | `Middleware` | type | v3 compatibility surface | active |
 | `Middleware.Handler` | method | v3 compatibility surface | active |
 | `Middleware.Middleware` | method | v3 compatibility surface | active |
@@ -1126,7 +1217,7 @@ Stability tier: `stable`
 | `SetRateLimitHeaders` | func | v3 compatibility surface | active |
 | `WriteRateLimited` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/secure`
+## `github.com/aatuh/api-toolkit/v4/middleware/secure`
 
 Stability tier: `stable`
 
@@ -1187,7 +1278,7 @@ Stability tier: `stable`
 | `WithPermissionsPolicy` | func | v3 compatibility surface | active |
 | `WithResolver` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/timeout`
+## `github.com/aatuh/api-toolkit/v4/middleware/timeout`
 
 Stability tier: `stable`
 
@@ -1229,7 +1320,7 @@ Stability tier: `stable`
 | `Propagator.Middleware` | method | v3 compatibility surface | active |
 | `Propagator.Timeout` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/middleware/trace`
+## `github.com/aatuh/api-toolkit/v4/middleware/trace`
 
 Stability tier: `stable`
 
@@ -1247,7 +1338,7 @@ Stability tier: `stable`
 | `Options.TrustIncoming` | field | v3 compatibility surface | active |
 | `Use` | func | v3 compatibility surface | deprecated |
 
-## `github.com/aatuh/api-toolkit/v3/negotiation`
+## `github.com/aatuh/api-toolkit/v4/negotiation`
 
 Stability tier: `stable`
 
@@ -1274,42 +1365,7 @@ Stability tier: `stable`
 | `RequireAccept` | func | v3 compatibility surface | active |
 | `RequireContentType` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/oauth2`
-
-Stability tier: `stable`
-
-| Symbol | Kind | Added version | Deprecation status |
-| --- | --- | --- | --- |
-| `BearerToken` | func | v3 compatibility surface | active |
-| `JWKSConfig` | type | v3 compatibility surface | active |
-| `JWKSConfig.Audience` | field | v3 compatibility surface | active |
-| `JWKSConfig.ClockSkew` | field | v3 compatibility surface | active |
-| `JWKSConfig.Issuer` | field | v3 compatibility surface | active |
-| `JWKSConfig.JWKSURL` | field | v3 compatibility surface | active |
-| `NewScopeSet` | func | v3 compatibility surface | active |
-| `RegisterSecurityScheme` | func | v3 compatibility surface | active |
-| `RequireScopes` | func | v3 compatibility surface | active |
-| `ScopeSet` | type | v3 compatibility surface | active |
-| `ScopeSet.Has` | method | v3 compatibility surface | active |
-| `SecurityScheme` | func | v3 compatibility surface | active |
-| `TokenClaims` | type | v3 compatibility surface | active |
-| `TokenClaims.Actor` | method | v3 compatibility surface | active |
-| `TokenClaims.Audience` | field | v3 compatibility surface | active |
-| `TokenClaims.AuthorizationScope` | method | v3 compatibility surface | active |
-| `TokenClaims.ExpiresAt` | field | v3 compatibility surface | active |
-| `TokenClaims.IssuedAt` | field | v3 compatibility surface | active |
-| `TokenClaims.Issuer` | field | v3 compatibility surface | active |
-| `TokenClaims.NotBefore` | field | v3 compatibility surface | active |
-| `TokenClaims.Raw` | field | v3 compatibility surface | active |
-| `TokenClaims.Scopes` | field | v3 compatibility surface | active |
-| `TokenClaims.Subject` | field | v3 compatibility surface | active |
-| `TokenClaims.TenantID` | field | v3 compatibility surface | active |
-| `Validator` | type | v3 compatibility surface | active |
-| `Validator.ValidateToken` | interface method | v3 compatibility surface | active |
-| `ValidatorFunc` | type | v3 compatibility surface | active |
-| `ValidatorFunc.ValidateToken` | method | v3 compatibility surface | active |
-
-## `github.com/aatuh/api-toolkit/v3/operations`
+## `github.com/aatuh/api-toolkit/v4/operations`
 
 Stability tier: `stable`
 
@@ -1367,275 +1423,30 @@ Stability tier: `stable`
 | `WriterFuncs.Update` | field | v3 compatibility surface | active |
 | `WriterFuncs.UpdateOperation` | method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/ports`
+## `github.com/aatuh/api-toolkit/v4/ports`
 
 Stability tier: `stable`
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
-| `Authorizer` | type | v3 compatibility surface | deprecated |
-| `Authorizer.Can` | interface method | v3 compatibility surface | active |
-| `AuthorizerFunc` | type | v3 compatibility surface | deprecated |
-| `AuthorizerFunc.Can` | method | v3 compatibility surface | active |
-| `CORSHandler` | type | v3 compatibility surface | active |
-| `CORSHandler.Handler` | interface method | v3 compatibility surface | active |
-| `CORSOptions` | type | v3 compatibility surface | active |
-| `CORSOptions.AllowCredentials` | field | v3 compatibility surface | active |
-| `CORSOptions.AllowedHeaders` | field | v3 compatibility surface | active |
-| `CORSOptions.AllowedMethods` | field | v3 compatibility surface | active |
-| `CORSOptions.AllowedOrigins` | field | v3 compatibility surface | active |
-| `CORSOptions.MaxAge` | field | v3 compatibility surface | active |
-| `CachedHealthManager` | type | v3 compatibility surface | deprecated |
-| `CachedHealthManager.CachedHealth` | interface method | v3 compatibility surface | active |
 | `Clock` | type | v3 compatibility surface | active |
 | `Clock.Now` | interface method | v3 compatibility surface | active |
-| `DatabaseConnection` | type | v3 compatibility surface | active |
-| `DatabaseConnection.Begin` | interface method | v3 compatibility surface | active |
-| `DatabaseConnection.Exec` | interface method | v3 compatibility surface | active |
-| `DatabaseConnection.Query` | interface method | v3 compatibility surface | active |
-| `DatabaseConnection.QueryRow` | interface method | v3 compatibility surface | active |
-| `DatabaseConnection.Release` | interface method | v3 compatibility surface | active |
-| `DatabasePool` | type | v3 compatibility surface | active |
-| `DatabasePool.Acquire` | interface method | v3 compatibility surface | active |
-| `DatabasePool.Close` | interface method | v3 compatibility surface | active |
-| `DatabasePool.Ping` | interface method | v3 compatibility surface | active |
-| `DatabasePoolSnapshot` | type | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.AcquireCount` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.AcquireDuration` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.AcquiredConns` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.CanceledAcquireCount` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.ConstructingConns` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.EmptyAcquireCount` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.IdleConns` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.MaxConns` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.NewConnsCount` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshot.TotalConns` | field | v3 compatibility surface | active |
-| `DatabasePoolSnapshotProvider` | type | v3 compatibility surface | active |
-| `DatabasePoolSnapshotProvider.StatSnapshot` | interface method | v3 compatibility surface | active |
-| `DatabaseResult` | type | v3 compatibility surface | active |
-| `DatabaseResult.RowsAffected` | interface method | v3 compatibility surface | active |
-| `DatabaseRow` | type | v3 compatibility surface | active |
-| `DatabaseRow.Scan` | interface method | v3 compatibility surface | active |
-| `DatabaseRows` | type | v3 compatibility surface | active |
-| `DatabaseRows.Close` | interface method | v3 compatibility surface | active |
-| `DatabaseRows.Err` | interface method | v3 compatibility surface | active |
-| `DatabaseRows.Next` | interface method | v3 compatibility surface | active |
-| `DatabaseRows.Scan` | interface method | v3 compatibility surface | active |
-| `DatabaseTransaction` | type | v3 compatibility surface | active |
-| `DatabaseTransaction.Commit` | interface method | v3 compatibility surface | active |
-| `DatabaseTransaction.Exec` | interface method | v3 compatibility surface | active |
-| `DatabaseTransaction.Query` | interface method | v3 compatibility surface | active |
-| `DatabaseTransaction.QueryRow` | interface method | v3 compatibility surface | active |
-| `DatabaseTransaction.Rollback` | interface method | v3 compatibility surface | active |
-| `DefaultDocsPaths` | func | v3 compatibility surface | active |
-| `DetailedHealthManager` | type | v3 compatibility surface | deprecated |
-| `DetailedHealthManager.DetailedHealthEnabled` | interface method | v3 compatibility surface | active |
-| `DetailedHealthResponse` | type | v3 compatibility surface | active |
-| `DetailedHealthResponse.Checks` | field | v3 compatibility surface | active |
-| `DetailedHealthResponse.Status` | field | v3 compatibility surface | active |
-| `DetailedHealthResponse.Summary` | field | v3 compatibility surface | active |
-| `DetailedHealthResponse.Timestamp` | field | v3 compatibility surface | active |
-| `DocsConfig` | type | v3 compatibility surface | active |
-| `DocsConfig.Contact` | field | v3 compatibility surface | active |
-| `DocsConfig.Description` | field | v3 compatibility surface | active |
-| `DocsConfig.EnableHTML` | field | v3 compatibility surface | active |
-| `DocsConfig.EnableJSON` | field | v3 compatibility surface | active |
-| `DocsConfig.EnableYAML` | field | v3 compatibility surface | active |
-| `DocsConfig.HTMLMode` | field | v3 compatibility surface | active |
-| `DocsConfig.License` | field | v3 compatibility surface | active |
-| `DocsConfig.Paths` | field | v3 compatibility surface | active |
-| `DocsConfig.Title` | field | v3 compatibility surface | active |
-| `DocsConfig.Version` | field | v3 compatibility surface | active |
-| `DocsHTMLMode` | type | v3 compatibility surface | active |
-| `DocsHTMLModeProvider` | type | v3 compatibility surface | deprecated |
-| `DocsHTMLModeProvider.HTMLMode` | interface method | v3 compatibility surface | active |
-| `DocsHTMLModeStatic` | const | v3 compatibility surface | active |
-| `DocsHTMLModeSwaggerUI` | const | v3 compatibility surface | active |
-| `DocsInfo` | type | v3 compatibility surface | active |
-| `DocsInfo.Contact` | field | v3 compatibility surface | active |
-| `DocsInfo.Description` | field | v3 compatibility surface | active |
-| `DocsInfo.License` | field | v3 compatibility surface | active |
-| `DocsInfo.Title` | field | v3 compatibility surface | active |
-| `DocsInfo.Version` | field | v3 compatibility surface | active |
-| `DocsManager` | type | v3 compatibility surface | deprecated |
-| `DocsManager.GetHTML` | interface method | v3 compatibility surface | active |
-| `DocsManager.GetInfo` | interface method | v3 compatibility surface | active |
-| `DocsManager.GetOpenAPI` | interface method | v3 compatibility surface | active |
-| `DocsManager.GetVersion` | interface method | v3 compatibility surface | active |
-| `DocsManager.RegisterProvider` | interface method | v3 compatibility surface | active |
-| `DocsManager.ServeHTML` | interface method | v3 compatibility surface | active |
-| `DocsManager.ServeInfo` | interface method | v3 compatibility surface | active |
-| `DocsManager.ServeOpenAPI` | interface method | v3 compatibility surface | active |
-| `DocsManager.ServeVersion` | interface method | v3 compatibility surface | active |
-| `DocsPaths` | type | v3 compatibility surface | active |
-| `DocsPaths.HTML` | field | v3 compatibility surface | active |
-| `DocsPaths.Info` | field | v3 compatibility surface | active |
-| `DocsPaths.OpenAPI` | field | v3 compatibility surface | active |
-| `DocsPaths.Version` | field | v3 compatibility surface | active |
-| `DocsProvider` | type | v3 compatibility surface | deprecated |
-| `DocsProvider.GetHTML` | interface method | v3 compatibility surface | active |
-| `DocsProvider.GetInfo` | interface method | v3 compatibility surface | active |
-| `DocsProvider.GetOpenAPI` | interface method | v3 compatibility surface | active |
-| `DocsProvider.GetVersion` | interface method | v3 compatibility surface | active |
-| `EnvVar` | type | v3 compatibility surface | active |
-| `EnvVar.Bind` | interface method | v3 compatibility surface | active |
-| `EnvVar.BindWithPrefix` | interface method | v3 compatibility surface | active |
-| `EnvVar.DumpRedacted` | interface method | v3 compatibility surface | active |
-| `EnvVar.Get` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetBoolOr` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetDurationOr` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetFloat64Or` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetInt64Or` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetIntOr` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetOr` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetUint64Or` | interface method | v3 compatibility surface | active |
-| `EnvVar.GetUintOr` | interface method | v3 compatibility surface | active |
-| `EnvVar.LoadEnvFiles` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustBind` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustBindWithPrefix` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGet` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetBool` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetDuration` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetFloat64` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetInt` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetInt64` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetUint` | interface method | v3 compatibility surface | active |
-| `EnvVar.MustGetUint64` | interface method | v3 compatibility surface | active |
-| `ErrLegacyInFlightReservationMissingToken` | var | v3 compatibility surface | active |
-| `ErrLegacyInFlightTokenMismatch` | var | v3 compatibility surface | active |
-| `ErrResourceMissing` | var | v3 compatibility surface | active |
-| `HTTPClient` | type | v3 compatibility surface | active |
-| `HTTPClient.Do` | interface method | v3 compatibility surface | active |
-| `HTTPMiddleware` | type | v3 compatibility surface | active |
-| `HTTPMiddleware.RealIP` | interface method | v3 compatibility surface | active |
-| `HTTPMiddleware.Recoverer` | interface method | v3 compatibility surface | active |
-| `HTTPMiddleware.RequestID` | interface method | v3 compatibility surface | active |
-| `HTTPRouter` | type | v3 compatibility surface | active |
-| `HTTPRouter.Delete` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Get` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Handler` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Mount` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Post` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Put` | interface method | v3 compatibility surface | active |
-| `HTTPRouter.Use` | interface method | v3 compatibility surface | active |
-| `HealthCheckConfig` | type | v3 compatibility surface | active |
-| `HealthCheckConfig.CacheDuration` | field | v3 compatibility surface | active |
-| `HealthCheckConfig.EnableCaching` | field | v3 compatibility surface | active |
-| `HealthCheckConfig.EnableDetailed` | field | v3 compatibility surface | active |
-| `HealthCheckConfig.LivenessChecks` | field | v3 compatibility surface | active |
-| `HealthCheckConfig.ReadinessChecks` | field | v3 compatibility surface | active |
-| `HealthCheckConfig.Timeout` | field | v3 compatibility surface | active |
-| `HealthCheckRegistry` | type | v3 compatibility surface | active |
-| `HealthCheckRegistry.GetChecker` | interface method | v3 compatibility surface | active |
-| `HealthCheckRegistry.ListCheckers` | interface method | v3 compatibility surface | active |
-| `HealthCheckRegistry.Register` | interface method | v3 compatibility surface | active |
-| `HealthCheckRegistry.Unregister` | interface method | v3 compatibility surface | active |
-| `HealthChecker` | type | v3 compatibility surface | deprecated |
-| `HealthChecker.Check` | interface method | v3 compatibility surface | active |
-| `HealthChecker.Name` | interface method | v3 compatibility surface | active |
-| `HealthManager` | type | v3 compatibility surface | deprecated |
-| `HealthManager.GetDetailedHealth` | interface method | v3 compatibility surface | active |
-| `HealthManager.GetHealth` | interface method | v3 compatibility surface | active |
-| `HealthManager.GetLiveness` | interface method | v3 compatibility surface | active |
-| `HealthManager.GetReadiness` | interface method | v3 compatibility surface | active |
-| `HealthManager.RegisterChecker` | interface method | v3 compatibility surface | active |
-| `HealthManager.RegisterCheckers` | interface method | v3 compatibility surface | active |
-| `HealthResponse` | type | v3 compatibility surface | active |
-| `HealthResponse.Message` | field | v3 compatibility surface | active |
-| `HealthResponse.Status` | field | v3 compatibility surface | active |
-| `HealthResponse.Timestamp` | field | v3 compatibility surface | active |
-| `HealthResult` | type | v3 compatibility surface | active |
-| `HealthResult.Details` | field | v3 compatibility surface | active |
-| `HealthResult.Duration` | field | v3 compatibility surface | active |
-| `HealthResult.Message` | field | v3 compatibility surface | active |
-| `HealthResult.Status` | field | v3 compatibility surface | active |
-| `HealthResult.Timestamp` | field | v3 compatibility surface | active |
-| `HealthStatus` | type | v3 compatibility surface | active |
-| `HealthStatusDegraded` | const | v3 compatibility surface | active |
-| `HealthStatusHealthy` | const | v3 compatibility surface | active |
-| `HealthStatusUnhealthy` | const | v3 compatibility surface | active |
-| `HealthStatusUnknown` | const | v3 compatibility surface | active |
-| `HealthSummary` | type | v3 compatibility surface | active |
-| `HealthSummary.Degraded` | field | v3 compatibility surface | active |
-| `HealthSummary.Healthy` | field | v3 compatibility surface | active |
-| `HealthSummary.Total` | field | v3 compatibility surface | active |
-| `HealthSummary.Unhealthy` | field | v3 compatibility surface | active |
-| `HealthSummary.Unknown` | field | v3 compatibility surface | active |
 | `IDGen` | type | v3 compatibility surface | active |
 | `IDGen.New` | interface method | v3 compatibility surface | active |
-| `IdempotencyRecord` | type | v3 compatibility surface | active |
-| `IdempotencyRecord.Body` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.CreatedAt` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.Header` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.RequestHash` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.ReservationToken` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.State` | field | v3 compatibility surface | active |
-| `IdempotencyRecord.Status` | field | v3 compatibility surface | active |
-| `IdempotencyReservationReleaser` | type | v3 compatibility surface | deprecated |
-| `IdempotencyReservationReleaser.ReleaseReservation` | interface method | v3 compatibility surface | active |
-| `IdempotencyState` | type | v3 compatibility surface | active |
-| `IdempotencyStateAmbiguous` | const | v3 compatibility surface | active |
-| `IdempotencyStateCompleted` | const | v3 compatibility surface | active |
-| `IdempotencyStateInFlight` | const | v3 compatibility surface | active |
-| `IdempotencyStateUnknown` | const | v3 compatibility surface | active |
-| `IdempotencyStore` | type | v3 compatibility surface | deprecated |
-| `IdempotencyStore.Get` | interface method | v3 compatibility surface | active |
-| `IdempotencyStore.Save` | interface method | v3 compatibility surface | active |
-| `IdempotencyStore.TryBegin` | interface method | v3 compatibility surface | active |
 | `Logger` | type | v3 compatibility surface | active |
 | `Logger.Debug` | interface method | v3 compatibility surface | active |
 | `Logger.Error` | interface method | v3 compatibility surface | active |
 | `Logger.Info` | interface method | v3 compatibility surface | active |
 | `Logger.Warn` | interface method | v3 compatibility surface | active |
-| `MethodRouteRegistrar` | type | v3 compatibility surface | active |
-| `MethodRouteRegistrar.Get` | interface method | v3 compatibility surface | active |
-| `Middleware` | type | v3 compatibility surface | active |
-| `Middleware.Middleware` | interface method | v3 compatibility surface | active |
-| `MiddlewareChain` | type | v3 compatibility surface | active |
-| `MiddlewareChain.Use` | interface method | v3 compatibility surface | active |
-| `Migrator` | type | v3 compatibility surface | active |
-| `Migrator.Close` | interface method | v3 compatibility surface | active |
-| `Migrator.Down` | interface method | v3 compatibility surface | active |
-| `Migrator.Status` | interface method | v3 compatibility surface | active |
-| `Migrator.Up` | interface method | v3 compatibility surface | active |
 | `NopLogger` | type | v3 compatibility surface | active |
 | `NopLogger.Debug` | method | v3 compatibility surface | active |
 | `NopLogger.Error` | method | v3 compatibility surface | active |
 | `NopLogger.Info` | method | v3 compatibility surface | active |
 | `NopLogger.Warn` | method | v3 compatibility surface | active |
-| `PolicyDecision` | type | v3 compatibility surface | deprecated |
-| `PolicyDecision.Allow` | field | v3 compatibility surface | active |
-| `PolicyDecision.Data` | field | v3 compatibility surface | active |
-| `PolicyDecision.Reason` | field | v3 compatibility surface | active |
-| `PolicyEngine` | type | v3 compatibility surface | deprecated |
-| `PolicyEngine.Evaluate` | interface method | v3 compatibility surface | active |
-| `PolicyRequest` | type | v3 compatibility surface | deprecated |
-| `PolicyRequest.Action` | field | v3 compatibility surface | active |
-| `PolicyRequest.Context` | field | v3 compatibility surface | active |
-| `PolicyRequest.Resource` | field | v3 compatibility surface | active |
-| `PolicyRequest.Subject` | field | v3 compatibility surface | active |
-| `RateLimiter` | type | v3 compatibility surface | deprecated |
-| `RateLimiter.Allow` | interface method | v3 compatibility surface | active |
-| `ReservationReleasableIdempotencyStore` | type | v3 compatibility surface | deprecated |
-| `ReservationReleasableIdempotencyStore.IdempotencyReservationReleaser` | interface method | v3 compatibility surface | active |
-| `ReservationReleasableIdempotencyStore.IdempotencyStore` | interface method | v3 compatibility surface | active |
-| `SnapshotDatabasePoolStats` | func | v3 compatibility surface | active |
 | `SystemClock` | type | v3 compatibility surface | active |
 | `SystemClock.Now` | method | v3 compatibility surface | active |
-| `TxManager` | type | v3 compatibility surface | active |
-| `TxManager.WithinTx` | interface method | v3 compatibility surface | active |
-| `URLParamExtractor` | type | v3 compatibility surface | active |
-| `URLParamExtractor.URLParam` | interface method | v3 compatibility surface | active |
-| `Validator` | type | v3 compatibility surface | active |
-| `Validator.Validate` | interface method | v3 compatibility surface | active |
-| `Validator.ValidateField` | interface method | v3 compatibility surface | active |
-| `Validator.ValidateStruct` | interface method | v3 compatibility surface | active |
-| `VersionInfo` | type | v3 compatibility surface | active |
-| `VersionInfo.Commit` | field | v3 compatibility surface | active |
-| `VersionInfo.Date` | field | v3 compatibility surface | active |
-| `VersionInfo.Version` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/queryparams`
+## `github.com/aatuh/api-toolkit/v4/queryparams`
 
 Stability tier: `stable`
 
@@ -1680,7 +1491,7 @@ Stability tier: `stable`
 | `SortField.Desc` | field | v3 compatibility surface | active |
 | `SortField.Name` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/routecontracts`
+## `github.com/aatuh/api-toolkit/v4/routecontracts`
 
 Stability tier: `stable`
 
@@ -1718,7 +1529,7 @@ Stability tier: `stable`
 | `Router.Post` | interface method | v3 compatibility surface | active |
 | `Router.Put` | interface method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/routepolicy`
+## `github.com/aatuh/api-toolkit/v4/routepolicy`
 
 Stability tier: `stable`
 
@@ -1808,7 +1619,7 @@ Stability tier: `stable`
 | `WithSunset` | func | v3 compatibility surface | active |
 | `WithTenantRequired` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/scheduler`
+## `github.com/aatuh/api-toolkit/v4/scheduler`
 
 Stability tier: `stable`
 
@@ -1843,7 +1654,7 @@ Stability tier: `stable`
 | `Runner.SetRecorderFailureHandler` | method | v3 compatibility surface | active |
 | `Runner.Start` | method | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/scheduler/migrations`
+## `github.com/aatuh/api-toolkit/v4/scheduler/migrations`
 
 Stability tier: `compatibility-only`
 
@@ -1851,13 +1662,15 @@ Stability tier: `compatibility-only`
 | --- | --- | --- | --- |
 | `Migrations` | var | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/securityprofile`
+## `github.com/aatuh/api-toolkit/v4/securityprofile`
 
 Stability tier: `stable`
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
 | `ErrorWriter` | type | v3 compatibility surface | active |
+| `MiddlewareChain` | type | v3 compatibility surface | active |
+| `MiddlewareChain.Use` | interface method | v3 compatibility surface | active |
 | `New` | func | v3 compatibility surface | active |
 | `OWASPBaseline` | func | v3 compatibility surface | active |
 | `Option` | type | v3 compatibility surface | active |
@@ -1896,7 +1709,7 @@ Stability tier: `stable`
 | `WithTimeout` | func | v3 compatibility surface | active |
 | `WithTimeoutDisabled` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/specs`
+## `github.com/aatuh/api-toolkit/v4/specs`
 
 Stability tier: `stable`
 
@@ -1912,6 +1725,12 @@ Stability tier: `stable`
 | `DocsInfo` | const | v3 compatibility surface | active |
 | `DocsOpenAPI` | const | v3 compatibility surface | active |
 | `DocsVersion` | const | v3 compatibility surface | active |
+| `DocumentationInfo` | type | v3 compatibility surface | active |
+| `DocumentationInfo.Contact` | field | v3 compatibility surface | active |
+| `DocumentationInfo.Description` | field | v3 compatibility surface | active |
+| `DocumentationInfo.License` | field | v3 compatibility surface | active |
+| `DocumentationInfo.Title` | field | v3 compatibility surface | active |
+| `DocumentationInfo.Version` | field | v3 compatibility surface | active |
 | `Example` | type | v3 compatibility surface | active |
 | `Example.Description` | field | v3 compatibility surface | active |
 | `Example.ExternalValue` | field | v3 compatibility surface | active |
@@ -2027,7 +1846,7 @@ Stability tier: `stable`
 | `ValidationProblemResponse` | func | v3 compatibility surface | active |
 | `Version` | const | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/swagstub`
+## `github.com/aatuh/api-toolkit/v4/swagstub`
 
 Stability tier: `compatibility-only`
 
@@ -2049,7 +1868,7 @@ Stability tier: `compatibility-only`
 | `Spec.Title` | field | v3 compatibility surface | active |
 | `Spec.Version` | field | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/upload`
+## `github.com/aatuh/api-toolkit/v4/upload`
 
 Stability tier: `stable`
 
@@ -2079,7 +1898,7 @@ Stability tier: `stable`
 | `ValidationProblem` | func | v3 compatibility surface | active |
 | `WriteValidationProblem` | func | v3 compatibility surface | active |
 
-## `github.com/aatuh/api-toolkit/v3/webhooks`
+## `github.com/aatuh/api-toolkit/v4/webhooks`
 
 Stability tier: `stable`
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/contrib/v4/audit"
 )
 
 func TestAuditServiceRecordsAndRedactsMetadata(t *testing.T) {

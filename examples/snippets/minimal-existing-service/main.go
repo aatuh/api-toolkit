@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/middleware/maxbody"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/middleware/maxbody"
 )
 
 func main() {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
 // ClaimRequirementsInput configures required JWT claims.

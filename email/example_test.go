@@ -3,7 +3,7 @@ package email_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/email"
+	"github.com/aatuh/api-toolkit/v4/email"
 )
 
 func ExampleMessage() {

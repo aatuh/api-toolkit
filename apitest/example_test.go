@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/apitest"
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/apitest"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func ExampleAssertJSON() {

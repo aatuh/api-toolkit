@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/securityprofile"
+	"github.com/aatuh/api-toolkit/v4/securityprofile"
 )
 
 func ExampleStreamingRouteOverride() {

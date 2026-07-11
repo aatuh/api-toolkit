@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/compatkit"
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/compatkit"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func ExampleRun() {

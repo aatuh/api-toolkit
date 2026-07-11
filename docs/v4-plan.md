@@ -1,16 +1,16 @@
 # V4 Scope Cleanup Plan
 
-Audience: maintainers and advanced adopters reviewing what a future v4 major
-release should keep stable, narrow, split, or remove.
+Audience: maintainers and adopters migrating to the v4 major release.
 
-This plan is not a v3 change. No breaking v3 change is allowed without a major
-version, release notes, API-diff evidence, migration guidance, and accepted
-design-review feedback. The current v3 stable surface remains governed by
-`VERSIONING.md`, `docs/package-classification.tsv`, and the release API gate.
+The v4 branch is the completed major-version boundary. The core module is
+`github.com/aatuh/api-toolkit/v4`, the extension module is
+`github.com/aatuh/api-toolkit/contrib/v4`, and `go.work` joins local modules
+for repository development. Published v3 artifacts remain historical release
+evidence; they are not modified by this branch.
 
-Every candidate below has an accountable owner, a replacement direction, and
-required migration evidence. Owner names come from `docs/package-owners.tsv`;
-the plan assigns the decision, not a v3 breaking change.
+Every moved root port has an accountable owner and an executable import
+migration. The source of truth is `docs/ports-v4-migration-ledger.tsv`, which
+is verified against the current root package by `internal/tools/portsledger`.
 
 ## Goals
 
@@ -23,8 +23,7 @@ the plan assigns the decision, not a v3 breaking change.
 
 ## Keep Stable
 
-These packages match the library-first identity and should remain stable in v4
-unless design review finds a narrower replacement:
+These packages match the library-first identity and remain stable in v4:
 
 | Package group | Accountable owner | V4 target | Replacement direction | Required migration evidence |
 | --- | --- | --- | --- | --- |
@@ -43,10 +42,10 @@ instead of default adoption paths:
 
 | Package or surface | Accountable owner | V4 target | Replacement direction | Required migration evidence |
 | --- | --- | --- | --- | --- |
-| `github.com/aatuh/api-toolkit/v3/ports` | `core-maintainers` | Narrow root `ports`; move broad database/router/config abstractions to package-local, contrib-owned, or app-owned interfaces where practical. | Use the package-local aliases in `middleware/ratelimit`, `middleware/idempotency`, `authorization`, `endpoints/health`, and `endpoints/docs`; use app or contrib interfaces for the remaining broad contracts. | [`docs/ports-v4-migration-ledger.tsv`](ports-v4-migration-ledger.tsv) records every current export, consumer, implementation evidence, v3 deprecation status, and v4 decision; add two-implementation or root-consumer evidence for every survivor, API diff, and import migration snippets. |
-| `github.com/aatuh/api-toolkit/v3/compat/billing` | `core-maintainers` | Demote from root default path; keep only as a compatibility module or move to a separate billing compatibility module. | Keep billing workflows app-owned unless the hosted-checkout model is exact. | Exact package or symbol decision, compat import migration example, consumer evidence, API diff, and release note. |
-| `github.com/aatuh/api-toolkit/v3/scheduler/migrations` | `core-maintainers` | Demote or move to contrib/app-owned migration orchestration. | Use app-owned migration commands or contrib migration adapters. | Package consumer inventory, import migration example, generated-service review, API diff, and release note. |
-| `github.com/aatuh/api-toolkit/v3/swagstub` | `core-maintainers` | Demote or remove from root stable surface if v4 tooling no longer needs it. | Move the stub behind internal tooling or retain it only in contrib tooling. | Generated-output import audit, tooling migration example, API diff, and release note. |
+| `github.com/aatuh/api-toolkit/v4/ports` | `core-maintainers` | Narrowed and complete. | The root package contains only `Logger`, `Clock`, `IDGen`, `NopLogger`, and `SystemClock`. Endpoint, middleware, authorization, HTTP, and version contracts are package-local; adapter and composition contracts are in `contrib/contracts`. | [`docs/ports-v4-migration-ledger.tsv`](ports-v4-migration-ledger.tsv) is AST-verified; root, contrib, and reference-service test suites compile against the new imports. |
+| `github.com/aatuh/api-toolkit/v4/compat/billing` | `core-maintainers` | Demote from root default path; keep only as a compatibility module or move to a separate billing compatibility module. | Keep billing workflows app-owned unless the hosted-checkout model is exact. | Exact package or symbol decision, compat import migration example, consumer evidence, API diff, and release note. |
+| `github.com/aatuh/api-toolkit/v4/scheduler/migrations` | `core-maintainers` | Demote or move to contrib/app-owned migration orchestration. | Use app-owned migration commands or contrib migration adapters. | Package consumer inventory, import migration example, generated-service review, API diff, and release note. |
+| `github.com/aatuh/api-toolkit/v4/swagstub` | `core-maintainers` | Demote or remove from root stable surface if v4 tooling no longer needs it. | Move the stub behind internal tooling or retain it only in contrib tooling. | Generated-output import audit, tooling migration example, API diff, and release note. |
 | `authorization` broad domain helpers | `core-maintainers` | Narrow examples and docs before expanding. | Prefer app-owned authorization policy shapes unless helpers remain plainly reusable. | Security review, default-deny and tenant/owner regression tests, consumer inventory, and import migration snippets for any moved helper. |
 | `email.Sender` | `core-maintainers` | Review for app-owned or contrib-owned ownership. | Keep provider-specific email behavior in the application or a contrib adapter. | Consumer and implementation inventory, provider-adapter boundary review, import migration example, API diff, and release note. |
 
@@ -57,7 +56,7 @@ scaffold identity:
 
 | Area | Accountable owner | V4 target | Replacement direction | Required migration evidence |
 | --- | --- | --- | --- | --- |
-| `middleware/auth/jwt`, JWK handling, and OAuth2 helpers | `core-maintainers` | Split to an auth module or keep behind an explicitly imported package boundary that does not affect simple middleware adopters; use `docs/auth-dependency-split.md` as the decision record. | Move JWT/JWK users to the dedicated auth module; keep simple core imports auth-light. | New module design, old-to-new import examples, root `go.mod` without direct JWT/JWK requirements, package-owner rows, API diff, and release note. |
+| `middleware/auth/jwt`, JWK handling, and OAuth2 helpers | `contrib-maintainers` | Complete: moved to `contrib/middleware/auth/jwt`, `contrib/middleware/auth/shared`, and `contrib/oauth2`; see `docs/auth-dependency-split.md`. | Import the contrib packages; simple root imports remain auth-light. | old-to-new import examples, root `go.mod` without JWT/JWK requirements, package-owner rows, generated-project tests, API transition evidence, and release note. |
 | CLI and generated scaffolds | `contrib-tooling-maintainers` | Keep in contrib or split to `api-toolkit-cli`; do not present the root module as scaffold-first. | Retain the contrib CLI path or migrate generated-service users to the dedicated CLI module. | CLI command migration examples, generated-project upgrade test, package-owner rows, release note, and library-first docs check. |
 | Provider adapters and integrations | `contrib-maintainers` | Keep in contrib or split per provider family; use `docs/provider-adapter-split.md` as the decision record. | Retain contrib imports or introduce provider-family modules without root aliases. | Per-family consumer and dependency report, import migration examples, adapter contract and realism evidence, package-owner rows, and release note. |
 | Reference service and generated application code | `contrib-examples-maintainers` | Keep outside root API classification. | Keep generated code app-owned and templates under contrib or a dedicated generator module. | Generated-project upgrade test, ownership notice, package classification review, and release note for generator changes. |
@@ -76,21 +75,19 @@ candidate rows above; it does not authorize a v3 removal.
 | Broad root `ports` exports without two real implementations | `core-maintainers` | Use package-local, app-owned, or contrib-owned interfaces. | Symbol-level consumer and implementation ledger, design review, import migration example, API diff, and release note. | Design review confirms the app should own the interface or that the package has no root consumers. |
 | Tooling-only runtime stubs | `core-maintainers` | Use internal tooling packages or contrib CLI code. | Generated-output import audit, tooling migration example, API diff, and release note. | Generated outputs no longer need the root stub as a public import. |
 
-## Required V4 Evidence
+## Completed V4 Evidence
 
-Before any v4 cleanup lands:
-
-- Open or update design-review issues for stable core size, root `ports`, CLI
-  and scaffold identity, auth dependency split, and contrib policy.
-- Update `VERSIONING.md`, `docs/package-classification.tsv`,
-  `docs/package-owners.tsv`, `docs/api-inventory.md`, and `docs/release-notes.md`.
-- Add migration snippets for every moved or removed public import path.
-- Keep `docs/ports-v4-migration-ledger.tsv` current with the AST-checked
-  `internal/tools/portsledger` output before deciding whether any root port may
-  survive v4.
-- Keep `make release-api-check` covering the v3 baseline until the v4 branch
-  intentionally changes the stable surface.
-- Add docscheck guardrails so public examples use v4 replacement APIs.
+- `VERSIONING.md`, package classifications, owners, API inventory, and package
+  docs use the v4 module paths.
+- The migration ledger lists the five retained root contracts and is checked by
+  `go run ./internal/tools/portsledger -verify docs/ports-v4-migration-ledger.tsv`.
+- Generated and checked-in reference services import package-local contracts or
+  `github.com/aatuh/api-toolkit/contrib/v4/contracts`.
+- `make release-api-check API_BASE_REF=v3.1.2` validates that the explicit
+  baseline exists and records the major module-path transition instead of
+  attempting an invalid same-module diff.
+- Docscheck compiles the generated `saas-api` service with local root and
+  contrib replacements.
 
 ## Not In Scope For V3
 

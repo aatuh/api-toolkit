@@ -13,6 +13,14 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	// Generated projects are independent modules, not members of this repository workspace.
+	if err := os.Setenv("GOWORK", "off"); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
 func TestRunVersion(t *testing.T) {
 	var out strings.Builder
 	code := run(context.Background(), []string{"version"}, &out, &out)
@@ -25,8 +33,8 @@ func TestRunVersion(t *testing.T) {
 	for _, want := range []string{
 		"go go",
 		"main ",
-		"core github.com/aatuh/api-toolkit/v3 ",
-		"contrib github.com/aatuh/api-toolkit/contrib/v3 ",
+		"core github.com/aatuh/api-toolkit/v4 ",
+		"contrib github.com/aatuh/api-toolkit/contrib/v4 ",
 		"build_commit ",
 		"build_date ",
 	} {
@@ -170,7 +178,7 @@ func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
 		Dir:            serviceDir,
 		Profile:        scaffoldProfileSaaSAPIFull,
 		AuthMode:       scaffoldAuthAPIKey,
-		ToolkitVersion: "v3.0.4",
+		ToolkitVersion: "v4.0.0",
 	}); err != nil {
 		t.Fatalf("generate service: %v", err)
 	}
@@ -179,8 +187,8 @@ func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
 		t.Fatalf("read generated go.mod: %v", err)
 	}
 	for _, want := range []string{
-		"github.com/aatuh/api-toolkit/v3 v3.0.4",
-		"github.com/aatuh/api-toolkit/contrib/v3 v3.0.4",
+		"github.com/aatuh/api-toolkit/v4 v4.0.0",
+		"github.com/aatuh/api-toolkit/contrib/v4 v4.0.0",
 	} {
 		if !strings.Contains(string(generatedMod), want) {
 			t.Fatalf("generated go.mod missing %q:\n%s", want, generatedMod)
@@ -4115,8 +4123,8 @@ func generatedDomainForbiddenImport(modulePath, importPath string) bool {
 		modulePath + "/internal/adapters",
 		modulePath + "/internal/httpapi",
 		modulePath + "/internal/client",
-		"github.com/aatuh/api-toolkit/v3",
-		"github.com/aatuh/api-toolkit/contrib/v3",
+		"github.com/aatuh/api-toolkit/v4",
+		"github.com/aatuh/api-toolkit/contrib/v4",
 		"github.com/aws/aws-sdk-go",
 		"github.com/aws/aws-sdk-go-v2",
 		"github.com/jackc/pgx",

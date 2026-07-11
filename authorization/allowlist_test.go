@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 func TestAllowlistAuthorizerDefaultDeny(t *testing.T) {

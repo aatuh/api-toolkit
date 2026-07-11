@@ -2,21 +2,19 @@ package specs
 
 import (
 	"fmt"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // RegistryProvider adapts an OpenAPI registry to the DocsProvider interface.
 type RegistryProvider struct {
 	registry    *Registry
-	info        ports.DocsInfo
+	info        DocumentationInfo
 	openAPIPath string
 }
 
 // NewRegistryProvider creates a DocsProvider backed by a registry.
-func NewRegistryProvider(registry *Registry, info ports.DocsInfo, openAPIPath string) *RegistryProvider {
+func NewRegistryProvider(registry *Registry, info DocumentationInfo, openAPIPath string) *RegistryProvider {
 	if openAPIPath == "" {
-		openAPIPath = ports.DefaultDocsPaths().OpenAPI
+		openAPIPath = DocsOpenAPI
 	}
 	return &RegistryProvider{
 		registry:    registry,
@@ -93,6 +91,6 @@ func (p *RegistryProvider) GetVersion() (string, error) {
 }
 
 // GetInfo returns the registry info.
-func (p *RegistryProvider) GetInfo() ports.DocsInfo {
+func (p *RegistryProvider) GetInfo() DocumentationInfo {
 	return p.info
 }

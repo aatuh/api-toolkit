@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 type exampleLimiter struct{}

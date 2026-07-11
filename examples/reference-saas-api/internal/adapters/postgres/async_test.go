@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/operationpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/outboxpostgres"
-	"github.com/aatuh/api-toolkit/v3/operations"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/operationpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/outboxpostgres"
+	"github.com/aatuh/api-toolkit/v4/operations"
 
 	"example.com/reference-saas-api/internal/app"
 )

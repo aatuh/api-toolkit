@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/objectstore"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/objectstore"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 const (

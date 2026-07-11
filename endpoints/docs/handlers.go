@@ -3,7 +3,7 @@ package docs
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 const defaultDocsCSP = "default-src 'self'; img-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self'"

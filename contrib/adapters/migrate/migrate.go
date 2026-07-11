@@ -10,9 +10,9 @@ import (
 	// Register pgx stdlib driver for database/sql usage.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/contrib/v3/migrator"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/migrator"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // Adapter implements runtime.Migrator using migrator.Runner.

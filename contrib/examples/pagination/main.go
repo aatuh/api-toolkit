@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
-	listx "github.com/aatuh/api-toolkit/v3/endpoints/list"
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	querylimits "github.com/aatuh/api-toolkit/v3/middleware/querylimits"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi"
+	listx "github.com/aatuh/api-toolkit/v4/endpoints/list"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	querylimits "github.com/aatuh/api-toolkit/v4/middleware/querylimits"
 )
 
 const (

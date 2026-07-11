@@ -8,11 +8,12 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/cacheredis"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/idempotencyredis"
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/ratelimitredis"
-	"github.com/aatuh/api-toolkit/contrib/v3/cache"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/cacheredis"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/idempotencyredis"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/ratelimitredis"
+	"github.com/aatuh/api-toolkit/contrib/v4/cache"
+	"github.com/aatuh/api-toolkit/v4/middleware/idempotency"
+	"github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 var (
@@ -26,12 +27,12 @@ type Cache struct {
 }
 
 type Idempotency struct {
-	Store  ports.IdempotencyStore
+	Store  idempotency.Store
 	client redis.UniversalClient
 }
 
 type RateLimiter struct {
-	Limiter ports.RateLimiter
+	Limiter ratelimit.Limiter
 	client  redis.UniversalClient
 }
 

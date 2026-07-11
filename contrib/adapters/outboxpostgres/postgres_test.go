@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/async"
-	"github.com/aatuh/api-toolkit/contrib/v3/async/asynctest"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/endpoints/health"
+	"github.com/aatuh/api-toolkit/contrib/v4/async"
+	"github.com/aatuh/api-toolkit/contrib/v4/async/asynctest"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func TestAsyncStoreContract(t *testing.T) {

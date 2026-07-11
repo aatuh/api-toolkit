@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aatuh/api-toolkit/v3/authorization"
-	"github.com/aatuh/api-toolkit/v3/httpx"
+	"github.com/aatuh/api-toolkit/v4/authorization"
+	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
 type contextKey struct{}

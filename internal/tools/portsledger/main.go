@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 	"strings"
 )
 
-const portsImportPath = "github.com/aatuh/api-toolkit/v3/ports"
+const portsImportPath = "github.com/aatuh/api-toolkit/v4/ports"
 
 type exportedSymbol struct {
 	name       string
@@ -40,7 +41,7 @@ func main() {
 		fail("find ports consumers: %v", err)
 	}
 	if *verifyPath != "" {
-		if err := verifyLedger(*verifyPath, symbols, consumers); err != nil {
+		if err := verifyLedger(repoRoot, *verifyPath, symbols, consumers); err != nil {
 			fail("verify ledger: %v", err)
 		}
 		return
@@ -200,8 +201,23 @@ func sortedKeys(values map[string]bool) []string {
 	return keys
 }
 
-func verifyLedger(path string, symbols []exportedSymbol, consumers map[string]map[string]bool) error {
-	content, err := os.ReadFile(path)
+func verifyLedger(repoRoot, path string, symbols []exportedSymbol, consumers map[string]map[string]bool) error {
+	if filepath.IsAbs(path) {
+		return fmt.Errorf("ledger path must be relative to the repository root")
+	}
+	root, err := os.OpenRoot(repoRoot)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	file, err := root.Open(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}

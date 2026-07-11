@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/httpx/identity"
-	"github.com/aatuh/api-toolkit/v3/ports"
+	"github.com/aatuh/api-toolkit/v4/httpx/identity"
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // W3C Trace Context (traceparent) format:

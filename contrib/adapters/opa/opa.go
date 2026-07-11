@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/authorization"
+	"github.com/aatuh/api-toolkit/v4/authorization"
 )
 
 const defaultTimeout = 5 * time.Second

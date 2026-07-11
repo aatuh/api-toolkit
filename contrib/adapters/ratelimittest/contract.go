@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
+	"github.com/aatuh/api-toolkit/v4/middleware/ratelimit"
 )
 
 // Config contains deterministic limiter settings for a contract test run.

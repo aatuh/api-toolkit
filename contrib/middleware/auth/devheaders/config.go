@@ -1,6 +1,6 @@
 package devheaders
 
-import "github.com/aatuh/api-toolkit/contrib/v3/config"
+import "github.com/aatuh/api-toolkit/contrib/v4/config"
 
 const defaultTrustedDevAuthProxies = "127.0.0.1/32,::1/128"
 

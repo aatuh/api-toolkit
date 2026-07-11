@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/audit"
+	"github.com/aatuh/api-toolkit/contrib/v4/audit"
 )
 
 type AuditService struct {

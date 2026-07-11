@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/txpostgres"
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/txpostgres"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
 )
 
 func TestRunsRepoRecordUsesPooledFacade(t *testing.T) {

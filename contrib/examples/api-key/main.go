@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/adapters/chi"
-	"github.com/aatuh/api-toolkit/v3/binding"
-	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/middleware/auth/apikey"
-	"github.com/aatuh/api-toolkit/v3/negotiation"
-	"github.com/aatuh/api-toolkit/v3/routecontracts"
-	"github.com/aatuh/api-toolkit/v3/specs"
+	"github.com/aatuh/api-toolkit/contrib/v4/adapters/chi"
+	"github.com/aatuh/api-toolkit/v4/binding"
+	"github.com/aatuh/api-toolkit/v4/httpx"
+	"github.com/aatuh/api-toolkit/v4/middleware/auth/apikey"
+	"github.com/aatuh/api-toolkit/v4/negotiation"
+	"github.com/aatuh/api-toolkit/v4/routecontracts"
+	"github.com/aatuh/api-toolkit/v4/specs"
 )
 
 const demoKey = "demo-admin-key"

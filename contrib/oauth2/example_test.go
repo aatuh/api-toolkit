@@ -3,7 +3,7 @@ package oauth2_test
 import (
 	"fmt"
 
-	"github.com/aatuh/api-toolkit/v3/oauth2"
+	"github.com/aatuh/api-toolkit/contrib/v4/oauth2"
 )
 
 func ExampleRequireScopes() {

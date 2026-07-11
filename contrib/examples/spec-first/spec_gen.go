@@ -4,8 +4,8 @@ package main
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/contrib/v3/contracts"
-	"github.com/aatuh/api-toolkit/v3/fielderrors"
+	"github.com/aatuh/api-toolkit/contrib/v4/contracts"
+	"github.com/aatuh/api-toolkit/v4/fielderrors"
 )
 
 const (
