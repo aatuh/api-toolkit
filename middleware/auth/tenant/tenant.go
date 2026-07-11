@@ -8,7 +8,6 @@ import (
 
 	"github.com/aatuh/api-toolkit/v3/authorization"
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 var (
@@ -24,12 +23,17 @@ type TenantFromContext func(ctx context.Context) (string, bool)
 // ErrorHandler handles authorization errors from the tenant middleware.
 type ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
 
+// URLParamExtractor retrieves a path parameter from the current request.
+type URLParamExtractor interface {
+	URLParam(r *http.Request, key string) string
+}
+
 // Options configures tenant scoping.
 type Options struct {
 	Optional          bool
 	HeaderName        string
 	URLParam          string
-	URLParamExtractor ports.URLParamExtractor
+	URLParamExtractor URLParamExtractor
 	TenantFromContext TenantFromContext
 	// RequireAllSources requires every configured tenant source to be present
 	// and to agree. Use it when a route must prove the request tenant matches

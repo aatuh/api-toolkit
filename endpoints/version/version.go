@@ -4,20 +4,31 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
 )
+
+// Info describes the build metadata exposed by the version endpoint.
+type Info struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+}
+
+// RouteRegistrar is the minimal route registration capability used by Handler.
+type RouteRegistrar interface {
+	Get(pattern string, h http.HandlerFunc)
+}
 
 // Config controls how the version endpoint is registered.
 type Config struct {
 	Path string
-	Info ports.VersionInfo
+	Info Info
 }
 
 // Handler wires the version endpoint.
 type Handler struct {
 	path string
-	info ports.VersionInfo
+	info Info
 }
 
 // NewHandler constructs a Handler from the provided config.
@@ -43,7 +54,7 @@ func (h *Handler) RegisterRoutes(router interface {
 }
 
 // RegisterRoutesTo mounts the handler on a minimal route registrar.
-func (h *Handler) RegisterRoutesTo(router ports.MethodRouteRegistrar) {
+func (h *Handler) RegisterRoutesTo(router RouteRegistrar) {
 	if h == nil {
 		return
 	}
