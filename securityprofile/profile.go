@@ -14,7 +14,6 @@ import (
 	ratelimit "github.com/aatuh/api-toolkit/v3/middleware/ratelimit"
 	securemw "github.com/aatuh/api-toolkit/v3/middleware/secure"
 	timeoutmw "github.com/aatuh/api-toolkit/v3/middleware/timeout"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // ErrorWriter allows overriding how security profile errors are written.
@@ -218,13 +217,18 @@ type Profile struct {
 	Middlewares []func(http.Handler) http.Handler
 }
 
+// MiddlewareChain is the minimal router capability used to apply a profile.
+type MiddlewareChain interface {
+	Use(middlewares ...func(http.Handler) http.Handler)
+}
+
 // Apply attaches the profile middlewares to the router.
-func (p Profile) Apply(r ports.HTTPRouter) {
+func (p Profile) Apply(r MiddlewareChain) {
 	p.ApplyTo(r)
 }
 
 // ApplyTo attaches the profile middlewares to a minimal middleware chain.
-func (p Profile) ApplyTo(r ports.MiddlewareChain) {
+func (p Profile) ApplyTo(r MiddlewareChain) {
 	if r == nil || len(p.Middlewares) == 0 {
 		return
 	}

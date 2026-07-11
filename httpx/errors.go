@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/aatuh/api-toolkit/v3/fielderrors"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 // Sentinel errors for common HTTP categories.
@@ -13,6 +12,7 @@ var (
 	ErrUnauthorized    = errors.New("unauthorized")
 	ErrForbidden       = errors.New("forbidden")
 	ErrTooManyRequests = errors.New("rate limit exceeded")
+	ErrResourceMissing = errors.New("resource missing")
 )
 
 // HTTPError carries an explicit HTTP status and response detail.
@@ -133,7 +133,7 @@ func ProblemFromErrorWithOptions(err error, opts ErrorOptions) (Problem, int) {
 			Detail: "rate limit exceeded",
 		}, http.StatusTooManyRequests, opts.Mode), http.StatusTooManyRequests
 	}
-	if errors.Is(err, ports.ErrResourceMissing) {
+	if errors.Is(err, ErrResourceMissing) {
 		return maybeRedact(Problem{
 			Type:   registry.URI(TypeNotFound),
 			Title:  http.StatusText(http.StatusNotFound),
