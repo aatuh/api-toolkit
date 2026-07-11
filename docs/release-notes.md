@@ -84,6 +84,11 @@ source of truth is `docs/release-runbook.md`.
   `authorization.PolicyRequest`, and `authorization.PolicyDecision`. They do
   not change default-deny, owner, tenant, or policy-engine behavior and remain
   source-compatible with the v3 root contracts.
+- Deprecated the broad root `ports` contracts that now have package-local
+  aliases: rate limiting, idempotency stores, authorization and policy, health
+  endpoint interfaces, and docs endpoint interfaces. They remain available
+  throughout v3; `docs/deprecations.md` records each replacement and the v4
+  removal horizon.
 
 ## v3 cleanup branch
 

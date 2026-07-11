@@ -113,6 +113,9 @@ Compatibility-sensitive means:
   `github.com/aatuh/api-toolkit/v3/compat/billing` or use app-owned ports.
 - The repository should document the migration path before any future major
   cleanup. The current plan lives in `docs/ports-surface.md`.
+- Deprecated root `ports` types remain source-compatible throughout v3. Their
+  package-local replacements and earliest v4 removal horizon are recorded in
+  `docs/deprecations.md` and `docs/v3-compatibility-roadmap.md`.
 - The v3 cleanup record covers the removed deprecated `ports/billing.go`
   aliases, driver-shaped database stats, and legacy `response_writer` package.
 

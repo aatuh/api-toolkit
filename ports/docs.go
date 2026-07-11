@@ -13,6 +13,9 @@ const (
 )
 
 // DocsProvider defines the interface for providing documentation content.
+//
+// Deprecated: Use endpoints/docs.Provider. This interface remains available
+// for v3 compatibility and may be removed in v4.
 type DocsProvider interface {
 	GetHTML() (string, error)
 	GetOpenAPI() ([]byte, error)
@@ -35,6 +38,9 @@ type DocsInfo struct {
 // rather than silently fabricating placeholder content. HTTP handler packages
 // may also inspect the exported DocsHTMLModeProvider capability instead of
 // relying on package-private knowledge about concrete managers.
+//
+// Deprecated: Use endpoints/docs.ManagerContract. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type DocsManager interface {
 	RegisterProvider(provider DocsProvider)
 	GetHTML() (string, error)
@@ -49,6 +55,9 @@ type DocsManager interface {
 
 // DocsHTMLModeProvider is an optional capability for docs managers that
 // exposes the configured HTML rendering mode to HTTP handler packages.
+//
+// Deprecated: Use endpoints/docs.HTMLModeProvider. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type DocsHTMLModeProvider interface {
 	HTMLMode() DocsHTMLMode
 }

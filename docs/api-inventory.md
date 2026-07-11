@@ -1373,9 +1373,9 @@ Stability tier: `stable`
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
-| `Authorizer` | type | v3 compatibility surface | active |
+| `Authorizer` | type | v3 compatibility surface | deprecated |
 | `Authorizer.Can` | interface method | v3 compatibility surface | active |
-| `AuthorizerFunc` | type | v3 compatibility surface | active |
+| `AuthorizerFunc` | type | v3 compatibility surface | deprecated |
 | `AuthorizerFunc.Can` | method | v3 compatibility surface | active |
 | `CORSHandler` | type | v3 compatibility surface | active |
 | `CORSHandler.Handler` | interface method | v3 compatibility surface | active |
@@ -1385,7 +1385,7 @@ Stability tier: `stable`
 | `CORSOptions.AllowedMethods` | field | v3 compatibility surface | active |
 | `CORSOptions.AllowedOrigins` | field | v3 compatibility surface | active |
 | `CORSOptions.MaxAge` | field | v3 compatibility surface | active |
-| `CachedHealthManager` | type | v3 compatibility surface | active |
+| `CachedHealthManager` | type | v3 compatibility surface | deprecated |
 | `CachedHealthManager.CachedHealth` | interface method | v3 compatibility surface | active |
 | `Clock` | type | v3 compatibility surface | active |
 | `Clock.Now` | interface method | v3 compatibility surface | active |
@@ -1428,7 +1428,7 @@ Stability tier: `stable`
 | `DatabaseTransaction.QueryRow` | interface method | v3 compatibility surface | active |
 | `DatabaseTransaction.Rollback` | interface method | v3 compatibility surface | active |
 | `DefaultDocsPaths` | func | v3 compatibility surface | active |
-| `DetailedHealthManager` | type | v3 compatibility surface | active |
+| `DetailedHealthManager` | type | v3 compatibility surface | deprecated |
 | `DetailedHealthManager.DetailedHealthEnabled` | interface method | v3 compatibility surface | active |
 | `DetailedHealthResponse` | type | v3 compatibility surface | active |
 | `DetailedHealthResponse.Checks` | field | v3 compatibility surface | active |
@@ -1447,7 +1447,7 @@ Stability tier: `stable`
 | `DocsConfig.Title` | field | v3 compatibility surface | active |
 | `DocsConfig.Version` | field | v3 compatibility surface | active |
 | `DocsHTMLMode` | type | v3 compatibility surface | active |
-| `DocsHTMLModeProvider` | type | v3 compatibility surface | active |
+| `DocsHTMLModeProvider` | type | v3 compatibility surface | deprecated |
 | `DocsHTMLModeProvider.HTMLMode` | interface method | v3 compatibility surface | active |
 | `DocsHTMLModeStatic` | const | v3 compatibility surface | active |
 | `DocsHTMLModeSwaggerUI` | const | v3 compatibility surface | active |
@@ -1457,7 +1457,7 @@ Stability tier: `stable`
 | `DocsInfo.License` | field | v3 compatibility surface | active |
 | `DocsInfo.Title` | field | v3 compatibility surface | active |
 | `DocsInfo.Version` | field | v3 compatibility surface | active |
-| `DocsManager` | type | v3 compatibility surface | active |
+| `DocsManager` | type | v3 compatibility surface | deprecated |
 | `DocsManager.GetHTML` | interface method | v3 compatibility surface | active |
 | `DocsManager.GetInfo` | interface method | v3 compatibility surface | active |
 | `DocsManager.GetOpenAPI` | interface method | v3 compatibility surface | active |
@@ -1472,7 +1472,7 @@ Stability tier: `stable`
 | `DocsPaths.Info` | field | v3 compatibility surface | active |
 | `DocsPaths.OpenAPI` | field | v3 compatibility surface | active |
 | `DocsPaths.Version` | field | v3 compatibility surface | active |
-| `DocsProvider` | type | v3 compatibility surface | active |
+| `DocsProvider` | type | v3 compatibility surface | deprecated |
 | `DocsProvider.GetHTML` | interface method | v3 compatibility surface | active |
 | `DocsProvider.GetInfo` | interface method | v3 compatibility surface | active |
 | `DocsProvider.GetOpenAPI` | interface method | v3 compatibility surface | active |
@@ -1530,10 +1530,10 @@ Stability tier: `stable`
 | `HealthCheckRegistry.ListCheckers` | interface method | v3 compatibility surface | active |
 | `HealthCheckRegistry.Register` | interface method | v3 compatibility surface | active |
 | `HealthCheckRegistry.Unregister` | interface method | v3 compatibility surface | active |
-| `HealthChecker` | type | v3 compatibility surface | active |
+| `HealthChecker` | type | v3 compatibility surface | deprecated |
 | `HealthChecker.Check` | interface method | v3 compatibility surface | active |
 | `HealthChecker.Name` | interface method | v3 compatibility surface | active |
-| `HealthManager` | type | v3 compatibility surface | active |
+| `HealthManager` | type | v3 compatibility surface | deprecated |
 | `HealthManager.GetDetailedHealth` | interface method | v3 compatibility surface | active |
 | `HealthManager.GetHealth` | interface method | v3 compatibility surface | active |
 | `HealthManager.GetLiveness` | interface method | v3 compatibility surface | active |
@@ -1571,14 +1571,14 @@ Stability tier: `stable`
 | `IdempotencyRecord.ReservationToken` | field | v3 compatibility surface | active |
 | `IdempotencyRecord.State` | field | v3 compatibility surface | active |
 | `IdempotencyRecord.Status` | field | v3 compatibility surface | active |
-| `IdempotencyReservationReleaser` | type | v3 compatibility surface | active |
+| `IdempotencyReservationReleaser` | type | v3 compatibility surface | deprecated |
 | `IdempotencyReservationReleaser.ReleaseReservation` | interface method | v3 compatibility surface | active |
 | `IdempotencyState` | type | v3 compatibility surface | active |
 | `IdempotencyStateAmbiguous` | const | v3 compatibility surface | active |
 | `IdempotencyStateCompleted` | const | v3 compatibility surface | active |
 | `IdempotencyStateInFlight` | const | v3 compatibility surface | active |
 | `IdempotencyStateUnknown` | const | v3 compatibility surface | active |
-| `IdempotencyStore` | type | v3 compatibility surface | active |
+| `IdempotencyStore` | type | v3 compatibility surface | deprecated |
 | `IdempotencyStore.Get` | interface method | v3 compatibility surface | active |
 | `IdempotencyStore.Save` | interface method | v3 compatibility surface | active |
 | `IdempotencyStore.TryBegin` | interface method | v3 compatibility surface | active |
@@ -1603,20 +1603,20 @@ Stability tier: `stable`
 | `NopLogger.Error` | method | v3 compatibility surface | active |
 | `NopLogger.Info` | method | v3 compatibility surface | active |
 | `NopLogger.Warn` | method | v3 compatibility surface | active |
-| `PolicyDecision` | type | v3 compatibility surface | active |
+| `PolicyDecision` | type | v3 compatibility surface | deprecated |
 | `PolicyDecision.Allow` | field | v3 compatibility surface | active |
 | `PolicyDecision.Data` | field | v3 compatibility surface | active |
 | `PolicyDecision.Reason` | field | v3 compatibility surface | active |
-| `PolicyEngine` | type | v3 compatibility surface | active |
+| `PolicyEngine` | type | v3 compatibility surface | deprecated |
 | `PolicyEngine.Evaluate` | interface method | v3 compatibility surface | active |
-| `PolicyRequest` | type | v3 compatibility surface | active |
+| `PolicyRequest` | type | v3 compatibility surface | deprecated |
 | `PolicyRequest.Action` | field | v3 compatibility surface | active |
 | `PolicyRequest.Context` | field | v3 compatibility surface | active |
 | `PolicyRequest.Resource` | field | v3 compatibility surface | active |
 | `PolicyRequest.Subject` | field | v3 compatibility surface | active |
-| `RateLimiter` | type | v3 compatibility surface | active |
+| `RateLimiter` | type | v3 compatibility surface | deprecated |
 | `RateLimiter.Allow` | interface method | v3 compatibility surface | active |
-| `ReservationReleasableIdempotencyStore` | type | v3 compatibility surface | active |
+| `ReservationReleasableIdempotencyStore` | type | v3 compatibility surface | deprecated |
 | `ReservationReleasableIdempotencyStore.IdempotencyReservationReleaser` | interface method | v3 compatibility surface | active |
 | `ReservationReleasableIdempotencyStore.IdempotencyStore` | interface method | v3 compatibility surface | active |
 | `SnapshotDatabasePoolStats` | func | v3 compatibility surface | active |

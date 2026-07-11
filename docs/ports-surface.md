@@ -10,8 +10,8 @@ contracts during the v3 cleanup.
 
 ## What Stays In Core
 
-- Generic application boundaries such as logging, clocks, IDs, HTTP, rate
-  limiting, validation, docs, health management, and transaction/query
+- Generic application boundaries such as logging, clocks, IDs, HTTP,
+  validation, health and docs values/configuration, and transaction/query
   lifecycles stay in core.
 - These contracts are the template for new `ports` additions: narrow,
   adapter-neutral, and safe to implement across multiple backends.
@@ -33,6 +33,10 @@ design, not current invitations to widen generic core ports.
 - `ports.RateLimiter` remains for v3 source compatibility. New rate-limit
   adapter contracts should import `middleware/ratelimit.Limiter`, which is a
   package-local migration shim over the same interface.
+- The root idempotency, authorization, policy, health-interface, and
+  docs-interface contracts listed in `docs/deprecations.md` remain available
+  for v3 compatibility. New integrations should use the package-local aliases
+  listed below; the root contracts are deprecated with a v4 removal horizon.
 - Legacy response helpers were removed from the stable core surface. Use
   `httpx` for JSON and Problem Details responses and package-local response
   recorders for middleware internals.

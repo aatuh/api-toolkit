@@ -6,6 +6,9 @@ import (
 )
 
 // HealthChecker defines the interface for individual health checks.
+//
+// Deprecated: Use endpoints/health.Checker. This interface remains available
+// for v3 compatibility and may be removed in v4.
 type HealthChecker interface {
 	Name() string
 	Check(ctx context.Context) HealthResult
@@ -39,6 +42,9 @@ const (
 // HTTP handler packages may opt into additional health behavior through the
 // exported DetailedHealthManager and CachedHealthManager capability interfaces
 // instead of relying on package-private knowledge about concrete managers.
+//
+// Deprecated: Use endpoints/health.ManagerContract. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type HealthManager interface {
 	RegisterChecker(checker HealthChecker)
 	RegisterCheckers(checkers ...HealthChecker)
@@ -51,6 +57,9 @@ type HealthManager interface {
 // DetailedHealthManager is an optional capability for health managers that
 // allows HTTP handler packages to decide whether detailed health routes should
 // be registered or served.
+//
+// Deprecated: Use endpoints/health.DetailedManager. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type DetailedHealthManager interface {
 	DetailedHealthEnabled() bool
 }
@@ -58,6 +67,9 @@ type DetailedHealthManager interface {
 // CachedHealthManager is an optional capability for health managers that
 // exposes a reusable health snapshot for middleware and other request-path
 // callers that should avoid probing dependencies inline.
+//
+// Deprecated: Use endpoints/health.CachedManager. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type CachedHealthManager interface {
 	CachedHealth() (HealthResponse, bool)
 }

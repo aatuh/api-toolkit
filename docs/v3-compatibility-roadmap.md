@@ -15,7 +15,11 @@ code should use.
 | Driver-shaped database stats | `ports.DatabasePool.Stat` and `ports.DatabaseStats` were removed from the generic pool contract. | `DatabasePoolSnapshotProvider`, `ports.SnapshotDatabasePoolStats`, `SnapshotDatabaseStats`, and adapter `StatSnapshot()` methods. | Root snapshot tests, pgxpool adapter tests, and docscheck rules that examples prefer snapshots. |
 | Legacy response helpers | Public `response_writer` package removed. | `github.com/aatuh/api-toolkit/v3/httpx` and package-local response recorders. | `httpx` response tests, idempotency capture tests, and docscheck rules that examples avoid the removed package. |
 | Tokenless idempotency release | Legacy `IdempotencyReleaser.Release(ctx, key)` behavior was replaced by token-aware reservation release. | `ports.IdempotencyReservationReleaser.ReleaseReservation(ctx, key, token)`. | Idempotency adapter contract tests and bounded, redacted compatibility telemetry. |
-| Root rate limiter port | `ports.RateLimiter` remains available for v3 source compatibility, but new code should migrate to the package-local shim. | `middleware/ratelimit.Limiter`, an alias over the v3 port. | Compile-checked `ExampleLimiter`, API inventory, and docscheck shim coverage. |
+| Root rate limiter port | `ports.RateLimiter` is deprecated but remains available for v3 source compatibility. | `middleware/ratelimit.Limiter`, an alias over the v3 port. | Compile-checked `ExampleLimiter`, API inventory, deprecation register, and docscheck shim coverage. |
+| Root idempotency store ports | `ports.IdempotencyStore`, `IdempotencyReservationReleaser`, and `ReservationReleasableIdempotencyStore` are deprecated but remain available for v3 source compatibility. | `middleware/idempotency.Store`, `ReservationReleaser`, and `ReleasableStore`. | Compile-checked alias identity tests, idempotency adapter contract tests, API inventory, and deprecation register. |
+| Root authorization and policy ports | `ports.Authorizer`, `AuthorizerFunc`, `PolicyEngine`, `PolicyRequest`, and `PolicyDecision` are deprecated but remain available for v3 source compatibility. | `authorization.Authorizer`, `AuthorizerFunc`, `PolicyEngine`, `PolicyRequest`, and `PolicyDecision`. | Compile-checked alias identity tests, default-deny and policy authorization tests, API inventory, and deprecation register. |
+| Root health endpoint ports | `ports.HealthChecker`, `HealthManager`, `DetailedHealthManager`, and `CachedHealthManager` are deprecated but remain available for v3 source compatibility. | `endpoints/health.Checker`, `ManagerContract`, `DetailedManager`, and `CachedManager`. | Compile-checked alias identity tests, health endpoint tests, API inventory, and deprecation register. |
+| Root documentation endpoint ports | `ports.DocsProvider`, `DocsManager`, and `DocsHTMLModeProvider` are deprecated but remain available for v3 source compatibility. | `endpoints/docs.Provider`, `ManagerContract`, and `HTMLModeProvider`. | Compile-checked alias identity tests, docs endpoint tests, API inventory, and deprecation register. |
 | Unchecked authz construction | Checked startup validation is the documented path. | `middleware/auth/authz.NewRequireRoleMiddlewareChecked` and `ValidateRequireRoleMiddlewareRoutes`. | Authz checked-constructor examples and route validation tests. |
 | Unchecked list parsing | Checked parser APIs are the documented path when validation matters. | `ParseListQueryChecked`, `DefaultFilterParserChecked`, and `DefaultSortParserChecked`. | Parser validation tests and docs/examples using checked helpers. |
 
@@ -27,7 +31,8 @@ code should use.
   database stats, and response helper APIs.
 - Keep replacement imports visible in user-facing docs: `compat/billing`,
   `DatabasePoolSnapshotProvider`, `SnapshotDatabasePoolStats`, adapter
-  `StatSnapshot()`, `middleware/ratelimit.Limiter`, and `httpx`.
+  `StatSnapshot()`, `middleware/ratelimit.Limiter`, `middleware/idempotency`,
+  `authorization`, `endpoints/health`, `endpoints/docs`, and `httpx`.
 - Keep idempotency compatibility telemetry bounded: no raw paths, keys,
   provider secrets, or high-cardinality error values in labels.
 - Keep streaming, SSE, websocket, and large-download timeout caveats visible in

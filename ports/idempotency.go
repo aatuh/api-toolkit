@@ -33,6 +33,9 @@ type IdempotencyRecord struct {
 }
 
 // IdempotencyStore persists idempotency records (Redis/DB/etc).
+//
+// Deprecated: Use middleware/idempotency.Store. This interface remains
+// available for v3 compatibility and may be removed in v4.
 type IdempotencyStore interface {
 	Get(ctx context.Context, key string) (IdempotencyRecord, bool, error)
 	TryBegin(ctx context.Context, key string, record IdempotencyRecord, ttl time.Duration) (bool, error)
@@ -55,12 +58,18 @@ type IdempotencyStore interface {
 // Passing a non-empty token for a legacy tokenless record must preserve the
 // record and return ErrLegacyInFlightTokenMismatch. Malformed records should be
 // preserved and reported as decode errors.
+//
+// Deprecated: Use middleware/idempotency.ReservationReleaser. This interface
+// remains available for v3 compatibility and may be removed in v4.
 type IdempotencyReservationReleaser interface {
 	ReleaseReservation(ctx context.Context, key string, token string) error
 }
 
 // ReservationReleasableIdempotencyStore combines persistence and token-aware
 // release semantics for idempotent request processing.
+//
+// Deprecated: Use middleware/idempotency.ReleasableStore. This interface
+// remains available for v3 compatibility and may be removed in v4.
 type ReservationReleasableIdempotencyStore interface {
 	IdempotencyStore
 	IdempotencyReservationReleaser
