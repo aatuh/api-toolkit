@@ -1,25 +1,85 @@
 package docs
 
-import "github.com/aatuh/api-toolkit/v3/ports"
+import "net/http"
 
-// Provider is the package-local documentation source contract.
-//
-// It is an alias for ports.DocsProvider during v3 compatibility. New docs
-// integrations should import this package instead of adding to root ports.
-type Provider = ports.DocsProvider
+// HTMLMode controls the HTML presentation mode for the docs surface.
+type HTMLMode string
 
-// ManagerContract is the package-local documentation manager contract.
-//
-// It is an alias for ports.DocsManager during v3 compatibility. The name avoids
-// colliding with this package's concrete Manager implementation.
-type ManagerContract = ports.DocsManager
+const (
+	// HTMLModeSwaggerUI renders the Swagger UI convenience page.
+	HTMLModeSwaggerUI HTMLMode = "swagger-ui"
+	// HTMLModeStatic renders a first-party static landing page without third-party assets.
+	HTMLModeStatic HTMLMode = "static"
+)
 
-// HTMLModeProvider is the optional documentation HTML mode capability contract.
-//
-// It is an alias for ports.DocsHTMLModeProvider during v3 compatibility.
-type HTMLModeProvider = ports.DocsHTMLModeProvider
+// Provider defines the package-local documentation content contract.
+type Provider interface {
+	GetHTML() (string, error)
+	GetOpenAPI() ([]byte, error)
+	GetVersion() (string, error)
+	GetInfo() Info
+}
+
+// Info provides documentation metadata.
+type Info struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Contact     string `json:"contact,omitempty"`
+	License     string `json:"license,omitempty"`
+}
+
+// ManagerContract defines the package-local documentation manager contract.
+type ManagerContract interface {
+	RegisterProvider(provider Provider)
+	GetHTML() (string, error)
+	GetOpenAPI() ([]byte, error)
+	GetVersion() (string, error)
+	GetInfo() Info
+	ServeHTML(w http.ResponseWriter, r *http.Request)
+	ServeOpenAPI(w http.ResponseWriter, r *http.Request)
+	ServeVersion(w http.ResponseWriter, r *http.Request)
+	ServeInfo(w http.ResponseWriter, r *http.Request)
+}
+
+// HTMLModeProvider exposes a manager's configured HTML rendering mode.
+type HTMLModeProvider interface {
+	HTMLMode() HTMLMode
+}
+
+// Config defines documentation endpoint configuration.
+type Config struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Version     string   `json:"version"`
+	Contact     string   `json:"contact,omitempty"`
+	License     string   `json:"license,omitempty"`
+	Paths       Paths    `json:"paths"`
+	EnableHTML  bool     `json:"enable_html"`
+	EnableJSON  bool     `json:"enable_json"`
+	EnableYAML  bool     `json:"enable_yaml"`
+	HTMLMode    HTMLMode `json:"html_mode,omitempty"`
+}
+
+// Paths defines the paths for documentation endpoints.
+type Paths struct {
+	HTML    string `json:"html"`
+	OpenAPI string `json:"openapi"`
+	Version string `json:"version"`
+	Info    string `json:"info"`
+}
+
+// DefaultPaths returns the default documentation endpoint paths.
+func DefaultPaths() Paths {
+	return Paths{
+		HTML:    "/docs",
+		OpenAPI: "/docs/openapi.json",
+		Version: "/docs/version",
+		Info:    "/docs/info",
+	}
+}
 
 // RouteRegistrar is the minimal documentation route registration contract.
-//
-// It is an alias for ports.MethodRouteRegistrar during v3 compatibility.
-type RouteRegistrar = ports.MethodRouteRegistrar
+type RouteRegistrar interface {
+	Get(pattern string, h http.HandlerFunc)
+}

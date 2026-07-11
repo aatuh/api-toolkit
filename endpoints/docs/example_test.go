@@ -4,11 +4,10 @@ import (
 	"fmt"
 
 	docsendpoint "github.com/aatuh/api-toolkit/v3/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func ExampleNewWithConfig() {
-	manager := docsendpoint.NewWithConfig(ports.DocsConfig{
+	manager := docsendpoint.NewWithConfig(docsendpoint.Config{
 		Title:      "Widget API",
 		Version:    "1.0.0",
 		EnableHTML: true,

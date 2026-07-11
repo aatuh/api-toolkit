@@ -2,8 +2,6 @@ package health
 
 import (
 	"testing"
-
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
@@ -18,14 +16,14 @@ func TestPackageLocalInterfacesPreserveV3PortsIdentity(_ *testing.T) {
 	requirePortsCachedManager(cached)
 }
 
-func requirePortsCheckerFactory(func() ports.HealthChecker) {}
+func requirePortsCheckerFactory(func() Checker) {}
 
-func requirePortsManagerFactory(func() ports.HealthManager) {}
+func requirePortsManagerFactory(func() ManagerContract) {}
 
-func requirePortsHandlerFactory(func(ports.HealthManager) *Handler) {}
+func requirePortsHandlerFactory(func(ManagerContract) *Handler) {}
 
-func requirePortsRouteRegistration(func(*Handler, ports.MethodRouteRegistrar)) {}
+func requirePortsRouteRegistration(func(*Handler, RouteRegistrar)) {}
 
-func requirePortsDetailedManager(ports.DetailedHealthManager) {}
+func requirePortsDetailedManager(DetailedManager) {}
 
-func requirePortsCachedManager(ports.CachedHealthManager) {}
+func requirePortsCachedManager(CachedManager) {}

@@ -8,17 +8,16 @@ import (
 	"testing"
 
 	docs "github.com/aatuh/api-toolkit/v3/endpoints/docs"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 type externalHTMLModeDocsManager struct {
-	mode ports.DocsHTMLMode
+	mode docs.HTMLMode
 }
 
-var _ ports.DocsManager = (*externalHTMLModeDocsManager)(nil)
-var _ ports.DocsHTMLModeProvider = (*externalHTMLModeDocsManager)(nil)
+var _ docs.ManagerContract = (*externalHTMLModeDocsManager)(nil)
+var _ docs.HTMLModeProvider = (*externalHTMLModeDocsManager)(nil)
 
-func (*externalHTMLModeDocsManager) RegisterProvider(ports.DocsProvider) {}
+func (*externalHTMLModeDocsManager) RegisterProvider(docs.Provider) {}
 
 func (*externalHTMLModeDocsManager) GetHTML() (string, error) {
 	return "<html><body>docs</body></html>", nil
@@ -32,8 +31,8 @@ func (*externalHTMLModeDocsManager) GetVersion() (string, error) {
 	return "1.0.0", nil
 }
 
-func (*externalHTMLModeDocsManager) GetInfo() ports.DocsInfo {
-	return ports.DocsInfo{Title: "Docs", Version: "1.0.0"}
+func (*externalHTMLModeDocsManager) GetInfo() docs.Info {
+	return docs.Info{Title: "Docs", Version: "1.0.0"}
 }
 
 func (*externalHTMLModeDocsManager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
@@ -56,12 +55,12 @@ func (*externalHTMLModeDocsManager) ServeInfo(w http.ResponseWriter, _ *http.Req
 	_, _ = w.Write([]byte(`{"title":"Docs","version":"1.0.0"}`))
 }
 
-func (m *externalHTMLModeDocsManager) HTMLMode() ports.DocsHTMLMode {
+func (m *externalHTMLModeDocsManager) HTMLMode() docs.HTMLMode {
 	return m.mode
 }
 
 func TestHTMLHandlerUsesSwaggerCSPForExportedHTMLModeCapability(t *testing.T) {
-	handler := docs.NewHandler(&externalHTMLModeDocsManager{mode: ports.DocsHTMLModeSwaggerUI})
+	handler := docs.NewHandler(&externalHTMLModeDocsManager{mode: docs.HTMLModeSwaggerUI})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)
@@ -76,7 +75,7 @@ func TestHTMLHandlerUsesSwaggerCSPForExportedHTMLModeCapability(t *testing.T) {
 }
 
 func TestHTMLHandlerUsesStrictCSPForExportedHTMLModeCapability(t *testing.T) {
-	handler := docs.NewHandler(&externalHTMLModeDocsManager{mode: ports.DocsHTMLModeStatic})
+	handler := docs.NewHandler(&externalHTMLModeDocsManager{mode: docs.HTMLModeStatic})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/docs", nil)

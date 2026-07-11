@@ -10,7 +10,6 @@ import (
 	"time"
 
 	compatbilling "github.com/aatuh/api-toolkit/v3/compat/billing"
-	"github.com/aatuh/api-toolkit/v3/ports"
 )
 
 const defaultCustomCheckerTimeout = 5 * time.Second
@@ -29,9 +28,9 @@ func (c *BasicChecker) Name() string {
 }
 
 // Check runs the basic health check.
-func (c *BasicChecker) Check(_ context.Context) ports.HealthResult {
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+func (c *BasicChecker) Check(_ context.Context) Result {
+	return Result{
+		Status:    StatusHealthy,
 		Message:   "Basic health check passed",
 		Timestamp: time.Now(),
 	}
@@ -39,11 +38,11 @@ func (c *BasicChecker) Check(_ context.Context) ports.HealthResult {
 
 // DatabaseChecker implements a database health check.
 type DatabaseChecker struct {
-	pool ports.DatabasePool
+	pool DatabasePool
 }
 
 // NewDatabaseChecker returns a database ping health checker.
-func NewDatabaseChecker(pool ports.DatabasePool) Checker {
+func NewDatabaseChecker(pool DatabasePool) Checker {
 	return &DatabaseChecker{pool: pool}
 }
 
@@ -53,10 +52,10 @@ func (c *DatabaseChecker) Name() string {
 }
 
 // Check runs the database health check.
-func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
+func (c *DatabaseChecker) Check(ctx context.Context) Result {
 	if c == nil || c.pool == nil {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnhealthy,
+		return Result{
+			Status:    StatusUnhealthy,
 			Message:   "database pool not configured",
 			Timestamp: time.Now(),
 		}
@@ -73,8 +72,8 @@ func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 	duration := time.Since(start)
 
 	if err != nil {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnhealthy,
+		return Result{
+			Status:    StatusUnhealthy,
 			Message:   fmt.Sprintf("Database ping failed: %v", err),
 			Timestamp: time.Now(),
 			Duration:  duration,
@@ -83,7 +82,7 @@ func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 
 	// Prefer plain-value snapshots so generic call sites do not need to depend
 	// on legacy driver-shaped stats details.
-	stats := ports.SnapshotDatabasePoolStats(c.pool)
+	stats := SnapshotDatabasePoolStats(c.pool)
 	details := map[string]interface{}{
 		"total_conns":    stats.TotalConns,
 		"idle_conns":     stats.IdleConns,
@@ -92,8 +91,8 @@ func (c *DatabaseChecker) Check(ctx context.Context) ports.HealthResult {
 		"acquire_count":  stats.AcquireCount,
 	}
 
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+	return Result{
+		Status:    StatusHealthy,
 		Message:   "Database connection healthy",
 		Details:   details,
 		Timestamp: time.Now(),
@@ -117,7 +116,7 @@ func (c *MemoryChecker) Name() string {
 }
 
 // Check runs the memory usage health check.
-func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
+func (c *MemoryChecker) Check(_ context.Context) Result {
 	// This is a simplified memory check
 	// In a real implementation, you'd use runtime.MemStats
 	var m runtime.MemStats
@@ -129,14 +128,14 @@ func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
 		memoryMB = int64(allocMB)
 	}
 
-	status := ports.HealthStatusHealthy
+	status := StatusHealthy
 	message := fmt.Sprintf("Memory usage: %d MB", memoryMB)
 
 	if c.maxMemoryMB > 0 && memoryMB > c.maxMemoryMB {
-		status = ports.HealthStatusUnhealthy
+		status = StatusUnhealthy
 		message = fmt.Sprintf("Memory usage too high: %d MB (max: %d MB)", memoryMB, c.maxMemoryMB)
 	} else if c.maxMemoryMB > 0 && memoryMB > c.maxMemoryMB*8/10 {
-		status = ports.HealthStatusDegraded
+		status = StatusDegraded
 		message = fmt.Sprintf("Memory usage high: %d MB (max: %d MB)", memoryMB, c.maxMemoryMB)
 	}
 
@@ -148,7 +147,7 @@ func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
 		"num_gc":        m.NumGC,
 	}
 
-	return ports.HealthResult{
+	return Result{
 		Status:    status,
 		Message:   message,
 		Details:   details,
@@ -159,12 +158,12 @@ func (c *MemoryChecker) Check(_ context.Context) ports.HealthResult {
 // CustomChecker implements a custom health check with a function.
 type CustomChecker struct {
 	name      string
-	checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})
+	checkFunc func(ctx context.Context) (Status, string, interface{})
 	timeout   time.Duration
 }
 
 // NewCustomChecker returns a checker that calls the provided function.
-func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) Checker {
+func NewCustomChecker(name string, checkFunc func(ctx context.Context) (Status, string, interface{})) Checker {
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
@@ -173,7 +172,7 @@ func NewCustomChecker(name string, checkFunc func(ctx context.Context) (ports.He
 }
 
 // NewCustomCheckerWithTimeout returns a checker with a custom timeout.
-func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc func(ctx context.Context) (ports.HealthStatus, string, interface{})) Checker {
+func NewCustomCheckerWithTimeout(name string, timeout time.Duration, checkFunc func(ctx context.Context) (Status, string, interface{})) Checker {
 	return &CustomChecker{
 		name:      name,
 		checkFunc: checkFunc,
@@ -187,11 +186,11 @@ func (c *CustomChecker) Name() string {
 }
 
 // Check runs the custom health check.
-func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
+func (c *CustomChecker) Check(ctx context.Context) Result {
 	start := time.Now()
 	if c == nil || c.checkFunc == nil {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
+		return Result{
+			Status:    StatusUnknown,
 			Message:   "custom health check not configured",
 			Timestamp: time.Now(),
 			Duration:  time.Since(start),
@@ -206,7 +205,7 @@ func (c *CustomChecker) Check(ctx context.Context) ports.HealthResult {
 	status, message, details := c.checkFunc(checkCtx)
 	duration := time.Since(start)
 
-	return ports.HealthResult{
+	return Result{
 		Status:    status,
 		Message:   message,
 		Details:   details,
@@ -242,10 +241,10 @@ func (c *CompositeChecker) Name() string {
 }
 
 // Check runs the composite health check.
-func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
+func (c *CompositeChecker) Check(ctx context.Context) Result {
 	if len(c.checkers) == 0 {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
+		return Result{
+			Status:    StatusUnknown,
 			Message:   "No checkers configured",
 			Timestamp: time.Now(),
 		}
@@ -253,16 +252,16 @@ func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 
 	start := time.Now()
 	ctx = normalizeContext(ctx)
-	results := make([]ports.HealthResult, 0, len(c.checkers))
+	results := make([]Result, 0, len(c.checkers))
 
 	for _, checker := range c.checkers {
 		result := checker.Check(ctx)
 		results = append(results, result)
 
 		// If any check is unhealthy, return immediately
-		if result.Status == ports.HealthStatusUnhealthy {
-			return ports.HealthResult{
-				Status:    ports.HealthStatusUnhealthy,
+		if result.Status == StatusUnhealthy {
+			return Result{
+				Status:    StatusUnhealthy,
 				Message:   fmt.Sprintf("Composite check failed: %s", result.Message),
 				Details:   map[string]interface{}{"results": results},
 				Timestamp: time.Now(),
@@ -272,33 +271,33 @@ func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 	}
 
 	// Determine overall status
-	var overallStatus ports.HealthStatus
+	var overallStatus Status
 	var messages []string
 
 	for _, result := range results {
 		switch result.Status {
-		case ports.HealthStatusUnhealthy:
-			overallStatus = ports.HealthStatusUnhealthy
+		case StatusUnhealthy:
+			overallStatus = StatusUnhealthy
 			if result.Message != "" {
 				messages = append(messages, result.Message)
 			}
-		case ports.HealthStatusDegraded:
-			if overallStatus != ports.HealthStatusUnhealthy {
-				overallStatus = ports.HealthStatusDegraded
+		case StatusDegraded:
+			if overallStatus != StatusUnhealthy {
+				overallStatus = StatusDegraded
 				if result.Message != "" {
 					messages = append(messages, result.Message)
 				}
 			}
-		case ports.HealthStatusUnknown:
-			if overallStatus == "" || overallStatus == ports.HealthStatusHealthy {
-				overallStatus = ports.HealthStatusUnknown
+		case StatusUnknown:
+			if overallStatus == "" || overallStatus == StatusHealthy {
+				overallStatus = StatusUnknown
 				if result.Message != "" {
 					messages = append(messages, result.Message)
 				}
 			}
-		case ports.HealthStatusHealthy:
+		case StatusHealthy:
 			if overallStatus == "" {
-				overallStatus = ports.HealthStatusHealthy
+				overallStatus = StatusHealthy
 			}
 		}
 	}
@@ -310,7 +309,7 @@ func (c *CompositeChecker) Check(ctx context.Context) ports.HealthResult {
 		message = "All composite checks passed"
 	}
 
-	return ports.HealthResult{
+	return Result{
 		Status:    overallStatus,
 		Message:   message,
 		Details:   map[string]interface{}{"results": results},
@@ -328,7 +327,7 @@ type HTTPChecker struct {
 	client        *http.Client
 	timeout       time.Duration
 	successStatus map[int]struct{}
-	failureStatus ports.HealthStatus
+	failureStatus Status
 }
 
 // HTTPCheckerOption configures HTTPChecker behavior.
@@ -348,7 +347,7 @@ func NewHTTPChecker(name, url string, opts ...HTTPCheckerOption) Checker {
 		client:        http.DefaultClient,
 		timeout:       5 * time.Second,
 		successStatus: map[int]struct{}{http.StatusOK: {}},
-		failureStatus: ports.HealthStatusUnhealthy,
+		failureStatus: StatusUnhealthy,
 	}
 	for _, opt := range opts {
 		opt(checker)
@@ -423,7 +422,7 @@ func WithHTTPSuccessStatuses(statuses ...int) HTTPCheckerOption {
 }
 
 // WithHTTPFailureStatus sets the health status when the check fails.
-func WithHTTPFailureStatus(status ports.HealthStatus) HTTPCheckerOption {
+func WithHTTPFailureStatus(status Status) HTTPCheckerOption {
 	return func(checker *HTTPChecker) {
 		if status != "" {
 			checker.failureStatus = status
@@ -437,10 +436,10 @@ func (c *HTTPChecker) Name() string {
 }
 
 // Check runs the HTTP health check.
-func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
+func (c *HTTPChecker) Check(ctx context.Context) Result {
 	if strings.TrimSpace(c.url) == "" {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
+		return Result{
+			Status:    StatusUnknown,
 			Message:   "health check URL not configured",
 			Timestamp: time.Now(),
 		}
@@ -453,7 +452,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 	// #nosec G704 -- the health checker only probes explicit application-configured URLs.
 	req, err := http.NewRequestWithContext(checkCtx, c.method, c.url, nil)
 	if err != nil {
-		return ports.HealthResult{
+		return Result{
 			Status:    c.failureStatus,
 			Message:   fmt.Sprintf("health check request failed: %v", err),
 			Timestamp: time.Now(),
@@ -468,7 +467,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 	resp, err := c.client.Do(req)
 	duration := time.Since(start)
 	if err != nil {
-		return ports.HealthResult{
+		return Result{
 			Status:    c.failureStatus,
 			Message:   fmt.Sprintf("health check failed: %v", err),
 			Timestamp: time.Now(),
@@ -481,7 +480,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 
 	_, ok := c.successStatus[resp.StatusCode]
 	if !ok {
-		return ports.HealthResult{
+		return Result{
 			Status:    c.failureStatus,
 			Message:   fmt.Sprintf("unexpected status %d from %s", resp.StatusCode, c.url),
 			Timestamp: time.Now(),
@@ -493,8 +492,8 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 		}
 	}
 
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+	return Result{
+		Status:    StatusHealthy,
 		Message:   "HTTP dependency healthy",
 		Timestamp: time.Now(),
 		Duration:  duration,
@@ -509,7 +508,7 @@ func (c *HTTPChecker) Check(ctx context.Context) ports.HealthResult {
 type PaymentProviderChecker struct {
 	name          string
 	provider      compatbilling.PaymentProvider
-	failureStatus ports.HealthStatus
+	failureStatus Status
 }
 
 // PaymentProviderCheckerOption configures PaymentProviderChecker behavior.
@@ -520,7 +519,7 @@ func NewPaymentProviderChecker(provider compatbilling.PaymentProvider, opts ...P
 	checker := &PaymentProviderChecker{
 		name:          "payments",
 		provider:      provider,
-		failureStatus: ports.HealthStatusUnhealthy,
+		failureStatus: StatusUnhealthy,
 	}
 	for _, opt := range opts {
 		opt(checker)
@@ -539,7 +538,7 @@ func WithPaymentProviderName(name string) PaymentProviderCheckerOption {
 }
 
 // WithPaymentProviderFailureStatus sets the failure status.
-func WithPaymentProviderFailureStatus(status ports.HealthStatus) PaymentProviderCheckerOption {
+func WithPaymentProviderFailureStatus(status Status) PaymentProviderCheckerOption {
 	return func(checker *PaymentProviderChecker) {
 		if status != "" {
 			checker.failureStatus = status
@@ -553,11 +552,11 @@ func (c *PaymentProviderChecker) Name() string {
 }
 
 // Check runs the payment provider health check.
-func (c *PaymentProviderChecker) Check(ctx context.Context) ports.HealthResult {
+func (c *PaymentProviderChecker) Check(ctx context.Context) Result {
 	start := time.Now()
 	if c.provider == nil {
-		return ports.HealthResult{
-			Status:    ports.HealthStatusUnknown,
+		return Result{
+			Status:    StatusUnknown,
 			Message:   "payment provider not configured",
 			Timestamp: time.Now(),
 		}
@@ -566,7 +565,7 @@ func (c *PaymentProviderChecker) Check(ctx context.Context) ports.HealthResult {
 	prices, err := c.provider.ListPrices(ctx)
 	duration := time.Since(start)
 	if err != nil {
-		return ports.HealthResult{
+		return Result{
 			Status:    c.failureStatus,
 			Message:   fmt.Sprintf("payment provider check failed: %v", err),
 			Timestamp: time.Now(),
@@ -574,8 +573,8 @@ func (c *PaymentProviderChecker) Check(ctx context.Context) ports.HealthResult {
 		}
 	}
 
-	return ports.HealthResult{
-		Status:    ports.HealthStatusHealthy,
+	return Result{
+		Status:    StatusHealthy,
 		Message:   "payment provider healthy",
 		Details:   map[string]interface{}{"price_count": len(prices)},
 		Timestamp: time.Now(),

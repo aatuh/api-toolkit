@@ -3,7 +3,6 @@ package docs
 import (
 	"net/http"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
@@ -89,7 +88,7 @@ func (h *Handler) RegisterRoutesTo(router RouteRegistrar) {
 // RegisterCustomRoutes registers documentation endpoints with custom paths.
 func (h *Handler) RegisterCustomRoutes(router interface {
 	Get(pattern string, h http.HandlerFunc)
-}, paths ports.DocsPaths) {
+}, paths Paths) {
 	if router == nil {
 		return
 	}
@@ -97,7 +96,7 @@ func (h *Handler) RegisterCustomRoutes(router interface {
 }
 
 // RegisterCustomRoutesTo registers documentation endpoints with custom paths.
-func (h *Handler) RegisterCustomRoutesTo(router RouteRegistrar, paths ports.DocsPaths) {
+func (h *Handler) RegisterCustomRoutesTo(router RouteRegistrar, paths Paths) {
 	if h == nil || router == nil {
 		return
 	}
@@ -138,7 +137,7 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 
 func docsCSP(manager ManagerContract) string {
 	if provider, ok := manager.(HTMLModeProvider); ok {
-		if provider.HTMLMode() == ports.DocsHTMLModeSwaggerUI {
+		if provider.HTMLMode() == HTMLModeSwaggerUI {
 			return defaultDocsCSP
 		}
 		return strictDocsCSP

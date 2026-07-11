@@ -10,15 +10,15 @@ import (
 
 // RefreshManager allows scheduling cached health refreshes.
 type RefreshManager interface {
-	RefreshAll(ctx context.Context) ports.DetailedHealthResponse
+	RefreshAll(ctx context.Context) DetailedResponse
 }
 
 // SchedulerConfig configures periodic health refreshes.
 type SchedulerConfig struct {
 	Interval       time.Duration
 	Logger         ports.Logger
-	OnUpdate       func(ctx context.Context, result ports.DetailedHealthResponse)
-	OnStatusChange func(ctx context.Context, prev, next ports.HealthStatus, result ports.DetailedHealthResponse)
+	OnUpdate       func(ctx context.Context, result DetailedResponse)
+	OnStatusChange func(ctx context.Context, prev, next Status, result DetailedResponse)
 }
 
 // Scheduler periodically refreshes health checks to keep cache warm.
@@ -26,10 +26,10 @@ type Scheduler struct {
 	manager        RefreshManager
 	interval       time.Duration
 	logger         ports.Logger
-	onUpdate       func(ctx context.Context, result ports.DetailedHealthResponse)
-	onStatusChange func(ctx context.Context, prev, next ports.HealthStatus, result ports.DetailedHealthResponse)
+	onUpdate       func(ctx context.Context, result DetailedResponse)
+	onStatusChange func(ctx context.Context, prev, next Status, result DetailedResponse)
 	mu             sync.Mutex
-	lastStatus     ports.HealthStatus
+	lastStatus     Status
 }
 
 // NewScheduler creates a scheduler that refreshes all health checks on an interval.
@@ -79,7 +79,7 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 
 	if prev != "" && prev != result.Status {
 		if s.logger != nil {
-			if result.Status == ports.HealthStatusHealthy {
+			if result.Status == StatusHealthy {
 				s.logger.Info("health status recovered", "from", prev)
 			} else {
 				s.logger.Warn("health status changed", "from", prev, "to", result.Status)

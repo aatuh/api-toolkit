@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
@@ -74,7 +73,7 @@ func TestMiddlewareWithNilManagerAddsHealthContext(t *testing.T) {
 		if !ok {
 			t.Fatal("expected health status in context")
 		}
-		if status != ports.HealthStatusUnknown {
+		if status != StatusUnknown {
 			t.Fatalf("expected unknown status without cached snapshot, got %q", status)
 		}
 		if _, ok := HealthTimestampFromContext(r.Context()); !ok {
@@ -90,8 +89,8 @@ func TestMiddlewareWithNilManagerAddsHealthContext(t *testing.T) {
 
 func TestMiddlewareUsesCachedHealthSnapshotWithoutProbing(t *testing.T) {
 	manager := &probeCountingHealthManager{
-		cached: ports.HealthResponse{
-			Status:    ports.HealthStatusHealthy,
+		cached: Response{
+			Status:    StatusHealthy,
 			Timestamp: time.Unix(123, 0),
 			Message:   "cached",
 		},
@@ -106,7 +105,7 @@ func TestMiddlewareUsesCachedHealthSnapshotWithoutProbing(t *testing.T) {
 		if !ok {
 			t.Fatal("expected health status in context")
 		}
-		if status != ports.HealthStatusHealthy {
+		if status != StatusHealthy {
 			t.Fatalf("expected cached healthy status, got %q", status)
 		}
 		timestamp, ok := HealthTimestampFromContext(r.Context())
@@ -128,7 +127,7 @@ func TestMiddlewareUsesCachedHealthSnapshotWithoutProbing(t *testing.T) {
 }
 
 func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableCaching:   false,
 		EnableDetailed:  true,
@@ -137,13 +136,13 @@ func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T)
 	})
 	manager.RegisterChecker(fixedChecker{
 		name:    "process",
-		status:  ports.HealthStatusHealthy,
+		status:  StatusHealthy,
 		message: "process alive",
 		details: map[string]any{"internal": "live-detail"},
 	})
 	manager.RegisterChecker(fixedChecker{
 		name:    "database",
-		status:  ports.HealthStatusUnhealthy,
+		status:  StatusUnhealthy,
 		message: "database down",
 		details: map[string]any{"dsn": "postgres://secret@example/db"},
 	})
@@ -158,7 +157,7 @@ func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T)
 	if err := json.NewDecoder(liveRec.Body).Decode(&liveBody); err != nil {
 		t.Fatalf("decode liveness: %v", err)
 	}
-	if liveBody["status"] != string(ports.HealthStatusHealthy) {
+	if liveBody["status"] != string(StatusHealthy) {
 		t.Fatalf("liveness status = %#v, want healthy", liveBody["status"])
 	}
 	if _, ok := liveBody["details"]; ok {
@@ -178,7 +177,7 @@ func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T)
 	if err := json.NewDecoder(readyRec.Body).Decode(&readyBody); err != nil {
 		t.Fatalf("decode readiness: %v", err)
 	}
-	if readyBody["status"] != string(ports.HealthStatusUnhealthy) {
+	if readyBody["status"] != string(StatusUnhealthy) {
 		t.Fatalf("readiness status = %#v, want unhealthy", readyBody["status"])
 	}
 	if _, ok := readyBody["details"]; ok {
@@ -188,8 +187,8 @@ func TestPublicProbesSeparateLivenessFromReadinessAndRedactDetails(t *testing.T)
 
 func TestReadinessHandlerTracksDependencyStateTransitions(t *testing.T) {
 	checker := &mutableStatusChecker{name: "database", message: "database down"}
-	checker.status.Store(string(ports.HealthStatusUnhealthy))
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	checker.status.Store(string(StatusUnhealthy))
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableCaching:   false,
 		ReadinessChecks: []string{"database"},
@@ -203,7 +202,7 @@ func TestReadinessHandlerTracksDependencyStateTransitions(t *testing.T) {
 		t.Fatalf("initial readiness status code = %d, want 503", rec.Code)
 	}
 
-	checker.status.Store(string(ports.HealthStatusHealthy))
+	checker.status.Store(string(StatusHealthy))
 	checker.message = "database ready"
 	rec = httptest.NewRecorder()
 	handler.ReadinessHandler(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, specs.Readyz, nil))
@@ -213,7 +212,7 @@ func TestReadinessHandlerTracksDependencyStateTransitions(t *testing.T) {
 }
 
 func TestLivenessHandlerMapsTimeoutToServiceUnavailable(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:        10 * time.Millisecond,
 		EnableCaching:  false,
 		LivenessChecks: []string{"slow"},
@@ -247,12 +246,12 @@ func TestNewDefaultHandlerWithNilPoolSkipsDatabaseCheck(t *testing.T) {
 	}
 
 	var body struct {
-		Status ports.HealthStatus `json:"status"`
+		Status Status `json:"status"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode readiness response: %v", err)
 	}
-	if body.Status != ports.HealthStatusHealthy {
+	if body.Status != StatusHealthy {
 		t.Fatalf("expected healthy readiness status, got %q", body.Status)
 	}
 }
@@ -313,7 +312,7 @@ func TestNewHandlerDisablesDetailedHealthByDefault(t *testing.T) {
 }
 
 func TestRegisterRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  false,
 		LivenessChecks:  []string{"basic"},
@@ -334,7 +333,7 @@ func TestRegisterRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 }
 
 func TestRegisterPublicRoutesToSkipsDetailedHealthWhenEnabled(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -364,7 +363,7 @@ func TestRegisterPublicRoutesToSkipsDetailedHealthWhenEnabled(t *testing.T) {
 }
 
 func TestRegisterAdminDetailedHealthRouteRequiresWrapper(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -379,7 +378,7 @@ func TestRegisterAdminDetailedHealthRouteRequiresWrapper(t *testing.T) {
 }
 
 func TestRegisterAdminDetailedHealthRouteWrapsDetailedHealth(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -406,7 +405,7 @@ func TestRegisterAdminDetailedHealthRouteWrapsDetailedHealth(t *testing.T) {
 }
 
 func TestRegisterAdminDetailedHealthRouteKeepsDetailedOutputBehindWrapper(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"database"},
@@ -414,7 +413,7 @@ func TestRegisterAdminDetailedHealthRouteKeepsDetailedOutputBehindWrapper(t *tes
 	})
 	manager.RegisterChecker(fixedChecker{
 		name:    "database",
-		status:  ports.HealthStatusHealthy,
+		status:  StatusHealthy,
 		message: "database ready",
 		details: map[string]any{"internal_pool": "ready"},
 	})
@@ -450,7 +449,7 @@ func TestRegisterAdminDetailedHealthRouteKeepsDetailedOutputBehindWrapper(t *tes
 	if rec.Code != http.StatusOK {
 		t.Fatalf("authorized detailed status code = %d, want 200", rec.Code)
 	}
-	var body ports.DetailedHealthResponse
+	var body DetailedResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode detailed health: %v", err)
 	}
@@ -460,7 +459,7 @@ func TestRegisterAdminDetailedHealthRouteKeepsDetailedOutputBehindWrapper(t *tes
 }
 
 func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  false,
 		LivenessChecks:  []string{"basic"},
@@ -494,7 +493,7 @@ func TestDetailedHealthHandlerReturnsNotFoundWhenDisabled(t *testing.T) {
 }
 
 func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
-	manager := NewManagerWithConfig(ports.HealthCheckConfig{
+	manager := NewManagerWithConfig(Config{
 		Timeout:         time.Second,
 		EnableDetailed:  false,
 		LivenessChecks:  []string{"basic"},
@@ -521,60 +520,60 @@ func TestRegisterCustomRoutesToSkipsDetailedHealthWhenDisabled(t *testing.T) {
 
 type externalHealthManager struct{}
 
-func (externalHealthManager) RegisterChecker(ports.HealthChecker) {}
+func (externalHealthManager) RegisterChecker(Checker) {}
 
-func (externalHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+func (externalHealthManager) RegisterCheckers(...Checker) {}
 
-func (externalHealthManager) GetLiveness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (externalHealthManager) GetLiveness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (externalHealthManager) GetReadiness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (externalHealthManager) GetReadiness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (externalHealthManager) GetHealth(context.Context) ports.HealthResponse {
-	return ports.HealthResponse{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (externalHealthManager) GetHealth(context.Context) Response {
+	return Response{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (externalHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
-	return ports.DetailedHealthResponse{
-		Status:    ports.HealthStatusHealthy,
+func (externalHealthManager) GetDetailedHealth(context.Context) DetailedResponse {
+	return DetailedResponse{
+		Status:    StatusHealthy,
 		Timestamp: time.Now(),
-		Checks: map[string]ports.HealthResult{
-			"db": {Status: ports.HealthStatusHealthy, Timestamp: time.Now()},
+		Checks: map[string]Result{
+			"db": {Status: StatusHealthy, Timestamp: time.Now()},
 		},
-		Summary: ports.HealthSummary{Total: 1, Healthy: 1},
+		Summary: Summary{Total: 1, Healthy: 1},
 	}
 }
 
 type probeCountingHealthManager struct {
-	cached         ports.HealthResponse
+	cached         Response
 	getHealthCalls int
 }
 
-func (*probeCountingHealthManager) RegisterChecker(ports.HealthChecker) {}
+func (*probeCountingHealthManager) RegisterChecker(Checker) {}
 
-func (*probeCountingHealthManager) RegisterCheckers(...ports.HealthChecker) {}
+func (*probeCountingHealthManager) RegisterCheckers(...Checker) {}
 
-func (*probeCountingHealthManager) GetLiveness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (*probeCountingHealthManager) GetLiveness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (*probeCountingHealthManager) GetReadiness(context.Context) ports.HealthResult {
-	return ports.HealthResult{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (*probeCountingHealthManager) GetReadiness(context.Context) Result {
+	return Result{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (m *probeCountingHealthManager) GetHealth(context.Context) ports.HealthResponse {
+func (m *probeCountingHealthManager) GetHealth(context.Context) Response {
 	m.getHealthCalls++
-	return ports.HealthResponse{Status: ports.HealthStatusUnhealthy, Timestamp: time.Now()}
+	return Response{Status: StatusUnhealthy, Timestamp: time.Now()}
 }
 
-func (*probeCountingHealthManager) GetDetailedHealth(context.Context) ports.DetailedHealthResponse {
-	return ports.DetailedHealthResponse{Status: ports.HealthStatusHealthy, Timestamp: time.Now()}
+func (*probeCountingHealthManager) GetDetailedHealth(context.Context) DetailedResponse {
+	return DetailedResponse{Status: StatusHealthy, Timestamp: time.Now()}
 }
 
-func (m *probeCountingHealthManager) CachedHealth() (ports.HealthResponse, bool) {
+func (m *probeCountingHealthManager) CachedHealth() (Response, bool) {
 	return m.cached, true
 }
 
@@ -631,7 +630,7 @@ func containsCheck(checks []string, want string) bool {
 
 type fixedChecker struct {
 	name    string
-	status  ports.HealthStatus
+	status  Status
 	message string
 	details any
 }
@@ -640,8 +639,8 @@ func (c fixedChecker) Name() string {
 	return c.name
 }
 
-func (c fixedChecker) Check(context.Context) ports.HealthResult {
-	return ports.HealthResult{
+func (c fixedChecker) Check(context.Context) Result {
+	return Result{
 		Status:    c.status,
 		Message:   c.message,
 		Details:   c.details,
@@ -659,13 +658,13 @@ func (c *mutableStatusChecker) Name() string {
 	return c.name
 }
 
-func (c *mutableStatusChecker) Check(context.Context) ports.HealthResult {
+func (c *mutableStatusChecker) Check(context.Context) Result {
 	status, _ := c.status.Load().(string)
 	if status == "" {
-		status = string(ports.HealthStatusUnknown)
+		status = string(StatusUnknown)
 	}
-	return ports.HealthResult{
-		Status:    ports.HealthStatus(status),
+	return Result{
+		Status:    Status(status),
 		Message:   c.message,
 		Timestamp: time.Now(),
 	}

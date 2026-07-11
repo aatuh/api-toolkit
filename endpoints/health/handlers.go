@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
-	"github.com/aatuh/api-toolkit/v3/ports"
 	"github.com/aatuh/api-toolkit/v3/specs"
 )
 
@@ -32,8 +31,8 @@ func NewBasicHandler() *Handler {
 }
 
 // NewDefaultHandler builds a handler with standard checkers.
-func NewDefaultHandler(pool ports.DatabasePool) *Handler {
-	config := ports.HealthCheckConfig{
+func NewDefaultHandler(pool DatabasePool) *Handler {
+	config := Config{
 		Timeout:         5 * time.Second,
 		CacheDuration:   5 * time.Second,
 		EnableCaching:   true,
@@ -68,7 +67,7 @@ func (h *Handler) LivenessHandler(w http.ResponseWriter, r *http.Request) {
 	result := h.manager.GetLiveness(ctx)
 
 	statusCode := http.StatusOK
-	if result.Status == ports.HealthStatusUnhealthy {
+	if result.Status == StatusUnhealthy {
 		statusCode = http.StatusServiceUnavailable
 	}
 
@@ -95,7 +94,7 @@ func (h *Handler) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 	result := h.manager.GetReadiness(ctx)
 
 	statusCode := http.StatusOK
-	if result.Status == ports.HealthStatusUnhealthy {
+	if result.Status == StatusUnhealthy {
 		statusCode = http.StatusServiceUnavailable
 	}
 
@@ -122,7 +121,7 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	response := h.manager.GetHealth(ctx)
 
 	statusCode := http.StatusOK
-	if response.Status == ports.HealthStatusUnhealthy {
+	if response.Status == StatusUnhealthy {
 		statusCode = http.StatusServiceUnavailable
 	}
 
@@ -152,7 +151,7 @@ func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) 
 	response := h.manager.GetDetailedHealth(ctx)
 
 	statusCode := http.StatusOK
-	if response.Status == ports.HealthStatusUnhealthy {
+	if response.Status == StatusUnhealthy {
 		statusCode = http.StatusServiceUnavailable
 	}
 
@@ -285,9 +284,9 @@ func (h *Handler) Middleware() func(http.Handler) http.Handler {
 	}
 }
 
-func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
-	response := ports.HealthResponse{
-		Status:    ports.HealthStatusUnknown,
+func (h *Handler) cachedOrLocalHealth() Response {
+	response := Response{
+		Status:    StatusUnknown,
 		Timestamp: time.Now(),
 	}
 	if h == nil || h.manager == nil {
@@ -302,7 +301,7 @@ func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
 		return response
 	}
 	if snapshot.Status == "" {
-		snapshot.Status = ports.HealthStatusUnknown
+		snapshot.Status = StatusUnknown
 	}
 	if snapshot.Timestamp.IsZero() {
 		snapshot.Timestamp = time.Now()
@@ -313,8 +312,8 @@ func (h *Handler) cachedOrLocalHealth() ports.HealthResponse {
 // HealthStatusFromContext extracts health status from request context.
 //
 //revive:disable-next-line:exported
-func HealthStatusFromContext(ctx context.Context) (ports.HealthStatus, bool) {
-	status, ok := ctx.Value(healthStatusKey).(ports.HealthStatus)
+func HealthStatusFromContext(ctx context.Context) (Status, bool) {
+	status, ok := ctx.Value(healthStatusKey).(Status)
 	return status, ok
 }
 
