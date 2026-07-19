@@ -438,7 +438,7 @@ per-module release policy.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make release-tag-consistency-check
+# Planned automation target (not yet implemented): release-tag-consistency-check
 GOWORK=off GOTOOLCHAIN=local make docs-check
 ```
 
@@ -494,7 +494,7 @@ ci(release): enforce tag and module coherence
 ```sh
 GOTOOLCHAIN=local make coverage-check
 GOTOOLCHAIN=local make coverage-trend-check
-GOTOOLCHAIN=local make benchmark-baseline-check
+# Planned automation target (not yet implemented): benchmark-baseline-check
 ```
 
 **Required commit:**
@@ -1196,7 +1196,7 @@ Add upgrade smoke jobs that test:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make upgrade-smoke-check
-GOWORK=off GOTOOLCHAIN=local make downstream-compat-check
+# Planned automation target (not yet implemented): downstream-compat-check
 ```
 
 **Required commit:**
@@ -1845,7 +1845,7 @@ go test ./middleware/timeout -run 'Streaming|Flusher|Hijacker|Pusher' -count=100
 **Required commit:**
 
 ```text
-fix(timeout): make buffered hard timeouts route explicit
+fix(timeout): route buffered hard timeouts explicitly
 ```
 
 ---
@@ -1890,7 +1890,7 @@ The harness must provide:
 * Parallel-test safety.
 * Sanitized logs.
 * Version detection.
-* A local `make test-postgres` target.
+* A local `test-postgres` automation target.
 * A GitHub Actions service-container job.
 
 Test against the PostgreSQL major versions declared in the adapter support
@@ -1907,7 +1907,7 @@ policy.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make test-postgres
+# Planned automation target (not yet implemented): test-postgres
 ```
 
 **Required commit:**
@@ -1972,8 +1972,8 @@ Update:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make test-postgres
-GOWORK=off GOTOOLCHAIN=local make supported-adapter-check
+# Planned automation target (not yet implemented): test-postgres
+# Planned automation target (not yet implemented): supported-adapter-check
 ```
 
 **Required commit:**
@@ -2027,8 +2027,8 @@ Cover:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make test-redis
-GOWORK=off GOTOOLCHAIN=local make supported-adapter-check
+# Planned automation target (not yet implemented): test-redis
+# Planned automation target (not yet implemented): supported-adapter-check
 ```
 
 **Required commit:**
@@ -2102,7 +2102,7 @@ support policy.
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make generated-integration-check
-GOWORK=off GOTOOLCHAIN=local make provider-live-check
+# Planned automation target (not yet implemented): provider-live-check
 ```
 
 **Required commit:**
@@ -2158,7 +2158,7 @@ features do not leak resources.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make benchmark-check
+# Planned automation target (not yet implemented): benchmark-check
 ```
 
 **Required commit:**
@@ -2334,7 +2334,7 @@ Publish:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make reference-service-load
-GOWORK=off GOTOOLCHAIN=local make reference-service-load-check
+# Planned automation target (not yet implemented): reference-service-load-check
 ```
 
 **Required commit:**
@@ -2470,7 +2470,7 @@ Document:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make docs-check
-GOWORK=off GOTOOLCHAIN=local make package-classification-check
+# Planned automation target (not yet implemented): package-classification-check
 ```
 
 **Required commit:**
@@ -2584,7 +2584,7 @@ Requirements:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make cli-check
+# Planned automation target (not yet implemented): cli-check
 GOWORK=off GOTOOLCHAIN=local make generated-integration-check
 ```
 
@@ -2641,7 +2641,7 @@ Requirements:
 ```sh
 GOWORK=off GOTOOLCHAIN=local make dependency-boundary-check
 GOWORK=off GOTOOLCHAIN=local make dependency-report
-GOWORK=off GOTOOLCHAIN=local make module-check
+# Planned automation target (not yet implemented): module-check
 ```
 
 **Required commit:**
@@ -2758,8 +2758,8 @@ The migration tool must:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make migration-v5-check
-GOWORK=off GOTOOLCHAIN=local make downstream-compat-check
+# Planned automation target (not yet implemented): migration-v5-check
+# Planned automation target (not yet implemented): downstream-compat-check
 ```
 
 **Required commit:**
@@ -2805,7 +2805,7 @@ Do not apply a fake stable guarantee to experimental modules.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make module-api-check
+# Planned automation target (not yet implemented): module-api-check
 ```
 
 **Required commit:**
@@ -2861,13 +2861,13 @@ and honest about generated-code ownership.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make cli-determinism-check
+# Planned automation target (not yet implemented): cli-determinism-check
 ```
 
 **Required commit:**
 
 ```text
-fix(cli): make generation deterministic and atomic
+fix(cli): ensure generation is deterministic and atomic
 ```
 
 ---
@@ -2915,7 +2915,7 @@ Require a confirmation-free noninteractive behavior suitable for CI.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make cli-security-check
+# Planned automation target (not yet implemented): cli-security-check
 GOWORK=off GOTOOLCHAIN=local make gosec
 ```
 
@@ -2958,13 +2958,13 @@ fix(cli): harden filesystem boundaries
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make cli-offline-check
+# Planned automation target (not yet implemented): cli-offline-check
 ```
 
 **Required commit:**
 
 ```text
-fix(cli): make generation offline and reproducible
+fix(cli): ensure generation is offline and reproducible
 ```
 
 ---
@@ -3081,7 +3081,7 @@ Add:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make cli-release-check
+# Planned automation target (not yet implemented): cli-release-check
 ```
 
 **Required commit:**
@@ -3196,8 +3196,8 @@ docs(governance): record enforced branch protections
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make secret-scan
-GOWORK=off GOTOOLCHAIN=local make release-evidence-secret-check
+# Planned automation target (not yet implemented): secret-scan
+# Planned automation target (not yet implemented): release-evidence-secret-check
 ```
 
 **Required commit:**
@@ -3289,7 +3289,7 @@ chore(deps): establish dependency maintenance cadence
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make openssf-check
+# Planned automation target (not yet implemented): openssf-check
 ```
 
 **Required commit:**
@@ -3343,7 +3343,7 @@ Add negative contract tests for:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make release-authenticity-check
+# Planned automation target (not yet implemented): release-authenticity-check
 ```
 
 **Required commit:**
@@ -3399,7 +3399,7 @@ Do not run untrusted code with write tokens or release secrets.
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make actions-audit
-GOWORK=off GOTOOLCHAIN=local make workflow-security-check
+# Planned automation target (not yet implemented): workflow-security-check
 ```
 
 **Required commit:**
@@ -3463,7 +3463,7 @@ For every threat, record:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make docs-check
-GOWORK=off GOTOOLCHAIN=local make security-review-check
+# Planned automation target (not yet implemented): security-review-check
 ```
 
 **Required commit:**
@@ -3476,7 +3476,7 @@ docs(security): refresh architecture threat model
 
 # [ ] EPIC GOV: Governance, maintenance, and external adoption
 
-**Goal:** Reduce single-maintainer risk, make reviews independent, and set honest
+**Goal:** Reduce single-maintainer risk, establish independent reviews, and set honest
 support boundaries.
 
 **Epic completion criteria:**
@@ -3579,7 +3579,7 @@ Update:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make github-governance-check
-GOWORK=off GOTOOLCHAIN=local make release-review-check
+# Planned automation target (not yet implemented): release-review-check
 ```
 
 **Required commit:**
@@ -3750,7 +3750,7 @@ Explicitly state that:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make docs-check
-GOWORK=off GOTOOLCHAIN=local make package-classification-check
+# Planned automation target (not yet implemented): package-classification-check
 ```
 
 **Required commit:**
@@ -3862,7 +3862,7 @@ The RC must include:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make rc-release-check
+# Planned automation target (not yet implemented): rc-release-check
 ```
 
 **Required commit:**
@@ -3928,7 +3928,7 @@ Publish:
 ```sh
 GOWORK=off GOTOOLCHAIN=local make audit-check
 GOWORK=off GOTOOLCHAIN=local make release-check
-GOWORK=off GOTOOLCHAIN=local make external-audit-fixture-check
+# Planned automation target (not yet implemented): external-audit-fixture-check
 ```
 
 **Required commit:**
@@ -3978,7 +3978,7 @@ Before tagging:
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make stable-release-check
+# Planned automation target (not yet implemented): stable-release-check
 ```
 
 **Required commit:**
@@ -4046,7 +4046,7 @@ post-release stability.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make final-scorecard-check
+# Planned automation target (not yet implemented): final-scorecard-check
 GOWORK=off GOTOOLCHAIN=local make release-check
 ```
 
