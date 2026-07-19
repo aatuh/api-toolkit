@@ -319,7 +319,7 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 - Stable core readiness matrix: [docs/core-readiness.md](docs/core-readiness.md)
 - V3 migration guide: [docs/migration/v3.md](docs/migration/v3.md)
 - Troubleshooting guide: [docs/troubleshooting.md](docs/troubleshooting.md)
-- Latest published release line: `v3.1.2` and `contrib/v3.1.2`.
+- Latest published release line: `v4.0.0` and `contrib/v4.0.0`.
 - `master` may contain unreleased changes after the latest tag; release
   consumers should use tags and release notes instead of assuming `master` is
   published evidence.
@@ -339,8 +339,8 @@ Keep this landing page as a pointer, not a second release runbook.
 - Release manifests guide: [docs/release-manifests.md](docs/release-manifests.md)
 - Contrib drift package manifest: `docs/contrib-api-drift-packages.txt`
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
-- Current supported v3 API baseline: see `docs/release-runbook.md`.
-- First v3 major-release evidence may compare against `API_BASE_REF=v2.1.0` only as documented v2-to-v3 breakage evidence; v3 patch and minor releases compare against the latest published v3 tag from the runbook.
+- Current supported v4 API baseline: see `docs/release-runbook.md`.
+- The v4 major-release evidence compared against `API_BASE_REF=v3.1.2`; v4 patch and minor releases compare against the latest published v4 tag from the runbook.
 - Release readiness and publication evidence require an explicit `API_BASE_REF`; use the current command examples in `docs/release-runbook.md`.
 - `ALLOW_DIRTY_RELEASE_EVIDENCE=1` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.

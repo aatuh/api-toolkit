@@ -8,17 +8,17 @@ Use this as the short reviewer path before publishing a release.
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
 - Accept only clean publication evidence before publishing:
-  `API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` for v3 patch
+  `API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence` for v4 patch
   and minor releases.
 - A local dirty-tree audit may use
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence`,
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
-- First v3 major-release evidence may use `API_BASE_REF=v2.1.0` only as
-  documented v2-to-v3 transition evidence; later v3 releases compare against
-  the latest published v3 tag.
+- The v4 major-release evidence used `API_BASE_REF=v3.1.2` as documented
+  v3-to-v4 transition evidence; later v4 releases compare against the latest
+  published v4 tag.
 - For a minor release that touches the stable surface, require a published
   `vX.Y.0-rc.1` prerelease before the final stable `vX.Y.0` tag. RC evidence
-  still uses the latest published stable v3 tag as `API_BASE_REF`; do not advance the supported baseline to an RC tag.
+  still uses the latest published stable v4 tag as `API_BASE_REF`; do not advance the supported baseline to an RC tag.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
   `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`,
