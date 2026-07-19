@@ -59,7 +59,7 @@ func (l *Loader) Int(key string, def int) int {
 	if !ok {
 		return def
 	}
-	parsed, err := strconv.ParseInt(val, 10, 64)
+	parsed, err := strconv.ParseInt(val, 10, strconv.IntSize)
 	if err != nil {
 		l.errs = append(l.errs, fmt.Errorf("invalid int for %s: %s", key, val))
 		return def

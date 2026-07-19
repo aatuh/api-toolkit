@@ -2206,7 +2206,9 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Require CODEOWNERS review",
+		"Require resolved pull-request conversations, linear history, and no bypass",
+		"sole-maintainer repository",
+		"CodeQL `code_scanning` ruleset",
 		"Protect `master`",
 		"Protect `v*` release tags",
 		"latest published v3 tag",
@@ -2581,7 +2583,8 @@ func TestGitHubActionsUseLeastPrivilegePermissions(t *testing.T) {
 			"permissions:\n  contents: read",
 		},
 		"codeql.yml": {
-			"permissions:\n  actions: read\n  contents: read\n  security-events: write",
+			"permissions:\n  contents: read",
+			"analyze:\n    permissions:\n      actions: read\n      contents: read\n      security-events: write",
 		},
 		"dependency-review.yml": {
 			"permissions:\n  contents: read",
@@ -2593,7 +2596,8 @@ func TestGitHubActionsUseLeastPrivilegePermissions(t *testing.T) {
 			"permissions:\n  contents: read",
 		},
 		"release.yml": {
-			"permissions:\n  attestations: write\n  contents: write\n  id-token: write",
+			"permissions:\n  contents: read",
+			"release-preflight:\n    permissions:\n      attestations: write\n      contents: write\n      id-token: write",
 		},
 		"scorecard.yml": {
 			"permissions: {}",
@@ -3072,7 +3076,9 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	}
 	for _, required := range []string{
 		"gh is not installed; skipping optional governance verification",
-		"require_code_owner_reviews",
+		"required_approving_review_count == 0",
+		"required_review_thread_resolution == true",
+		"CodeQL merge protection configured",
 		"allow_force_pushes.enabled == false",
 		"rulesets?includes_parents=true",
 		"refs/tags/contrib/v*",
@@ -6704,14 +6710,14 @@ func TestPRReviewDisciplineGovernanceIsDocumented(t *testing.T) {
 
 	for _, required := range []string{
 		"Require pull requests before merge.",
-		"Require CODEOWNERS review using `.github/CODEOWNERS`.",
-		"Require at least one approving review for non-maintainer pull requests.",
+		"Require resolved pull-request conversations, linear history, and no bypass",
+		"sole-maintainer repository",
+		"requires zero approvals",
 		"## PR Review Discipline",
-		"Repository branch protection should require pull requests, CODEOWNERS review",
-		"at least one approving review for non-maintainer pull requests",
+		"strict CI, linear history, and no bypass",
+		"When a second eligible maintainer is added",
 		"Maintainer",
-		"direct pushes are allowed only for tightly scoped maintenance",
-		"Maintainer self-review checklist for direct pushes",
+		"Maintainer self-review checklist for every pull request",
 		"run the narrowest validation command that proves the change",
 		"check compatibility, security, dependency, generated-output, and docs impact",
 		"ensure `.audits`, `.trash`, local evidence, secrets, and generated scratch",
@@ -6723,9 +6729,9 @@ func TestPRReviewDisciplineGovernanceIsDocumented(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Non-maintainer PRs require at least one approving review",
-		"CODEOWNERS review",
-		"Maintainer direct pushes should still use the same",
+		"`master` changes require a pull request",
+		"requires zero approvals",
+		"independent and\nCODEOWNERS review should be enabled",
 		"checklist, run the narrowest proving validation command",
 		"no local",
 		"scratch files, secrets, `.audits`, or `.trash` entries are staged",
@@ -6781,7 +6787,8 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 		"make release-api-check",
 		"ci / fuzz",
 		"dependency-review / dependency-review",
-		"Require at least one approving review for non-maintainer pull requests.",
+		"sole-maintainer repository",
+		"CodeQL `code_scanning` ruleset",
 		"codeql",
 		"scorecard",
 		"make github-governance-check",

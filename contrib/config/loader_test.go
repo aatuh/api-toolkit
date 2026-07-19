@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,20 @@ func TestLoaderIntRecordsInvalidValue(t *testing.T) {
 		t.Fatalf("expected default int value, got %d", got)
 	}
 	assertErrorContains(t, loader.Err(), "invalid int for INT_KEY: not-an-int")
+}
+
+func TestLoaderIntRejectsValuesOutsideIntRange(t *testing.T) {
+	outOfRange := "9223372036854775808"
+	if strconv.IntSize == 32 {
+		outOfRange = "2147483648"
+	}
+	t.Setenv("INT_KEY", outOfRange)
+
+	loader := NewLoader()
+	if got := loader.Int("INT_KEY", 42); got != 42 {
+		t.Fatalf("expected default int value, got %d", got)
+	}
+	assertErrorContains(t, loader.Err(), "invalid int for INT_KEY: "+outOfRange)
 }
 
 func TestLoaderDurationRecordsInvalidValue(t *testing.T) {

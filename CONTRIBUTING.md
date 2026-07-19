@@ -169,8 +169,7 @@ Every pull request should explain:
 - security impact,
 - benchmark or performance impact.
 
-Non-maintainer PRs require at least one approving review and CODEOWNERS review
-where ownership applies. Maintainer direct pushes should still use the same
-checklist, run the narrowest proving validation command, and confirm no local
-scratch files, secrets, `.audits`, or `.trash` entries are staged before
-release.
+`master` changes require a pull request, resolved conversations, and passing
+required checks. As a sole-maintainer repository, it requires zero approvals
+until a second eligible maintainer is available; then independent and
+CODEOWNERS review should be enabled. Every PR should use the same checklist, run the narrowest proving validation command, and confirm no local scratch files, secrets, `.audits`, or `.trash` entries are staged before release.
