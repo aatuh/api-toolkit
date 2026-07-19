@@ -399,7 +399,12 @@ func xForwardedHost(header string) string {
 	return strings.TrimSpace(parts[0])
 }
 
+const maxAddrValueBytes = 256
+
 func parseAddrValue(value string) (netip.Addr, bool) {
+	if len(value) > maxAddrValueBytes {
+		return netip.Addr{}, false
+	}
 	val := strings.TrimSpace(value)
 	if val == "" {
 		return netip.Addr{}, false
