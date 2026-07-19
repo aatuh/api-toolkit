@@ -1,5 +1,7 @@
 # Security Policy
 
+Private vulnerability reporting URL: https://github.com/aatuh/api-toolkit/security/advisories/new
+
 ## Supported Versions
 
 We provide security updates for the latest release on the default branch. The
