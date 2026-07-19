@@ -10,10 +10,16 @@ MUTATION_LIMIT ?= 12
 MUTATION_TIMEOUT ?= 30s
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
+TOOLS_DIR ?= .tools
+TOOLS_BIN := $(abspath $(TOOLS_DIR)/bin)
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 APIDIFF_VERSION ?= v0.0.0-20260410095643-746e56fc9e2f
+
+# Keep Go-installed tooling project-local and make every recipe (including
+# release-evidence helper scripts) resolve that pinned toolchain first.
+export PATH := $(TOOLS_BIN):$(PATH)
 
 # Tools used by local CI steps.
 OUTPUT_DIR ?= .ci-result
@@ -46,11 +52,12 @@ help: ## Show help
 			printf "  %-14s %s\n", $$1, $$2 \
 		}' $(MAKEFILE_LIST)
 
-tools: ## Install lint/vuln/API tools into the Go tool cache
-	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
-	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-	@$(GO) install golang.org/x/exp/cmd/apidiff@$(APIDIFF_VERSION)
+tools: ## Install pinned lint/vuln/API tools into the project-local tool cache
+	@mkdir -p "$(TOOLS_BIN)"
+	@GOBIN="$(TOOLS_BIN)" $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@GOBIN="$(TOOLS_BIN)" $(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
+	@GOBIN="$(TOOLS_BIN)" $(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	@GOBIN="$(TOOLS_BIN)" $(GO) install golang.org/x/exp/cmd/apidiff@$(APIDIFF_VERSION)
 
 # In api-check you can set API_BASE_REF to compare to a specific tag (for example API_BASE_REF=v4.0.0).
 # Without API_BASE_REF it uses local development fallback behavior and is not release evidence.
