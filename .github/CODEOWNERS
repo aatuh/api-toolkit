@@ -1,7 +1,7 @@
 # Repository governance ownership.
 #
-# CODEOWNERS review should be required by branch protection for protected
-# branches and release-tag changes.
+# Ownership map for protected branches and release-tag changes. Re-enable
+# CODEOWNERS review when a second eligible maintainer is available.
 
 * @aatuh
 

@@ -38,7 +38,8 @@ bounded handover path and its limits.
 
 ## Reporting a Vulnerability
 
-Please report security issues privately using GitHub Security Advisories:
+Please report security issues through the private [GitHub Security Advisory
+form](https://github.com/aatuh/api-toolkit/security/advisories/new):
 
 1. Go to the repository Security tab.
 2. Click "Report a vulnerability".
