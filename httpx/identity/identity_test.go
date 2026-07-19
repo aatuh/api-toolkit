@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -24,6 +25,13 @@ func TestResolverClientIPTrustedProxy(t *testing.T) {
 	}
 	if ip.String() != "198.51.100.9" {
 		t.Fatalf("expected forwarded IP, got %s", ip.String())
+	}
+}
+
+func TestParseAddrValueRejectsOversizedInput(t *testing.T) {
+	value := strings.Repeat(" ", maxAddrValueBytes+1) + "203.0.113.5"
+	if _, ok := parseAddrValue(value); ok {
+		t.Fatal("expected oversized address value to be rejected")
 	}
 }
 

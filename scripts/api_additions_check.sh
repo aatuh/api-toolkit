@@ -54,6 +54,18 @@ trap cleanup EXIT
 
 base_inventory="$tmp_dir/base-api-inventory.md"
 git worktree add "$worktree" "$base_ref" --quiet
+
+base_module="$(awk '$1 == "module" { print $2; exit }' "$worktree/go.mod")"
+current_module="$(awk '$1 == "module" { print $2; exit }' "$repo_root/go.mod")"
+if [ -z "$base_module" ] || [ -z "$current_module" ]; then
+  echo "Unable to determine module path for API additions check." >&2
+  exit 2
+fi
+if [ "$base_module" != "$current_module" ]; then
+  echo "API module path changed from $base_module to $current_module; skipping API additions check because the gate applies only within a stable major module line."
+  exit 0
+fi
+
 if [ -f "$worktree/internal/tools/apiinventory/main.go" ]; then
   (
     cd "$worktree"

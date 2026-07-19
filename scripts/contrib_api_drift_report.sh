@@ -16,6 +16,19 @@ if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
 fi
 
 if ! command -v apidiff >/dev/null 2>&1; then
+  # `make tools` installs Go binaries in GOBIN, or GOPATH/bin when GOBIN is
+  # unset. Resolve that standard location so the target works in clean CI
+  # runners and in local shells that do not pre-populate PATH with Go's bin.
+  go_bin="$(go env GOBIN 2>/dev/null || true)"
+  if [ -z "$go_bin" ]; then
+    go_bin="$(go env GOPATH 2>/dev/null || true)/bin"
+  fi
+  if [ -x "$go_bin/apidiff" ]; then
+    PATH="$go_bin:$PATH"
+  fi
+fi
+
+if ! command -v apidiff >/dev/null 2>&1; then
   echo "apidiff not found. Install with: make tools" >&2
   exit 2
 fi
@@ -69,9 +82,6 @@ cleanup() {
 trap cleanup EXIT
 
 git worktree add "$worktree" "$base_ref" --quiet
-if [ -f "$worktree/contrib/go.mod" ]; then
-  (cd "$worktree/contrib" && go mod tidy)
-fi
 
 echo "Contrib API drift report"
 echo "Baseline: $base_ref"
