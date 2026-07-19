@@ -82,9 +82,6 @@ cleanup() {
 trap cleanup EXIT
 
 git worktree add "$worktree" "$base_ref" --quiet
-if [ -f "$worktree/contrib/go.mod" ]; then
-  (cd "$worktree/contrib" && go mod tidy)
-fi
 
 echo "Contrib API drift report"
 echo "Baseline: $base_ref"

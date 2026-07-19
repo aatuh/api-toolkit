@@ -6525,6 +6525,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	for _, required := range []string{
 		"FUZZTIME ?= 10s",
 		`GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)`,
+		"fuzz-contract:",
 		"benchmark-smoke:",
 		"-bench='Benchmark'",
 		"-benchtime=$(BENCHTIME)",
@@ -6540,6 +6541,9 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"func Fuzz",
 		`-fuzz="^${fuzzer}$"`,
 		`-fuzztime="$fuzztime"`,
+		"FUZZ_DEADLINE_RETRIES",
+		"Go issue #75804",
+		"Failing input written to",
 	} {
 		if !strings.Contains(fuzzScript, required) {
 			t.Fatalf("scripts/fuzz_check.sh missing per-target fuzz wiring %q", required)
