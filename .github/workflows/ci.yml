@@ -2,7 +2,15 @@ name: ci
 
 on:
   push:
+    branches: [master]
   pull_request:
+
+# Pull requests are validated by their pull_request event; pushes run only after
+# a change reaches the default branch. This avoids duplicate check names for a
+# single commit and makes required-check evaluation unambiguous.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

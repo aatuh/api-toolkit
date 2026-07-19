@@ -358,6 +358,23 @@ func TestArchitectureAndDependencyBoundaryDocsAreExecutable(t *testing.T) {
 	}
 }
 
+func TestCIWorkflowAvoidsDuplicatePullRequestChecks(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+
+	for _, required := range []string{
+		"push:\n    branches: [master]",
+		"pull_request:",
+		"concurrency:",
+		"group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+		"cancel-in-progress: true",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing duplicate-check prevention %q", required)
+		}
+	}
+}
+
 func TestHealthDocsShowSafeDetailedHealthMounting(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
@@ -6508,6 +6525,7 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	for _, required := range []string{
 		"FUZZTIME ?= 10s",
 		`GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)`,
+		"fuzz-contract:",
 		"benchmark-smoke:",
 		"-bench='Benchmark'",
 		"-benchtime=$(BENCHTIME)",
@@ -6523,6 +6541,9 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"func Fuzz",
 		`-fuzz="^${fuzzer}$"`,
 		`-fuzztime="$fuzztime"`,
+		"FUZZ_DEADLINE_RETRIES",
+		"Go issue #75804",
+		"Failing input written to",
 	} {
 		if !strings.Contains(fuzzScript, required) {
 			t.Fatalf("scripts/fuzz_check.sh missing per-target fuzz wiring %q", required)
@@ -7493,9 +7514,11 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 		"api-inventory:",
 		"api-inventory-check:",
 		"api-additions-check:",
+		"api-additions-check-contract:",
 		"internal/tools/apiinventory",
 		"scripts/api_inventory_check.sh",
 		"scripts/api_additions_check.sh",
+		"scripts/api_additions_check_contract_test.sh",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing API inventory target text %q", required)
@@ -7506,6 +7529,9 @@ func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	}
 	if !containsString(makeSubtargets(t, makefile, "docs-check"), "api-additions-check") {
 		t.Fatal("docs-check target must include api-additions-check")
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "api-additions-check-contract") {
+		t.Fatal("docs-check target must include api-additions-check-contract")
 	}
 }
 
@@ -7523,6 +7549,8 @@ func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
 		"API_BASE_REF",
 		"GITHUB_BASE_REF",
 		"git worktree add",
+		"Unable to determine module path for API additions check.",
+		"skipping API additions check because the gate applies only within a stable major module line",
 		"go run ./internal/tools/apiadditions",
 	} {
 		if !strings.Contains(script, required) {
