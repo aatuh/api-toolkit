@@ -1251,7 +1251,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v2.1.0",
+			"API_BASE_REF=v3.1.2",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
 			"not acceptable before publishing",
@@ -1263,8 +1263,8 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence",
-		"API_BASE_REF=v2.1.0",
+		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v3.1.2",
 		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 		"local dirty-tree audit",
 		"not acceptable before publishing",
@@ -1313,10 +1313,10 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 		"`vX.Y.0-rc.1`",
 		"`vX.Y.0-rc.2`",
 		"No stable surface touch",
-		"latest published stable v3 tag",
+		"latest published stable v4 tag",
 		"RELEASE_TAG=vX.Y.0-rc.1",
 		"prerelease: true",
-		"Do not advance the supported v3 baseline to an RC tag",
+		"Do not advance the supported v4 baseline to an RC tag",
 	} {
 		if !strings.Contains(runbook, required) {
 			t.Fatalf("docs/release-runbook.md missing release-candidate policy %q", required)
@@ -1336,7 +1336,7 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 	for _, required := range []string{
 		"Minor releases that touch the stable surface must publish a `vX.Y.0-rc.1`",
 		"before the final stable `vX.Y.0` tag",
-		"latest published stable v3 tag, not a previous RC",
+		"latest published stable v4 tag, not a previous RC",
 	} {
 		if !strings.Contains(versioning, required) {
 			t.Fatalf("VERSIONING.md missing release-candidate versioning policy %q", required)
@@ -5418,9 +5418,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		t.Fatal("scripts/apicheck.sh no longer documents or honors API_BASE_REF")
 	}
 	for _, required := range []string{
-		"Current supported v3 API baseline: see `docs/release-runbook.md`.",
+		"Current supported v4 API baseline: see `docs/release-runbook.md`.",
 		"Release readiness and publication evidence require an explicit `API_BASE_REF`",
-		"API_BASE_REF=v2.1.0",
+		"API_BASE_REF=v3.1.2",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
 		"docs/release-runbook.md",
@@ -5442,10 +5442,10 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v3 release baseline: `v3.1.2`",
-		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence",
-		"API_BASE_REF=v2.1.0",
+		"Supported v4 release baseline: `v4.0.0`",
+		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-check",
+		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v3.1.2",
 		"schema v2",
 		"local release evidence",
 		"GitHub release workflow evidence",
@@ -7604,7 +7604,7 @@ func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_ADDITIONS_BASE_REF=v3.1.2 GOTOOLCHAIN=local make api-additions-check",
+		"API_ADDITIONS_BASE_REF=v4.0.0 GOTOOLCHAIN=local make api-additions-check",
 		"stable identifiers need doc comments",
 		"compile-checked examples or exact exceptions",
 	} {

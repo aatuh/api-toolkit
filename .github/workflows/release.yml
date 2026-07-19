@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  API_BASE_REF: v3.1.2
+  API_BASE_REF: v4.0.0
   GOTOOLCHAIN: local
   COSIGN_CERTIFICATE_IDENTITY_REGEXP: '^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$'
   COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com

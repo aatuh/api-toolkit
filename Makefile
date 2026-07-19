@@ -52,13 +52,13 @@ tools: ## Install lint/vuln/API tools into the Go tool cache
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	@$(GO) install golang.org/x/exp/cmd/apidiff@$(APIDIFF_VERSION)
 
-# In api-check you can set API_BASE_REF to compare to a specific tag (for example API_BASE_REF=v3.1.2).
+# In api-check you can set API_BASE_REF to compare to a specific tag (for example API_BASE_REF=v4.0.0).
 # Without API_BASE_REF it uses local development fallback behavior and is not release evidence.
 api-check: tools ## Run local API compatibility check with fallback base selection
 	@scripts/apicheck.sh
 
 release-api-check: tools ## Run fail-closed API compatibility check; requires API_BASE_REF
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-api-check; use the latest published baseline, for example API_BASE_REF=v3.1.2 for the v4 transition"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-api-check; use the latest published v4 baseline, for example API_BASE_REF=v4.0.0"; exit 2; }
 	@API_CHECK_REQUIRE_BASE=1 scripts/apicheck.sh
 
 api-check-contract: ## Run API compatibility script mode contract tests
@@ -89,7 +89,7 @@ dead-code-todo-contract: ## Run stable TODO gate contract tests
 	@scripts/dead_code_todo_contract_test.sh
 
 contrib-api-drift-report: tools ## Check selected contrib API drift without making contrib stable
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for contrib-api-drift-report; for v4 patch/minor releases use the latest published v4 tag, for example API_BASE_REF=v4.0.0"; exit 2; }
 	@API_BASE_REF="$(API_BASE_REF)" scripts/contrib_api_drift_report.sh
 
 contrib-release-notes-check: tools ## Review gate requiring release notes for supported contrib behavior/runtime changes
@@ -324,7 +324,7 @@ audit-check: ## Run non-mutating review checks without fmt or tidy
 
 reviewer-gate: ## Run non-mutating reviewer checks plus release evidence policy preflight
 	$(MAKE) audit-check
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for reviewer-gate; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for reviewer-gate; for v4 patch/minor releases use the latest published v4 tag, for example API_BASE_REF=v4.0.0"; exit 2; }
 	@API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh >/dev/null
 
 release-check: ## Run release readiness checks; requires explicit API_BASE_REF
@@ -348,7 +348,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) clean
 
 release-evidence: ## Run release readiness and write release-check-summary.json
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v3 patch/minor releases use the latest published v3 tag, for example API_BASE_REF=v3.1.2"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v4 patch/minor releases use the latest published v4 tag, for example API_BASE_REF=v4.0.0"; exit 2; }
 	@tmp="$$(mktemp)"; \
 	status=0; \
 	API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh --run > "$$tmp" || status=$$?; \
