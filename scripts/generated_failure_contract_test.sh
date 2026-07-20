@@ -132,7 +132,9 @@ if [ "${1:-}" = "test" ]; then
         "127.0.0.1:1/jwks" \
         "JWT_JWKS_URL" \
         "newJWTMiddleware" \
-        "bad JWKS endpoint"; do
+		"bad JWKS endpoint" \
+		"github.com/aatuh/api-toolkit/v4/endpoints/health" \
+		"health.StatusHealthy"; do
         if ! grep -Fq "$required" "$file"; then
           printf 'generated JWT failure test missing %s\n' "$required" >&2
           exit 2

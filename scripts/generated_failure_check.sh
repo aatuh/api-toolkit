@@ -267,7 +267,7 @@ import (
 
 	"example.com/full-jwt/internal/httpapi"
 	jwtauth "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt"
-	"github.com/aatuh/api-toolkit/v4/ports"
+	"github.com/aatuh/api-toolkit/v4/endpoints/health"
 )
 
 func TestGeneratedFailureBadJWKSURLFailsClosed(t *testing.T) {
@@ -297,7 +297,7 @@ func TestGeneratedFailureBadJWKSURLFailsClosed(t *testing.T) {
 		t.Fatal("bad JWKS endpoint did not create readiness checker")
 	}
 	result := checker.Check(ctx)
-	if result.Status == ports.HealthStatusHealthy {
+	if result.Status == health.StatusHealthy {
 		t.Fatalf("bad JWKS endpoint reported healthy: %#v", result)
 	}
 	if strings.Contains(result.Message, "JWT_AUDIENCE") || strings.Contains(result.Message, "JWT_ISSUER") {
