@@ -2880,7 +2880,7 @@ func TestDependencyReviewWorkflowEnforcesSupplyChainPolicy(t *testing.T) {
 		"branches: [master]",
 		"permissions:",
 		"contents: read",
-		"actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+		"actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
 		"persist-credentials: false",
 		"actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
 		"actions/dependency-review-action v5.0.0",
