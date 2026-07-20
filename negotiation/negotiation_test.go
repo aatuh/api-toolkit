@@ -22,6 +22,9 @@ func TestParseAcceptSortsByQualityAndSpecificity(t *testing.T) {
 	if _, err := ParseAccept("application/json;q=2"); err == nil {
 		t.Fatal("expected invalid q error")
 	}
+	if _, err := ParseAccept("0/0;q=\"\""); err == nil {
+		t.Fatal("expected empty q error")
+	}
 }
 
 func TestNegotiateMatchesWildcardsSuffixesAndMissingAccept(t *testing.T) {
