@@ -123,13 +123,17 @@ func ParseAccept(header string) ([]Accept, error) {
 			return nil, err
 		}
 		q := 1.0
-		if rawQ := strings.TrimSpace(params["q"]); rawQ != "" {
+		if rawQ, hasQ := params["q"]; hasQ {
+			delete(params, "q")
+			rawQ = strings.TrimSpace(rawQ)
+			if rawQ == "" {
+				return nil, fmt.Errorf("invalid Accept q value")
+			}
 			parsedQ, err := strconv.ParseFloat(rawQ, 64)
 			if err != nil || parsedQ < 0 || parsedQ > 1 {
 				return nil, fmt.Errorf("invalid Accept q value")
 			}
 			q = parsedQ
-			delete(params, "q")
 		}
 		parsed.Params = params
 		parsed.Q = q
