@@ -29,6 +29,14 @@ jobs:
         run: GENERATED_SOAK_DURATION_SECONDS=300 GENERATED_SOAK_INTEGRATION_CYCLES=3 make generated-soak-check
       - name: Generated failure integration
         run: make generated-failure-check
+      - name: Upload generated failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # actions/upload-artifact v4
+        with:
+          name: nightly-generated-failure-${{ github.run_id }}
+          path: .ci-result/generated-failure/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Dependency vulnerability checks
         run: make vuln
       - name: Benchmark smoke
