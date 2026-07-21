@@ -87,6 +87,19 @@ func TestProblemFromErrorTypes(t *testing.T) {
 	}
 }
 
+func TestProblemFromErrorDoesNotTrustArbitraryFieldErrorProvider(t *testing.T) {
+	p, status := ProblemFromError(unsafeFieldErrorProvider{message: "provider token=super-secret"})
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if p.Detail != "internal server error" {
+		t.Fatalf("detail = %q, want generic internal error", p.Detail)
+	}
+	if _, ok := p.Ext[ValidationErrorsKey]; ok {
+		t.Fatalf("unsafe provider fields were exposed: %#v", p.Ext)
+	}
+}
+
 func TestProblemFromErrorStrictRedacts(t *testing.T) {
 	err := &HTTPError{
 		Status: http.StatusInternalServerError,
@@ -112,6 +125,22 @@ func TestProblemFromErrorStrictRedacts(t *testing.T) {
 	if p.Detail != "invalid payload" {
 		t.Fatalf("expected detail preserved, got %q", p.Detail)
 	}
+}
+
+type unsafeFieldErrorProvider struct {
+	message string
+}
+
+func (e unsafeFieldErrorProvider) Error() string {
+	return e.message
+}
+
+func (e unsafeFieldErrorProvider) FieldErrors() fielderrors.FieldErrors {
+	return fielderrors.FieldErrors{{
+		Field:   "token",
+		Code:    "invalid",
+		Message: e.message,
+	}}
 }
 
 func readGoldenJSON(t *testing.T, name string) any {

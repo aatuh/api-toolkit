@@ -1,8 +1,8 @@
 // Package fielderrors defines stable field-level validation error shapes.
 //
-// FieldErrors implements error and Provider so response helpers can map
-// validation failures into Problem Details extensions without depending on a
-// specific validator implementation.
+// FieldErrors implements error and Provider. HTTP response helpers map provider
+// messages into Problem Details extensions only when every FieldError is marked
+// Public; callers must classify messages before they can reach clients.
 //
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v4/fielderrors`.

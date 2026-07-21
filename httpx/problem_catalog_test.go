@@ -54,6 +54,17 @@ func TestProblemFromErrorWithCatalog(t *testing.T) {
 	if problem.Ext["validation"] == nil {
 		t.Fatalf("expected validation extension, got %#v", problem.Ext)
 	}
+
+	problem, status = ProblemFromErrorWithCatalog(unsafeFieldErrorProvider{message: "provider token=super-secret"}, nil, ErrorOptions{})
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if problem.Detail != "internal server error" {
+		t.Fatalf("detail = %q, want generic internal error", problem.Detail)
+	}
+	if _, ok := problem.Ext[ValidationErrorsKey]; ok {
+		t.Fatalf("unsafe provider fields were exposed: %#v", problem.Ext)
+	}
 }
 
 func TestWriteProblemCodeAndBackwardCompatibleMapping(t *testing.T) {

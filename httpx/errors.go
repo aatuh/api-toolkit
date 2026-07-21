@@ -140,17 +140,14 @@ func ProblemFromErrorWithOptions(err error, opts ErrorOptions) (Problem, int) {
 			Detail: "resource not found",
 		}, http.StatusNotFound, opts.Mode), http.StatusNotFound
 	}
-	var provider fielderrors.Provider
-	if errors.As(err, &provider) {
-		fieldErrs := provider.FieldErrors()
-		if len(fieldErrs) > 0 {
-			p := Problem{
-				Type:   registry.URI(TypeValidation),
-				Title:  http.StatusText(http.StatusBadRequest),
-				Detail: "validation failed",
-			}
-			return maybeRedact(WithFieldErrors(p, fieldErrs), http.StatusBadRequest, opts.Mode), http.StatusBadRequest
+	var fieldErrs fielderrors.FieldErrors
+	if errors.As(err, &fieldErrs) && len(fieldErrs) > 0 {
+		p := Problem{
+			Type:   registry.URI(TypeValidation),
+			Title:  http.StatusText(http.StatusBadRequest),
+			Detail: "validation failed",
 		}
+		return maybeRedact(WithFieldErrors(p, fieldErrs), http.StatusBadRequest, opts.Mode), http.StatusBadRequest
 	}
 	return maybeRedact(Problem{
 		Type:   registry.URI(TypeInternal),

@@ -178,13 +178,10 @@ func ProblemFromErrorWithCatalog(err error, catalog *ProblemCatalog, opts ErrorO
 		problem, status := catalog.Problem(coded.Code, coded.Detail)
 		return maybeRedact(problem, status, opts.Mode), status
 	}
-	var provider fielderrors.Provider
-	if errors.As(err, &provider) {
-		fieldErrs := provider.FieldErrors()
-		if len(fieldErrs) > 0 {
-			problem, status := catalog.Problem(ProblemCode(TypeValidation), "validation failed")
-			return maybeRedact(WithFieldErrors(problem, fieldErrs), status, opts.Mode), status
-		}
+	var fieldErrs fielderrors.FieldErrors
+	if errors.As(err, &fieldErrs) && len(fieldErrs) > 0 {
+		problem, status := catalog.Problem(ProblemCode(TypeValidation), "validation failed")
+		return maybeRedact(WithFieldErrors(problem, fieldErrs), status, opts.Mode), status
 	}
 	return ProblemFromErrorWithOptions(err, opts)
 }

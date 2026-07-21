@@ -70,3 +70,34 @@ func TestFieldErrorsEmptyCollection(t *testing.T) {
 		t.Fatalf("ToMap() = %#v, want nil", got)
 	}
 }
+
+func TestFieldErrorsAllPublic(t *testing.T) {
+	tests := []struct {
+		name string
+		errs FieldErrors
+		want bool
+	}{
+		{
+			name: "all explicitly public",
+			errs: FieldErrors{{Field: "email", Message: "email is invalid", Public: true}},
+			want: true,
+		},
+		{
+			name: "missing public classification",
+			errs: FieldErrors{{Field: "email", Message: "token=super-secret"}},
+		},
+		{
+			name: "blank message",
+			errs: FieldErrors{{Field: "email", Public: true}},
+		},
+		{name: "empty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.errs.AllPublic(); got != tt.want {
+				t.Fatalf("AllPublic() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

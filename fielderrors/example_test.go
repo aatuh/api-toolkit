@@ -20,3 +20,31 @@ func ExampleFieldErrors() {
 	// name is required
 	// name is required
 }
+
+func ExampleFieldError_Public() {
+	err := fielderrors.FieldError{
+		Field:   "postal_code",
+		Code:    "invalid",
+		Message: "postal code is invalid",
+		Public:  true,
+	}
+
+	fmt.Println(err.Public)
+
+	// Output:
+	// true
+}
+
+func ExampleFieldErrors_AllPublic() {
+	errs := fielderrors.FieldErrors{{
+		Field:   "postal_code",
+		Code:    "invalid",
+		Message: "postal code is invalid",
+		Public:  true,
+	}}
+
+	fmt.Println(errs.AllPublic())
+
+	// Output:
+	// true
+}

@@ -2,6 +2,7 @@ package binding_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -32,4 +33,22 @@ func ExampleDecodeJSON() {
 
 	// Output:
 	// starter 2
+}
+
+type examplePublicError string
+
+func (e examplePublicError) Error() string         { return "internal validation failure" }
+func (e examplePublicError) PublicMessage() string { return string(e) }
+
+func ExamplePublicError() {
+	var err error = examplePublicError("postal code is invalid")
+	var public binding.PublicError
+	ok := errors.As(err, &public)
+
+	fmt.Println(ok)
+	fmt.Println(public.PublicMessage())
+
+	// Output:
+	// true
+	// postal code is invalid
 }

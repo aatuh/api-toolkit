@@ -100,6 +100,7 @@ func createWidgetToolkit(w http.ResponseWriter, r *http.Request) {
 			Field:   "quantity",
 			Code:    "minimum",
 			Message: "quantity must be at least 1",
+			Public:  true,
 		}})
 		return
 	}
@@ -108,6 +109,7 @@ func createWidgetToolkit(w http.ResponseWriter, r *http.Request) {
 			Field:   "name",
 			Code:    "required",
 			Message: "name is required",
+			Public:  true,
 		}})
 		return
 	}

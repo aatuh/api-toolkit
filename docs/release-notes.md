@@ -75,6 +75,20 @@ source of truth is `docs/release-runbook.md`.
   with the next paired verified v4 root release so standalone builds retain a
   published dependency.
 
+### Security and generated scaffold
+
+- `github.com/aatuh/api-toolkit/v4/binding.PublicError` and
+  `binding.PublicError.PublicMessage` permit an application to opt a validation
+  detail into a client response. Other validation errors now use the generic
+  `validation failed` detail.
+- `github.com/aatuh/api-toolkit/v4/fielderrors.FieldError.Public` must be set
+  for a field message to be eligible for client disclosure.
+- `github.com/aatuh/api-toolkit/v4/fielderrors.FieldErrors.AllPublic` requires
+  every field message to be explicitly classified before a Provider's fields
+  are added to a validation response.
+- Generated `saas-api` services log only a validation error's type at the
+  default application logger; they never log the raw rejected error string.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

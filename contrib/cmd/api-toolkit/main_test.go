@@ -1211,10 +1211,15 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 		"StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc()",
 		"idempotencyredis.New",
 		`version.Info{Version: appVersion, Commit: buildCommit, Date: buildDate}`,
+		"logValidationFailure(err)",
+		"slog.Default().Warn(\"request validation failed\", \"error_type\", fmt.Sprintf(\"%T\", err))",
 	} {
 		if !strings.Contains(string(generatedMain), want) {
 			t.Fatalf("generated main.go missing %q", want)
 		}
+	}
+	if strings.Contains(string(generatedMain), `slog.Default().Warn("request validation failed", "error", err)`) {
+		t.Fatal("generated validation logging must not emit the raw error")
 	}
 	generatedEnv, err := os.ReadFile(filepath.Join(serviceDir, ".env.example"))
 	if err != nil {
