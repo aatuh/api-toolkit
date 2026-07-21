@@ -67,6 +67,17 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-08-15
 
+### HTTP response writer behavior
+
+- `github.com/aatuh/api-toolkit/v4/httpx` adds `httpx.WriteJSONChecked` and
+  `httpx.WriteProblemChecked`. Their typed errors are `httpx.ResponseWriteError`,
+  `httpx.ResponseWriteError.Err`, `httpx.ResponseWriteError.Error`,
+  `httpx.ResponseWriteError.Stage`, `httpx.ResponseWriteError.Unwrap`,
+  `httpx.ResponseWriteStage`, `httpx.ResponseWriteStageEncode`,
+  `httpx.ResponseWriteStageHeader`, and `httpx.ResponseWriteStageBody`.
+  Existing `httpx.WriteJSON` and `httpx.WriteProblem` remain compatibility
+  wrappers; callers that need write failures should use the checked APIs.
+
 ### Release integrity and migration
 
 - The v4 release-identity review verifies root `v4.0.1` as the sole
