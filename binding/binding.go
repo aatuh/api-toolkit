@@ -122,12 +122,15 @@ func ValidationProblem(err error) httpx.Problem {
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "validation failed",
 	}
-	var provider fielderrors.Provider
-	if errors.As(err, &provider) {
-		return httpx.WithFieldErrors(p, provider.FieldErrors())
+	var fields fielderrors.FieldErrors
+	if errors.As(err, &fields) && len(fields) > 0 {
+		return httpx.WithFieldErrors(p, fields)
 	}
-	if err != nil {
-		p.Detail = err.Error()
+	var publicErr PublicError
+	if errors.As(err, &publicErr) {
+		if detail := strings.TrimSpace(publicErr.PublicMessage()); detail != "" {
+			p.Detail = detail
+		}
 	}
 	return p
 }

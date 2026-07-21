@@ -29,7 +29,9 @@ func (e FieldErrors) Error() string {
 	return e[0].Error()
 }
 
-// Provider exposes field errors for downstream mappers.
+// Provider exposes field errors for callers that explicitly choose to consume
+// them. Automatic HTTP error mapping recognizes concrete FieldErrors values
+// only, because an arbitrary Provider may contain non-public messages.
 type Provider interface {
 	FieldErrors() FieldErrors
 }

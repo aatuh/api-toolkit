@@ -146,12 +146,9 @@ func RequireFile(form Form, field string) (File, error) {
 // ValidationProblem maps upload validation errors to Problem Details.
 func ValidationProblem(err error) httpx.Problem {
 	problem := httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeValidation), Title: http.StatusText(http.StatusBadRequest), Detail: "validation failed"}
-	var provider fielderrors.Provider
-	if errors.As(err, &provider) {
-		return httpx.WithFieldErrors(problem, provider.FieldErrors())
-	}
-	if err != nil {
-		problem.Detail = err.Error()
+	var fieldErrs fielderrors.FieldErrors
+	if errors.As(err, &fieldErrs) && len(fieldErrs) > 0 {
+		return httpx.WithFieldErrors(problem, fieldErrs)
 	}
 	return problem
 }

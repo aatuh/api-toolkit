@@ -225,15 +225,31 @@ func TestRequireFileAndValidationProblemFallbacks(t *testing.T) {
 	if _, err := (File{}).Open(); err == nil {
 		t.Fatal("expected missing file header error")
 	}
-	problem := ValidationProblem(errors.New("plain failure"))
-	if problem.Detail != "plain failure" {
+	problem := ValidationProblem(errors.New("SELECT * FROM uploads WHERE token='super-secret'"))
+	if problem.Detail != "validation failed" {
 		t.Fatalf("problem detail = %q", problem.Detail)
 	}
 	rec := httptest.NewRecorder()
-	WriteValidationProblem(rec, errors.New("plain failure"))
-	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "plain failure") {
+	WriteValidationProblem(rec, unsafeFieldErrorProvider{message: "provider token=super-secret"})
+	if rec.Code != http.StatusBadRequest || strings.Contains(rec.Body.String(), "super-secret") || !strings.Contains(rec.Body.String(), "validation failed") {
 		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
 	}
+}
+
+type unsafeFieldErrorProvider struct {
+	message string
+}
+
+func (e unsafeFieldErrorProvider) Error() string {
+	return e.message
+}
+
+func (e unsafeFieldErrorProvider) FieldErrors() fielderrors.FieldErrors {
+	return fielderrors.FieldErrors{{
+		Field:   "token",
+		Code:    "invalid",
+		Message: e.message,
+	}}
 }
 
 type testMultipartFile struct {
