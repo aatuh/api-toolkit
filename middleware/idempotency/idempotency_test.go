@@ -1865,6 +1865,19 @@ func TestNewRequiresStore(t *testing.T) {
 	}
 }
 
+func TestNewWithStoreRequiresReleasableStoreAndRejectsLegacyStoreOption(t *testing.T) {
+	store := newMemoryStore()
+	if _, err := NewWithStore(store, Options{}); err != nil {
+		t.Fatalf("NewWithStore() error = %v", err)
+	}
+	if _, err := NewWithStore(nil, Options{}); err == nil {
+		t.Fatal("expected error for missing releasable store")
+	}
+	if _, err := NewWithStore(store, Options{Store: store}); err == nil {
+		t.Fatal("expected error for ambiguous legacy Store option")
+	}
+}
+
 func TestNewRejectsStoreWithoutReleaseSemantics(t *testing.T) {
 	if _, err := New(Options{Store: &storeWithoutRelease{store: newMemoryStore()}}); err == nil {
 		t.Fatal("expected error for store without release semantics")

@@ -49,8 +49,7 @@ Use the contrib Redis adapter for multi-instance services:
 store := idempotencyredis.New(client, idempotencyredis.Options{
 	KeyPrefix: "my-api:idempotency:",
 })
-mw, err := idempotency.New(idempotency.Options{
-	Store:          store,
+mw, err := idempotency.NewWithStore(store, idempotency.Options{
 	RequireKey:     true,
 	StorageKeyFunc: idempotency.TenantScopedStorageKeyFunc(),
 	ShouldHandle:   idempotency.DefaultShouldHandle,
@@ -61,6 +60,10 @@ if err != nil {
 ```
 
 Use service-specific Redis prefixes. Keep Redis keys hashed and bounded.
+`NewWithStore` requires `idempotency.ReleasableStore`, making token-aware
+reservation release a compile-time requirement. `idempotency.New` and
+`Options.Store` remain available only for v4 source compatibility and are
+deprecated; migrate before the next major release.
 
 ## Postgres Example
 

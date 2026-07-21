@@ -10974,7 +10974,7 @@ func run(ctx context.Context) error {
 {{ end }}
 	// api-toolkit:main-service-defaults
 	var rateLimiter rootratelimit.Limiter
-	idempotencyStore := rootidempotency.Store(idempotency.NewMemoryStore())
+	idempotencyStore := rootidempotency.ReleasableStore(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
@@ -19941,9 +19941,8 @@ func NewRateLimitMiddleware(limiter ratelimitmw.Limiter) (*ratelimitmw.Middlewar
 	})
 }
 
-func NewIdempotencyMiddleware(store idempotencymw.Store) (*idempotencymw.Middleware, error) {
-	return idempotencymw.New(idempotencymw.Options{
-		Store:          store,
+func NewIdempotencyMiddleware(store idempotencymw.ReleasableStore) (*idempotencymw.Middleware, error) {
+	return idempotencymw.NewWithStore(store, idempotencymw.Options{
 		StorageKeyFunc: fullIdempotencyStorageKey,
 		HashFunc:       fullIdempotencyRequestHash,
 		RequireKey:     true,
@@ -24442,8 +24441,7 @@ specRegistry := specs.NewRegistry(specs.Info{Title: "SaaS API", Version: appVers
 	if err != nil {
 		return nil, err
 	}
-	idempotencyMiddleware, err := idempotencymw.New(idempotencymw.Options{
-		Store:          idempotencyStore,
+	idempotencyMiddleware, err := idempotencymw.NewWithStore(idempotencyStore, idempotencymw.Options{
 		StorageKeyFunc: idempotencymw.TenantScopedStorageKeyFunc(),
 		RequireKey:     true,
 		OnOutcome: idempotencyOutcomeHooks(
@@ -24757,7 +24755,7 @@ func newRateLimitLimiter(capacity, refillRate float64) (ratelimitmw.Limiter, boo
 	}
 }
 
-func newIdempotencyStore() (idempotencymw.Store, bootstrap.ShutdownHook, error) {
+func newIdempotencyStore() (idempotencymw.ReleasableStore, bootstrap.ShutdownHook, error) {
 	store := strings.ToLower(strings.TrimSpace(os.Getenv("IDEMPOTENCY_STORE")))
 	if store == "" {
 		if isProduction() {

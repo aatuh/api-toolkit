@@ -24,6 +24,11 @@ const tenantScopedStorageKeyPrefix = "atk:v1:"
 
 // Options configures the idempotency middleware.
 type Options struct {
+	// Store is retained for v4 source compatibility.
+	//
+	// Deprecated: Use NewWithStore with a ReleasableStore. The legacy
+	// constructor validates this field at runtime, whereas NewWithStore makes
+	// token-aware release semantics visible at compile time.
 	Store            Store
 	HeaderName       string
 	KeyFunc          KeyFunc
@@ -84,15 +89,36 @@ type Middleware struct {
 	legacyRecoveryStoreType    string
 }
 
-// New constructs an idempotency middleware.
+// New constructs an idempotency middleware from legacy Options.
+//
+// Deprecated: Use NewWithStore to require token-aware release semantics at
+// compile time.
 func New(opts Options) (*Middleware, error) {
 	if opts.Store == nil {
 		return nil, errors.New("idempotency store is required")
 	}
-	reservationReleaser, ok := opts.Store.(ReservationReleaser)
+	store, ok := opts.Store.(ReleasableStore)
 	if !ok {
 		return nil, errors.New("idempotency store must implement token-aware release semantics")
 	}
+	return newMiddleware(store, opts)
+}
+
+// NewWithStore constructs idempotency middleware with a store that guarantees
+// token-aware reservation release at compile time. Leave Options.Store unset;
+// passing both sources is rejected to avoid ambiguous storage configuration.
+func NewWithStore(store ReleasableStore, opts Options) (*Middleware, error) {
+	if store == nil {
+		return nil, errors.New("idempotency releasable store is required")
+	}
+	if opts.Store != nil {
+		return nil, errors.New("idempotency NewWithStore requires Options.Store to be unset")
+	}
+	opts.Store = store
+	return newMiddleware(store, opts)
+}
+
+func newMiddleware(store ReleasableStore, opts Options) (*Middleware, error) {
 	if opts.TTL < 0 {
 		return nil, errors.New("ttl must be non-negative")
 	}
@@ -175,7 +201,7 @@ func New(opts Options) (*Middleware, error) {
 	}
 	return &Middleware{
 		opts:                opts,
-		reservationReleaser: reservationReleaser,
+		reservationReleaser: store,
 
 		legacyRecoveryStoreType: storeType,
 	}, nil

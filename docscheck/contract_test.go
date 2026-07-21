@@ -1076,7 +1076,7 @@ func TestExampleOnlyPackagesBuildSmoke(t *testing.T) {
 		t.Fatal("no contrib example packages are classified for build smoke")
 	}
 	args := append([]string{"test"}, examplePackages...)
-	out, err := runGoCmd(filepath.Join(repoRoot, "contrib"), args...)
+	out, err := runGoCmdWithWorkspace(filepath.Join(repoRoot, "contrib"), filepath.Join(repoRoot, "go.work"), args...)
 	if err != nil {
 		t.Fatalf("example-only package build smoke failed:\n%s\nerror: %v", out, err)
 	}
@@ -5412,6 +5412,7 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
 	versioning := readText(t, filepath.Join(repoRoot, "VERSIONING.md"))
 	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+	incident := readText(t, filepath.Join(repoRoot, "docs", "release-incident-v4-release-identity.md"))
 	apiCheck := readText(t, filepath.Join(repoRoot, "scripts", "apicheck.sh"))
 
 	if !strings.Contains(apiCheck, "API_BASE_REF") {
@@ -5442,9 +5443,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v4 release baseline: `v4.0.0`",
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"V4 release publication is paused while the",
+		"Do not use `v4.0.0` or `v4.0.1` as `API_BASE_REF`",
+		"`VERIFIED_V4_BASE_REF`",
 		"API_BASE_REF=v3.1.2",
 		"schema v2",
 		"local release evidence",
@@ -5453,6 +5454,16 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 	} {
 		if !strings.Contains(runbook, required) {
 			t.Fatalf("docs/release-runbook.md missing release runbook text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"**Status:** Open — no v4 tag is approved as a new release-evidence baseline.",
+		"Do not adopt `v4.0.1` or `contrib/v4.0.1` for a new deployment",
+		"It does not establish a cause, compromise, or attribution.",
+		"`VERIFIED_V4_BASE_REF`",
+	} {
+		if !strings.Contains(incident, required) {
+			t.Fatalf("v4 release-identity incident missing consumer guidance %q", required)
 		}
 	}
 }
@@ -9515,6 +9526,13 @@ func runGoCmd(dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(context.Background(), "go", args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
+	return cmd.CombinedOutput()
+}
+
+func runGoCmdWithWorkspace(dir, workspace string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(context.Background(), "go", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOWORK="+workspace, "GOTOOLCHAIN=local")
 	return cmd.CombinedOutput()
 }
 

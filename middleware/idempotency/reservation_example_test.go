@@ -44,3 +44,12 @@ func ExampleReservationReleaser() {
 	fmt.Println(ok)
 	// Output: true
 }
+
+func ExampleNewWithStore() {
+	middleware, err := idempotency.NewWithStore(exampleTokenAwareStore{}, idempotency.Options{
+		RequireKey: true,
+	})
+
+	fmt.Println(err == nil, middleware != nil)
+	// Output: true true
+}

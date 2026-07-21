@@ -43,9 +43,7 @@ func (fakeProvider) ListPrices(_ context.Context) ([]compatbilling.Price, error)
 func main() {
 	router := chi.New()
 	store := idempotency.NewMemoryStore()
-	idem, err := idempotencymw.New(idempotencymw.Options{
-		Store: store,
-	})
+	idem, err := idempotencymw.NewWithStore(store, idempotencymw.Options{})
 	if err != nil {
 		log.Fatalf("init idempotency middleware: %v", err)
 	}

@@ -7,6 +7,12 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased
 
+### Added
+
+- Added `idempotency.NewWithStore`, which requires a token-aware
+  `ReleasableStore` at compile time. The legacy `idempotency.New` constructor
+  and `Options.Store` remain source-compatible but are deprecated.
+
 ## [4.0.0] - 2026-07-11
 
 ### Breaking

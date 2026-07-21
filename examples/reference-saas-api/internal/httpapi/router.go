@@ -488,9 +488,8 @@ func NewRateLimitMiddleware(limiter ratelimitmw.Limiter) (*ratelimitmw.Middlewar
 	})
 }
 
-func NewIdempotencyMiddleware(store idempotencymw.Store) (*idempotencymw.Middleware, error) {
-	return idempotencymw.New(idempotencymw.Options{
-		Store:          store,
+func NewIdempotencyMiddleware(store idempotencymw.ReleasableStore) (*idempotencymw.Middleware, error) {
+	return idempotencymw.NewWithStore(store, idempotencymw.Options{
 		StorageKeyFunc: fullIdempotencyStorageKey,
 		HashFunc:       fullIdempotencyRequestHash,
 		RequireKey:     true,
