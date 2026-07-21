@@ -87,6 +87,15 @@ if err != nil {
 - Expected response shape: invalid input returns `application/problem+json` with `validation.fields`.
 - Production caveat: keep route-specific semantic validation in the application layer; binding handles transport shape, conversion, and required-field errors.
 
+`required:"true"` retains v4's non-zero default. When an API must accept an
+explicit `false` or `0`, set `RequiredMode: binding.RequiredModePresent` in the
+decoder config. For JSON, a supplied `null` member counts as present; enforce
+non-null semantics in application validation. For path values, also provide
+`PathConfig.ParamPresent` when the router can distinguish an empty parameter
+from an absent one. A future v5 major line is planned to make presence-aware
+required validation the default, so specify the intended mode explicitly in
+new services.
+
 ## Hardened middleware profile
 
 Purpose: apply the strict API profile with secure headers, timeout, tracing, and explicit system endpoint choices.

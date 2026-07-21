@@ -26,6 +26,9 @@ func FuzzDecodeJSONAndQuery(f *testing.F) {
 	}{
 		{`{"name":"starter","quantity":2,"active":true}`, "limit=10&tag=a&tag=b&active=true"},
 		{`{"name":"","quantity":0}`, "limit=nope&active=maybe"},
+		{`{"name":"","quantity":0}`, "limit=0&tag=&tag=x"},
+		{`{"name":null,"quantity":null}`, "limit=&tag="},
+		{`{"name":"first","name":"second","quantity":0}`, "limit=0&limit=1"},
 		{`{"name":"starter"} trailing`, "limit=0"},
 		{`["not-object"]`, "tag=&tag=x"},
 	} {
@@ -50,6 +53,13 @@ func FuzzDecodeJSONAndQuery(f *testing.F) {
 			}
 		}
 
+		presenceReq := &http.Request{Body: nopCloser{strings.NewReader(body)}}
+		_, _ = DecodeJSON[fuzzBindingJSON](presenceReq, JSONConfig{
+			MaxBytes:           4096,
+			AllowUnknownFields: true,
+			RequiredMode:       RequiredModePresent,
+		})
+
 		queryReq := &http.Request{URL: &url.URL{Path: "/", RawQuery: rawQuery}}
 		query, err := DecodeQuery[fuzzBindingQuery](queryReq, QueryConfig{})
 		if err == nil {
@@ -59,6 +69,7 @@ func FuzzDecodeJSONAndQuery(f *testing.F) {
 				}
 			}
 		}
+		_, _ = DecodeQuery[fuzzBindingQuery](queryReq, QueryConfig{RequiredMode: RequiredModePresent})
 	})
 }
 

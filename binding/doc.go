@@ -6,6 +6,13 @@
 // shape as the rest of the toolkit. Business validation and persistence rules
 // should still live outside handlers.
 //
+// Required fields use non-zero decoded values by default for v4 compatibility.
+// Set RequiredModePresent in a JSONConfig, QueryConfig, or PathConfig to accept
+// explicit false and zero values. JSON null counts as present in that mode;
+// use application-level nullable validation when null is not allowed. A path
+// resolver must provide PathConfig.ParamPresent to distinguish an empty route
+// parameter from an absent one.
+//
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v4/binding`.
 // Example: See docs/api-reference.md for package example links and docs/cookbook.md for task recipes.
