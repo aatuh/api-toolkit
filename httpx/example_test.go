@@ -21,6 +21,26 @@ func ExampleWriteJSON() {
 	// {"status":"ok"}
 }
 
+func ExampleWriteJSONChecked() {
+	rec := httptest.NewRecorder()
+
+	err := httpx.WriteJSONChecked(rec, http.StatusCreated, map[string]string{"status": "created"})
+
+	fmt.Println(err)
+	fmt.Println(rec.Code)
+	// Output:
+	// <nil>
+	// 201
+}
+
+func ExampleResponseWriteError() {
+	err := &httpx.ResponseWriteError{Stage: httpx.ResponseWriteStageBody}
+
+	fmt.Println(err)
+	// Output:
+	// http response body failed
+}
+
 func ExampleWriteProblem() {
 	rec := httptest.NewRecorder()
 
@@ -35,4 +55,19 @@ func ExampleWriteProblem() {
 	// Output:
 	// 400
 	// application/problem+json
+}
+
+func ExampleWriteProblemChecked() {
+	rec := httptest.NewRecorder()
+
+	err := httpx.WriteProblemChecked(rec, http.StatusBadRequest, httpx.Problem{
+		Title:  http.StatusText(http.StatusBadRequest),
+		Detail: "validation failed",
+	})
+
+	fmt.Println(err)
+	fmt.Println(rec.Code)
+	// Output:
+	// <nil>
+	// 400
 }
