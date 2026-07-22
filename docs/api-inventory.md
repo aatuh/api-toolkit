@@ -419,16 +419,20 @@ Stability tier: `stable`
 | `Checker` | type | v3 compatibility surface | active |
 | `Checker.Check` | interface method | v3 compatibility surface | active |
 | `Checker.Name` | interface method | v3 compatibility surface | active |
+| `Clock` | type | v3 compatibility surface | active |
+| `Clock.Now` | interface method | v3 compatibility surface | active |
 | `CompositeChecker` | type | v3 compatibility surface | active |
 | `CompositeChecker.Check` | method | v3 compatibility surface | active |
 | `CompositeChecker.Name` | method | v3 compatibility surface | active |
 | `Config` | type | v3 compatibility surface | active |
 | `Config.CacheDuration` | field | v3 compatibility surface | active |
+| `Config.Clock` | field | v3 compatibility surface | active |
 | `Config.EnableCaching` | field | v3 compatibility surface | active |
 | `Config.EnableDetailed` | field | v3 compatibility surface | active |
 | `Config.LivenessChecks` | field | v3 compatibility surface | active |
 | `Config.ReadinessChecks` | field | v3 compatibility surface | active |
 | `Config.Timeout` | field | v3 compatibility surface | active |
+| `Config.Validate` | method | v3 compatibility surface | active |
 | `CustomChecker` | type | v3 compatibility surface | active |
 | `CustomChecker.Check` | method | v3 compatibility surface | active |
 | `CustomChecker.Name` | method | v3 compatibility surface | active |
@@ -445,6 +449,7 @@ Stability tier: `stable`
 | `DatabasePoolSnapshot.TotalConns` | field | v3 compatibility surface | active |
 | `DatabasePoolSnapshotProvider` | type | v3 compatibility surface | active |
 | `DatabasePoolSnapshotProvider.StatSnapshot` | interface method | v3 compatibility surface | active |
+| `DefaultConfig` | func | v3 compatibility surface | active |
 | `DefaultHealthPaths` | func | v3 compatibility surface | active |
 | `DetailedHealthResponse` | type | v3 compatibility surface | active |
 | `DetailedHealthResponse.Checks` | field | v3 compatibility surface | active |
@@ -509,6 +514,7 @@ Stability tier: `stable`
 | `Manager.GetReadiness` | method | v3 compatibility surface | active |
 | `Manager.RefreshAll` | method | v3 compatibility surface | active |
 | `Manager.RegisterChecker` | method | v3 compatibility surface | active |
+| `Manager.RegisterCheckerChecked` | method | v3 compatibility surface | active |
 | `Manager.RegisterCheckers` | method | v3 compatibility surface | active |
 | `ManagerContract` | type | v3 compatibility surface | active |
 | `ManagerContract.GetDetailedHealth` | interface method | v3 compatibility surface | active |
@@ -530,11 +536,12 @@ Stability tier: `stable`
 | `NewDefaultHandler` | func | v3 compatibility surface | active |
 | `NewHTTPChecker` | func | v3 compatibility surface | active |
 | `NewHandler` | func | v3 compatibility surface | active |
-| `NewManagerWithConfig` | func | v3 compatibility surface | active |
+| `NewManager` | func | v3 compatibility surface | active |
+| `NewManagerWithConfig` | func | v3 compatibility surface | deprecated |
 | `NewMemoryChecker` | func | v3 compatibility surface | active |
 | `NewPaymentProviderChecker` | func | v3 compatibility surface | active |
 | `NewScheduler` | func | v3 compatibility surface | active |
-| `NewWithConfig` | func | v3 compatibility surface | active |
+| `NewWithConfig` | func | v3 compatibility surface | deprecated |
 | `PaymentProviderChecker` | type | v3 compatibility surface | active |
 | `PaymentProviderChecker.Check` | method | v3 compatibility surface | active |
 | `PaymentProviderChecker.Name` | method | v3 compatibility surface | active |

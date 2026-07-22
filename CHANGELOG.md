@@ -9,6 +9,13 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ### Added
 
+- Added `health.NewManager`, `health.DefaultConfig`, and
+  `health.Manager.RegisterCheckerChecked` for validated health-manager
+  construction. `health.Config.Validate`, `health.Clock`, and
+  `health.Config.Clock` make timeout/cache validation and deterministic cache
+  tests explicit; `health.NewManagerWithConfig` remains a deprecated v4
+  compatibility constructor.
+
 - Added `idempotency.NewWithStore`, which requires a token-aware
   `ReleasableStore` at compile time. The legacy `idempotency.New` constructor
   and `Options.Store` remain source-compatible but are deprecated.

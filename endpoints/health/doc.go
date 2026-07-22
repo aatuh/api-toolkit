@@ -16,6 +16,15 @@
 //     source-compatible with their root ports counterparts during v3.
 //   - When caching is enabled, cached checker results may be reused across
 //     liveness, readiness, and detailed responses until CacheDuration expires.
+//   - New code should start with DefaultConfig and call NewManager. That
+//     constructor rejects invalid timeout/cache settings and empty probe
+//     configuration. RegisterCheckerChecked rejects nil, empty-name, and
+//     duplicate checkers. NewManagerWithConfig and RegisterChecker retain the
+//     prior v4 compatibility behavior for existing callers.
+//   - A checker that ignores its context is reported unhealthy once the
+//     manager deadline expires. Its goroutine cannot be forcibly stopped by
+//     Go, so checker implementations must respect cancellation and return
+//     promptly to avoid retaining work after a timed-out probe.
 //   - LoadConfig falls back to a 30-second refresh interval and a cache
 //     duration of twice that refresh interval when env values are missing,
 //     invalid, zero, or negative.

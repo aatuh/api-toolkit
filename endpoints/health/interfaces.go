@@ -59,6 +59,13 @@ type Summary struct {
 	Unknown   int `json:"unknown"`
 }
 
+// Clock supplies wall-clock time to a health manager. Supplying a test clock
+// makes cache-expiry behavior deterministic.
+type Clock interface {
+	// Now returns the current time used for manager cache and result timestamps.
+	Now() time.Time
+}
+
 // Config defines health manager configuration.
 type Config struct {
 	Timeout         time.Duration `json:"timeout"`
@@ -67,6 +74,8 @@ type Config struct {
 	EnableDetailed  bool          `json:"enable_detailed"`
 	LivenessChecks  []string      `json:"liveness_checks"`
 	ReadinessChecks []string      `json:"readiness_checks"`
+	// Clock supplies deterministic time for cache expiration and result timestamps.
+	Clock Clock `json:"-"`
 }
 
 // ManagerContract defines the package-local health manager contract.

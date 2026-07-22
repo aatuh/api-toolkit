@@ -55,6 +55,21 @@ Readiness should fail when:
 Liveness should stay process-only so orchestrators do not restart healthy
 processes just because an external dependency is down.
 
+## Constructing A Health Manager
+
+New services should start with `health.DefaultConfig()` and use
+`health.NewManager(config)`. It rejects non-positive timeout or cache values,
+empty probe configuration, and duplicate probe names. Register each checker
+with `RegisterCheckerChecked` so nil, empty-name, and duplicate checkers are
+reported during startup rather than silently replacing a check.
+
+`NewManagerWithConfig` and `RegisterChecker` remain available for existing v4
+callers, but they retain their no-error compatibility behavior. Migrate by
+switching construction first, handling its error, then replacing each
+registration call with `RegisterCheckerChecked`. Checkers must honor their
+context: a manager returns an unhealthy timeout result if one does not, but Go
+cannot forcibly stop the checker goroutine.
+
 ## Metrics and Logs
 
 Use route patterns, method, status, status class, and bounded outcome labels.

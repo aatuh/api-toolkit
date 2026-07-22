@@ -14,6 +14,19 @@ upgrade notes, and package-tied compatibility acknowledgements.
 | Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |
 | Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.2`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
 
+## Unreleased
+
+### Behavior and security
+
+- `health.NewManager` now validates `health.Config` at construction, while
+  `health.DefaultConfig` supplies explicit defaults. `health.Config.Validate`,
+  `health.Clock`, `health.Clock.Now`, and `health.Config.Clock` make timeout,
+  cache, and deterministic-time behavior explicit.
+  `health.Manager.RegisterCheckerChecked` rejects nil, empty-name, and
+  duplicate checkers. `health.NewManagerWithConfig` is deprecated and
+  `health.Manager.RegisterChecker` remains the no-error compatibility path for
+  v4 callers.
+
 ## Release Note Categories
 
 Every dated release entry should use one or more of these categories when the
