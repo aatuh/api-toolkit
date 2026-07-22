@@ -77,7 +77,7 @@ func (h *Handler) LivenessHandler(w http.ResponseWriter, r *http.Request) {
 		"message":   result.Message,
 	}
 
-	httpx.WriteJSON(w, statusCode, response)
+	httpx.WriteJSONChecked(w, statusCode, response)
 }
 
 // ReadinessHandler handles readiness checks.
@@ -104,7 +104,7 @@ func (h *Handler) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 		"message":   result.Message,
 	}
 
-	httpx.WriteJSON(w, statusCode, response)
+	httpx.WriteJSONChecked(w, statusCode, response)
 }
 
 // HealthHandler handles basic health checks.
@@ -125,7 +125,7 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	httpx.WriteJSON(w, statusCode, response)
+	httpx.WriteJSONChecked(w, statusCode, response)
 }
 
 // DetailedHealthHandler handles detailed health checks.
@@ -139,7 +139,7 @@ func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /health/detailed [get]
 func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.detailedHealthEnabled() {
-		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeNotFound),
 			Title:  http.StatusText(http.StatusNotFound),
 			Detail: "detailed health is disabled",
@@ -155,7 +155,7 @@ func (h *Handler) DetailedHealthHandler(w http.ResponseWriter, r *http.Request) 
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	httpx.WriteJSON(w, statusCode, response)
+	httpx.WriteJSONChecked(w, statusCode, response)
 }
 
 // RegisterRoutes registers all enabled health endpoints on the given router.

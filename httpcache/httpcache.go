@@ -153,7 +153,7 @@ func WriteNotModified(w http.ResponseWriter, validators Validators) {
 
 // WritePreconditionFailed writes a 412 Problem Details response.
 func WritePreconditionFailed(w http.ResponseWriter) {
-	httpx.WriteProblem(w, http.StatusPreconditionFailed, httpx.Problem{
+	httpx.WriteProblemChecked(w, http.StatusPreconditionFailed, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeConflict),
 		Title:  http.StatusText(http.StatusPreconditionFailed),
 		Detail: "conditional request precondition failed",

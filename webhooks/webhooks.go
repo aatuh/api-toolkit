@@ -187,7 +187,7 @@ func (receiver Receiver[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+	httpx.WriteJSONChecked(w, http.StatusAccepted, map[string]string{"status": "accepted"})
 }
 
 func verificationErrorDetail(format func(error) string, err error) string {
@@ -219,7 +219,7 @@ func WriteProblem(w http.ResponseWriter, status int, problem httpx.Problem) {
 	if problem.Title == "" {
 		problem.Title = http.StatusText(status)
 	}
-	httpx.WriteProblem(w, status, problem)
+	httpx.WriteProblemChecked(w, status, problem)
 }
 
 func readBody(w http.ResponseWriter, r *http.Request, maxBodyBytes int64) ([]byte, error) {

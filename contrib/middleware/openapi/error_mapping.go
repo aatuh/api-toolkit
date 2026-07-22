@@ -44,7 +44,7 @@ func defaultErrorHandler(w http.ResponseWriter, _ *http.Request, status int, err
 		status = statusFromOpenAPIError(err)
 	}
 	p := problemForOpenAPIError(status, err)
-	httpx.WriteProblem(w, status, p)
+	httpx.WriteProblemChecked(w, status, p)
 }
 
 func problemForOpenAPIError(status int, err error) httpx.Problem {

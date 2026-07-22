@@ -956,6 +956,175 @@ func TestPlatformSupportPolicyMatchesWorkflow(t *testing.T) {
 	}
 }
 
+func TestProductionCodeUsesCheckedResponseWriters(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	allowed := func(rel string) bool {
+		if rel == "httpx/httpx.go" || rel == "httpx/response.go" {
+			return true
+		}
+		return strings.HasPrefix(rel, "examples/chi-existing-service/") ||
+			strings.HasPrefix(rel, "examples/snippets/") ||
+			strings.HasPrefix(rel, "contrib/examples/")
+	}
+
+	var violations []string
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", ".ci-result", ".audits", ".trash":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel := slashRel(repoRoot, path)
+		if allowed(rel) {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			pkg, ok := selector.X.(*ast.Ident)
+			if ok && pkg.Name == "httpx" && (selector.Sel.Name == "WriteJSON" || selector.Sel.Name == "WriteProblem") {
+				violations = append(violations, rel+": httpx."+selector.Sel.Name)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan production Go files: %v", err)
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Fatalf("production code must use checked response writers:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestScaffoldTemplatesUseCheckedResponseWriters(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	templateRoot := filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit")
+	var violations []string
+	err := filepath.WalkDir(templateRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, writer := range []string{"WriteJSON", "WriteProblem"} {
+			if strings.Contains(string(content), "httpx."+writer+"(") {
+				violations = append(violations, slashRel(repoRoot, path)+": httpx."+writer)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan scaffold templates: %v", err)
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Fatalf("scaffold templates must use checked response writers:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func TestCheckedResponseWritersUseTerminalPolicy(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	allowed := func(rel string) bool {
+		return rel == "httpx/httpx.go" || rel == "httpx/response.go" ||
+			strings.HasPrefix(rel, "examples/chi-existing-service/") ||
+			strings.HasPrefix(rel, "examples/snippets/") ||
+			strings.HasPrefix(rel, "contrib/examples/")
+	}
+
+	var violations []string
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel := slashRel(repoRoot, path)
+		if allowed(rel) {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch statements := node.(type) {
+			case *ast.BlockStmt:
+				violations = append(violations, nonterminalCheckedWriteViolations(rel, statements.List)...)
+			case *ast.CaseClause:
+				violations = append(violations, nonterminalCheckedWriteViolations(rel, statements.Body)...)
+			case *ast.CommClause:
+				violations = append(violations, nonterminalCheckedWriteViolations(rel, statements.Body)...)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan checked response writer policies: %v", err)
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Fatalf("checked response writers must stop their response path or report through a package hook:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func nonterminalCheckedWriteViolations(rel string, statements []ast.Stmt) []string {
+	var violations []string
+	for index, statement := range statements {
+		expression, ok := statement.(*ast.ExprStmt)
+		if !ok || !isDirectCheckedResponseWriterCall(expression.X) {
+			continue
+		}
+		if index == len(statements)-1 {
+			continue
+		}
+		if _, ok := statements[index+1].(*ast.ReturnStmt); ok {
+			continue
+		}
+		violations = append(violations, rel)
+	}
+	return violations
+}
+
+func isDirectCheckedResponseWriterCall(expression ast.Expr) bool {
+	call, ok := expression.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "httpx" && (selector.Sel.Name == "WriteJSONChecked" || selector.Sel.Name == "WriteProblemChecked")
+}
+
 func TestContribAPIDriftDispositionManifest(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	records := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-dispositions.tsv"))

@@ -67,6 +67,52 @@ func TestIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestMiddlewareReportsCheckedProblemWriteFailure(t *testing.T) {
+	want := errors.New("response body write failed")
+	var got error
+	mw, err := New(Options{
+		Store: newMemoryStore(),
+		OnError: func(err error) {
+			got = err
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	mw.writeProblem(&failingResponseWriter{err: want}, http.StatusServiceUnavailable, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
+		Title:  http.StatusText(http.StatusServiceUnavailable),
+		Detail: "idempotency store unavailable",
+	})
+
+	if !errors.Is(got, want) {
+		t.Fatalf("OnError = %v, want response write error wrapping %v", got, want)
+	}
+	var responseErr *httpx.ResponseWriteError
+	if !errors.As(got, &responseErr) || responseErr.Stage != httpx.ResponseWriteStageBody {
+		t.Fatalf("OnError = %T %v, want body-stage ResponseWriteError", got, got)
+	}
+}
+
+type failingResponseWriter struct {
+	header http.Header
+	err    error
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (*failingResponseWriter) WriteHeader(int) {}
+
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
 func TestIdempotencyRequireKeyRejectsMissingKey(t *testing.T) {
 	mem := newMemoryStore()
 	var events []OutcomeEvent

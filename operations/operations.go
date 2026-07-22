@@ -203,7 +203,7 @@ func WriteAccepted(w http.ResponseWriter, config AcceptedConfig) {
 	if config.RetryAfter > 0 {
 		w.Header().Set("Retry-After", strconv.FormatInt(retryAfterSeconds(config.RetryAfter), 10))
 	}
-	httpx.WriteJSON(w, http.StatusAccepted, Accepted{ID: config.ID, State: StatePending, Location: strings.TrimSpace(config.Location)})
+	httpx.WriteJSONChecked(w, http.StatusAccepted, Accepted{ID: config.ID, State: StatePending, Location: strings.TrimSpace(config.Location)})
 }
 
 // WriteOperation writes an operation resource as JSON.
@@ -211,7 +211,7 @@ func WriteOperation[T any](w http.ResponseWriter, status int, operation Operatio
 	if operation.State == "" {
 		operation.State = StatePending
 	}
-	httpx.WriteJSON(w, status, operation)
+	httpx.WriteJSONChecked(w, status, operation)
 }
 
 // PollConfig configures PollHandler.

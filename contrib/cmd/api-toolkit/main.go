@@ -19723,7 +19723,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	router.Get("/readyz", cfg.handleReady)
 	if err := RegisterRoutes(router, cfg); err != nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "router registration failed"})
+			httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "router registration failed"})
 		})
 	}
 	return cfg.metrics(router)
@@ -19773,7 +19773,7 @@ func NewAdminRouter(cfg RouterConfig) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/detailed", cfg.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
 		if err := cfg.checkReady(r); err != nil {
-			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
+			httpx.WriteProblemChecked(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
@@ -20154,7 +20154,7 @@ func handleLive(w http.ResponseWriter, r *http.Request) {
 
 func (cfg RouterConfig) handleReady(w http.ResponseWriter, r *http.Request) {
 	if err := cfg.checkReady(r); err != nil {
-		httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
+		httpx.WriteProblemChecked(w, http.StatusServiceUnavailable, httpx.Problem{Title: http.StatusText(http.StatusServiceUnavailable), Detail: "service is not ready"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
@@ -20172,7 +20172,7 @@ func (cfg RouterConfig) checkReady(r *http.Request) error {
 func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	doc, err := OpenAPIDocument()
 	if err != nil {
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "openapi document unavailable"})
+		httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "openapi document unavailable"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -20357,7 +20357,7 @@ func (cfg RouterConfig) handleRevokeAPIKey(w http.ResponseWriter, r *http.Reques
 	}
 	keyID := strings.TrimSpace(r.PathValue("api_key_id"))
 	if keyID == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "api key id is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "api key id is required"})
 		return
 	}
 	if err := cfg.APIKeys.Revoke(r.Context(), actorID, organizationID, keyID); err != nil {
@@ -20461,7 +20461,7 @@ func (cfg RouterConfig) handleReplayWebhookDelivery(w http.ResponseWriter, r *ht
 	}
 	deliveryID := strings.TrimSpace(r.PathValue("delivery_id"))
 	if deliveryID == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "delivery id is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "delivery id is required"})
 		return
 	}
 	delivery, err := cfg.Webhooks.ReplayDeliveryForActor(r.Context(), actorID, organizationID, deliveryID)
@@ -20633,7 +20633,7 @@ func (cfg RouterConfig) handleAcceptInvitation(w http.ResponseWriter, r *http.Re
 	}
 	invitationID := strings.TrimSpace(r.PathValue("id"))
 	if invitationID == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invitation id is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invitation id is required"})
 		return
 	}
 	if _, ok := requireHeader(w, r, "Idempotency-Key"); !ok {
@@ -20659,7 +20659,7 @@ func (cfg RouterConfig) handleGetOperation(w http.ResponseWriter, r *http.Reques
 	}
 	operationID := strings.TrimSpace(r.PathValue("id"))
 	if operationID == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "operation id is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "operation id is required"})
 		return
 	}
 	operation, found, err := cfg.Async.GetOperation(r.Context(), tenantID, operationID)
@@ -20879,12 +20879,12 @@ func decodeOrganizationRequest(w http.ResponseWriter, r *http.Request) (organiza
 	decoder.DisallowUnknownFields()
 	var raw map[string]string
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return organizationRequest{}, false
 	}
 	name := strings.TrimSpace(raw["name"])
 	if name == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
 		return organizationRequest{}, false
 	}
 	return organizationRequest{Name: name}, true
@@ -20896,13 +20896,13 @@ func decodeInvitationRequest(w http.ResponseWriter, r *http.Request) (invitation
 	decoder.DisallowUnknownFields()
 	var raw map[string]string
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return invitationRequest{}, false
 	}
 	email := strings.TrimSpace(raw["email"])
 	role := domain.Role(strings.TrimSpace(raw["role"]))
 	if email == "" || !strings.Contains(email, "@") || !role.Valid() || role == domain.RoleOwner {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "valid email and non-owner role are required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "valid email and non-owner role are required"})
 		return invitationRequest{}, false
 	}
 	return invitationRequest{Email: email, Role: role}, true
@@ -20914,12 +20914,12 @@ func decodeAcceptInvitationRequest(w http.ResponseWriter, r *http.Request) (acce
 	decoder.DisallowUnknownFields()
 	var raw map[string]string
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return acceptInvitationRequest{}, false
 	}
 	token := strings.TrimSpace(raw["token"])
 	if token == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "token is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "token is required"})
 		return acceptInvitationRequest{}, false
 	}
 	return acceptInvitationRequest{Token: token}, true
@@ -20935,12 +20935,12 @@ func decodeAPIKeyCreateRequest(w http.ResponseWriter, r *http.Request) (apiKeyCr
 		ExpiresAt string   ` + "`json:\"expires_at\"`" + `
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return apiKeyCreateRequest{}, false
 	}
 	name := strings.TrimSpace(raw.Name)
 	if name == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
 		return apiKeyCreateRequest{}, false
 	}
 	scopes := make([]string, 0, len(raw.Scopes))
@@ -20951,14 +20951,14 @@ func decodeAPIKeyCreateRequest(w http.ResponseWriter, r *http.Request) (apiKeyCr
 		}
 	}
 	if len(scopes) == 0 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one scope is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one scope is required"})
 		return apiKeyCreateRequest{}, false
 	}
 	var expiresAt *time.Time
 	if strings.TrimSpace(raw.ExpiresAt) != "" {
 		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw.ExpiresAt))
 		if err != nil {
-			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "expires_at must be RFC3339"})
+			httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "expires_at must be RFC3339"})
 			return apiKeyCreateRequest{}, false
 		}
 		parsed = parsed.UTC()
@@ -20976,12 +20976,12 @@ func decodeWebhookEndpointRequest(w http.ResponseWriter, r *http.Request) (webho
 		Events []string ` + "`json:\"events\"`" + `
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return webhookEndpointRequest{}, false
 	}
 	targetURL := strings.TrimSpace(raw.URL)
 	if targetURL == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "url is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "url is required"})
 		return webhookEndpointRequest{}, false
 	}
 	events := make([]string, 0, len(raw.Events))
@@ -20992,7 +20992,7 @@ func decodeWebhookEndpointRequest(w http.ResponseWriter, r *http.Request) (webho
 		}
 	}
 	if len(events) == 0 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one event is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "at least one event is required"})
 		return webhookEndpointRequest{}, false
 	}
 	return webhookEndpointRequest{URL: targetURL, Events: events}, true
@@ -21004,11 +21004,11 @@ func decodeWebhookReplayRequest(w http.ResponseWriter, r *http.Request) bool {
 	decoder.DisallowUnknownFields()
 	var raw map[string]any
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return false
 	}
 	if len(raw) != 0 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "replay body must be empty"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "replay body must be empty"})
 		return false
 	}
 	return true
@@ -21024,12 +21024,12 @@ func decodeObjectPutRequest(w http.ResponseWriter, r *http.Request) (objectPutRe
 		ContentBase64 string ` + "`json:\"content_base64\"`" + `
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return objectPutRequest{}, false
 	}
 	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw.ContentBase64))
 	if err != nil || len(data) == 0 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "content_base64 is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "content_base64 is required"})
 		return objectPutRequest{}, false
 	}
 	return objectPutRequest{Key: strings.TrimSpace(raw.Key), ContentType: strings.TrimSpace(raw.ContentType), Data: data}, true
@@ -21044,12 +21044,12 @@ func decodeObjectPutRequest(w http.ResponseWriter, r *http.Request) (objectPutRe
 		Amount  int64  ` + "`json:\"amount\"`" + `
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return entitlementUsageRequest{}, false
 	}
 	raw.Feature = strings.TrimSpace(raw.Feature)
 	if raw.Feature == "" || raw.Amount <= 0 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "feature and positive amount are required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "feature and positive amount are required"})
 		return entitlementUsageRequest{}, false
 	}
 	return entitlementUsageRequest{Feature: raw.Feature, Amount: raw.Amount}, true
@@ -21062,12 +21062,12 @@ func decodeWidgetRequest(w http.ResponseWriter, r *http.Request) (widgetRequest,
 	decoder.DisallowUnknownFields()
 	var raw map[string]string
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return widgetRequest{}, false
 	}
 	name := strings.TrimSpace(raw["name"])
 	if name == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
 		return widgetRequest{}, false
 	}
 	return widgetRequest{Name: name}, true
@@ -21081,17 +21081,17 @@ func decodeWidgetImportRequest(w http.ResponseWriter, r *http.Request) (widgetIm
 		Items []app.WidgetImportItem ` + "`json:\"items\"`" + `
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "invalid JSON request body"})
 		return widgetImportRequest{}, false
 	}
 	if len(raw.Items) == 0 || len(raw.Items) > 100 {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "items must contain 1 to 100 widgets"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "items must contain 1 to 100 widgets"})
 		return widgetImportRequest{}, false
 	}
 	for _, item := range raw.Items {
 		name := strings.TrimSpace(item.Name)
 		if name == "" || len(name) > 120 {
-			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "item names are required"})
+			httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "item names are required"})
 			return widgetImportRequest{}, false
 		}
 	}
@@ -21100,12 +21100,12 @@ func decodeWidgetImportRequest(w http.ResponseWriter, r *http.Request) (widgetIm
 
 func (cfg RouterConfig) authenticateManagedAPIKey(w http.ResponseWriter, r *http.Request) (apiKeyPrincipal, bool) {
 	if cfg.APIKeys == nil {
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "API key service is not configured"})
+		httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "API key service is not configured"})
 		return apiKeyPrincipal{}, false
 	}
 	key, ok, err := cfg.APIKeys.Verify(r.Context(), r.Header.Get("X-API-Key"))
 	if err != nil || !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 		return apiKeyPrincipal{}, false
 	}
 	return apiKeyPrincipal{Key: key}, true
@@ -21114,34 +21114,34 @@ func (cfg RouterConfig) authenticateManagedAPIKey(w http.ResponseWriter, r *http
 func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request) (string, bool) {
 {{ if eq .AuthMode "jwt" }}	subj, ok := jwtauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	actorID := strings.TrimSpace(subj.UserID)
 	if actorID == "" {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
 		return "", false
 	}
 	return actorID, true
 {{ else if eq .AuthMode "clerk" }}	subj, ok := clerkauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	actorID := strings.TrimSpace(subj.UserID)
 	if actorID == "" {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
 		return "", false
 	}
 	return actorID, true
 {{ else if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	actorID := strings.TrimSpace(subj.UserID)
 	if actorID == "" {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "actor subject required"})
 		return "", false
 	}
 	return actorID, true
@@ -21150,11 +21150,11 @@ func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request
 		if actorID := principal.ActorID(); actorID != "" {
 			return actorID, true
 		}
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "API key actor required"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "API key actor required"})
 		return "", false
 	}
 	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 		return "", false
 	}
 	actorID := strings.TrimSpace(os.Getenv("API_ACTOR_ID"))
@@ -21171,7 +21171,7 @@ func (cfg RouterConfig) authenticateActor(w http.ResponseWriter, r *http.Request
 func (cfg RouterConfig) authenticateOrganizationTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
 	organizationID := strings.TrimSpace(r.PathValue("organization_id"))
 	if organizationID == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "organization id is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "organization id is required"})
 		return "", false
 	}
 	tenantID, ok := cfg.authenticateTenant(w, r)
@@ -21179,7 +21179,7 @@ func (cfg RouterConfig) authenticateOrganizationTenant(w http.ResponseWriter, r 
 		return "", false
 	}
 	if tenantID != organizationID {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant path mismatch"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant path mismatch"})
 		return "", false
 	}
 	return organizationID, true
@@ -21188,7 +21188,7 @@ func (cfg RouterConfig) authenticateOrganizationTenant(w http.ResponseWriter, r 
 func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
 {{ if eq .AuthMode "jwt" }}	subj, ok := jwtauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
@@ -21196,13 +21196,13 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 		return "", false
 	}
 	if jwtSubjectTenantID(subj) != tenantID {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
 		return "", false
 	}
 	return tenantID, true
 {{ else if eq .AuthMode "clerk" }}	subj, ok := clerkauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
@@ -21210,13 +21210,13 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 		return "", false
 	}
 	if strings.TrimSpace(subj.TenantID) == "" || strings.TrimSpace(subj.TenantID) != tenantID {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
 		return "", false
 	}
 	return tenantID, true
 {{ else if eq .AuthMode "oidc" }}	subj, ok := oidcauth.SubjectFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 		return "", false
 	}
 	tenantID, ok := requireHeader(w, r, "X-Tenant-ID")
@@ -21224,7 +21224,7 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 		return "", false
 	}
 	if strings.TrimSpace(subj.TenantID) == "" || strings.TrimSpace(subj.TenantID) != tenantID {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim mismatch"})
 		return "", false
 	}
 	return tenantID, true
@@ -21235,13 +21235,13 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 	}
 	if principal, ok := apiKeyPrincipalFromContext(r.Context()); ok {
 		if principal.TenantID() != tenantID {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant credential mismatch"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "tenant credential mismatch"})
 			return "", false
 		}
 		return tenantID, true
 	}
 	if !sameSecret(r.Header.Get("X-API-Key"), cfg.APIKey) {
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid API key required"})
 		return "", false
 	}
 	return tenantID, true
@@ -21251,18 +21251,18 @@ func (cfg RouterConfig) authenticateTenant(w http.ResponseWriter, r *http.Reques
 func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Handler {
 {{ if eq .AuthMode "jwt" }}	if cfg.JWT == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "JWT middleware not configured"})
+			httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "JWT middleware not configured"})
 		})
 	}
 	return cfg.JWT.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requiredScope != "" {
 			subj, ok := jwtauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 				return
 			}
 			if !jwtSubjectHasScope(subj, requiredScope) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
 				return
 			}
 		}
@@ -21270,18 +21270,18 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 	}))
 {{ else if eq .AuthMode "clerk" }}	if cfg.Clerk == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "Clerk middleware not configured"})
+			httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "Clerk middleware not configured"})
 		})
 	}
 	return cfg.Clerk.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requiredScope != "" {
 			subj, ok := clerkauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 				return
 			}
 			if !scopeStringContains(subj.Scope, requiredScope) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
 				return
 			}
 		}
@@ -21289,18 +21289,18 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 	}))
 {{ else if eq .AuthMode "oidc" }}	if cfg.OIDC == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "OIDC middleware not configured"})
+			httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "OIDC middleware not configured"})
 		})
 	}
 	return cfg.OIDC.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requiredScope != "" {
 			subj, ok := oidcauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "valid bearer token required"})
 				return
 			}
 			if !oidcSubjectHasScope(subj, requiredScope) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required OIDC scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required OIDC scope missing"})
 				return
 			}
 		}
@@ -21316,7 +21316,7 @@ func (cfg RouterConfig) protect(requiredScope string, next http.Handler) http.Ha
 			return
 		}
 		if !principal.HasScope(requiredScope) {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required API key scope missing"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "required API key scope missing"})
 			return
 		}
 		cfg.rateLimited(next).ServeHTTP(w, r.WithContext(withAPIKeyPrincipal(r.Context(), principal.Key)))
@@ -21425,7 +21425,7 @@ func cleanScopes(values []string) []string {
 func (cfg RouterConfig) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !sameSecret(r.Header.Get("X-Admin-Key"), cfg.AdminKey) {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
 			return
 		}
 		next(w, r)
@@ -21447,7 +21447,7 @@ func RequireAdmin(adminKey string) func(http.Handler) http.Handler {
 func requireHeader(w http.ResponseWriter, r *http.Request, name string) (string, bool) {
 	value := strings.TrimSpace(r.Header.Get(name))
 	if value == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: name + " header is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: name + " header is required"})
 		return "", false
 	}
 	return value, true
@@ -21465,15 +21465,15 @@ func sameSecret(got, want string) bool {
 func writeAppError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrValidation):
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "request validation failed"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Title: http.StatusText(http.StatusBadRequest), Detail: "request validation failed"})
 	case errors.Is(err, app.ErrForbidden):
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "permission denied"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Title: http.StatusText(http.StatusForbidden), Detail: "permission denied"})
 	case errors.Is(err, app.ErrNotFound):
-		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{Title: http.StatusText(http.StatusNotFound), Detail: "resource not found"})
+		httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{Title: http.StatusText(http.StatusNotFound), Detail: "resource not found"})
 	case errors.Is(err, app.ErrPreconditionFailed):
-		httpx.WriteProblem(w, http.StatusPreconditionFailed, httpx.Problem{Title: http.StatusText(http.StatusPreconditionFailed), Detail: "If-Match does not match current resource version"})
+		httpx.WriteProblemChecked(w, http.StatusPreconditionFailed, httpx.Problem{Title: http.StatusText(http.StatusPreconditionFailed), Detail: "If-Match does not match current resource version"})
 	default:
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "request failed"})
+		httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{Title: http.StatusText(http.StatusInternalServerError), Detail: "request failed"})
 	}
 }
 
@@ -24796,7 +24796,7 @@ func newIdempotencyStore() (idempotencymw.ReleasableStore, bootstrap.ShutdownHoo
 func createWidget(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := authorization.TenantIDFromContext(r.Context())
 	if !ok {
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant scope required"})
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant scope required"})
 		return
 	}
 	input, err := binding.DecodeJSON[createWidgetRequest](r, binding.JSONConfig{RequireObject: true})
@@ -24805,10 +24805,10 @@ func createWidget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeBadRequest), Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
+		httpx.WriteProblemChecked(w, http.StatusBadRequest, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeBadRequest), Title: http.StatusText(http.StatusBadRequest), Detail: "name is required"})
 		return
 	}
-	httpx.WriteJSON(w, http.StatusCreated, widgetResponse{ID: "w_123", TenantID: tenantID, Name: strings.TrimSpace(input.Name)})
+	httpx.WriteJSONChecked(w, http.StatusCreated, widgetResponse{ID: "w_123", TenantID: tenantID, Name: strings.TrimSpace(input.Name)})
 }
 
 func idempotencyOutcomeHooks(handlers ...idempotencymw.OutcomeHandler) idempotencymw.OutcomeHandler {
@@ -24825,7 +24825,7 @@ func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("X-Admin-Key") != expectedKey {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "admin authentication required"})
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -24837,12 +24837,12 @@ func requireAdmin(expectedKey string) func(http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := jwtauth.SubjectFromContext(r.Context())
 		if !ok {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 			return
 		}
 		tenantID := tenantIDFromJWTSubject(subj)
 		if tenantID == "" {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
 			return
 		}
 		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: tenantID, UserID: subj.UserID})
@@ -24856,11 +24856,11 @@ func requireJWTScope(required string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			subj, ok := jwtauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 				return
 			}
 			if !jwtSubjectHasScope(subj, required) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required JWT scope missing"})
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -24933,11 +24933,11 @@ func jwtScopeValues(value any) []string {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := clerkauth.SubjectFromContext(r.Context())
 		if !ok {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 			return
 		}
 		if strings.TrimSpace(subj.TenantID) == "" {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
 			return
 		}
 		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: strings.TrimSpace(subj.TenantID), UserID: subj.UserID})
@@ -24951,11 +24951,11 @@ func requireClerkScope(required string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			subj, ok := clerkauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 				return
 			}
 			if !clerkSubjectHasScope(subj, required) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required Clerk scope missing"})
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -24979,11 +24979,11 @@ func clerkSubjectHasScope(subj clerkauth.Subject, required string) bool {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := oidcauth.SubjectFromContext(r.Context())
 		if !ok {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 			return
 		}
 		if strings.TrimSpace(subj.TenantID) == "" {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "tenant claim required"})
 			return
 		}
 		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: strings.TrimSpace(subj.TenantID), UserID: subj.UserID})
@@ -24997,11 +24997,11 @@ func requireOIDCScope(required string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			subj, ok := oidcauth.SubjectFromContext(r.Context())
 			if !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "authentication token required"})
 				return
 			}
 			if !oidcSubjectHasScope(subj, required) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required OIDC scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required OIDC scope missing"})
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -25025,12 +25025,12 @@ func oidcSubjectHasScope(subj oidcauth.Subject, required string) bool {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subj, ok := jwtauth.SubjectFromContext(r.Context())
 		if !ok {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
 			return
 		}
 		tenantID := strings.TrimSpace(r.Header.Get(devTenantHeader()))
 		if tenantID == "" {
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "development tenant header required"})
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "development tenant header required"})
 			return
 		}
 		ctx := authorization.WithScope(r.Context(), authorization.Scope{TenantID: tenantID, UserID: subj.UserID})
@@ -25043,11 +25043,11 @@ func requireDevHeaderScope(required string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := jwtauth.SubjectFromContext(r.Context()); !ok {
-				httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
+				httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeUnauthorized), Title: http.StatusText(http.StatusUnauthorized), Detail: "development auth headers required"})
 				return
 			}
 			if !devHeaderHasScope(r, required) {
-				httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required development scope missing"})
+				httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeForbidden), Title: http.StatusText(http.StatusForbidden), Detail: "required development scope missing"})
 				return
 			}
 			next.ServeHTTP(w, r)

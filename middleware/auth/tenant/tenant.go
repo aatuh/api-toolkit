@@ -169,14 +169,14 @@ func (m *Middleware) onError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, errTenantMissing):
 		if isAuthenticatedRequest(r) {
 			detail = "tenant scope required"
-			httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 				Title:  http.StatusText(http.StatusForbidden),
 				Detail: detail,
 			})
 			return
 		}
-		httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
 			Title:  http.StatusText(http.StatusUnauthorized),
 			Detail: "authentication required",
@@ -189,7 +189,7 @@ func (m *Middleware) onError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, errNoSourcesConfigured):
 		detail = "tenant scope misconfigured"
 	}
-	httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+	httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 		Title:  http.StatusText(http.StatusForbidden),
 		Detail: detail,

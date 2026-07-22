@@ -47,7 +47,7 @@ type Options struct {
 	AllowDangerousDevBypasses bool
 	// FailOpen controls whether requests pass through when limiter errors.
 	FailOpen bool
-	// OnError receives limiter errors, when present.
+	// OnError receives limiter and response-write errors, when present.
 	OnError func(error)
 	// HeaderConfig enables standard RateLimit-* response headers when configured.
 	HeaderConfig HeaderConfig
@@ -157,7 +157,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					next.ServeHTTP(w, r)
 					return
 				}
-				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 					Title:  http.StatusText(http.StatusServiceUnavailable),
 					Detail: "rate limiter unavailable",
@@ -174,7 +174,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				}
 				SetRateLimitHeaders(w, Quota{RetryAfter: ra, Reset: m.opts.Clock.Now().Add(ra)}, m.opts.HeaderConfig)
 				w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
-				httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+				m.writeProblem(w, http.StatusTooManyRequests, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 					Title:  http.StatusText(http.StatusTooManyRequests),
 					Detail: "rate limit exceeded",
@@ -209,7 +209,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			}
 			SetRateLimitHeaders(w, Quota{Limit: int(m.opts.Capacity), Remaining: 0, Reset: now.Add(ra), RetryAfter: ra}, m.opts.HeaderConfig)
 			w.Header().Set("Retry-After", itoa(retryAfterSeconds(ra)))
-			httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+			m.writeProblem(w, http.StatusTooManyRequests, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 				Title:  http.StatusText(http.StatusTooManyRequests),
 				Detail: "rate limit exceeded",
@@ -228,6 +228,12 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (m *Middleware) writeProblem(w http.ResponseWriter, status int, problem httpx.Problem) {
+	if err := httpx.WriteProblemChecked(w, status, problem); err != nil && m.opts.OnError != nil {
+		m.opts.OnError(err)
+	}
 }
 
 func (m *Middleware) cleanup(now time.Time) {

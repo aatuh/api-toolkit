@@ -23,3 +23,22 @@ Cleared imports:
 
 Keep docscheck guardrails active so examples and public code snippets do not
 teach the removed package as the preferred JSON, error, or capture helper.
+
+## Checked Response-write Policy
+
+`httpx.WriteJSONChecked` and `httpx.WriteProblemChecked` are the repository's
+internal response-writing boundary. Runtime packages must use them directly or
+through a package-local helper that applies their write-failure policy. The
+older void writers remain source-compatible public wrappers for application
+code and compatibility examples; they are not for new internal runtime paths.
+
+Each checked write needs an explicit failure policy. A handler can stop its
+terminal response path once the connection may be committed. Middleware with an
+existing error hook must report write failures through that hook: idempotency
+uses `FailurePolicy.OnError`/`Options.OnError`, and rate limiting uses
+`Options.OnError`. No package-level response-write logger is used.
+
+`docscheck` rejects direct void-writer calls from production Go files, while a
+template-source guard covers generated service handlers as well. This keeps the
+compatibility boundary narrow and prevents a failed response write from
+accidentally starting a second response.

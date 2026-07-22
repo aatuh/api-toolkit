@@ -283,7 +283,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		if clientKey == "" {
 			if m.opts.RequireKey {
 				m.emitOutcome(r.Context(), r, IdempotencyOutcomeMissingKey, http.StatusBadRequest, false)
-				writeMissingKey(w)
+				m.writeMissingKey(w)
 				return
 			}
 			m.emitOutcome(r.Context(), r, IdempotencyOutcomeMissingKey, 0, false)
@@ -295,7 +295,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			key = strings.TrimSpace(m.opts.StorageKeyFunc(r, clientKey))
 			if key == "" {
 				m.emitOutcome(r.Context(), r, IdempotencyOutcomeInvalidRequest, http.StatusBadRequest, false)
-				writeInvalidKey(w)
+				m.writeInvalidKey(w)
 				return
 			}
 		}
@@ -303,7 +303,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		body, err := readBody(r, m.opts.MaxBodyBytes)
 		if err != nil {
 			m.emitOutcome(r.Context(), r, IdempotencyOutcomeInvalidRequest, bodyErrorStatus(err), false)
-			writeBodyError(w, err)
+			m.writeBodyError(w, err)
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
@@ -314,7 +314,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		hash, err := m.opts.HashFunc(r, body)
 		if err != nil {
 			m.emitOutcome(r.Context(), r, IdempotencyOutcomeInvalidRequest, http.StatusBadRequest, false)
-			httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+			m.writeProblem(w, http.StatusBadRequest, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 				Title:  http.StatusText(http.StatusBadRequest),
 				Detail: "invalid idempotent request",
@@ -334,7 +334,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				return
 			}
 			m.emitOutcome(ctx, r, IdempotencyOutcomeLookupFailed, http.StatusServiceUnavailable, false)
-			httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+			m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 				Title:  http.StatusText(http.StatusServiceUnavailable),
 				Detail: "idempotency store unavailable",
@@ -345,7 +345,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		if found {
 			if record.RequestHash != "" && record.RequestHash != hash {
 				m.emitOutcome(ctx, r, IdempotencyOutcomeConflict, http.StatusConflict, false)
-				writeConflict(w)
+				m.writeConflict(w)
 				return
 			}
 			if m.isRecoverableLegacyInflight(record) {
@@ -360,7 +360,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 						m.opts.OnError(err)
 					}
 					m.emitOutcome(ctx, r, IdempotencyOutcomeReservationUnavailable, http.StatusServiceUnavailable, false)
-					httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+					m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 						Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 						Title:  http.StatusText(http.StatusServiceUnavailable),
 						Detail: "idempotency state is temporarily unavailable; retry with the same key later",
@@ -376,15 +376,15 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			switch record.State {
 			case StateCompleted:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
-				writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
+				m.writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 				return
 			case StateInFlight:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
-				writeInFlight(w, m.opts.InFlightTTL)
+				m.writeInFlight(w, m.opts.InFlightTTL)
 				return
 			case StateAmbiguous:
 				m.emitOutcome(ctx, r, IdempotencyOutcomeAmbiguous, http.StatusServiceUnavailable, false)
-				writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
+				m.writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
 				return
 			case StateUnknown:
 				// Fall through to process as a fresh request.
@@ -405,7 +405,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					m.opts.OnError(err)
 				}
 				m.emitOutcome(ctx, r, IdempotencyOutcomeReservationFailed, http.StatusServiceUnavailable, false)
-				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 					Title:  http.StatusText(http.StatusServiceUnavailable),
 					Detail: "idempotency reservation failed",
@@ -424,7 +424,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					return
 				}
 				m.emitOutcome(ctx, r, IdempotencyOutcomeReservationFailed, http.StatusServiceUnavailable, false)
-				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 					Title:  http.StatusText(http.StatusServiceUnavailable),
 					Detail: "idempotency reservation failed",
@@ -446,7 +446,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					return
 				}
 				m.emitOutcome(ctx, r, IdempotencyOutcomeLookupFailed, http.StatusServiceUnavailable, false)
-				httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+				m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 					Title:  http.StatusText(http.StatusServiceUnavailable),
 					Detail: "idempotency lookup failed",
@@ -456,7 +456,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			if found {
 				if record.RequestHash != "" && record.RequestHash != hash {
 					m.emitOutcome(ctx, r, IdempotencyOutcomeConflict, http.StatusConflict, false)
-					writeConflict(w)
+					m.writeConflict(w)
 					return
 				}
 				if m.isRecoverableLegacyInflight(record) {
@@ -471,7 +471,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 							m.opts.OnError(err)
 						}
 						m.emitOutcome(ctx, r, IdempotencyOutcomeReservationUnavailable, http.StatusServiceUnavailable, false)
-						httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+						m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 							Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 							Title:  http.StatusText(http.StatusServiceUnavailable),
 							Detail: "idempotency state is temporarily unavailable; retry with the same key later",
@@ -484,15 +484,15 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				switch record.State {
 				case StateCompleted:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeReplayed, replayStatus(record), false)
-					writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
+					m.writeReplay(w, clientKey, record, m.opts.ReplayHeaderName)
 					return
 				case StateInFlight:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeInFlight, http.StatusConflict, false)
-					writeInFlight(w, m.opts.InFlightTTL)
+					m.writeInFlight(w, m.opts.InFlightTTL)
 					return
 				case StateAmbiguous:
 					m.emitOutcome(ctx, r, IdempotencyOutcomeAmbiguous, http.StatusServiceUnavailable, false)
-					writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
+					m.writeAmbiguous(w, ambiguousRetryAfter(record, m.opts.TTL, m.opts.Clock))
 					return
 				case StateUnknown:
 					// Fall through to fail closed below.
@@ -507,7 +507,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				return
 			}
 			m.emitOutcome(ctx, r, IdempotencyOutcomeReservationUnavailable, http.StatusServiceUnavailable, false)
-			writeReservationStateUnavailable(w)
+			m.writeReservationStateUnavailable(w)
 			return
 		}
 
@@ -531,7 +531,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 				m.opts.OnError(err)
 			}
 			m.emitOutcome(ctx, r, IdempotencyOutcomeResponseTooLarge, http.StatusServiceUnavailable, false)
-			writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(Record{
+			m.writeAmbiguousResponseTooLarge(w, ambiguousRetryAfter(Record{
 				CreatedAt: m.opts.Clock.Now(),
 			}, m.opts.TTL, m.opts.Clock))
 			return
@@ -562,7 +562,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 					}
 				}
 				m.emitOutcome(ctx, r, IdempotencyOutcomePersistenceFailed, http.StatusServiceUnavailable, false)
-				writeAmbiguousPersistenceFailure(w, ambiguousRetryAfter(Record{
+				m.writeAmbiguousPersistenceFailure(w, ambiguousRetryAfter(Record{
 					CreatedAt: m.opts.Clock.Now(),
 				}, m.opts.TTL, m.opts.Clock))
 				return
@@ -697,6 +697,12 @@ func defaultMethodFilter(methods ...string) func(*http.Request) bool {
 	}
 }
 
+func (m *Middleware) writeProblem(w http.ResponseWriter, status int, problem httpx.Problem) {
+	if err := httpx.WriteProblemChecked(w, status, problem); err != nil && m.opts.OnError != nil {
+		m.opts.OnError(err)
+	}
+}
+
 var errBodyTooLarge = errors.New("request body too large")
 
 func readBody(r *http.Request, maxBytes int64) ([]byte, error) {
@@ -720,32 +726,32 @@ func readBody(r *http.Request, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func writeBodyError(w http.ResponseWriter, err error) {
+func (m *Middleware) writeBodyError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errBodyTooLarge) {
-		httpx.WriteProblem(w, http.StatusRequestEntityTooLarge, httpx.Problem{
+		m.writeProblem(w, http.StatusRequestEntityTooLarge, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypePayloadTooLarge),
 			Title:  http.StatusText(http.StatusRequestEntityTooLarge),
 			Detail: "request body too large",
 		})
 		return
 	}
-	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+	m.writeProblem(w, http.StatusBadRequest, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid request body",
 	})
 }
 
-func writeInvalidKey(w http.ResponseWriter) {
-	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+func (m *Middleware) writeInvalidKey(w http.ResponseWriter) {
+	m.writeProblem(w, http.StatusBadRequest, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "invalid idempotency key",
 	})
 }
 
-func writeMissingKey(w http.ResponseWriter) {
-	httpx.WriteProblem(w, http.StatusBadRequest, httpx.Problem{
+func (m *Middleware) writeMissingKey(w http.ResponseWriter) {
+	m.writeProblem(w, http.StatusBadRequest, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeBadRequest),
 		Title:  http.StatusText(http.StatusBadRequest),
 		Detail: "idempotency key is required",
@@ -766,35 +772,35 @@ func replayStatus(record Record) int {
 	return record.Status
 }
 
-func writeAmbiguous(w http.ResponseWriter, ttl time.Duration) {
+func (m *Middleware) writeAmbiguous(w http.ResponseWriter, ttl time.Duration) {
 	setRetryAfter(w, ttl)
-	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+	m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "idempotency outcome is ambiguous; previous attempt may have completed",
 	})
 }
 
-func writeAmbiguousPersistenceFailure(w http.ResponseWriter, ttl time.Duration) {
+func (m *Middleware) writeAmbiguousPersistenceFailure(w http.ResponseWriter, ttl time.Duration) {
 	setRetryAfter(w, ttl)
-	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+	m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "previous idempotent attempt may have completed, but its response could not be persisted",
 	})
 }
 
-func writeAmbiguousResponseTooLarge(w http.ResponseWriter, ttl time.Duration) {
+func (m *Middleware) writeAmbiguousResponseTooLarge(w http.ResponseWriter, ttl time.Duration) {
 	setRetryAfter(w, ttl)
-	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+	m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "previous idempotent attempt may have completed, but its response exceeded the replay buffer limit",
 	})
 }
 
-func writeReservationStateUnavailable(w http.ResponseWriter) {
-	httpx.WriteProblem(w, http.StatusServiceUnavailable, httpx.Problem{
+func (m *Middleware) writeReservationStateUnavailable(w http.ResponseWriter) {
+	m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
 		Title:  http.StatusText(http.StatusServiceUnavailable),
 		Detail: "idempotency state is temporarily unavailable; retry with the same key later",
@@ -825,7 +831,7 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
-func writeReplay(w http.ResponseWriter, key string, record Record, replayHeader string) {
+func (m *Middleware) writeReplay(w http.ResponseWriter, key string, record Record, replayHeader string) {
 	if record.Header != nil {
 		headers := stripReplayOwnedHeaders(record.Header, replayHeader)
 		for k, v := range headers {
@@ -856,19 +862,19 @@ func newReservationToken() (string, error) {
 	return hex.EncodeToString(buffer), nil
 }
 
-func writeInFlight(w http.ResponseWriter, ttl time.Duration) {
+func (m *Middleware) writeInFlight(w http.ResponseWriter, ttl time.Duration) {
 	if ttl > 0 {
 		w.Header().Set("Retry-After", itoa(int(ttl.Seconds())))
 	}
-	httpx.WriteProblem(w, http.StatusConflict, httpx.Problem{
+	m.writeProblem(w, http.StatusConflict, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeConflict),
 		Title:  http.StatusText(http.StatusConflict),
 		Detail: "idempotency key is already in use",
 	})
 }
 
-func writeConflict(w http.ResponseWriter) {
-	httpx.WriteProblem(w, http.StatusConflict, httpx.Problem{
+func (m *Middleware) writeConflict(w http.ResponseWriter) {
+	m.writeProblem(w, http.StatusConflict, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeConflict),
 		Title:  http.StatusText(http.StatusConflict),
 		Detail: "idempotency key reuse with different request",

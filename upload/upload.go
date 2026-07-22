@@ -155,7 +155,7 @@ func ValidationProblem(err error) httpx.Problem {
 
 // WriteValidationProblem writes upload validation errors as Problem Details.
 func WriteValidationProblem(w http.ResponseWriter, err error) {
-	httpx.WriteProblem(w, http.StatusBadRequest, ValidationProblem(err))
+	httpx.WriteProblemChecked(w, http.StatusBadRequest, ValidationProblem(err))
 }
 
 func isMultipartFormData(contentType string) bool {

@@ -53,7 +53,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 		ct := r.Header.Get(contentType)
 		if !isJSON(ct) {
-			httpx.WriteProblem(w, http.StatusUnsupportedMediaType, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusUnsupportedMediaType, httpx.Problem{
 				Type:   httpx.DefaultTypeURI(httpx.TypeUnsupportedMedia),
 				Title:  http.StatusText(http.StatusUnsupportedMediaType),
 				Detail: contentType + " must be " + applicationJSON,

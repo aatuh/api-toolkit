@@ -35,7 +35,7 @@ type Retention struct {
 type FailurePolicy struct {
 	// FailOpen permits the request when the store cannot enforce idempotency.
 	FailOpen bool
-	// OnError receives internal store and reservation failures.
+	// OnError receives internal store, reservation, and response-write failures.
 	OnError func(error)
 }
 

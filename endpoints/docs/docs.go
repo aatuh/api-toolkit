@@ -224,13 +224,13 @@ func (m *Manager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
 	html, err := m.GetHTML()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{
 				Title:  http.StatusText(http.StatusNotFound),
 				Detail: "documentation not found",
 			})
 			return
 		}
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to generate documentation",
 		})
@@ -247,13 +247,13 @@ func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	doc, err := m.getOpenAPIDocument()
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 				Title:  http.StatusText(http.StatusInternalServerError),
 				Detail: "failed to load openapi specification",
 			})
 			return
 		}
-		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{
 			Title:  http.StatusText(http.StatusNotFound),
 			Detail: "openapi specification disabled or not found",
 		})
@@ -269,14 +269,14 @@ func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
 func (m *Manager) ServeVersion(w http.ResponseWriter, _ *http.Request) {
 	version, err := m.GetVersion()
 	if err != nil {
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to get version",
 		})
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, map[string]string{
+	httpx.WriteJSONChecked(w, http.StatusOK, map[string]string{
 		"version": version,
 	})
 }
@@ -284,7 +284,7 @@ func (m *Manager) ServeVersion(w http.ResponseWriter, _ *http.Request) {
 // ServeInfo serves the documentation info.
 func (m *Manager) ServeInfo(w http.ResponseWriter, _ *http.Request) {
 	info := m.GetInfo()
-	httpx.WriteJSON(w, http.StatusOK, info)
+	httpx.WriteJSONChecked(w, http.StatusOK, info)
 }
 
 // generateDefaultHTML generates a default HTML documentation page.

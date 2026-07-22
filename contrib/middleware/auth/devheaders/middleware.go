@@ -68,14 +68,14 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 		userID := strings.TrimSpace(r.Header.Get(m.cfg.UserIDHeader))
 		if userID == "" {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "missing development auth headers",
 			})
 			return
 		}
 		if !m.trustsRemoteAddr(r.RemoteAddr) {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "development auth headers are not allowed from untrusted remote addresses",
 			})
@@ -113,7 +113,7 @@ func (m *Middleware) OptionalHandler(next http.Handler) http.Handler {
 			return
 		}
 		if !m.trustsRemoteAddr(r.RemoteAddr) {
-			httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+			httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{
 				Title:  http.StatusText(http.StatusUnauthorized),
 				Detail: "development auth headers are not allowed from untrusted remote addresses",
 			})

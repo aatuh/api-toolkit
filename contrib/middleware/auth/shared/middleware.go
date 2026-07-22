@@ -191,7 +191,7 @@ func OptionalBearerHandler(
 }
 
 func writeUnauthorized(w http.ResponseWriter, detail string) {
-	httpx.WriteProblem(w, http.StatusUnauthorized, httpx.Problem{
+	httpx.WriteProblemChecked(w, http.StatusUnauthorized, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
 		Title:  http.StatusText(http.StatusUnauthorized),
 		Detail: detail,

@@ -177,7 +177,7 @@ func ValidationProblem(err error) httpx.Problem {
 
 // WriteValidationProblem writes validation errors as RFC 9457 Problem Details.
 func WriteValidationProblem(w http.ResponseWriter, err error) {
-	httpx.WriteProblem(w, http.StatusBadRequest, ValidationProblem(err))
+	httpx.WriteProblemChecked(w, http.StatusBadRequest, ValidationProblem(err))
 }
 
 func decodeValuesInto(dst any, values url.Values, tag string, defaults map[string]string, mode RequiredMode) error {

@@ -149,13 +149,13 @@ func authStatus(ctx context.Context) int {
 func writeRoleProblem(w http.ResponseWriter, status int) {
 	switch status {
 	case http.StatusUnauthorized:
-		httpx.WriteProblem(w, status, httpx.Problem{
+		httpx.WriteProblemChecked(w, status, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeUnauthorized),
 			Title:  http.StatusText(status),
 			Detail: "authentication required",
 		})
 	default:
-		httpx.WriteProblem(w, http.StatusForbidden, httpx.Problem{
+		httpx.WriteProblemChecked(w, http.StatusForbidden, httpx.Problem{
 			Type:   httpx.DefaultTypeURI(httpx.TypeForbidden),
 			Title:  http.StatusText(http.StatusForbidden),
 			Detail: "forbidden",

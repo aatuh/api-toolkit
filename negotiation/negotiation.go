@@ -285,7 +285,7 @@ func writeNotAcceptable(w http.ResponseWriter, allowed []MediaType) {
 		Detail: "requested response media type is not available",
 	}
 	problem.With("acceptable", mediaTypeStrings(allowed))
-	httpx.WriteProblem(w, http.StatusNotAcceptable, problem)
+	httpx.WriteProblemChecked(w, http.StatusNotAcceptable, problem)
 }
 
 func writeUnsupportedMediaType(w http.ResponseWriter, allowed []MediaType) {
@@ -295,7 +295,7 @@ func writeUnsupportedMediaType(w http.ResponseWriter, allowed []MediaType) {
 		Detail: "request content type is not supported",
 	}
 	problem.With("supported", mediaTypeStrings(allowed))
-	httpx.WriteProblem(w, http.StatusUnsupportedMediaType, problem)
+	httpx.WriteProblemChecked(w, http.StatusUnsupportedMediaType, problem)
 }
 
 func mediaTypeStrings(values []MediaType) []string {

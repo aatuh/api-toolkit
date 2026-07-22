@@ -81,7 +81,7 @@ func ReplayProblem(detail string) httpx.Problem {
 
 // WriteConflict writes a 409 idempotency conflict Problem Details response.
 func WriteConflict(w http.ResponseWriter, detail string) {
-	httpx.WriteProblem(w, http.StatusConflict, ConflictProblem(detail))
+	httpx.WriteProblemChecked(w, http.StatusConflict, ConflictProblem(detail))
 }
 
 // WriteAcceptedReplay writes a replayed 202 Accepted operation response.

@@ -362,7 +362,7 @@ func headerIsTrue(val string) bool {
 }
 
 func defaultErrorWriter(w http.ResponseWriter, status int, p httpx.Problem) {
-	httpx.WriteProblem(w, status, p)
+	httpx.WriteProblemChecked(w, status, p)
 }
 
 type limitConfig struct {
