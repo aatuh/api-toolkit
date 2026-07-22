@@ -7519,6 +7519,64 @@ func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 	}
 }
 
+func TestPullRequestTicketCommitGovernance(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	contributing := readText(t, filepath.Join(repoRoot, "CONTRIBUTING.md"))
+	for _, required := range []string{
+		"One backlog ticket per pull request",
+		"One final conventional commit per ticket",
+		"Refs: <ticket-id>",
+		"Squash merge",
+		"BREAKING CHANGE:",
+	} {
+		if !strings.Contains(contributing, required) {
+			t.Fatalf("CONTRIBUTING.md missing ticket-commit governance %q", required)
+		}
+	}
+
+	template := readText(t, filepath.Join(repoRoot, ".github", "pull_request_template.md"))
+	for _, required := range []string{
+		"# Backlog ticket",
+		"Compatibility classification",
+		"Security classification",
+		"Generated-file impact",
+		"Benchmark impact",
+		"Migration impact",
+		"BREAKING CHANGE:",
+	} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("pull request template missing ticket-commit requirement %q", required)
+		}
+	}
+
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"pr-title-check:",
+		"pr-title-check-contract:",
+		"scripts/pr_title_check.sh",
+		"scripts/pr_title_check_contract_test.sh",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing pull-request title check text %q", required)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "pr-title-check-contract") {
+		t.Fatal("docs-check target must include pr-title-check-contract")
+	}
+
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"pr-title:",
+		"github.event_name == 'pull_request'",
+		"PR_TITLE: ${{ github.event.pull_request.title }}",
+		"make pr-title-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf(".github/workflows/ci.yml missing pull-request title enforcement %q", required)
+		}
+	}
+}
+
 func TestQualityAuditP1APIGovernanceDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
