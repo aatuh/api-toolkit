@@ -18,6 +18,9 @@ upgrade notes, and package-tied compatibility acknowledgements.
 
 ### Behavior and security
 
+- Generated `saas-api-full` services now keep their Redis idempotency store as
+  `idempotency.ReleasableStore`, matching the checked `NewWithStore` contract
+  and preserving token-aware reservation release at compile time.
 - `middleware/timeout.HardTimeout.Middleware` and
   `middleware/timeout.HardTimeout.Handler` are deprecated generic buffered
   wrappers. New global wiring should use `timeout.NewPropagator`; finite JSON

@@ -1625,6 +1625,13 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 			t.Fatalf("generated full-profile main.go missing %q", want)
 		}
 	}
+	generatedRedis, err := os.ReadFile(filepath.Join(serviceDir, "internal", "adapters", "redis", "cache.go"))
+	if err != nil {
+		t.Fatalf("read generated Redis adapter: %v", err)
+	}
+	if !strings.Contains(string(generatedRedis), "Store  idempotency.ReleasableStore") {
+		t.Fatal("generated Redis idempotency store must expose ReleasableStore")
+	}
 
 	generatedWorker, err := os.ReadFile(filepath.Join(serviceDir, "cmd", "worker", "main.go"))
 	if err != nil {
