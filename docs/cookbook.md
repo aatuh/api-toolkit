@@ -661,8 +661,25 @@ if err != nil {
 handler := limiter.Handler(next)
 ```
 
-- Expected behavior: allowed and denied responses include standard quota headers when header emission is enabled; existing limiter behavior is unchanged when `HeaderConfig` is left empty.
-- Production caveat: distributed quota accounting still belongs in an app-owned or adapter-owned limiter.
+- Distributed enforcement sketch:
+
+```go
+shared := ratelimitredis.NewDecisionLimiter(redisClient, ratelimitredis.Options{
+	Capacity:   100,
+	RefillRate: 10,
+	KeyPrefix:  "my-api:ratelimit:",
+})
+limiter, err := ratelimit.New(ratelimit.Options{
+	DecisionLimiter: shared,
+	HeaderConfig:    ratelimit.DefaultHeaderConfig(),
+})
+if err != nil {
+	return err
+}
+```
+
+- Expected behavior: allowed and denied responses include standard quota headers when header emission is enabled; existing limiter behavior is unchanged when `HeaderConfig` is left empty. A `DecisionLimiter` supplies the same complete headers when an external store makes the decision.
+- Production caveat: the in-memory limiter is per-process. Use a supported distributed adapter such as `contrib/adapters/ratelimitredis.NewDecisionLimiter` for cross-replica enforcement, keep keys bounded and tenant-safe, and configure trusted proxies before deriving keys from forwarding headers. Empty custom keys intentionally share the anonymous bucket. Bypass headers remain disabled unless explicitly enabled with trusted-proxy protection.
 
 ## Idempotent create and async replay contracts
 

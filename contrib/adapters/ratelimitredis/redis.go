@@ -3,6 +3,7 @@ package ratelimitredis
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -28,6 +29,16 @@ type Limiter struct {
 }
 
 var _ ratelimit.Limiter = (*Limiter)(nil)
+
+// DecisionLimiter implements ratelimit.DecisionLimiter using the same Redis
+// token bucket as Limiter. It is separate from Limiter so existing callers can
+// retain the v4 Allow signature while middleware can opt in to authoritative
+// quota headers.
+type DecisionLimiter struct {
+	limiter *Limiter
+}
+
+var _ ratelimit.DecisionLimiter = (*DecisionLimiter)(nil)
 
 var tokenBucketScript = redis.NewScript(`
 local capacity = tonumber(ARGV[1])
@@ -60,12 +71,18 @@ else
   end
 end
 
+local remaining = math.floor(tokens)
+local reset = now
+if refill > 0 and tokens < capacity then
+  reset = now + ((capacity - tokens) / refill)
+end
+
 redis.call("HMSET", KEYS[1], "tokens", tokens, "ts", ts)
 if ttl > 0 then
   redis.call("EXPIRE", KEYS[1], ttl)
 end
 
-return {allowed, tostring(retry_after)}
+return {allowed, tostring(retry_after), tostring(remaining), tostring(reset)}
 `)
 
 // New constructs a Redis-backed limiter.
@@ -92,28 +109,45 @@ func New(client redis.UniversalClient, opts Options) *Limiter {
 	}
 }
 
+// NewDecisionLimiter constructs a Redis-backed limiter that provides complete
+// quota metadata to ratelimit.Middleware through ratelimit.DecisionLimiter.
+func NewDecisionLimiter(client redis.UniversalClient, opts Options) *DecisionLimiter {
+	return &DecisionLimiter{limiter: New(client, opts)}
+}
+
 // Allow consumes a token for the key when available.
 func (l *Limiter) Allow(ctx context.Context, key string) (bool, time.Duration, error) {
+	decision, err := l.allowDecision(ctx, key)
+	return decision.Allowed, decision.RetryAfter, err
+}
+
+func (l *Limiter) allowDecision(ctx context.Context, key string) (ratelimit.Decision, error) {
 	if l == nil || l.client == nil {
-		return false, 0, fmt.Errorf("redis rate limiter not configured")
+		return ratelimit.Decision{}, fmt.Errorf("redis rate limiter not configured")
 	}
 	if key == "" {
-		return true, 0, nil
+		return ratelimit.Decision{Allowed: true}, nil
 	}
 	now := float64(l.now().UnixNano()) / float64(time.Second)
-	ttlSeconds := int64(l.opts.StateTTL.Seconds())
+	ttlSeconds := int64(math.Ceil(l.opts.StateTTL.Seconds()))
 	res, err := tokenBucketScript.Run(ctx, l.client, []string{l.key(key)}, l.opts.Capacity, l.opts.RefillRate, now, ttlSeconds).Result()
 	if err != nil {
-		return false, 0, err
+		return ratelimit.Decision{}, err
 	}
-	allowed, retryAfter, err := parseLimiterResult(res)
+	decision, err := parseDecisionResult(res)
 	if err != nil {
-		return false, 0, err
+		return ratelimit.Decision{}, err
 	}
-	if retryAfter <= 0 {
-		return allowed, 0, nil
+	decision.Limit = int(l.opts.Capacity)
+	return decision, nil
+}
+
+// Allow returns a complete decision for use with ratelimit.Middleware.
+func (l *DecisionLimiter) Allow(ctx context.Context, key string) (ratelimit.Decision, error) {
+	if l == nil || l.limiter == nil {
+		return ratelimit.Decision{}, fmt.Errorf("redis decision limiter not configured")
 	}
-	return allowed, time.Duration(retryAfter * float64(time.Second)), nil
+	return l.limiter.allowDecision(ctx, key)
 }
 
 func (l *Limiter) key(key string) string {
@@ -121,32 +155,80 @@ func (l *Limiter) key(key string) string {
 }
 
 func parseLimiterResult(res any) (bool, float64, error) {
+	values, err := limiterResultValues(res, 2)
+	if err != nil {
+		return false, 0, err
+	}
+	allowed, err := toFloat(values[0])
+	if err != nil {
+		return false, 0, err
+	}
+	retryAfter, err := toFloat(values[1])
+	if err != nil {
+		return false, 0, err
+	}
+	return allowed >= 1, retryAfter, nil
+}
+
+func parseDecisionResult(res any) (ratelimit.Decision, error) {
+	values, err := limiterResultValues(res, 4)
+	if err != nil {
+		return ratelimit.Decision{}, err
+	}
+	allowed, err := toFloat(values[0])
+	if err != nil {
+		return ratelimit.Decision{}, err
+	}
+	retryAfter, err := toFloat(values[1])
+	if err != nil {
+		return ratelimit.Decision{}, err
+	}
+	remaining, err := toFloat(values[2])
+	if err != nil {
+		return ratelimit.Decision{}, err
+	}
+	reset, err := toFloat(values[3])
+	if err != nil {
+		return ratelimit.Decision{}, err
+	}
+	if remaining < 0 {
+		remaining = 0
+	}
+	return ratelimit.Decision{
+		Allowed:    allowed >= 1,
+		Remaining:  int(math.Floor(remaining)),
+		Reset:      time.Unix(0, int64(reset*float64(time.Second))).UTC(),
+		RetryAfter: time.Duration(retryAfter * float64(time.Second)),
+	}, nil
+}
+
+func limiterResultValues(res any, min int) ([]any, error) {
 	switch values := res.(type) {
 	case []any:
-		if len(values) < 2 {
-			return false, 0, fmt.Errorf("unexpected redis limiter response")
+		if len(values) < min {
+			return nil, fmt.Errorf("unexpected redis limiter response")
 		}
-		allowed, err := toFloat(values[0])
-		if err != nil {
-			return false, 0, err
-		}
-		retryAfter, err := toFloat(values[1])
-		if err != nil {
-			return false, 0, err
-		}
-		return allowed >= 1, retryAfter, nil
+		return values, nil
 	case []int64:
-		if len(values) < 2 {
-			return false, 0, fmt.Errorf("unexpected redis limiter response")
+		if len(values) < min {
+			return nil, fmt.Errorf("unexpected redis limiter response")
 		}
-		return values[0] >= 1, float64(values[1]), nil
+		result := make([]any, len(values))
+		for i, value := range values {
+			result[i] = value
+		}
+		return result, nil
 	case []float64:
-		if len(values) < 2 {
-			return false, 0, fmt.Errorf("unexpected redis limiter response")
+		if len(values) < min {
+			return nil, fmt.Errorf("unexpected redis limiter response")
 		}
-		return values[0] >= 1, values[1], nil
+		result := make([]any, len(values))
+		for i, value := range values {
+			result[i] = value
+		}
+		return result, nil
 	default:
-		return false, 0, fmt.Errorf("unexpected redis limiter response type %T", res)
+		return nil, fmt.Errorf("unexpected redis limiter response type %T", res)
 	}
 }
 

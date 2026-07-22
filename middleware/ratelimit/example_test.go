@@ -20,6 +20,34 @@ func ExampleLimiter() {
 	_ = limiter
 }
 
+type exampleDecisionLimiter struct{}
+
+func (exampleDecisionLimiter) Allow(context.Context, string) (ratelimit.Decision, error) {
+	return ratelimit.Decision{
+		Allowed:   true,
+		Limit:     10,
+		Remaining: 9,
+		Reset:     time.Unix(1_700_000_000, 0).UTC(),
+	}, nil
+}
+
+func ExampleDecisionLimiter() {
+	var limiter ratelimit.DecisionLimiter = exampleDecisionLimiter{}
+	decision, _ := limiter.Allow(context.Background(), "customer-42")
+	options := ratelimit.Options{
+		DecisionLimiter:  limiter,
+		CleanupBatchSize: 64,
+		HeaderConfig:     ratelimit.DefaultHeaderConfig(),
+	}
+
+	fmt.Println(decision.Limit, decision.Remaining, decision.Reset.UTC().Unix())
+	fmt.Println(options.CleanupBatchSize)
+
+	// Output:
+	// 10 9 1700000000
+	// 64
+}
+
 func ExampleSetRateLimitHeaders() {
 	recorder := httptest.NewRecorder()
 	ratelimit.SetRateLimitHeaders(recorder, ratelimit.Quota{

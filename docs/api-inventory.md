@@ -1183,8 +1183,13 @@ Stability tier: `stable`
 | --- | --- | --- | --- |
 | `Decision` | type | v3 compatibility surface | active |
 | `Decision.Allowed` | field | v3 compatibility surface | active |
+| `Decision.Limit` | field | v3 compatibility surface | active |
 | `Decision.Quota` | field | v3 compatibility surface | active |
+| `Decision.Remaining` | field | v3 compatibility surface | active |
+| `Decision.Reset` | field | v3 compatibility surface | active |
 | `Decision.RetryAfter` | field | v3 compatibility surface | active |
+| `DecisionLimiter` | type | v3 compatibility surface | active |
+| `DecisionLimiter.Allow` | interface method | v3 compatibility surface | active |
 | `DefaultHeaderConfig` | func | v3 compatibility surface | active |
 | `HeaderConfig` | type | v3 compatibility surface | active |
 | `HeaderConfig.Enabled` | field | v3 compatibility surface | active |
@@ -1202,9 +1207,11 @@ Stability tier: `stable`
 | `Options` | type | v3 compatibility surface | active |
 | `Options.AllowDangerousDevBypasses` | field | v3 compatibility surface | active |
 | `Options.Capacity` | field | v3 compatibility surface | active |
+| `Options.CleanupBatchSize` | field | v3 compatibility surface | active |
 | `Options.CleanupInterval` | field | v3 compatibility surface | active |
 | `Options.ClientIPResolver` | field | v3 compatibility surface | active |
 | `Options.Clock` | field | v3 compatibility surface | active |
+| `Options.DecisionLimiter` | field | v3 compatibility surface | active |
 | `Options.FailOpen` | field | v3 compatibility surface | active |
 | `Options.HeaderConfig` | field | v3 compatibility surface | active |
 | `Options.Key` | field | v3 compatibility surface | active |

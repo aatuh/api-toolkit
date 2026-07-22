@@ -106,6 +106,49 @@ func TestLimiterAllowTracksRetryAfterAndTTL(t *testing.T) {
 	}
 }
 
+func TestDecisionLimiterProvidesCompleteQuotaMetadata(t *testing.T) {
+	t.Parallel()
+
+	mini := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	now := time.Unix(1_700_000_000, 0).UTC()
+	limiter := NewDecisionLimiter(client, Options{
+		Capacity:   2,
+		RefillRate: 2,
+		StateTTL:   3 * time.Second,
+		KeyPrefix:  "rl:",
+		Clock: func() time.Time {
+			return now
+		},
+	})
+
+	decision, err := limiter.Allow(context.Background(), "customer:42")
+	if err != nil {
+		t.Fatalf("Allow() first call error = %v", err)
+	}
+	if !decision.Allowed || decision.Limit != 2 || decision.Remaining != 1 || decision.RetryAfter != 0 {
+		t.Fatalf("Allow() first decision = %+v, want allowed limit=2 remaining=1", decision)
+	}
+	assertTimeNear(t, decision.Reset, now.Add(500*time.Millisecond), 20*time.Millisecond)
+
+	if _, err := limiter.Allow(context.Background(), "customer:42"); err != nil {
+		t.Fatalf("Allow() second call error = %v", err)
+	}
+	decision, err = limiter.Allow(context.Background(), "customer:42")
+	if err != nil {
+		t.Fatalf("Allow() third call error = %v", err)
+	}
+	if decision.Allowed || decision.Limit != 2 || decision.Remaining != 0 {
+		t.Fatalf("Allow() third decision = %+v, want denied limit=2 remaining=0", decision)
+	}
+	assertDurationNear(t, decision.RetryAfter, 500*time.Millisecond, 20*time.Millisecond)
+	assertTimeNear(t, decision.Reset, now.Add(time.Second), 20*time.Millisecond)
+}
+
 func TestParseLimiterResultCoversStringAndErrorCases(t *testing.T) {
 	t.Parallel()
 
@@ -132,5 +175,12 @@ func assertDurationNear(t *testing.T, got, want, tolerance time.Duration) {
 	t.Helper()
 	if got < want-tolerance || got > want+tolerance {
 		t.Fatalf("duration = %v, want %v +/- %v", got, want, tolerance)
+	}
+}
+
+func assertTimeNear(t *testing.T, got, want time.Time, tolerance time.Duration) {
+	t.Helper()
+	if got.Before(want.Add(-tolerance)) || got.After(want.Add(tolerance)) {
+		t.Fatalf("time = %v, want %v +/- %v", got, want, tolerance)
 	}
 }

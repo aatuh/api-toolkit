@@ -1,10 +1,24 @@
-// Package ratelimit provides stable rate-limit middleware over Limiter.
+// Package ratelimit provides stable rate-limit middleware over Limiter and
+// DecisionLimiter.
 //
 // The middleware owns HTTP behavior while storage and quota decisions stay
-// behind the Limiter contract. Limiter is a v3 migration shim alias for
-// Limiter; prefer the package-local name in new application code
-// before v4 shrinks broad root ports. Use contrib adapters for concrete stores,
-// and keep dangerous local bypass configuration restricted to trusted proxies.
+// behind limiter contracts. Limiter is the v3-compatible migration contract;
+// prefer the package-local name in new application code before v4 shrinks broad
+// root ports. Use DecisionLimiter when a distributed adapter is the source of
+// truth for limit, remaining, reset, and retry header metadata. Configure only
+// one limiter contract at a time.
+//
+// The in-memory implementation is per-process and is not an exact shared quota
+// across replicas. It performs bounded incremental LRU expiry on request paths
+// (64 expired buckets per cleanup pass by default), never starts a background
+// goroutine, and does not scan the entire bucket map. Use a supported adapter
+// such as ratelimitredis for distributed enforcement.
+//
+// Keys must be bounded and privacy-safe. Empty or whitespace-only keys become
+// the shared anonymous bucket. The default key uses the peer address unless a
+// trusted ClientIPResolver is configured; configure trusted proxies explicitly
+// before accepting forwarded client identity. Dangerous bypass headers are
+// disabled by default and require explicit opt-in plus a trusted proxy.
 //
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v4/middleware/ratelimit`.

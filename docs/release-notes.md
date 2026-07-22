@@ -18,6 +18,19 @@ upgrade notes, and package-tied compatibility acknowledgements.
 
 ### Behavior and security
 
+- `middleware/ratelimit.DecisionLimiter` accepts authoritative external allow,
+  limit, remaining, reset, and retry values so standard rate-limit headers are
+  consistent with in-memory decisions. `middleware/ratelimit.Decision.Limit`,
+  `middleware/ratelimit.Decision.Remaining`,
+  `middleware/ratelimit.Decision.Reset`,
+  `middleware/ratelimit.DecisionLimiter.Allow`,
+  `middleware/ratelimit.Options.DecisionLimiter`, and
+  `middleware/ratelimit.Options.CleanupBatchSize` make that contract and
+  bounded cleanup explicit. `ratelimitredis.NewDecisionLimiter` supplies the
+  same metadata for the supported Redis adapter. Empty keys now use the shared
+  anonymous bucket, and the in-memory limiter performs bounded incremental
+  cleanup rather than a request-path full-map scan.
+
 - `health.NewManager` now validates `health.Config` at construction, while
   `health.DefaultConfig` supplies explicit defaults. `health.Config.Validate`,
   `health.Clock`, `health.Clock.Now`, and `health.Config.Clock` make timeout,

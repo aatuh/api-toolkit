@@ -9,6 +9,9 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ### Added
 
+- Added `middleware/ratelimit.DecisionLimiter` for distributed limiters that
+  provide authoritative `RateLimit-*` header metadata. In-memory state cleanup
+  is now bounded incremental work rather than a request-path full-map scan.
 - Added `health.NewManager`, `health.DefaultConfig`, and
   `health.Manager.RegisterCheckerChecked` for validated health-manager
   construction. `health.Config.Validate`, `health.Clock`, and

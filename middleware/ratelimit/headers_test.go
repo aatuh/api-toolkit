@@ -21,6 +21,18 @@ func TestSetRateLimitHeaders(t *testing.T) {
 	}
 }
 
+func TestQuotaFromDecisionPreservesV4QuotaWithRetryAfter(t *testing.T) {
+	reset := time.Unix(100, 0).UTC()
+	quota := QuotaFromDecision(Decision{
+		Allowed:    false,
+		Quota:      Quota{Limit: 10, Remaining: 0, Reset: reset},
+		RetryAfter: 2 * time.Second,
+	})
+	if quota.Limit != 10 || quota.Remaining != 0 || !quota.Reset.Equal(reset) || quota.RetryAfter != 2*time.Second {
+		t.Fatalf("quota = %+v, want v4 quota with retry-after", quota)
+	}
+}
+
 func TestMiddlewareEmitsQuotaHeadersWhenEnabled(t *testing.T) {
 	mw, err := New(Options{Capacity: 1, RefillRate: 1, Clock: headerClock{now: time.Unix(100, 0).UTC()}, HeaderConfig: DefaultHeaderConfig()})
 	if err != nil {

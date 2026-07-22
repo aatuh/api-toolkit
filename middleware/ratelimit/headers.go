@@ -16,11 +16,22 @@ type Quota struct {
 	RetryAfter time.Duration
 }
 
-// Decision describes an allow/deny decision with optional quota metadata.
+// Decision describes an allow/deny decision with complete optional quota
+// metadata. New DecisionLimiter implementations should populate the flat
+// fields. Quota is retained for v4 compatibility with existing callers.
 type Decision struct {
-	Allowed    bool
-	Quota      Quota
+	// Allowed reports whether the request may proceed.
+	Allowed bool
+	// Limit is the maximum quota for the current window.
+	Limit int
+	// Remaining is the quota available after this decision.
+	Remaining int
+	// Reset is when the current quota recovers or resets.
+	Reset time.Time
+	// RetryAfter is the delay before a denied request can be retried.
 	RetryAfter time.Duration
+	// Quota is the v4 compatibility representation of the same metadata.
+	Quota Quota
 }
 
 // HeaderConfig configures standard rate-limit response headers.
@@ -79,6 +90,14 @@ func WriteRateLimited(w http.ResponseWriter, decision Decision, config HeaderCon
 
 // QuotaFromDecision extracts quota metadata from a decision.
 func QuotaFromDecision(decision Decision) Quota {
+	if decision.Limit > 0 || decision.Remaining != 0 || !decision.Reset.IsZero() {
+		return Quota{
+			Limit:      decision.Limit,
+			Remaining:  decision.Remaining,
+			Reset:      decision.Reset,
+			RetryAfter: decision.RetryAfter,
+		}
+	}
 	quota := decision.Quota
 	if quota.RetryAfter <= 0 {
 		quota.RetryAfter = decision.RetryAfter
