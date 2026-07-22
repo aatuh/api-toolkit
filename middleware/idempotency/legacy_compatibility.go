@@ -451,7 +451,10 @@ type legacyInFlightCompatibilityAsyncSink struct {
 	next    LegacyInFlightCompatibilityEventSink
 	log     ports.Logger
 	queue   chan legacyInFlightCompatibilityAsyncEvent
-	started sync.Once
+	mu      sync.Mutex
+	started bool
+	closed  bool
+	workers sync.WaitGroup
 	dropped atomic.Uint64
 }
 
@@ -474,12 +477,19 @@ func (s *legacyInFlightCompatibilityAsyncSink) Emit(ctx context.Context, event L
 	if s == nil || s.next == nil {
 		return
 	}
-	s.started.Do(func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	if !s.started {
+		s.started = true
 		workerCtx := context.WithoutCancel(ctx)
+		s.workers.Add(legacyInFlightCompatibilityAsyncWorkers)
 		for i := 0; i < legacyInFlightCompatibilityAsyncWorkers; i++ {
 			go s.drain(workerCtx)
 		}
-	})
+	}
 	select {
 	case s.queue <- legacyInFlightCompatibilityAsyncEvent{event: event}:
 	default:
@@ -494,7 +504,23 @@ func (s *legacyInFlightCompatibilityAsyncSink) Emit(ctx context.Context, event L
 	}
 }
 
+func (s *legacyInFlightCompatibilityAsyncSink) Close() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.closed = true
+	close(s.queue)
+	s.mu.Unlock()
+	s.workers.Wait()
+}
+
 func (s *legacyInFlightCompatibilityAsyncSink) drain(ctx context.Context) {
+	defer s.workers.Done()
 	for item := range s.queue {
 		legacyInFlightCompatibilitySafeEmit(s.next, ctx, item.event)
 	}

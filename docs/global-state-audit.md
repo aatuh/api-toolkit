@@ -34,6 +34,7 @@ local configuration before customization.
 | `github.com/aatuh/api-toolkit/v4/middleware/auth/tenant` | `errTenantMissing` | sentinel-error | Package-private sentinel; do not reassign. | Immutable error value used with internal matching. |
 | `github.com/aatuh/api-toolkit/v4/middleware/idempotency` | `ErrLegacyInFlightClockSkewPreflightRisk` | sentinel-error | Stable error sentinel; do not reassign. | Immutable error value used with `errors.Is`. |
 | `github.com/aatuh/api-toolkit/v4/middleware/idempotency` | `ErrLegacyInFlightTTLMismatch` | sentinel-error | Stable error sentinel; do not reassign. | Immutable error value used with `errors.Is`. |
+| `github.com/aatuh/api-toolkit/v4/middleware/idempotency` | `ErrAmbiguousConfiguration` | sentinel-error | Stable error sentinel; do not reassign. | Immutable error value used with `errors.Is` when grouped and legacy options conflict. |
 | `github.com/aatuh/api-toolkit/v4/middleware/idempotency` | `errBodyTooLarge` | sentinel-error | Package-private sentinel; do not reassign. | Immutable error value used with `errors.Is`. |
 | `github.com/aatuh/api-toolkit/v4/middleware/timeout` | `ErrHardTimeoutCaptureLimitExceeded` | sentinel-error | Stable error sentinel; do not reassign. | Immutable error value used with `errors.Is`. |
 | `github.com/aatuh/api-toolkit/v4/middleware/timeout` | `defaultHardTimeoutCaptureOverflowProblem` | immutable-default | Private Problem Details default; do not reassign. | Plain value is copied on write paths. |

@@ -287,6 +287,7 @@ func TestLegacyCompatibilityAsyncSinkDropsWhenQueueIsFull(t *testing.T) {
 	sink := newLegacyInFlightCompatibilityAsyncSink(LegacyInFlightCompatibilitySinkFunc(func(context.Context, LegacyInFlightCompatibilityEvent) {
 		<-block
 	}), log)
+	t.Cleanup(sink.Close)
 
 	for i := 0; i < legacyInFlightCompatibilityAsyncQueueSize*2; i++ {
 		sink.Emit(context.Background(), LegacyInFlightCompatibilityEvent{
@@ -312,6 +313,7 @@ func TestLegacyCompatibilityAsyncSinkRecoversFromSinkPanic(t *testing.T) {
 	sink := newLegacyInFlightCompatibilityAsyncSink(LegacyInFlightCompatibilitySinkFunc(func(context.Context, LegacyInFlightCompatibilityEvent) {
 		panic("boom")
 	}), &captureLogger{})
+	t.Cleanup(sink.Close)
 
 	sink.Emit(context.Background(), LegacyInFlightCompatibilityEvent{
 		Method:  http.MethodPost,
@@ -350,7 +352,6 @@ func TestIdempotencyWarnsOnLegacyInflightClockSkewRisk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
 	}
-
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
 	req.Header.Set("Idempotency-Key", key)
 	rec := httptest.NewRecorder()
@@ -925,6 +926,11 @@ func TestIdempotencyLegacyCompatibilityAsyncSinkSkipsRequestBackpressure(t *test
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := mw.Close(); err != nil {
+			t.Fatalf("close middleware: %v", err)
+		}
+	})
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/charge", strings.NewReader("alpha"))
 	req.Header.Set("Idempotency-Key", key)
@@ -952,6 +958,9 @@ func TestIdempotencyLegacyCompatibilityAsyncSinkSkipsRequestBackpressure(t *test
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected at least one async callback emission")
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close middleware: %v", err)
 	}
 }
 

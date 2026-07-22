@@ -24,19 +24,34 @@ const tenantScopedStorageKeyPrefix = "atk:v1:"
 
 // Options configures the idempotency middleware.
 type Options struct {
+	// Limits groups request and replay response capture bounds.
+	Limits Limits
+	// Retention groups completed-record and in-flight reservation lifetimes.
+	Retention Retention
+	// Failure configures store failure handling.
+	Failure FailurePolicy
+	// Observability configures logs and outcome notifications.
+	Observability Observability
+	// Compatibility configures temporary mixed-version recovery behavior.
+	Compatibility Compatibility
+
 	// Store is retained for v4 source compatibility.
 	//
 	// Deprecated: Use NewWithStore with a ReleasableStore. The legacy
 	// constructor validates this field at runtime, whereas NewWithStore makes
 	// token-aware release semantics visible at compile time.
-	Store            Store
-	HeaderName       string
-	KeyFunc          KeyFunc
-	StorageKeyFunc   StorageKeyFunc
-	HashFunc         HashFunc
-	TTL              time.Duration
-	InFlightTTL      time.Duration
-	MaxBodyBytes     int64
+	Store          Store
+	HeaderName     string
+	KeyFunc        KeyFunc
+	StorageKeyFunc StorageKeyFunc
+	HashFunc       HashFunc
+	// Deprecated: Use Retention.CompletedTTL.
+	TTL time.Duration
+	// Deprecated: Use Retention.InFlightTTL.
+	InFlightTTL time.Duration
+	// Deprecated: Use Limits.MaxBodyBytes.
+	MaxBodyBytes int64
+	// Deprecated: Use Limits.MaxResponseBytes.
 	MaxResponseBytes int64
 	// RequireKey rejects handled unsafe requests that omit the idempotency key.
 	// The default false preserves v2 pass-through behavior for existing callers.
@@ -47,37 +62,50 @@ type Options struct {
 	ResponseHeaderAllow []string
 	ResponseHeaderDeny  []string
 	ReplayHeaderName    string
-	FailOpen            bool
-	OnError             func(error)
-	OnOutcome           OutcomeHandler
-	Logger              ports.Logger
+	// Deprecated: Use Failure.FailOpen.
+	FailOpen bool
+	// Deprecated: Use Failure.OnError.
+	OnError func(error)
+	// Deprecated: Use Observability.OnOutcome.
+	OnOutcome OutcomeHandler
+	// Deprecated: Use Observability.Logger.
+	Logger ports.Logger
 	// KnownInFlightTTLs maps discovered peers to their observed in-flight TTL.
+	// Deprecated: Use Compatibility.KnownInFlightTTLs.
 	KnownInFlightTTLs map[string]time.Duration
 	// FailOnInFlightTTLMismatch enables hard-fail on TTL mismatch during startup.
+	// Deprecated: Use Compatibility.FailOnInFlightTTLMismatch.
 	FailOnInFlightTTLMismatch bool
 	// FailOnInFlightClockSkewPreflight promotes startup clock-skew risk checks into hard-fail.
+	// Deprecated: Use Compatibility.FailOnClockSkewPreflight.
 	FailOnInFlightClockSkewPreflight bool
 	// LegacyInFlightCompatibilityRawKey exposes the raw request key in compatibility events.
 	// Defaults to false (hashed key output). Keep this disabled in production
 	// unless a short, access-controlled incident review needs exact keys.
+	// Deprecated: Use Compatibility.ExposeRawLegacyKey.
 	LegacyInFlightCompatibilityRawKey bool
 	// LegacyInFlightCompatibilitySink emits compatibility telemetry independently of the
 	// legacy callback contract. Use this for logging adapters or custom integrations.
+	// Deprecated: Use Compatibility.LegacySink.
 	LegacyInFlightCompatibilitySink LegacyInFlightCompatibilityEventSink
 	// LegacyInFlightCompatibilityMetricSink emits metric label sets for compatibility events.
 	// Use this for Prometheus/observability pipelines that prefer canonical label contracts.
+	// Deprecated: Use Compatibility.LegacyMetricSink.
 	LegacyInFlightCompatibilityMetricSink LegacyInFlightCompatibilityMetricSink
 	// LegacyInFlightCompatibilityAsync avoids blocking request execution for telemetry
 	// work by enqueueing events to a bounded worker. When the queue is full,
 	// events are dropped and a warning is emitted; request execution is not
 	// backpressured.
+	// Deprecated: Use Compatibility.LegacyAsync.
 	LegacyInFlightCompatibilityAsync bool
 	// LegacyInFlightCompatibilitySampleEvery emits one event per N emitted events for
 	// high-volume environments. Values <= 1 preserve full event output. Use this
 	// to reduce async queue pressure and metric/log volume. Cardinality remains
 	// bounded by key hashing defaults unless RawKey is enabled.
+	// Deprecated: Use Compatibility.LegacySampleEvery.
 	LegacyInFlightCompatibilitySampleEvery int
 	// OnLegacyInFlightCompatibility receives additive mixed-version telemetry.
+	// Deprecated: Use Compatibility.OnLegacyInFlight.
 	OnLegacyInFlightCompatibility LegacyInFlightCompatibilityHandler
 }
 
@@ -85,6 +113,8 @@ type Options struct {
 type Middleware struct {
 	opts                       Options
 	reservationReleaser        ReservationReleaser
+	compatibilityCloser        interface{ Close() }
+	closeOnce                  sync.Once
 	legacyClockSkewWarningOnce sync.Once
 	legacyRecoveryStoreType    string
 }
@@ -119,6 +149,11 @@ func NewWithStore(store ReleasableStore, opts Options) (*Middleware, error) {
 }
 
 func newMiddleware(store ReleasableStore, opts Options) (*Middleware, error) {
+	var err error
+	opts, err = opts.normalizeGroupedConfiguration()
+	if err != nil {
+		return nil, err
+	}
 	if opts.TTL < 0 {
 		return nil, errors.New("ttl must be non-negative")
 	}
@@ -179,8 +214,11 @@ func newMiddleware(store ReleasableStore, opts Options) (*Middleware, error) {
 		opts.LegacyInFlightCompatibilityMetricSink,
 		opts.Logger,
 	)
+	var compatibilityCloser interface{ Close() }
 	if opts.LegacyInFlightCompatibilityAsync {
-		sink = newLegacyInFlightCompatibilityAsyncSink(sink, opts.Logger)
+		asyncSink := newLegacyInFlightCompatibilityAsyncSink(sink, opts.Logger)
+		sink = asyncSink
+		compatibilityCloser = asyncSink
 	}
 	if opts.LegacyInFlightCompatibilitySampleEvery > 1 {
 		sink = &legacyInFlightCompatibilitySamplingSink{next: sink, every: opts.LegacyInFlightCompatibilitySampleEvery}
@@ -202,9 +240,25 @@ func newMiddleware(store ReleasableStore, opts Options) (*Middleware, error) {
 	return &Middleware{
 		opts:                opts,
 		reservationReleaser: store,
+		compatibilityCloser: compatibilityCloser,
 
 		legacyRecoveryStoreType: storeType,
 	}, nil
+}
+
+// Close releases resources owned by Middleware. It waits for any queued
+// asynchronous compatibility telemetry to finish. Call Close during graceful
+// shutdown when Compatibility.LegacyAsync is enabled.
+func (m *Middleware) Close() error {
+	if m == nil {
+		return nil
+	}
+	m.closeOnce.Do(func() {
+		if m.compatibilityCloser != nil {
+			m.compatibilityCloser.Close()
+		}
+	})
+	return nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.

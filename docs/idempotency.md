@@ -65,6 +65,40 @@ reservation release a compile-time requirement. `idempotency.New` and
 `Options.Store` remain available only for v4 source compatibility and are
 deprecated; migrate before the next major release.
 
+## Configuration groups
+
+New v4 configuration should use focused groups rather than the deprecated
+flat fields:
+
+```go
+mw, err := idempotency.NewWithStore(store, idempotency.Options{
+	Limits: idempotency.Limits{
+		MaxBodyBytes:     1 << 20,
+		MaxResponseBytes: 1 << 20,
+	},
+	Retention: idempotency.Retention{
+		CompletedTTL: 24 * time.Hour,
+		InFlightTTL:  2 * time.Minute,
+	},
+	Failure: idempotency.FailurePolicy{
+		FailOpen: false,
+	},
+})
+if err != nil {
+	return err
+}
+defer mw.Close()
+```
+
+`Observability` owns the logger and outcome hook. `Compatibility` contains
+temporary mixed-version recovery controls. Its raw-key option is disabled by
+default; keep `ExposeRawLegacyKey` off in normal operation. If
+`Compatibility.LegacyAsync` is enabled, `Middleware.Close` drains its bounded
+telemetry queue during graceful shutdown. Group fields with zero values retain
+the package defaults. Do not set both a grouped field and its deprecated flat
+equivalent: differing values fail construction with
+`ErrAmbiguousConfiguration`.
+
 ## Postgres Example
 
 Postgres idempotency storage is application-owned unless a generated service
