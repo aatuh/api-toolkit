@@ -67,6 +67,7 @@ func enabled(a, b int) bool {
 	}
 	return a < b
 }
+
 `)
 	writeFile(t, filepath.Join(dir, "widget_test.go"), `package widget
 
@@ -98,6 +99,55 @@ func TestIgnored(t *testing.T) {}
 		if !seen[want] {
 			t.Fatalf("missing mutation candidate %q in %#v", want, candidates)
 		}
+	}
+}
+
+func TestLimitMutationsBalancesSelectedPackages(t *testing.T) {
+	candidates := []mutation{
+		{Package: "example.test/binding", File: "binding.go", Start: 1},
+		{Package: "example.test/binding", File: "binding.go", Start: 2},
+		{Package: "example.test/binding", File: "binding.go", Start: 3},
+		{Package: "example.test/query", File: "query.go", Start: 1},
+		{Package: "example.test/query", File: "query.go", Start: 2},
+		{Package: "example.test/query", File: "query.go", Start: 3},
+	}
+
+	got := limitMutations(candidates, 4, 2)
+	if len(got) != 4 {
+		t.Fatalf("limited mutations = %d, want 4", len(got))
+	}
+	counts := map[string]int{}
+	for _, candidate := range got {
+		counts[candidate.Package]++
+	}
+	if counts["example.test/binding"] != 2 || counts["example.test/query"] != 2 {
+		t.Fatalf("package distribution = %#v, want two candidates per package", counts)
+	}
+}
+
+func TestValidateMutationResultsEnforcesMeaningfulKillRate(t *testing.T) {
+	parserMutation := mutation{Package: "example.test/binding", File: "binding.go", Rule: "operator", Original: "==", Replacement: "!="}
+	passing := []mutationResult{
+		{Mutation: parserMutation, Status: "killed"},
+		{Status: "killed"},
+		{Status: "killed"},
+		{Status: "killed"},
+		{Status: "survived"},
+	}
+	if err := validateMutationResults(passing, 0.80); err != nil {
+		t.Fatalf("known parser mutation and four-of-five kill rate should pass: %v", err)
+	}
+
+	belowThreshold := append([]mutationResult(nil), passing...)
+	belowThreshold[3].Status = "survived"
+	if err := validateMutationResults(belowThreshold, 0.80); err == nil {
+		t.Fatal("kill rate below the configured threshold passed")
+	}
+
+	timedOut := append([]mutationResult(nil), passing...)
+	timedOut[4].Status = "timeout"
+	if err := validateMutationResults(timedOut, 0.80); err == nil {
+		t.Fatal("timed-out mutation passed the blocking gate")
 	}
 }
 

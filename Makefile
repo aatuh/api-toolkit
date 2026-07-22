@@ -8,6 +8,9 @@ COVERAGE_TREND_COMMIT ?=
 MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_LIMIT ?= 12
 MUTATION_TIMEOUT ?= 30s
+MUTATION_GATE_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
+MUTATION_GATE_PER_PACKAGE_LIMIT ?= 3
+MUTATION_GATE_MIN_KILL_RATE ?= 0.75
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 TOOLS_DIR ?= .tools
@@ -285,18 +288,21 @@ test-race: ## Run unit tests with race detector
 	done
 
 timeout-determinism-check: ## Run repeated timeout middleware determinism and race checks
-	@$(GO) test ./middleware/timeout -count=50 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
-	@$(GO) test ./middleware/timeout -race -count=20 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/timeout -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/timeout -race -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
 	@$(GO) test ./middleware/idempotency ./middleware/timeout ./middleware/ratelimit ./scheduler -race -count=1
 
 fuzz: ## Run fuzz smoke tests
-	@GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
+	@GO="$(GO)" GOWORK="$(WORKSPACE)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
 
 fuzz-contract: ## Run fuzz smoke script contract tests
 	@scripts/fuzz_check_contract_test.sh
 
 mutation-smoke: ## Run non-blocking stable-core mutation smoke
 	@GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_PACKAGES)" MUTATION_LIMIT="$(MUTATION_LIMIT)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(MUTATION_OUT)" scripts/mutation_smoke.sh
+
+mutation-check: ## Run blocking selected-package mutation gate
+	@GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_GATE_PACKAGES)" MUTATION_LIMIT=0 MUTATION_PER_PACKAGE_LIMIT="$(MUTATION_GATE_PER_PACKAGE_LIMIT)" MUTATION_MIN_KILL_RATE="$(MUTATION_GATE_MIN_KILL_RATE)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(OUTPUT_DIR)/mutation/mutation-check.tsv" scripts/mutation_smoke.sh
 
 benchmark-smoke: ## Run package benchmark smoke without performance claims
 	@set -e; for mod in $(MODULES); do \

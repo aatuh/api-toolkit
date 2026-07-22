@@ -172,7 +172,7 @@ func TestGeneratedFailureExpiredManagedAPIKeyIsRejected(t *testing.T) {
 }
 
 func TestGeneratedFailureSlowDownstreamHardTimeoutIsBounded(t *testing.T) {
-	middleware, err := timeoutmw.NewHard(timeoutmw.Options{Timeout: 5 * time.Millisecond})
+	middleware, err := timeoutmw.NewHard(timeoutmw.Options{Timeout: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new hard timeout: %v", err)
 	}

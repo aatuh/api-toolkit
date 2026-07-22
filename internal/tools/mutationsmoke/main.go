@@ -22,19 +22,22 @@ import (
 )
 
 const (
-	defaultPackages = "./binding,./queryparams,./negotiation,./webhooks"
-	defaultLimit    = 12
-	defaultTimeout  = 30 * time.Second
+	defaultPackages        = "./binding,./queryparams,./negotiation,./webhooks"
+	defaultLimit           = 12
+	defaultPerPackageLimit = 0
+	defaultTimeout         = 30 * time.Second
 )
 
 type config struct {
-	Root     string
-	Go       string
-	Packages []string
-	Limit    int
-	Timeout  time.Duration
-	Out      string
-	Keep     bool
+	Root            string
+	Go              string
+	Packages        []string
+	Limit           int
+	PerPackageLimit int
+	MinKillRate     float64
+	Timeout         time.Duration
+	Out             string
+	Keep            bool
 }
 
 type packageTarget struct {
@@ -82,9 +85,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if cfg.Limit > 0 && len(mutations) > cfg.Limit {
-		mutations = mutations[:cfg.Limit]
-	}
+	mutations = limitMutations(mutations, cfg.Limit, cfg.PerPackageLimit)
 	results := make([]mutationResult, 0, len(mutations))
 	for _, candidate := range mutations {
 		result := runMutation(cfg, candidate)
@@ -96,8 +97,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err := writeReport(cfg.Out, results); err != nil {
 		return err
 	}
-	printSummary(stdout, cfg.Out, results)
-	return nil
+	printSummary(stdout, cfg.Out, results, cfg.MinKillRate)
+	return validateMutationResults(results, cfg.MinKillRate)
 }
 
 func parseConfig(args []string) (config, error) {
@@ -108,17 +109,21 @@ func parseConfig(args []string) (config, error) {
 	fs := flag.NewFlagSet("mutationsmoke", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	cfg := config{
-		Root:    root,
-		Go:      envDefault("GO", "go"),
-		Limit:   envIntDefault("MUTATION_LIMIT", defaultLimit),
-		Timeout: envDurationDefault("MUTATION_TIMEOUT", defaultTimeout),
-		Out:     filepath.Join(envDefault("OUTPUT_DIR", ".ci-result"), "mutation", "mutation-smoke.tsv"),
+		Root:            root,
+		Go:              envDefault("GO", "go"),
+		Limit:           envIntDefault("MUTATION_LIMIT", defaultLimit),
+		PerPackageLimit: envIntDefault("MUTATION_PER_PACKAGE_LIMIT", defaultPerPackageLimit),
+		MinKillRate:     envFloatDefault("MUTATION_MIN_KILL_RATE", 0),
+		Timeout:         envDurationDefault("MUTATION_TIMEOUT", defaultTimeout),
+		Out:             filepath.Join(envDefault("OUTPUT_DIR", ".ci-result"), "mutation", "mutation-smoke.tsv"),
 	}
 	packages := envDefault("MUTATION_PACKAGES", defaultPackages)
 	fs.StringVar(&cfg.Root, "workdir", cfg.Root, "repository root")
 	fs.StringVar(&cfg.Go, "go", cfg.Go, "go command")
 	fs.StringVar(&packages, "packages", packages, "comma or space separated package patterns")
 	fs.IntVar(&cfg.Limit, "limit", cfg.Limit, "maximum mutants to run")
+	fs.IntVar(&cfg.PerPackageLimit, "per-package-limit", cfg.PerPackageLimit, "maximum mutants to run per selected package")
+	fs.Float64Var(&cfg.MinKillRate, "min-kill-rate", cfg.MinKillRate, "minimum killed-mutant fraction required from 0 through 1")
 	fs.DurationVar(&cfg.Timeout, "timeout", cfg.Timeout, "per-mutant go test timeout")
 	fs.StringVar(&cfg.Out, "out", cfg.Out, "TSV report path")
 	fs.BoolVar(&cfg.Keep, "keep-workdir", false, "keep temporary worktrees for debugging")
@@ -140,6 +145,12 @@ func parseConfig(args []string) (config, error) {
 	if cfg.Limit < 0 {
 		return config{}, errors.New("limit must be non-negative")
 	}
+	if cfg.PerPackageLimit < 0 {
+		return config{}, errors.New("per-package-limit must be non-negative")
+	}
+	if cfg.MinKillRate < 0 || cfg.MinKillRate > 1 {
+		return config{}, errors.New("min-kill-rate must be between 0 and 1")
+	}
 	if cfg.Timeout <= 0 {
 		return config{}, errors.New("timeout must be greater than zero")
 	}
@@ -147,6 +158,46 @@ func parseConfig(args []string) (config, error) {
 		return config{}, errors.New("go command is required")
 	}
 	return cfg, nil
+}
+
+func limitMutations(candidates []mutation, limit, perPackageLimit int) []mutation {
+	if len(candidates) == 0 || (limit == 0 && perPackageLimit == 0) {
+		return candidates
+	}
+	limited := make([]mutation, 0, len(candidates))
+	perPackage := make(map[string]int)
+	for _, candidate := range candidates {
+		if perPackageLimit > 0 && perPackage[candidate.Package] >= perPackageLimit {
+			continue
+		}
+		limited = append(limited, candidate)
+		perPackage[candidate.Package]++
+		if limit > 0 && len(limited) == limit {
+			break
+		}
+	}
+	return limited
+}
+
+func validateMutationResults(results []mutationResult, minKillRate float64) error {
+	if minKillRate == 0 {
+		return nil
+	}
+	if len(results) == 0 {
+		return errors.New("mutation gate produced no mutants")
+	}
+	counts := make(map[string]int)
+	for _, result := range results {
+		counts[result.Status]++
+	}
+	if counts["error"] > 0 || counts["timeout"] > 0 {
+		return fmt.Errorf("mutation gate is incomplete: timeout=%d error=%d", counts["timeout"], counts["error"])
+	}
+	killRate := float64(counts["killed"]) / float64(len(results))
+	if killRate < minKillRate {
+		return fmt.Errorf("mutation kill rate %.2f%% is below required %.2f%% (%d killed of %d)", killRate*100, minKillRate*100, counts["killed"], len(results))
+	}
+	return nil
 }
 
 func packageTargets(cfg config) ([]packageTarget, error) {
@@ -479,19 +530,21 @@ func writeReport(path string, results []mutationResult) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
-func printSummary(w io.Writer, path string, results []mutationResult) {
+func printSummary(w io.Writer, path string, results []mutationResult, minKillRate float64) {
 	counts := map[string]int{}
 	for _, result := range results {
 		counts[result.Status]++
 	}
-	fmt.Fprintf(w, "mutation smoke: mutants=%d killed=%d survived=%d timeout=%d error=%d report=%s\n",
-		len(results),
-		counts["killed"],
-		counts["survived"],
-		counts["timeout"],
-		counts["error"],
-		path,
-	)
+	if minKillRate > 0 {
+		killRate := 0.0
+		if len(results) > 0 {
+			killRate = float64(counts["killed"]) / float64(len(results))
+		}
+		fmt.Fprintf(w, "mutation check: mutants=%d killed=%d survived=%d timeout=%d error=%d kill_rate=%.2f%% required=%.2f%% report=%s\n",
+			len(results), counts["killed"], counts["survived"], counts["timeout"], counts["error"], killRate*100, minKillRate*100, path)
+		return
+	}
+	fmt.Fprintf(w, "mutation smoke: mutants=%d killed=%d survived=%d timeout=%d error=%d report=%s\n", len(results), counts["killed"], counts["survived"], counts["timeout"], counts["error"], path)
 	if counts["survived"] > 0 {
 		fmt.Fprintln(w, "mutation smoke is non-blocking; review survived mutants as weak-assertion signals")
 	}
@@ -573,6 +626,18 @@ func envIntDefault(name string, fallback int) int {
 		return fallback
 	}
 	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func envFloatDefault(name string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return fallback
 	}
