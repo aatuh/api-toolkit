@@ -47,7 +47,7 @@ func main() {
 func newRouter(requestTimeout time.Duration) http.Handler {
 	router := chi.NewRouter()
 	router.Use(mustBodyLimit().Handler)
-	router.Use(mustHardTimeout(requestTimeout).Handler)
+	router.Use(mustTimeout(requestTimeout).Handler)
 
 	health.NewBasicHandler().RegisterPublicRoutesTo(chiGetRouter{router: router})
 	router.Post("/widgets", createWidget)
@@ -115,15 +115,14 @@ func mustBodyLimit() *maxbody.Middleware {
 	return bodyLimit
 }
 
-func mustHardTimeout(requestTimeout time.Duration) *timeout.HardTimeout {
-	hardTimeout, err := timeout.NewHard(timeout.Options{
-		Timeout:         requestTimeout,
-		MaxCaptureBytes: 64 << 10,
+func mustTimeout(requestTimeout time.Duration) *timeout.Propagator {
+	propagator, err := timeout.NewPropagator(timeout.Options{
+		Timeout: requestTimeout,
 	})
 	if err != nil {
 		panic(err)
 	}
-	return hardTimeout
+	return propagator
 }
 
 type chiGetRouter struct {

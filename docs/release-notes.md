@@ -18,6 +18,28 @@ upgrade notes, and package-tied compatibility acknowledgements.
 
 ### Behavior and security
 
+- `middleware/timeout.HardTimeout.Middleware` and
+  `middleware/timeout.HardTimeout.Handler` are deprecated generic buffered
+  wrappers. New global wiring should use `timeout.NewPropagator`; finite JSON
+  routes opt in through `timeout.HardTimeout.WrapRoute` with
+  `timeout.RouteCapabilityFiniteJSON`. `timeout.RouteCapabilities`,
+  `timeout.RouteCapabilityStreaming`,
+  `timeout.RouteCapabilityServerSentEvents`,
+  `timeout.RouteCapabilityWebSocketUpgrade`,
+  `timeout.RouteCapabilityLargeDownload`,
+  `timeout.RouteCapabilityFlusher`, `timeout.RouteCapabilityHijacker`,
+  `timeout.RouteCapabilityPusher`, and `timeout.RouteCapabilityReaderFrom`
+  identify response behavior that the hard wrapper rejects rather than silently
+  buffering. `timeout.HardTimeoutContinuationEvent`,
+  `timeout.HardTimeoutContinuationEvent.Method`,
+  `timeout.HardTimeoutContinuationEvent.Duration`,
+  `timeout.HardTimeoutContinuationEvent.Timeout`,
+  `timeout.HardTimeoutContinuationEvent.CaptureLimit`, and
+  `timeout.HardTimeoutEventHooks.OnHandlerContinues` provide bounded evidence
+  when a handler remains running after a 504 response. A hard-timeout route
+  override now requires `securityprofile.RouteOverride.HardTimeoutCapabilities`.
+  Hard timeout still allocates one handler goroutine and buffers up to the
+  configured capture limit for each wrapped request.
 - `middleware/ratelimit.DecisionLimiter` accepts authoritative external allow,
   limit, remaining, reset, and retry values so standard rate-limit headers are
   consistent with in-memory decisions. `middleware/ratelimit.Decision.Limit`,

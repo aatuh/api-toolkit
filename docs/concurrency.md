@@ -14,7 +14,7 @@ mutation or synchronization.
 | Middleware constructed with `New` | Safe for concurrent request use after construction unless injected dependencies are not safe. |
 | `middleware/ratelimit` in-process state | Shared state is synchronized; distributed exactness requires an adapter. |
 | `middleware/idempotency` | Middleware is safe after construction; store implementations own their own concurrency safety. |
-| `middleware/timeout` hard timeout capture | Per-request capture state is request-scoped; event hooks must be concurrency-safe. |
+| `middleware/timeout` hard timeout capture | Per-request capture state and handler goroutine are request-scoped; event hooks must be concurrency-safe and non-blocking. A handler can continue after its timeout response until it honors cancellation or returns. |
 | `routecontracts.Registry` and `specs.Registry` | Build during startup; avoid mutating while serving traffic. |
 | `endpoints/health` | Checker registration should happen during startup; checker implementations own concurrency safety. |
 | `scheduler` | Recorder, logger, and last-run provider implementations own shared-state safety. |

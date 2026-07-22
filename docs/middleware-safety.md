@@ -20,7 +20,7 @@ forbidden for streaming, and lists required opt-outs.
 | `middleware/ratelimit` | Safe globally when keys are bounded and shared state is appropriate. | Use route-specific limits for expensive writes, login, webhooks, and background callbacks. | Usually no, but long-lived streams need separate quotas. | Do not key on raw tokens, raw paths, request bodies, idempotency keys, or provider payloads. Empty keys share the anonymous bucket; use `DecisionLimiter` with a distributed adapter for cross-replica quotas. |
 | `middleware/idempotency` | No for a whole API. | Required on unsafe writes where retry safety matters. | Yes when it captures responses for replay. | Use `Options.ShouldHandle` and tenant-scoped storage keys; exclude streaming, server-sent events, websocket, large-download, and non-finite response routes. |
 | `middleware/timeout` cooperative deadlines | Yes when handlers respect `ctx.Done()`. | Tune deadlines by route class. | No. | Long-running exports, streams, and provider callbacks may need route-specific deadlines. |
-| `middleware/timeout` hard timeout | No for a whole API unless all responses are finite and buffering limits are reviewed. | Use for finite JSON routes that need a wall-clock response cutoff. | Yes for streaming, server-sent events, websocket, large downloads, and handlers requiring `http.Flusher` or `http.Hijacker`. | Use `securityprofile.StreamingRouteOverride` or direct route opt-outs for streaming and large-response routes. |
+| `middleware/timeout` hard timeout | No. Use cooperative `NewPropagator` globally. | Use `HardTimeout.WrapRoute(..., RouteCapabilityFiniteJSON)` only for finite JSON routes that need a wall-clock response cutoff. | Yes for streaming, server-sent events, websocket, large downloads, and handlers requiring `http.Flusher`, `http.Hijacker`, `http.Pusher`, or `io.ReaderFrom`. | Capability validation rejects unsafe hard-timeout routes; use `securityprofile.StreamingRouteOverride` or leave those routes unwrapped. |
 | `contrib/middleware/openapi` request validation | Safe globally when route contracts are complete. | Use route policy metadata for public/admin/unsafe-write differences. | No. | Keep routes without stable request contracts out until specified. |
 | `contrib/middleware/openapi` response validation | No for a whole API by default. | Use in tests, development, or selected finite production routes. | Yes when response validation buffers responses. | Use `openapi.ResponseValidationOptions.ShouldValidate` to skip streaming, upgrade, large-download, and optional-writer routes. |
 | `contrib/middleware/cors` | Safe globally only for browser APIs with one explicit origin policy. | Prefer route groups when admin, public browser, and machine API routes differ. | No. | Never use wildcard credentials; admin endpoints should normally avoid browser CORS. |
@@ -41,9 +41,10 @@ forbidden for streaming, and lists required opt-outs.
 8. Request validation before handlers.
 9. Response validation only for finite responses selected by
    `openapi.ResponseValidationOptions.ShouldValidate`.
-10. Cooperative timeout broadly; hard timeout only after streaming and optional
-    writer routes have `securityprofile.StreamingRouteOverride` or equivalent
-    opt-outs.
+10. Cooperative timeout broadly; hard timeout only through explicit
+    `HardTimeout.WrapRoute` for finite JSON responses. Streaming and optional
+    writer routes must retain their original writer or use
+    `securityprofile.StreamingRouteOverride`.
 
 Streaming, SSE, websocket, and large-download routes should be documented in
 the route contract with `x-api-toolkit-streaming` or equivalent local metadata.

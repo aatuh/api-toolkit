@@ -235,6 +235,69 @@ func TestHardTimeoutGlobalCompositionBreaksLargeStreamingRouteAndOptOutPreserves
 	}
 }
 
+func TestHardTimeoutWrapRouteAllowsExplicitFiniteJSON(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+	handler, err := mw.WrapRoute(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}), RouteCapabilityFiniteJSON)
+	if err != nil {
+		t.Fatalf("WrapRoute() error = %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/widgets", nil))
+	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"ok":true}` {
+		t.Fatalf("finite route response = (%d, %q)", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestHardTimeoutWrapRouteRejectsUnsafeCapabilities(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+	capabilities := []struct {
+		name  string
+		value RouteCapabilities
+	}{
+		{name: "Streaming", value: RouteCapabilityStreaming},
+		{name: "ServerSentEvents", value: RouteCapabilityServerSentEvents},
+		{name: "WebSocketUpgrade", value: RouteCapabilityWebSocketUpgrade},
+		{name: "LargeDownload", value: RouteCapabilityLargeDownload},
+		{name: "Flusher", value: RouteCapabilityFlusher},
+		{name: "Hijacker", value: RouteCapabilityHijacker},
+		{name: "Pusher", value: RouteCapabilityPusher},
+		{name: "ReaderFrom", value: RouteCapabilityReaderFrom},
+	}
+	for _, capability := range capabilities {
+		t.Run(capability.name, func(t *testing.T) {
+			handler, err := mw.WrapRoute(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("unsafe route handler was wrapped")
+			}), capability.value)
+			if err == nil {
+				t.Fatalf("WrapRoute(%s) error = nil", capability.name)
+			}
+			if handler != nil {
+				t.Fatalf("WrapRoute(%s) returned a handler after rejection", capability.name)
+			}
+		})
+	}
+}
+
+func TestHardTimeoutWrapRouteRejectsUnknownCapabilities(t *testing.T) {
+	mw, err := NewHard(Options{Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+	if _, err := mw.WrapRoute(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), RouteCapabilities(1<<15)); err == nil {
+		t.Fatal("WrapRoute() accepted unknown capability bits")
+	}
+}
+
 func TestHardTimeoutDefaultCaptureLimitAllowsSmallResponses(t *testing.T) {
 	mw, err := NewHard(Options{Timeout: time.Second})
 	if err != nil {
@@ -408,6 +471,56 @@ func TestHardTimeoutEmitsBoundedTimeoutEvent(t *testing.T) {
 	}
 	if event.CaptureLimit != defaultHardTimeoutMaxCaptureBytes {
 		t.Fatalf("capture limit = %d, want default", event.CaptureLimit)
+	}
+}
+
+func TestHardTimeoutEmitsHandlerContinuesEvent(t *testing.T) {
+	continued := make(chan HardTimeoutContinuationEvent, 1)
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	mw, err := NewHard(Options{
+		Timeout: 20 * time.Millisecond,
+		EventHooks: &HardTimeoutEventHooks{
+			OnHandlerContinues: func(event HardTimeoutContinuationEvent) {
+				continued <- event
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		<-release
+		close(finished)
+	}))
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/widgets?token=secret", nil))
+	if recorder.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status = %d, want 504", recorder.Code)
+	}
+	select {
+	case event := <-continued:
+		if event.Method != http.MethodGet || event.Timeout != 20*time.Millisecond || event.CaptureLimit != defaultHardTimeoutMaxCaptureBytes {
+			t.Fatalf("continuation event = %#v", event)
+		}
+		if event.Duration <= 0 {
+			t.Fatalf("continuation duration = %v, want positive", event.Duration)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for handler-continues event")
+	}
+	select {
+	case <-finished:
+		t.Fatal("handler completed before the test released it")
+	default:
+	}
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not finish after release")
 	}
 }
 

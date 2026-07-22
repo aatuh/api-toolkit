@@ -1301,9 +1301,9 @@ Stability tier: `stable`
 | `ErrHardTimeoutCaptureLimitExceeded` | var | v3 compatibility surface | active |
 | `HardTimeout` | type | v3 compatibility surface | active |
 | `HardTimeout.EventHooks` | field | v3 compatibility surface | active |
-| `HardTimeout.Handler` | method | v3 compatibility surface | active |
+| `HardTimeout.Handler` | method | v3 compatibility surface | deprecated |
 | `HardTimeout.MaxCaptureBytes` | field | v3 compatibility surface | active |
-| `HardTimeout.Middleware` | method | v3 compatibility surface | active |
+| `HardTimeout.Middleware` | method | v3 compatibility surface | deprecated |
 | `HardTimeout.Timeout` | field | v3 compatibility surface | active |
 | `HardTimeoutEvent` | type | v3 compatibility surface | active |
 | `HardTimeoutEvent.CaptureLimit` | field | v3 compatibility surface | active |
@@ -1355,6 +1355,12 @@ Stability tier: `stable`
 ## `github.com/aatuh/api-toolkit/v4/negotiation`
 
 Stability tier: `stable`
+| `HardTimeout.WrapRoute` | method | v3 compatibility surface | active |
+| `HardTimeoutContinuationEvent` | type | v3 compatibility surface | active |
+| `HardTimeoutContinuationEvent.CaptureLimit` | field | v3 compatibility surface | active |
+| `HardTimeoutContinuationEvent.Duration` | field | v3 compatibility surface | active |
+| `HardTimeoutContinuationEvent.Method` | field | v3 compatibility surface | active |
+| `HardTimeoutContinuationEvent.Timeout` | field | v3 compatibility surface | active |
 
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
@@ -1367,6 +1373,7 @@ Stability tier: `stable`
 | `Accept.Type` | field | v3 compatibility surface | active |
 | `Config` | type | v3 compatibility surface | active |
 | `Config.Accept` | field | v3 compatibility surface | active |
+| `HardTimeoutEventHooks.OnHandlerContinues` | field | v3 compatibility surface | active |
 | `Config.ContentTypes` | field | v3 compatibility surface | active |
 | `ContentTypeAllowed` | func | v3 compatibility surface | active |
 | `MediaType` | type | v3 compatibility surface | active |
@@ -1383,6 +1390,16 @@ Stability tier: `stable`
 
 Stability tier: `stable`
 
+| `RouteCapabilities` | type | v3 compatibility surface | active |
+| `RouteCapabilityFiniteJSON` | const | v3 compatibility surface | active |
+| `RouteCapabilityFlusher` | const | v3 compatibility surface | active |
+| `RouteCapabilityHijacker` | const | v3 compatibility surface | active |
+| `RouteCapabilityLargeDownload` | const | v3 compatibility surface | active |
+| `RouteCapabilityPusher` | const | v3 compatibility surface | active |
+| `RouteCapabilityReaderFrom` | const | v3 compatibility surface | active |
+| `RouteCapabilityServerSentEvents` | const | v3 compatibility surface | active |
+| `RouteCapabilityStreaming` | const | v3 compatibility surface | active |
+| `RouteCapabilityWebSocketUpgrade` | const | v3 compatibility surface | active |
 | Symbol | Kind | Added version | Deprecation status |
 | --- | --- | --- | --- |
 | `Accepted` | type | v3 compatibility surface | active |
@@ -1709,7 +1726,7 @@ Stability tier: `stable`
 | `WithAuthCheck` | func | v3 compatibility surface | active |
 | `WithDevBypassHeader` | func | v3 compatibility surface | active |
 | `WithErrorWriter` | func | v3 compatibility surface | active |
-| `WithHardTimeout` | func | v3 compatibility surface | active |
+| `WithHardTimeout` | func | v3 compatibility surface | deprecated |
 | `WithHardTimeoutMaxCaptureBytes` | func | v3 compatibility surface | active |
 | `WithMaxBodyBytes` | func | v3 compatibility surface | active |
 | `WithQueryLimits` | func | v3 compatibility surface | active |
@@ -1744,6 +1761,7 @@ Stability tier: `stable`
 | `DocumentationInfo.Description` | field | v3 compatibility surface | active |
 | `DocumentationInfo.License` | field | v3 compatibility surface | active |
 | `DocumentationInfo.Title` | field | v3 compatibility surface | active |
+| `RouteOverride.HardTimeoutCapabilities` | field | v3 compatibility surface | active |
 | `DocumentationInfo.Version` | field | v3 compatibility surface | active |
 | `Example` | type | v3 compatibility surface | active |
 | `Example.Description` | field | v3 compatibility surface | active |

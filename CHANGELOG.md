@@ -9,6 +9,10 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ### Added
 
+- Hard timeout buffering is now explicit per finite JSON route through
+  `HardTimeout.WrapRoute`. Global examples use cooperative deadlines, and
+  streaming, SSE, WebSocket, large-download, and optional-writer capabilities
+  are rejected before response buffering begins.
 - Added `middleware/ratelimit.DecisionLimiter` for distributed limiters that
   provide authoritative `RateLimit-*` header metadata. In-memory state cleanup
   is now bounded incremental work rather than a request-path full-map scan.

@@ -13,7 +13,7 @@ constructor, `Close`, shutdown hook, or app-owned lifecycle.
 | --- | --- | --- |
 | `ports.DatabasePool`, `ports.DatabaseConnection`, `ports.DatabaseRows`, `ports.Migrator` | Adapter or app | Implementations own `Close`, transaction cleanup, and canceled-context behavior. |
 | `middleware/auth/jwt.Middleware` | App or auth integration | Call `Close` when the middleware owns background JWKS refresh resources. |
-| `middleware/timeout` hard timeout | Middleware | Per-request goroutines end when the handler returns or timeout response wins; hooks must not leak goroutines. |
+| `middleware/timeout` hard timeout | Middleware | One handler goroutine and one bounded response buffer are allocated per wrapped request. The timeout response can return while a cancellation-ignoring handler still runs; use `OnHandlerContinues` for bounded evidence and ensure application work eventually returns. Hooks must not leak goroutines. |
 | `middleware/ratelimit` in-process limiter | Middleware | Cleanup intervals and state TTL are middleware-owned after construction. |
 | `middleware/idempotency` stores | Store adapter | Store reservation, replay, TTL, and release semantics are adapter-owned. |
 | `endpoints/health` checkers | App or adapter | Checks should be bounded and should not expose detailed dependency output publicly. |

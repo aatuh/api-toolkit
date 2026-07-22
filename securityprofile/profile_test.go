@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/api-toolkit/v4/httpx"
 	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 	"github.com/aatuh/api-toolkit/v4/middleware/querylimits"
+	timeoutmw "github.com/aatuh/api-toolkit/v4/middleware/timeout"
 )
 
 type stubMiddlewareChain struct {
@@ -163,13 +164,15 @@ func TestWithHardTimeoutMaxCaptureBytesControlsOverflow(t *testing.T) {
 func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
 	short := 50 * time.Millisecond
 	hard := true
+	capabilities := timeoutmw.RouteCapabilityFiniteJSON
 	profile, err := New(
 		WithRequireAuth(false),
 		WithTimeout(200*time.Millisecond),
 		WithRouteOverrides(RouteOverride{
-			Pattern:     "/hard",
-			Timeout:     &short,
-			HardTimeout: &hard,
+			Pattern:                 "/hard",
+			Timeout:                 &short,
+			HardTimeout:             &hard,
+			HardTimeoutCapabilities: &capabilities,
 		}),
 	)
 	if err != nil {
@@ -200,11 +203,13 @@ func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
 
 func TestRouteOverrideCanTuneHardTimeoutCaptureBytes(t *testing.T) {
 	limit := int64(4)
+	capabilities := timeoutmw.RouteCapabilityFiniteJSON
 	profile, err := New(
 		WithRequireAuth(false),
 		WithHardTimeout(time.Second),
 		WithRouteOverrides(RouteOverride{
 			Pattern:                    "/small-capture",
+			HardTimeoutCapabilities:    &capabilities,
 			HardTimeoutMaxCaptureBytes: &limit,
 		}),
 	)
@@ -231,6 +236,30 @@ func TestRouteOverrideCanTuneHardTimeoutCaptureBytes(t *testing.T) {
 	}
 	if !strings.Contains(limitedRec.Body.String(), "timeout-capture-overflow") {
 		t.Fatalf("expected overflow problem response, got %q", limitedRec.Body.String())
+	}
+}
+
+func TestRouteOverrideHardTimeoutRequiresSafeCapabilities(t *testing.T) {
+	hard := true
+	if _, err := New(
+		WithRequireAuth(false),
+		WithTimeout(time.Second),
+		WithRouteOverrides(RouteOverride{Pattern: "/finite", HardTimeout: &hard}),
+	); err == nil {
+		t.Fatal("expected hard timeout route without capabilities to fail")
+	}
+
+	streaming := timeoutmw.RouteCapabilityStreaming
+	if _, err := New(
+		WithRequireAuth(false),
+		WithTimeout(time.Second),
+		WithRouteOverrides(RouteOverride{
+			Pattern:                 "/events",
+			HardTimeout:             &hard,
+			HardTimeoutCapabilities: &streaming,
+		}),
+	); err == nil {
+		t.Fatal("expected streaming hard-timeout route to fail")
 	}
 }
 

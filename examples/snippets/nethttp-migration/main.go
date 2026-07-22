@@ -116,9 +116,8 @@ func createWidgetToolkit(w http.ResponseWriter, r *http.Request) {
 }
 
 func toolkitMiddleware(next http.Handler, requestTimeout time.Duration) http.Handler {
-	hardTimeout, err := timeout.NewHard(timeout.Options{
-		Timeout:         requestTimeout,
-		MaxCaptureBytes: 64 << 10,
+	propagator, err := timeout.NewPropagator(timeout.Options{
+		Timeout: requestTimeout,
 	})
 	if err != nil {
 		panic(err)
@@ -128,7 +127,7 @@ func toolkitMiddleware(next http.Handler, requestTimeout time.Duration) http.Han
 		panic(err)
 	}
 
-	return bodyLimit.Handler(hardTimeout.Handler(next))
+	return bodyLimit.Handler(propagator.Handler(next))
 }
 
 func createWidget(req createWidgetRequest) widgetResponse {

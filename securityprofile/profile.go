@@ -51,12 +51,17 @@ type RouteOverride struct {
 	Pattern string
 	Methods []string
 
-	MaxBodyBytes               *int64
-	QueryLimits                *querylimits.Options
-	QueryLimitsEnabled         *bool
-	Timeout                    *time.Duration
-	TimeoutEnabled             *bool
-	HardTimeout                *bool
+	MaxBodyBytes       *int64
+	QueryLimits        *querylimits.Options
+	QueryLimitsEnabled *bool
+	Timeout            *time.Duration
+	TimeoutEnabled     *bool
+	HardTimeout        *bool
+	// HardTimeoutCapabilities explicitly declares route behavior before a
+	// route-level hard timeout can buffer its response. A non-nil zero value
+	// declares a finite JSON response; streaming and optional-writer
+	// capabilities are rejected.
+	HardTimeoutCapabilities    *timeoutmw.RouteCapabilities
 	HardTimeoutMaxCaptureBytes *int64
 	RateLimit                  *ratelimit.Options
 	RateLimitEnabled           *bool
@@ -100,6 +105,9 @@ func WithTimeout(d time.Duration) Option {
 // underlying hard-timeout middleware buffers responses and is not appropriate
 // for streaming, websocket upgrades, or handlers that need optional
 // http.ResponseWriter interfaces.
+//
+// Deprecated: use WithTimeout globally. Use an explicit RouteOverride with
+// HardTimeout and HardTimeoutCapabilities only for a finite response route.
 func WithHardTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.timeout = d
@@ -421,7 +429,7 @@ func buildLimitsMiddleware(base limitConfig, overrides []RouteOverride) (*limits
 		}
 		cfg := mergeOverride(base, override)
 		cfg = normalizeLimitConfig(cfg)
-		mw, err := buildLimitChain(cfg)
+		mw, err := buildLimitChain(cfg, override.HardTimeoutCapabilities, cfg.hardTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -431,7 +439,7 @@ func buildLimitsMiddleware(base limitConfig, overrides []RouteOverride) (*limits
 			middleware: mw,
 		})
 	}
-	baseline, err := buildLimitChain(base)
+	baseline, err := buildLimitChain(base, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -484,25 +492,33 @@ func normalizeLimitConfig(cfg limitConfig) limitConfig {
 	return cfg
 }
 
-func buildLimitChain(cfg limitConfig) (func(http.Handler) http.Handler, error) {
+func buildLimitChain(cfg limitConfig, capabilities *timeoutmw.RouteCapabilities, requireExplicitHardRoute bool) (func(http.Handler) http.Handler, error) {
 	chain := make([]func(http.Handler) http.Handler, 0, 4)
 	if cfg.enableTimeout && cfg.timeout > 0 {
-		var mw interface {
-			Middleware() func(http.Handler) http.Handler
-		}
-		var err error
 		if cfg.hardTimeout {
-			mw, err = timeoutmw.NewHard(timeoutmw.Options{
+			mw, err := timeoutmw.NewHard(timeoutmw.Options{
 				Timeout:         cfg.timeout,
 				MaxCaptureBytes: cfg.hardTimeoutMaxCaptureBytes,
 			})
+			if err != nil {
+				return nil, fmt.Errorf("timeout middleware: %w", err)
+			}
+			if requireExplicitHardRoute {
+				if capabilities == nil {
+					return nil, errors.New("hard timeout route override requires explicit hard-timeout capabilities")
+				}
+				if _, err := mw.WrapRoute(http.NotFoundHandler(), *capabilities); err != nil {
+					return nil, fmt.Errorf("hard timeout route capabilities: %w", err)
+				}
+			}
+			chain = append(chain, mw.Middleware())
 		} else {
-			mw, err = timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
+			mw, err := timeoutmw.NewPropagator(timeoutmw.Options{Timeout: cfg.timeout})
+			if err != nil {
+				return nil, fmt.Errorf("timeout middleware: %w", err)
+			}
+			chain = append(chain, mw.Middleware())
 		}
-		if err != nil {
-			return nil, fmt.Errorf("timeout middleware: %w", err)
-		}
-		chain = append(chain, mw.Middleware())
 	}
 	if cfg.enableRateLimit {
 		mw, err := ratelimit.New(cfg.rateLimit)

@@ -43,7 +43,7 @@ Maturity tier badges:
 | [stable] | [`middleware/querylimits`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/querylimits) | Query limit parsing and enforcement. | [example](../middleware/querylimits/example_test.go) |
 | [stable] | [`middleware/ratelimit`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/ratelimit) | Rate-limit middleware and headers. | [example](../middleware/ratelimit/example_test.go) |
 | [stable] | [`middleware/secure`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/secure) | Security header middleware. | [example](../middleware/secure/example_test.go) |
-| [stable] | [`middleware/timeout`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/timeout) | Cooperative and hard timeout middleware. | [example](../middleware/timeout/example_test.go) |
+| [stable] | [`middleware/timeout`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/timeout) | Cooperative timeout middleware plus validated finite-route hard timeouts. | [example](../middleware/timeout/example_test.go) |
 | [stable] | [`middleware/trace`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/middleware/trace) | Request trace middleware. | [example](../middleware/trace/example_test.go) |
 | [stable] | [`negotiation`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/negotiation) | Content negotiation helpers. | [example](../negotiation/example_test.go) |
 | [stable] | [`operations`](https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/operations) | Asynchronous operation response and polling helpers. | [example](../operations/example_test.go) |

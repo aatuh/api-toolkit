@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,10 +38,48 @@ var defaultHardTimeoutPanicProblem = httpx.Problem{
 
 var ErrHardTimeoutCaptureLimitExceeded = errors.New("hard timeout response capture limit exceeded")
 
+// RouteCapabilities describes behavior that makes a route incompatible with a
+// buffered hard timeout. Pass the complete capability set to WrapRoute. A
+// zero value, RouteCapabilityFiniteJSON, declares a finite non-streaming JSON
+// response.
+type RouteCapabilities uint16
+
+// RouteCapabilityFiniteJSON declares a finite non-streaming JSON response.
+const RouteCapabilityFiniteJSON RouteCapabilities = 0
+
+const (
+	// RouteCapabilityStreaming declares a route that streams a response body.
+	RouteCapabilityStreaming RouteCapabilities = 1 << iota
+	// RouteCapabilityServerSentEvents declares a server-sent-events route.
+	RouteCapabilityServerSentEvents
+	// RouteCapabilityWebSocketUpgrade declares a WebSocket upgrade route.
+	RouteCapabilityWebSocketUpgrade
+	// RouteCapabilityLargeDownload declares a potentially large download route.
+	RouteCapabilityLargeDownload
+	// RouteCapabilityFlusher declares a handler that requires http.Flusher.
+	RouteCapabilityFlusher
+	// RouteCapabilityHijacker declares a handler that requires http.Hijacker.
+	RouteCapabilityHijacker
+	// RouteCapabilityPusher declares a handler that requires http.Pusher.
+	RouteCapabilityPusher
+	// RouteCapabilityReaderFrom declares a handler that requires io.ReaderFrom.
+	RouteCapabilityReaderFrom
+)
+
+const hardTimeoutUnsupportedRouteCapabilities = RouteCapabilityStreaming |
+	RouteCapabilityServerSentEvents |
+	RouteCapabilityWebSocketUpgrade |
+	RouteCapabilityLargeDownload |
+	RouteCapabilityFlusher |
+	RouteCapabilityHijacker |
+	RouteCapabilityPusher |
+	RouteCapabilityReaderFrom
+
 // HardTimeout applies a per-request context deadline and sends a timeout
 // response when the deadline expires before the handler returns. Handler writes
 // after the deadline are discarded. Responses are buffered up to
-// MaxCaptureBytes, which defaults to 1 MiB when unset.
+// MaxCaptureBytes, which defaults to 1 MiB when unset. Use WrapRoute for new
+// code so a finite response is explicitly declared before buffering starts.
 type HardTimeout struct {
 	Timeout         time.Duration
 	MaxCaptureBytes int64
@@ -87,12 +127,29 @@ type HardTimeoutEvent struct {
 	CaptureLimit    int64
 }
 
+// HardTimeoutContinuationEvent reports that a handler was still running when
+// the hard-timeout response was committed. It intentionally excludes paths,
+// query strings, headers, response bodies, and panic values.
+type HardTimeoutContinuationEvent struct {
+	// Method is the bounded HTTP method label for the timed-out request.
+	Method string
+	// Duration is elapsed wall-clock time when the timeout response was committed.
+	Duration time.Duration
+	// Timeout is the configured hard-timeout duration.
+	Timeout time.Duration
+	// CaptureLimit is the configured maximum buffered response size.
+	CaptureLimit int64
+}
+
 // HardTimeoutEventHooks configures operator callbacks for hard-timeout
 // outcomes. Keep callbacks non-blocking; panics from callbacks are contained.
 type HardTimeoutEventHooks struct {
 	// OnEvent receives bounded metadata for timeout, panic, and
 	// capture-overflow outcomes.
 	OnEvent func(HardTimeoutEvent)
+	// OnHandlerContinues receives a bounded event when the timeout response is
+	// committed while the handler goroutine is still running.
+	OnHandlerContinues func(HardTimeoutContinuationEvent)
 }
 
 // NewPropagator constructs a cooperative request-deadline propagator with the
@@ -110,9 +167,10 @@ func New(opts Options) (*Propagator, error) {
 	return NewPropagator(opts)
 }
 
-// NewHard constructs a hard wall-clock timeout middleware. It keeps the
+// NewHard constructs a hard wall-clock timeout wrapper. It keeps the
 // cooperative request context deadline and also synthesizes a 504 Problem
-// Details response when the wrapped handler does not return in time.
+// Details response when the wrapped handler does not return in time. New code
+// should use WrapRoute so finite-response eligibility is explicit.
 func NewHard(opts Options) (*HardTimeout, error) {
 	if opts.Timeout <= 0 {
 		return nil, errors.New("timeout must be greater than zero")
@@ -149,6 +207,10 @@ func (m *Propagator) Handler(next http.Handler) http.Handler {
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
+//
+// Deprecated: hard timeouts buffer every response and remove optional
+// http.ResponseWriter capabilities. Use a Propagator globally and WrapRoute
+// only around explicitly finite responses.
 func (m *HardTimeout) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }
@@ -163,6 +225,9 @@ func (m *HardTimeout) Middleware() func(http.Handler) http.Handler {
 // panic before the timeout wins returns a deterministic 500 Problem Details
 // response unless capture overflow already occurred. A panic after the timeout
 // response has been sent is contained and dropped.
+//
+// Deprecated: use WrapRoute for new code to declare finite response behavior
+// before applying response buffering.
 func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 	if m == nil {
 		return next
@@ -205,10 +270,38 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 			capture.flushTo(w)
 		case <-ctx.Done():
 			capture.timeout()
+			select {
+			case <-done:
+				// The handler finished concurrently with the deadline, so no
+				// continuation event is needed.
+			default:
+				m.emitHardTimeoutContinuationEvent(r, start)
+			}
 			m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
 			httpx.WriteProblemChecked(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
 		}
 	})
+}
+
+// WrapRoute validates the declared route capabilities before applying a hard
+// timeout. It accepts only finite non-streaming responses; use
+// RouteCapabilityFiniteJSON for that explicit declaration. Streaming, SSE,
+// WebSocket, large-download, and optional response-writer capabilities fail
+// closed instead of being silently buffered.
+func (m *HardTimeout) WrapRoute(next http.Handler, capabilities RouteCapabilities) (http.Handler, error) {
+	if next == nil {
+		return nil, errors.New("hard timeout route handler is required")
+	}
+	if unknown := capabilities &^ hardTimeoutUnsupportedRouteCapabilities; unknown != 0 {
+		return nil, fmt.Errorf("hard timeout route has unknown capability bits: %d", unknown)
+	}
+	if incompatible := capabilities & hardTimeoutUnsupportedRouteCapabilities; incompatible != 0 {
+		return nil, fmt.Errorf("hard timeout cannot wrap route capabilities: %s", hardTimeoutRouteCapabilityNames(incompatible))
+	}
+	if m == nil {
+		return next, nil
+	}
+	return m.Handler(next), nil
 }
 
 type hardTimeoutResult struct {
@@ -246,6 +339,44 @@ func (m *HardTimeout) emitHardTimeoutEvent(r *http.Request, start time.Time, out
 		_ = recover()
 	}()
 	m.EventHooks.OnEvent(event)
+}
+
+func (m *HardTimeout) emitHardTimeoutContinuationEvent(r *http.Request, start time.Time) {
+	if m == nil || m.EventHooks == nil || m.EventHooks.OnHandlerContinues == nil {
+		return
+	}
+	event := HardTimeoutContinuationEvent{
+		Method:       hardTimeoutMethodLabel(r),
+		Duration:     time.Since(start),
+		Timeout:      m.Timeout,
+		CaptureLimit: m.captureLimit(),
+	}
+	defer func() {
+		_ = recover()
+	}()
+	m.EventHooks.OnHandlerContinues(event)
+}
+
+func hardTimeoutRouteCapabilityNames(capabilities RouteCapabilities) string {
+	names := make([]string, 0, 8)
+	for _, capability := range []struct {
+		value RouteCapabilities
+		name  string
+	}{
+		{RouteCapabilityStreaming, "streaming"},
+		{RouteCapabilityServerSentEvents, "server-sent-events"},
+		{RouteCapabilityWebSocketUpgrade, "websocket-upgrade"},
+		{RouteCapabilityLargeDownload, "large-download"},
+		{RouteCapabilityFlusher, "flusher"},
+		{RouteCapabilityHijacker, "hijacker"},
+		{RouteCapabilityPusher, "pusher"},
+		{RouteCapabilityReaderFrom, "reader-from"},
+	} {
+		if capabilities&capability.value != 0 {
+			names = append(names, capability.name)
+		}
+	}
+	return strings.Join(names, ",")
 }
 
 func hardTimeoutMethodLabel(r *http.Request) string {

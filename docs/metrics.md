@@ -221,9 +221,12 @@ hardTimeout, err := timeout.NewHard(timeout.Options{
 		OnEvent: metrics.HardTimeoutEventHook(recorder),
 	},
 })
+finiteRoute, err := hardTimeout.WrapRoute(finiteJSONHandler, timeout.RouteCapabilityFiniteJSON)
 ```
 
 Use `requestlog.HardTimeoutEventLogHook(log)` when you also want structured log
 entries for timeout, panic, and capture-overflow outcomes. Both helpers omit
 panic values, URL paths, query strings, tenant IDs, request IDs, headers,
-response bodies, and raw error strings.
+response bodies, and raw error strings. Add `OnHandlerContinues` when operators
+also need bounded evidence that a cancellation-ignoring handler was still
+running when the timeout response was committed.
