@@ -169,6 +169,40 @@ Every pull request should explain:
 - security impact,
 - benchmark or performance impact.
 
+## Backlog ticket and commit discipline
+
+One backlog ticket per pull request is required. Keep unrelated work out of the
+same pull request; split work that cannot be reviewed and released as one
+ticket. The pull-request title must use conventional commit syntax, for example
+`feat(binding): add presence-aware required fields`.
+
+One final conventional commit per ticket is required. Before merge, make the
+final commit body contain:
+
+```text
+Refs: <ticket-id>
+```
+
+Classify every change explicitly as one of: no public effect, additive API,
+behavioral change, deprecation, or breaking change. Also record the security
+classification, verification commands and results, documentation and release
+note impact, generated-file impact, benchmark impact, and migration impact in
+the pull request.
+
+Breaking changes use `!` in the conventional-commit subject and include this
+footer in the final commit body:
+
+```text
+BREAKING CHANGE: <migration impact and replacement>
+```
+
+### Final squash merge
+
+Use **Squash merge** for backlog tickets. Before merging, set the squash commit
+subject to the conventional pull-request title and preserve the `Refs:` footer
+and any required `BREAKING CHANGE:` footer in the final commit body. This keeps
+the protected default branch at one final conventional commit per ticket.
+
 `master` changes require a pull request, resolved conversations, and passing
 required checks. As a sole-maintainer repository, it requires zero approvals
 until a second eligible maintainer is available; then independent and
