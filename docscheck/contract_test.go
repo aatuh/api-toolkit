@@ -55,6 +55,15 @@ func TestPublicMarkdownUsesV2ModulePaths(t *testing.T) {
 	}
 }
 
+func TestPublicMarkdownModulePathClassifierKeepsRepositoryURLs(t *testing.T) {
+	if forbiddenModuleToken("github.com/aatuh/api-toolkit/releases/tag/v4.0.0") {
+		t.Fatal("official repository URLs must not be classified as stale Go module paths")
+	}
+	if !forbiddenModuleToken("github.com/aatuh/api-toolkit/v2/httpx") {
+		t.Fatal("a stale Go module import must remain rejected")
+	}
+}
+
 func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docPath := filepath.Join(repoRoot, "docs", "getting-started.md")
@@ -9686,6 +9695,9 @@ func markdownAnchorSlug(heading string) string {
 
 func forbiddenModuleToken(token string) bool {
 	if token == rootModulePath+"/badge" {
+		return false
+	}
+	if strings.HasPrefix(token, rootModulePath+"/releases/") {
 		return false
 	}
 	if strings.HasPrefix(token, rootModulePath+"-contrib") {
