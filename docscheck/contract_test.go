@@ -7338,6 +7338,81 @@ func TestQualityAuditP1AdoptionPathDocs(t *testing.T) {
 	}
 }
 
+func TestProductionGradeScorecard(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	roadmap := readText(t, filepath.Join(repoRoot, "docs", "roadmap", "production-grade-9x.md"))
+	for _, required := range []string{
+		"# Production-grade 9/10 backlog",
+		"a2708db2d7ddcc61c0f0106ceff44f2206ae4c99",
+		"ed73982f3d6c8da70a7f32e2995636c4feb3f6d0",
+		"2026-07-22",
+	} {
+		if !strings.Contains(roadmap, required) {
+			t.Fatalf("production-grade roadmap missing baseline evidence %q", required)
+		}
+	}
+
+	scorecard := readText(t, filepath.Join(repoRoot, "docs", "roadmap", "scorecard.tsv"))
+	lines := strings.Split(strings.TrimSpace(scorecard), "\n")
+	if len(lines) != 9 {
+		t.Fatalf("scorecard must contain one header and eight areas, got %d lines", len(lines))
+	}
+	const header = "area\tbaseline_score\ttarget_score\tcurrent_score\towner\trequired_evidence\tevidence_location\tstatus\tlast_reviewed"
+	if lines[0] != header {
+		t.Fatalf("scorecard header = %q, want %q", lines[0], header)
+	}
+
+	wantAreas := map[string]bool{
+		"Dependency-worthiness":  false,
+		"Code quality":           false,
+		"Test quality":           false,
+		"Documentation":          false,
+		"Open-source trust":      false,
+		"Ecosystem fit":          false,
+		"Scope and completeness": false,
+		"API design":             false,
+	}
+	ticketID := regexp.MustCompile(`\b(?:PRG|REL|DOC|CI|API|TST|PERF|ARC|CLI|SEC|GOV|FIN)-\d{3}\b`)
+	for lineNumber, line := range lines[1:] {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 9 {
+			t.Fatalf("scorecard line %d has %d fields, want 9", lineNumber+2, len(fields))
+		}
+		for fieldNumber, field := range fields {
+			if strings.TrimSpace(field) == "" {
+				t.Fatalf("scorecard line %d field %d must not be blank", lineNumber+2, fieldNumber+1)
+			}
+		}
+		if _, ok := wantAreas[fields[0]]; !ok {
+			t.Fatalf("scorecard has unexpected area %q", fields[0])
+		}
+		if wantAreas[fields[0]] {
+			t.Fatalf("scorecard duplicates area %q", fields[0])
+		}
+		wantAreas[fields[0]] = true
+
+		matches := ticketID.FindAllString(fields[5], -1)
+		if len(matches) == 0 {
+			t.Fatalf("scorecard area %q has no backlog ticket in required_evidence", fields[0])
+		}
+		for _, id := range matches {
+			if !strings.Contains(roadmap, "## [ ] "+id) && !strings.Contains(roadmap, "## [x] "+id) {
+				t.Fatalf("scorecard area %q maps to unknown ticket %q", fields[0], id)
+			}
+		}
+	}
+	for area, found := range wantAreas {
+		if !found {
+			t.Fatalf("scorecard is missing required area %q", area)
+		}
+	}
+
+	docsIndex := readText(t, filepath.Join(repoRoot, "docs", "README.md"))
+	if !strings.Contains(docsIndex, "roadmap/production-grade-9x.md") || !strings.Contains(docsIndex, "roadmap/scorecard.tsv") {
+		t.Fatal("docs/README.md must link the production-grade roadmap and scorecard")
+	}
+}
+
 func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
@@ -8511,6 +8586,12 @@ func TestPublicMarkdownMakeTargetsExist(t *testing.T) {
 
 	for _, path := range docsQualityMarkdownFiles(t, repoRoot) {
 		rel := slashRel(repoRoot, path)
+		if strings.HasPrefix(rel, "docs/roadmap/") {
+			// Roadmaps describe planned checks that may not exist until their
+			// corresponding ticket is implemented. Operational docs remain
+			// subject to target validation below.
+			continue
+		}
 		content := readText(t, path)
 		for _, block := range markdownCodeBlocks(content) {
 			for _, match := range commandPattern.FindAllStringSubmatch(block, -1) {
