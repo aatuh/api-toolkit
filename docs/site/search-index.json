@@ -750,6 +750,12 @@
     "text": "github.com/aatuh/api-toolkit/contrib/v4/integrations/txpostgres supported-adapter direct-tests Convenience wrapper around txpostgres adapter. "
   },
   {
+    "title": "github.com/aatuh/api-toolkit/contrib/v4/internal/testpostgres",
+    "category": "package-status",
+    "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v4/internal/testpostgres",
+    "text": "github.com/aatuh/api-toolkit/contrib/v4/internal/testpostgres test-only direct-tests Real PostgreSQL test harness with isolated databases and schemas. "
+  },
+  {
     "title": "github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/clerk",
     "category": "package-status",
     "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/clerk",
