@@ -11,7 +11,7 @@ instead.
 
 ## Prerequisites
 
-- Go 1.25.x.
+- Go 1.25.x (minimum) or Go 1.26.x (current tested line).
 - Make.
 - curl for the local HTTP checks.
 - Docker only for generated Docker Compose, integration, or database-backed

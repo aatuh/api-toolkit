@@ -5,19 +5,24 @@ and runtime platform.
 
 ## Go Version
 
-Root and contrib target Go `1.25.x`.
+Minimum supported Go is `1.25.x`. Current tested Go is `1.26.x`. Root and
+contrib are required to pass CI on both lines.
 
-The repository intentionally uses one supported Go line right now:
+The module directives remain at the minimum supported version:
 
 - `go.mod` and `contrib/go.mod` declare `go 1.25.0`.
-- GitHub Actions install `1.25.x`.
+- GitHub Actions run root and contrib module verification, builds, unit tests,
+  examples, and API compatibility checks on `1.25.x` and `1.26.x`.
+- Release preflight repeats root and contrib module verification, builds, unit
+  tests, and examples on both supported Go lines before publication evidence is
+  generated.
 - Local release and audit commands should run with `GOTOOLCHAIN=local` so a
   mismatched local toolchain fails visibly instead of silently downloading a
   different toolchain.
 
-Supporting the two most recent Go releases would require adding an explicit CI
-matrix, release evidence, and compatibility notes. Until that exists, users
-should treat `1.25.x` as the supported line.
+The release-evidence summary records the required matrix and whether its
+release-workflow dependency passed. Do not treat an untested future Go release
+as supported merely because the module directives still parse on it.
 
 ## Platform
 

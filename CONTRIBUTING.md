@@ -10,7 +10,7 @@ release evidence.
 
 Prerequisites:
 
-- Go 1.25.x.
+- Go 1.25.x (minimum) or Go 1.26.x (current tested line).
 - `make`.
 - GitHub CLI only when running optional repository governance checks.
 
