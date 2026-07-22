@@ -18,6 +18,12 @@ upgrade notes, and package-tied compatibility acknowledgements.
 
 ### Behavior and security
 
+- Every supported Redis adapter now has an isolated Redis 7 contract in
+  `make test-redis`, covering real TTL, atomic reservation/Lua behavior,
+  concurrency, isolation, cancellation, malformed state, and reconnect paths.
+  The same credential-free test endpoint and evidence gate run on pull requests
+  and release tags; miniredis remains the fast unit-test double, not equivalent
+  release evidence.
 - Every supported PostgreSQL adapter, integration wrapper, migration runner,
   scheduler run store, and generated `saas-api-full` migration path now has an
   isolated PostgreSQL 18 contract in `make test-postgres`. The same suite and

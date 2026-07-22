@@ -887,7 +887,8 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	}
 
 	if !strings.Contains(release, "needs: toolchain-compatibility") &&
-		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract]") {
+		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract]") &&
+		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract, redis-contract]") {
 		t.Fatal(".github/workflows/release.yml must make release-preflight depend on toolchain compatibility")
 	}
 	for _, path := range []string{
@@ -4021,6 +4022,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 			"not_applicable",
 			"generated-integration-check",
 			"postgres-contract",
+			"redis-contract",
 			"reference-service-evidence",
 			"provider-live-check",
 			"manual",
@@ -4036,6 +4038,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 				"manual-real-service":       true,
 				"miniredis":                 true,
 				"real-postgres-pr":          true,
+				"real-redis-pr":             true,
 				"scheduled-real-service":    true,
 			}[token] {
 				stale = append(stale, importPath+" has unknown realism status token "+token)
