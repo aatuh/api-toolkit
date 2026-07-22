@@ -3330,6 +3330,15 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	if !strings.Contains(makeTargetRecipe(t, makefile, "audit-check"), "$(MAKE) timeout-determinism-check") {
 		t.Fatal("audit-check must include timeout-determinism-check")
 	}
+	timeoutDeterminism := makeTargetRecipe(t, makefile, "timeout-determinism-check")
+	for _, required := range []string{
+		"$(GO) test ./middleware/timeout -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse",
+		"$(GO) test ./middleware/timeout -race -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse",
+	} {
+		if !strings.Contains(timeoutDeterminism, required) {
+			t.Fatalf("timeout-determinism-check missing required stress command %q", required)
+		}
+	}
 	if !strings.Contains(makeTargetRecipe(t, makefile, "docs-check"), "$(MAKE) upgrade-smoke-contract") {
 		t.Fatal("docs-check must include upgrade-smoke-contract")
 	}
@@ -6799,30 +6808,37 @@ func TestNegativePathTestMatrixReferencesExecutableTests(t *testing.T) {
 func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	targets := []struct {
-		file string
-		name string
+		file          string
+		name          string
+		coreReadiness bool
 	}{
-		{filepath.Join("binding", "binding_fuzz_test.go"), "FuzzDecodeJSONAndQuery"},
-		{filepath.Join("queryparams", "queryparams_fuzz_test.go"), "FuzzParseCollectionQuery"},
-		{filepath.Join("negotiation", "negotiation_fuzz_test.go"), "FuzzParseAcceptAndContentType"},
-		{filepath.Join("upload", "upload_fuzz_test.go"), "FuzzDecodeMultipartMetadata"},
-		{filepath.Join("webhooks", "webhooks_fuzz_test.go"), "FuzzHMACVerifierSignatures"},
+		{filepath.Join("binding", "binding_fuzz_test.go"), "FuzzDecodeJSONAndQuery", true},
+		{filepath.Join("queryparams", "queryparams_fuzz_test.go"), "FuzzParseCollectionQuery", true},
+		{filepath.Join("negotiation", "negotiation_fuzz_test.go"), "FuzzParseAcceptAndContentType", true},
+		{filepath.Join("upload", "upload_fuzz_test.go"), "FuzzDecodeMultipartMetadata", true},
+		{filepath.Join("webhooks", "webhooks_fuzz_test.go"), "FuzzHMACVerifierSignatures", true},
+		{filepath.Join("middleware", "idempotency", "idempotency_test.go"), "FuzzDefaultHashAndReplayMetadata", true},
+		{filepath.Join("contrib", "middleware", "openapi", "openapi_fuzz_test.go"), "FuzzRequestAndResponseValidation", false},
 	}
+	coverageDocs := readText(t, filepath.Join(repoRoot, "docs", "test-coverage.md"))
 	readiness := readText(t, filepath.Join(repoRoot, "docs", "core-readiness.md"))
 	for _, target := range targets {
 		source := readText(t, filepath.Join(repoRoot, target.file))
 		if !strings.Contains(source, "func "+target.name+"(") {
 			t.Fatalf("%s missing fuzz target %s", target.file, target.name)
 		}
-		if !strings.Contains(readiness, "`"+target.name+"` smoke") {
+		if target.coreReadiness && !strings.Contains(readiness, "`"+target.name+"` smoke") {
 			t.Fatalf("docs/core-readiness.md missing fuzz readiness entry for %s", target.name)
+		}
+		if !target.coreReadiness && !strings.Contains(coverageDocs, target.name) {
+			t.Fatalf("docs/test-coverage.md missing contrib fuzz coverage entry for %s", target.name)
 		}
 	}
 
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
 	for _, required := range []string{
 		"FUZZTIME ?= 10s",
-		`GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)`,
+		`GO="$(GO)" GOWORK="$(WORKSPACE)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)`,
 		"fuzz-contract:",
 		"benchmark-smoke:",
 		"-bench='Benchmark'",
@@ -6849,8 +6865,18 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 	}
 
 	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
-	if !strings.Contains(ci, "Fuzz smoke") || !strings.Contains(ci, "make fuzz") {
-		t.Fatal(".github/workflows/ci.yml must keep make fuzz wired as CI smoke")
+	for _, required := range []string{
+		"Fuzz smoke",
+		"make fuzz",
+		"Upload minimized fuzz corpus",
+		"middleware/idempotency/testdata/fuzz/",
+		"contrib/middleware/openapi/testdata/fuzz/",
+		"fuzz-corpus-${{ github.run_id }}",
+		"retention-days: 7",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing fuzz CI wiring %q", required)
+		}
 	}
 
 	nightly := readText(t, filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"))
@@ -6898,6 +6924,19 @@ func TestMutationSmokeExperimentIsNonBlocking(t *testing.T) {
 			t.Fatalf("Makefile missing mutation-smoke wiring %q", required)
 		}
 	}
+	for _, required := range []string{
+		"MUTATION_GATE_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks",
+		"MUTATION_GATE_PER_PACKAGE_LIMIT ?= 3",
+		"MUTATION_GATE_MIN_KILL_RATE ?= 0.75",
+		"mutation-check: ## Run blocking selected-package mutation gate",
+		`MUTATION_PER_PACKAGE_LIMIT="$(MUTATION_GATE_PER_PACKAGE_LIMIT)"`,
+		`MUTATION_MIN_KILL_RATE="$(MUTATION_GATE_MIN_KILL_RATE)"`,
+		"mutation-check.tsv",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing required mutation gate wiring %q", required)
+		}
+	}
 	for _, target := range []string{"finalize", "audit-check", "release-check", "release-evidence"} {
 		if strings.Contains(makeTargetRecipe(t, makefile, target), "mutation-smoke") {
 			t.Fatalf("Makefile target %s must not run non-blocking mutation smoke", target)
@@ -6908,6 +6947,8 @@ func TestMutationSmokeExperimentIsNonBlocking(t *testing.T) {
 	for _, required := range []string{
 		"MUTATION_PACKAGES",
 		"MUTATION_LIMIT",
+		"MUTATION_PER_PACKAGE_LIMIT",
+		"MUTATION_MIN_KILL_RATE",
 		"MUTATION_TIMEOUT",
 		"MUTATION_OUT",
 		"./internal/tools/mutationsmoke",
@@ -6927,6 +6968,10 @@ func TestMutationSmokeExperimentIsNonBlocking(t *testing.T) {
 		"resolveOutputPath",
 		"isPathInside",
 		"copyRepository",
+		"PerPackageLimit",
+		"MinKillRate",
+		"validateMutationResults",
+		"mutation gate is incomplete",
 		`".audits"`,
 		`".trash"`,
 		`"GOWORK=off"`,
@@ -6946,6 +6991,35 @@ func TestMutationSmokeExperimentIsNonBlocking(t *testing.T) {
 	} {
 		if !strings.Contains(docs, required) {
 			t.Fatalf("docs/test-coverage.md missing mutation smoke text %q", required)
+		}
+	}
+	for _, required := range []string{
+		"## Required Mutation Gate",
+		"make mutation-check",
+		"75% killed-mutant rate",
+		"mutation-check.tsv",
+		"known binding parser comparison mutation",
+		"## Fuzz Failure Artifacts",
+		"OpenAPI request/response validation",
+		"does not upload environment files, test logs, or the workspace",
+	} {
+		if !strings.Contains(docs, required) {
+			t.Fatalf("docs/test-coverage.md missing required mutation or fuzz documentation %q", required)
+		}
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"mutation:",
+		"Required mutation gate",
+		"make mutation-check",
+		"Upload mutation report",
+		"mutation-check-${{ github.run_id }}",
+		".ci-result/mutation/mutation-check.tsv",
+		"if-no-files-found: error",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing required mutation CI wiring %q", required)
 		}
 	}
 }

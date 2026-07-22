@@ -5,6 +5,7 @@
 # invalid_tenant, oversized_bodies, invalid_query_limits.
 malformed_input	github.com/aatuh/api-toolkit/v4/binding	binding/binding_test.go	TestDecodeJSONValidatesShapeUnknownFieldsAndRequiredFields	Rejects non-object JSON, unknown fields, and missing required fields.
 malformed_input	github.com/aatuh/api-toolkit/v4/upload	upload/upload_additional_test.go	TestDecodeMultipartRejectsInvalidRequests	Rejects nil requests, malformed multipart bodies, and unsupported upload request shapes.
+malformed_input	github.com/aatuh/api-toolkit/contrib/v4/middleware/openapi	contrib/middleware/openapi/openapi_fuzz_test.go	FuzzRequestAndResponseValidation	Fuzzes malformed OpenAPI request and response bodies while preserving valid HTTP and Problem Details response boundaries.
 missing_headers	github.com/aatuh/api-toolkit/v4/middleware/auth/apikey	middleware/auth/apikey/apikey_test.go	TestHandlerRejectsMissingMalformedAndInvalidKeys	Missing API key header returns 401; malformed or conflicting auth headers return 400.
 missing_headers	github.com/aatuh/api-toolkit/v4/webhooks	webhooks/webhooks_test.go	TestHMACVerifierRejectsMissingMalformedAndWrongSignatures	Missing webhook signature is rejected before payload trust.
 bad_content_types	github.com/aatuh/api-toolkit/v4/middleware/json	middleware/json/json_test.go	TestHandlerRejectsInvalidJSONContentType	Body-bearing JSON routes reject invalid content types with Problem Details.

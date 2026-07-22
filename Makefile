@@ -8,6 +8,9 @@ COVERAGE_TREND_COMMIT ?=
 MUTATION_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_LIMIT ?= 12
 MUTATION_TIMEOUT ?= 30s
+MUTATION_GATE_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
+MUTATION_GATE_PER_PACKAGE_LIMIT ?= 3
+MUTATION_GATE_MIN_KILL_RATE ?= 0.75
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 TOOLS_DIR ?= .tools
@@ -41,7 +44,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -278,18 +281,21 @@ test-race: ## Run unit tests with race detector
 	done
 
 timeout-determinism-check: ## Run repeated timeout middleware determinism and race checks
-	@$(GO) test ./middleware/timeout -count=50 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
-	@$(GO) test ./middleware/timeout -race -count=20 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/timeout -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
+	@$(GO) test ./middleware/timeout -race -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse
 	@$(GO) test ./middleware/idempotency ./middleware/timeout ./middleware/ratelimit ./scheduler -race -count=1
 
 fuzz: ## Run fuzz smoke tests
-	@GO="$(GO)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
+	@GO="$(GO)" GOWORK="$(WORKSPACE)" FUZZTIME="$(FUZZTIME)" scripts/fuzz_check.sh $(MODULES)
 
 fuzz-contract: ## Run fuzz smoke script contract tests
 	@scripts/fuzz_check_contract_test.sh
 
 mutation-smoke: ## Run non-blocking stable-core mutation smoke
 	@GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_PACKAGES)" MUTATION_LIMIT="$(MUTATION_LIMIT)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(MUTATION_OUT)" scripts/mutation_smoke.sh
+
+mutation-check: ## Run blocking selected-package mutation gate
+	@GO="$(GO)" MUTATION_PACKAGES="$(MUTATION_GATE_PACKAGES)" MUTATION_LIMIT=0 MUTATION_PER_PACKAGE_LIMIT="$(MUTATION_GATE_PER_PACKAGE_LIMIT)" MUTATION_MIN_KILL_RATE="$(MUTATION_GATE_MIN_KILL_RATE)" MUTATION_TIMEOUT="$(MUTATION_TIMEOUT)" MUTATION_OUT="$(OUTPUT_DIR)/mutation/mutation-check.tsv" scripts/mutation_smoke.sh
 
 benchmark-smoke: ## Run package benchmark smoke without performance claims
 	@set -e; for mod in $(MODULES); do \

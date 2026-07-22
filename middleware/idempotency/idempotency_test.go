@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,6 +66,60 @@ func TestIdempotencyReplay(t *testing.T) {
 	if rec3.Code != http.StatusConflict {
 		t.Fatalf("expected conflict on key reuse, got %d", rec3.Code)
 	}
+}
+
+func FuzzDefaultHashAndReplayMetadata(f *testing.F) {
+	f.Add("POST", "/widgets", "b=2&a=1", "application/json", `{"name":"widget"}`, "replay-value")
+	f.Add("get", "/widgets/42", "tag=a&tag=b", "application/json; charset=utf-8", "", "")
+
+	f.Fuzz(func(t *testing.T, method, path, rawQuery, contentType, rawBody, replayValue string) {
+		request := &http.Request{
+			Method: limitIdempotencyFuzzString(method, 32),
+			URL: &url.URL{
+				Path:     limitIdempotencyFuzzString(path, 1024),
+				RawQuery: limitIdempotencyFuzzString(rawQuery, 1024),
+			},
+			Header: http.Header{"Content-Type": []string{limitIdempotencyFuzzString(contentType, 256)}},
+		}
+		body := []byte(limitIdempotencyFuzzString(rawBody, 4096))
+
+		first, err := DefaultHash(request, body)
+		if err != nil {
+			t.Fatalf("DefaultHash returned an error: %v", err)
+		}
+		if len(first) != sha256.Size*2 {
+			t.Fatalf("DefaultHash length = %d, want %d", len(first), sha256.Size*2)
+		}
+		if _, err := hex.DecodeString(first); err != nil {
+			t.Fatalf("DefaultHash returned non-hex output: %v", err)
+		}
+		second, err := DefaultHash(request, body)
+		if err != nil || first != second {
+			t.Fatalf("DefaultHash must be deterministic: equal=%t err=%v", first == second, err)
+		}
+
+		headers := http.Header{
+			"Idempotency-Key":      []string{"raw-key"},
+			"Idempotency-Replayed": []string{"true"},
+			"X-Replay-Token":       []string{limitIdempotencyFuzzString(replayValue, 1024)},
+		}
+		stripped := stripReplayOwnedHeaders(headers, "X-Replay-Token")
+		for _, denied := range []string{"Idempotency-Key", "Idempotency-Replayed", "X-Replay-Token"} {
+			if values := stripped.Values(denied); len(values) != 0 {
+				t.Fatalf("replay metadata retained denied header %q", denied)
+			}
+		}
+		if headers.Get("Idempotency-Key") != "raw-key" {
+			t.Fatal("replay metadata filtering mutated the source headers")
+		}
+	})
+}
+
+func limitIdempotencyFuzzString(value string, max int) string {
+	if len(value) <= max {
+		return value
+	}
+	return value[:max]
 }
 
 func TestMiddlewareReportsCheckedProblemWriteFailure(t *testing.T) {

@@ -28,7 +28,10 @@ and `docs/stable-core.md`.
     checks.
   - `ci / api-check`, including `make release-api-check` against the pull
     request base or push predecessor.
-  - `ci / fuzz`, including `make fuzz`.
+  - `ci / fuzz`, including `make fuzz` and a failure-only upload of minimized
+    synthetic fuzz corpus files.
+  - `ci / mutation`, including `make mutation-check` with its documented
+    assertion-based kill-rate threshold.
   - `dependency-review / dependency-review`, which fails pull requests that
     introduce high or critical vulnerable dependencies or dependencies outside
     the configured license policy.

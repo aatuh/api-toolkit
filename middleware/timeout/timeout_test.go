@@ -61,7 +61,7 @@ func TestPropagatorHandlerAppliesContextDeadline(t *testing.T) {
 }
 
 func TestPropagatorHandlerDoesNotForceTimeoutResponse(t *testing.T) {
-	mw, err := NewPropagator(Options{Timeout: 5 * time.Millisecond})
+	mw, err := NewPropagator(Options{Timeout: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new middleware: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestPropagatorHandlerDoesNotForceTimeoutResponse(t *testing.T) {
 }
 
 func TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse(t *testing.T) {
-	mw, err := NewHard(Options{Timeout: 5 * time.Millisecond})
+	mw, err := NewHard(Options{Timeout: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new hard timeout: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestHardTimeoutContainsPanicBeforeTimeout(t *testing.T) {
 }
 
 func TestHardTimeoutContainsPanicAfterTimeout(t *testing.T) {
-	mw, err := NewHard(Options{Timeout: 5 * time.Millisecond})
+	mw, err := NewHard(Options{Timeout: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new hard timeout: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestHardTimeoutContainsChildPanicBeforeOuterRecover(t *testing.T) {
 func TestHardTimeoutEmitsBoundedTimeoutEvent(t *testing.T) {
 	events := make(chan HardTimeoutEvent, 1)
 	mw, err := NewHard(Options{
-		Timeout: 5 * time.Millisecond,
+		Timeout: 50 * time.Millisecond,
 		EventHooks: &HardTimeoutEventHooks{
 			OnEvent: func(event HardTimeoutEvent) {
 				events <- event
@@ -400,8 +400,8 @@ func TestHardTimeoutEmitsBoundedTimeoutEvent(t *testing.T) {
 	if event.Status != http.StatusGatewayTimeout || !event.TimedOut || event.Panicked || event.CaptureOverflow {
 		t.Fatalf("event = %#v", event)
 	}
-	if event.Timeout != 5*time.Millisecond {
-		t.Fatalf("timeout = %v, want 5ms", event.Timeout)
+	if event.Timeout != 50*time.Millisecond {
+		t.Fatalf("timeout = %v, want 50ms", event.Timeout)
 	}
 	if event.Duration <= 0 {
 		t.Fatalf("duration = %v, want positive", event.Duration)
@@ -478,7 +478,7 @@ func TestHardTimeoutEmitsBoundedPanicAndOverflowEvents(t *testing.T) {
 
 func TestHardTimeoutEventHookPanicDoesNotChangeResponse(t *testing.T) {
 	mw, err := NewHard(Options{
-		Timeout: 5 * time.Millisecond,
+		Timeout: 50 * time.Millisecond,
 		EventHooks: &HardTimeoutEventHooks{
 			OnEvent: func(HardTimeoutEvent) {
 				panic("hook failed")

@@ -53,6 +53,33 @@ passed after the source change; treat that as a weak-assertion review prompt.
 `mutation-smoke` is intentionally opt-in and non-blocking, so it is not part of
 `finalize`, `audit-check`, `release-check`, or `release-evidence`.
 
+## Required Mutation Gate
+
+`GOTOOLCHAIN=local make mutation-check` is the required CI gate for selected
+critical parser and input-boundary packages: binding, query parameters,
+negotiation, and webhooks. It runs three deterministic source mutants per
+selected package and requires a 75% killed-mutant rate. A timeout or tool setup
+error fails the gate; the TSV report is still written to
+`.ci-result/mutation/mutation-check.tsv` and retained by CI for review.
+
+The floor is a test-assertion signal, not a coverage target. The fixture suite
+includes a known binding parser comparison mutation, so a survivor there is a
+direct regression in parser-test strength rather than an excuse to inflate line
+coverage. Broader `mutation-smoke` remains available for exploratory
+weak-assertion review.
+
+## Fuzz Failure Artifacts
+
+`make fuzz` runs short deterministic smoke fuzzing on each pull request and the
+scheduled `nightly` workflow runs the longer 60-second pass. It covers binding,
+query parsing, negotiation, uploads, webhook signatures, proxy identity,
+idempotency hash and replay metadata, and `FuzzRequestAndResponseValidation`
+for OpenAPI request/response validation.
+
+On a fuzz failure, CI uploads only the minimized `testdata/fuzz/` corpus paths
+for those packages for seven days. It does not upload environment files, test logs, or the workspace. Fuzz inputs must use synthetic values; do not seed a
+corpus with credentials, customer-like payloads, or production request bodies.
+
 ## Floors
 
 The aggregate defaults are:

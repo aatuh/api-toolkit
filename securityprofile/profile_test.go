@@ -107,7 +107,7 @@ func TestRouteOverridesTimeout(t *testing.T) {
 func TestWithHardTimeoutWritesTimeoutProblem(t *testing.T) {
 	profile, err := New(
 		WithRequireAuth(false),
-		WithHardTimeout(5*time.Millisecond),
+		WithHardTimeout(50*time.Millisecond),
 	)
 	if err != nil {
 		t.Fatalf("profile error: %v", err)
@@ -161,7 +161,7 @@ func TestWithHardTimeoutMaxCaptureBytesControlsOverflow(t *testing.T) {
 }
 
 func TestRouteOverrideCanSelectHardTimeout(t *testing.T) {
-	short := 5 * time.Millisecond
+	short := 50 * time.Millisecond
 	hard := true
 	profile, err := New(
 		WithRequireAuth(false),
@@ -237,7 +237,7 @@ func TestRouteOverrideCanTuneHardTimeoutCaptureBytes(t *testing.T) {
 func TestStreamingRouteOverrideDisablesHardTimeoutBuffering(t *testing.T) {
 	profile, err := New(
 		WithRequireAuth(false),
-		WithHardTimeout(5*time.Millisecond),
+		WithHardTimeout(50*time.Millisecond),
 		WithRouteOverrides(StreamingRouteOverride("/events", http.MethodGet)),
 	)
 	if err != nil {
