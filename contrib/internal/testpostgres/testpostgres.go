@@ -57,8 +57,9 @@ type Harness struct {
 	Schema   string
 	Version  Version
 
-	admin *pgxpool.Pool
-	next  atomic.Uint64
+	admin       *pgxpool.Pool
+	databaseURL string
+	next        atomic.Uint64
 }
 
 // New opens a real PostgreSQL harness and registers cleanup with t. It fails
@@ -165,12 +166,23 @@ func open(ctx context.Context, dsn string) (*Harness, error) {
 	databaseCreated = false
 	closePool = false
 	return &Harness{
-		Pool:     pool,
-		Database: database,
-		Schema:   schema,
-		Version:  version,
-		admin:    admin,
+		Pool:        pool,
+		Database:    database,
+		Schema:      schema,
+		Version:     version,
+		admin:       admin,
+		databaseURL: databaseDSN,
 	}, nil
+}
+
+// DatabaseURL returns the dedicated ephemeral database URL for drivers that
+// cannot share the pgx pool directly. It is test-only infrastructure; callers
+// must not log it because it contains the fixed local test credential.
+func (h *Harness) DatabaseURL() string {
+	if h == nil {
+		return ""
+	}
+	return h.databaseURL
 }
 
 // ApplyMigrations applies migrations in order to the harness schema.

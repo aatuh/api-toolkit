@@ -55,7 +55,7 @@ func TestHarnessProvidesRealIsolatedPostgres(t *testing.T) {
 	}
 }
 
-func TestHarnessParallelTestsDoNotShareSchema(t *testing.T) {
+func TestHarnessParallelPostgresTestsDoNotShareSchema(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		t.Run("isolated", func(t *testing.T) {
 			t.Parallel()

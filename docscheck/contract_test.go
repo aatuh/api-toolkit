@@ -878,7 +878,6 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	release := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
 	for _, required := range []string{
 		"toolchain-compatibility:",
-		"needs: toolchain-compatibility",
 		"go-version: [1.25.x, 1.26.x]",
 		"GOTOOLCHAIN: local",
 	} {
@@ -887,6 +886,10 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 		}
 	}
 
+	if !strings.Contains(release, "needs: toolchain-compatibility") &&
+		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract]") {
+		t.Fatal(".github/workflows/release.yml must make release-preflight depend on toolchain compatibility")
+	}
 	for _, path := range []string{
 		filepath.Join(repoRoot, ".github", "workflows", "codeql.yml"),
 		filepath.Join(repoRoot, ".github", "workflows", "integration.yml"),
@@ -4017,6 +4020,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 		if !containsAny(row.ScheduledManualEvidence, []string{
 			"not_applicable",
 			"generated-integration-check",
+			"postgres-contract",
 			"reference-service-evidence",
 			"provider-live-check",
 			"manual",
@@ -4031,6 +4035,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 				"hermetic-provider-fixture": true,
 				"manual-real-service":       true,
 				"miniredis":                 true,
+				"real-postgres-pr":          true,
 				"scheduled-real-service":    true,
 			}[token] {
 				stale = append(stale, importPath+" has unknown realism status token "+token)

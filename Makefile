@@ -12,6 +12,7 @@ MUTATION_GATE_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_GATE_PER_PACKAGE_LIMIT ?= 3
 MUTATION_GATE_MIN_KILL_RATE ?= 0.75
 POSTGRES_TEST_DSN ?= postgres://api_toolkit_test:api_toolkit_test@127.0.0.1:54329/api_toolkit_test?sslmode=disable
+POSTGRES_TEST_PACKAGES := ./internal/testpostgres ./adapters/auditpostgres ./adapters/migrate ./adapters/operationpostgres ./adapters/outboxpostgres ./adapters/pgxpool ./adapters/txpostgres ./adapters/webhookdeliverypostgres ./integrations/pgxpool ./integrations/txpostgres ./migrator ./scheduler/postgres ./cmd/api-toolkit
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 TOOLS_DIR ?= .tools
@@ -45,7 +46,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -282,7 +283,10 @@ test-race: ## Run unit tests with race detector
 	done
 
 test-postgres: ## Run real PostgreSQL contract-harness tests against the local test-only endpoint
-	@(cd contrib && API_TOOLKIT_TEST_POSTGRES_DSN="$(POSTGRES_TEST_DSN)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$(WORKSPACE)" $(GO) test -tags=postgres ./internal/testpostgres -count=1)
+	@(cd contrib && API_TOOLKIT_TEST_POSTGRES_DSN="$(POSTGRES_TEST_DSN)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$(WORKSPACE)" $(GO) test -tags=postgres $(POSTGRES_TEST_PACKAGES) -run 'Postgres' -count=1)
+
+supported-adapter-check: ## Verify real-service evidence covers every supported PostgreSQL adapter
+	@scripts/supported_adapter_check.sh
 
 timeout-determinism-check: ## Run repeated timeout middleware determinism and race checks
 	@$(GO) test ./middleware/timeout -count=100 -run TestHardTimeoutWritesProblemAndDiscardsLateHandlerResponse

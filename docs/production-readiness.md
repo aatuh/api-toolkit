@@ -54,8 +54,9 @@ evidence-complete supported adapter set: they must have direct tests, package
 docs, a behavior contract in `docs/supported-adapter-contracts.tsv`, and release
 drift coverage in `docs/contrib-api-drift-packages.txt`. Test-realism evidence
 is tracked separately in `docs/supported-adapter-test-realism.tsv` so reviewers
-can tell direct-unit, fake DB, miniredis, hermetic fixture, and scheduled/manual
-real-service evidence apart without treating all adapter tests as equivalent.
+can tell direct-unit, fake DB, miniredis, hermetic fixture, scheduled/manual
+real-service evidence, and PR-blocking isolated PostgreSQL evidence apart
+without treating all adapter tests as equivalent.
 
 Packages classified as `experimental` are intentionally not promoted. They can
 be useful and maintained, but remain outside the supported-adapter tier until

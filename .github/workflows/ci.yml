@@ -88,7 +88,9 @@ jobs:
           go-version: 1.26.x
           check-latest: true
       - name: Real PostgreSQL contract harness
-        run: make test-postgres
+        run: |
+          make test-postgres
+          make supported-adapter-check
   platform-core:
     name: platform-core (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}

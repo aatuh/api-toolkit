@@ -13,7 +13,7 @@ by `docs/supported-adapter-contracts.tsv`,
 
 | Area | Packages | Tier | Production posture |
 | --- | --- | --- | --- |
-| Postgres (PostgreSQL 18) | `adapters/pgxpool`, `adapters/txpostgres`, `adapters/migrate`, `adapters/auditpostgres`, `adapters/operationpostgres`, `adapters/outboxpostgres`, `adapters/webhookdeliverypostgres`, `scheduler/postgres` | supported-adapter | Use after reviewing schema ownership, migrations, readiness checks, table-name validation, and backup/restore. Real contracts run through `make test-postgres`. |
+| Postgres (PostgreSQL 18) | `adapters/pgxpool`, `adapters/txpostgres`, `adapters/migrate`, `adapters/auditpostgres`, `adapters/operationpostgres`, `adapters/outboxpostgres`, `adapters/webhookdeliverypostgres`, `integrations/pgxpool`, `integrations/txpostgres`, `migrator`, `scheduler/postgres` | supported-adapter | Use after reviewing schema ownership, migrations, readiness checks, table-name validation, and backup/restore. Real contracts run through `make test-postgres` on every pull request and release. |
 | Redis | `adapters/cacheredis`, `adapters/idempotencyredis`, `adapters/ratelimitredis` | supported-adapter | Use for shared production cache, idempotency, and rate-limit state with service-specific prefixes and bounded keys. |
 | Stripe | `adapters/stripe`, `integrations/stripe` | supported-adapter | Use after provider account setup, webhook signing, secret storage, and billing-domain review. |
 | Resend | `adapters/resend`, `integrations/resend` | supported-adapter | Use after consent, suppression, template, provider quota, and live-delivery review. |

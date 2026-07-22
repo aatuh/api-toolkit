@@ -18,6 +18,11 @@ upgrade notes, and package-tied compatibility acknowledgements.
 
 ### Behavior and security
 
+- Every supported PostgreSQL adapter, integration wrapper, migration runner,
+  scheduler run store, and generated `saas-api-full` migration path now has an
+  isolated PostgreSQL 18 contract in `make test-postgres`. The same suite and
+  its evidence-inventory gate run on pull requests and release tags; the
+  test-only harness rejects unsafe endpoints and does not emit credentials.
 - Generated `saas-api-full` services now keep their Redis idempotency store as
   `idempotency.ReleasableStore`, matching the checked `NewWithStore` contract
   and preserving token-aware reservation release at compile time.
