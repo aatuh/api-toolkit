@@ -919,6 +919,43 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	}
 }
 
+func TestPlatformSupportPolicyMatchesWorkflow(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"platform-core:",
+		"ubuntu-24.04",
+		"ubuntu-24.04-arm",
+		"macos-14",
+		"windows-2022",
+		"go build ./...",
+		"go test ./...",
+		"go test ./... -run '^Example'",
+		"Generate portable service fixture",
+		"shell: pwsh",
+		"GOTOOLCHAIN: local",
+		"contents: read",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing platform verification requirement %q", required)
+		}
+	}
+
+	support := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
+	for _, required := range []string{
+		"| Linux | amd64 | Supported |",
+		"| Linux | arm64 | Supported |",
+		"| macOS | arm64 | Supported |",
+		"| Windows | amd64 | Supported |",
+		"Root and generated-service compilation",
+		"Contrib remains Linux-only",
+	} {
+		if !strings.Contains(support, required) {
+			t.Fatalf("docs/support-policy.md missing platform support policy %q", required)
+		}
+	}
+}
+
 func TestContribAPIDriftDispositionManifest(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	records := loadTSVRecords(t, filepath.Join(repoRoot, "docs", "contrib-api-drift-dispositions.tsv"))

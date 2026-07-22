@@ -61,6 +61,52 @@ jobs:
         run: make vuln
       - name: Dependency footprint report
         run: make dependency-report
+  platform-core:
+    name: platform-core (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    env:
+      GOTOOLCHAIN: local
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-arm64
+            runner: macos-14
+          - platform: windows-amd64
+            runner: windows-2022
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout v7.0.0
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # actions/setup-go v6.4.0
+        with:
+          go-version: 1.26.x
+          check-latest: true
+      - name: Root module build
+        run: go build ./...
+      - name: Root module tests
+        run: go test ./...
+      - name: Root examples
+        run: go test ./... -run '^Example'
+      - name: Generate portable service fixture
+        id: fixture
+        shell: pwsh
+        working-directory: contrib
+        run: |
+          $serviceDir = Join-Path $env:RUNNER_TEMP "api-toolkit-platform-${{ matrix.platform }}"
+          $contribDir = Join-Path $env:GITHUB_WORKSPACE "contrib"
+          go run ./cmd/api-toolkit new service `
+            --module example.com/platform-smoke `
+            --profile saas-api `
+            --dir "$serviceDir" `
+            --core-replace "$env:GITHUB_WORKSPACE" `
+            --contrib-replace "$contribDir"
+          "directory=$serviceDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Generated service build
+        working-directory: ${{ steps.fixture.outputs.directory }}
+        run: go build ./...
   lint:
     runs-on: ubuntu-latest
     steps:

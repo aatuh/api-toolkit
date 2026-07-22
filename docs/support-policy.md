@@ -26,22 +26,30 @@ as supported merely because the module directives still parse on it.
 
 ## Platform
 
-The required CI platform is:
+The required root-module CI platform is:
 
 | OS | Architecture | Status | Evidence |
 | --- | --- | --- | --- |
-| Linux | amd64 | Supported | GitHub-hosted Ubuntu CI runs unit, race, vuln, lint, docs, API, and fuzz smoke gates. |
+| Linux | amd64 | Supported | `platform-core` on `ubuntu-24.04` runs root build, tests, examples, and a generated-service build; the Linux quality workflow also runs race, vuln, lint, docs, API, and fuzz gates. |
+| Linux | arm64 | Supported | `platform-core` on `ubuntu-24.04-arm` runs root build, tests, examples, and a generated-service build. |
+| macOS | arm64 | Supported | `platform-core` on `macos-14` runs root build, tests, examples, and a generated-service build. |
+| Windows | amd64 | Supported | `platform-core` on `windows-2022` runs root build, tests, examples, and a generated-service build. |
 
-Other platforms are portability goals, not supported release gates:
+Root and generated-service compilation are required on every supported platform
+with current tested Go (`1.26.x`). Race testing remains a Linux amd64 gate.
+Contrib remains Linux-only for full unit and integration verification; the
+portable generated service is the cross-platform CLI evidence.
+
+The following pairs are not supported release targets and must not be claimed
+in README, release notes, or package documentation without matching CI:
 
 | OS | Architecture | Status | Notes |
 | --- | --- | --- | --- |
-| macOS | amd64/arm64 | Best effort | Expected for pure Go packages, but not a required release gate. |
-| Windows | amd64/arm64 | Best effort | Expected for pure Go packages that avoid Unix assumptions, but not a required release gate. |
-| Linux | arm64 | Best effort | Expected for pure Go packages, but generated deployment assets are not release-gated on arm64. |
+| macOS | amd64 | Not supported | No required platform workflow. |
+| Windows | arm64 | Not supported | No required platform workflow. |
 
-Do not claim broad OS/architecture support in README, release notes, or package
-docs until CI includes matching smoke checks.
+Do not claim broad OS/architecture support beyond the supported table without
+adding matching CI smoke checks and updating this policy.
 
 ## Generated Services
 
