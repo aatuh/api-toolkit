@@ -310,7 +310,10 @@ When provider workflows are selected, the scaffold also emits
 `cmd/provider-replay`; the generated provider-check target runs provider package
 tests and replays checked-in fake fixtures without live credentials. The
 provider-live-check target remains opt-in and gated by
-`RUN_PROVIDER_LIVE_CHECKS=true`.
+`RUN_PROVIDER_LIVE_CHECKS=true`. The generated full-profile fixture, including
+all provider starter workflows and deterministic provider checks, runs on every
+pull request and is a release prerequisite. Live provider sandbox calls remain
+separate because their secrets are not available to ordinary pull requests.
 
 ## Deployment Assets
 

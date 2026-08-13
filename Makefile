@@ -48,7 +48,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract provider-live-check provider-live-check-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -142,6 +142,12 @@ generated-failure-contract: ## Run generated failure script contract tests
 generated-upgrade-compat-check: ## Opt-in generated service upgrade compatibility check from the prior v3 baseline
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_upgrade_compat_check.sh
 
+provider-live-check: ## Record sanitized, opt-in provider sandbox reachability evidence
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/provider_live_check.sh
+
+provider-live-check-contract: ## Run provider live-evidence command contract tests
+	@scripts/provider_live_check_contract_test.sh
+
 generated-upgrade-compat-contract: ## Run generated upgrade compatibility script contract tests
 	@scripts/generated_upgrade_compat_contract_test.sh
 
@@ -207,6 +213,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) generated-soak-contract
 	@$(MAKE) generated-failure-contract
 	@$(MAKE) generated-upgrade-compat-contract
+	@$(MAKE) provider-live-check-contract
 	@$(MAKE) upgrade-smoke-contract
 	@$(MAKE) reference-service-load-contract
 	@$(MAKE) reference-service-evidence-contract

@@ -885,12 +885,11 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 			t.Fatalf(".github/workflows/release.yml missing required toolchain release evidence %q", required)
 		}
 	}
-
 	if !strings.Contains(release, "needs: toolchain-compatibility") &&
-		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract]") &&
-		!strings.Contains(release, "needs: [toolchain-compatibility, postgres-contract, redis-contract]") {
+		!strings.Contains(release, "needs: [toolchain-compatibility,") {
 		t.Fatal(".github/workflows/release.yml must make release-preflight depend on toolchain compatibility")
 	}
+
 	for _, path := range []string{
 		filepath.Join(repoRoot, ".github", "workflows", "codeql.yml"),
 		filepath.Join(repoRoot, ".github", "workflows", "integration.yml"),
@@ -2108,13 +2107,13 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 		t.Fatalf("full profile worker evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.WorkerCheck)
 	}
 	if summary.FullProfileScaffoldEvidence.IntegrationWorkflow.Path != ".github/workflows/integration.yml" ||
-		summary.FullProfileScaffoldEvidence.IntegrationWorkflow.TriggerPolicy != "workflow_dispatch_and_schedule_only" ||
+		summary.FullProfileScaffoldEvidence.IntegrationWorkflow.TriggerPolicy != "pull_request_schedule_and_dispatch" ||
 		!summary.FullProfileScaffoldEvidence.IntegrationWorkflow.ReleaseBlocking {
 		t.Fatalf("full profile integration workflow evidence incomplete: %+v", summary.FullProfileScaffoldEvidence.IntegrationWorkflow)
 	}
-	if summary.FullProfileScaffoldEvidence.IntegrationCheck.Status != "not_run_opt_in" ||
-		summary.FullProfileScaffoldEvidence.IntegrationCheck.ReleaseBlocking {
-		t.Fatalf("full profile integration evidence should be opt-in and non-blocking by default: %+v", summary.FullProfileScaffoldEvidence.IntegrationCheck)
+	if summary.FullProfileScaffoldEvidence.IntegrationCheck.Status != "required_github_workflow" ||
+		!summary.FullProfileScaffoldEvidence.IntegrationCheck.ReleaseBlocking {
+		t.Fatalf("full profile integration evidence must be release blocking in GitHub: %+v", summary.FullProfileScaffoldEvidence.IntegrationCheck)
 	}
 	if !strings.Contains(summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine, "make generated-integration-check") {
 		t.Fatalf("full profile integration command = %q", summary.FullProfileScaffoldEvidence.IntegrationCheck.CommandLine)
@@ -3533,7 +3532,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 	for _, required := range []string{
 		".ci-result/generated-integration/status",
 		"make generated-integration-check",
-		"not_run_opt_in",
+		"required_github_workflow",
 	} {
 		if !strings.Contains(summaryScript, required) {
 			t.Fatalf("release summary script missing generated integration evidence %q", required)
@@ -3656,6 +3655,15 @@ func TestGeneratedProfileIntegrationCoversRuntimeContract(t *testing.T) {
 	if strings.Count(workflow, "Generated build") < 2 {
 		t.Fatal("generated integration workflow must build generated services before Docker runtime checks")
 	}
+	for _, required := range []string{
+		"pull_request:",
+		"saas-api-full-provider-fixtures:",
+		"make generated-integration-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("generated integration workflow missing release-blocking provider fixture evidence %q", required)
+		}
+	}
 }
 
 func TestGeneratedFullProfileSoakRunsInNightly(t *testing.T) {
@@ -3738,6 +3746,65 @@ func TestGeneratedFullProfileSoakRunsInNightly(t *testing.T) {
 		if !strings.Contains(governance, required) && !strings.Contains(runbook, required) && !strings.Contains(docsIndex, required) {
 			t.Fatalf("generated soak docs missing %q", required)
 		}
+	}
+}
+
+func TestProviderSandboxEvidenceIsSanitizedAndAgeBounded(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	script := readText(t, filepath.Join(repoRoot, "scripts", "provider_live_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "provider_live_check_contract_test.sh"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"))
+	evidenceDocs := readText(t, filepath.Join(repoRoot, "docs", "provider-live-evidence.md"))
+	supportPolicy := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
+
+	for _, required := range []string{
+		"provider-live-check:",
+		"provider-live-check-contract:",
+		"$(MAKE) provider-live-check-contract",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing provider evidence target %q", required)
+		}
+	}
+	for _, required := range []string{
+		"RUN_PROVIDER_LIVE_CHECKS",
+		"skipped_no_credentials",
+		"not_requested",
+		".ci-result/provider-live",
+		"GOWORK=\"$repo_root/go.work\"",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("provider live script missing safe-evidence control %q", required)
+		}
+	}
+	if !strings.Contains(contract, "skipped_no_credentials") {
+		t.Fatal("provider live contract must reject treating absent credentials as success")
+	}
+	for _, required := range []string{
+		"provider-sandbox:",
+		"environment: provider-sandbox",
+		"RUN_PROVIDER_LIVE_CHECKS=true make provider-live-check",
+		"provider-live-evidence-${{ github.run_id }}",
+		"retention-days: 90",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("nightly workflow missing provider sandbox evidence %q", required)
+		}
+	}
+	for _, required := range []string{
+		"skipped_no_credentials",
+		"not the artifact, for details",
+		"30 days",
+		"unique run prefix",
+		"sanitized result shape",
+	} {
+		if !strings.Contains(evidenceDocs, required) {
+			t.Fatalf("provider live evidence docs missing %q", required)
+		}
+	}
+	if !strings.Contains(supportPolicy, "no more than **30 days** old") {
+		t.Fatal("support policy must define a provider evidence maximum age")
 	}
 }
 
@@ -7759,7 +7826,7 @@ func TestProductionGradeScorecard(t *testing.T) {
 			t.Fatalf("scorecard area %q has no backlog ticket in required_evidence", fields[0])
 		}
 		for _, id := range matches {
-			if !strings.Contains(roadmap, "## [ ] "+id) && !strings.Contains(roadmap, "## [x] "+id) {
+			if !strings.Contains(roadmap, "## [ ] "+id) && !strings.Contains(roadmap, "## [pr] "+id) && !strings.Contains(roadmap, "## [x] "+id) {
 				t.Fatalf("scorecard area %q maps to unknown ticket %q", fields[0], id)
 			}
 		}
@@ -10128,7 +10195,7 @@ func releaseEvidenceEnv(extra ...string) []string {
 		}
 		env = append(env, value)
 	}
-	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local", "FULL_PROFILE_INTEGRATION_CHECK_STATUS=not_run_opt_in")
+	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local", "FULL_PROFILE_INTEGRATION_CHECK_STATUS=required_github_workflow")
 	env = append(env, extra...)
 	return env
 }

@@ -91,6 +91,7 @@ github.com/aatuh/api-toolkit/contrib/v4/bootstrap	contrib-maintainers	supported-
 github.com/aatuh/api-toolkit/contrib/v4/cache	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
 github.com/aatuh/api-toolkit/contrib/v4/cache/cachetest	contrib-maintainers	test-only	contrib-test-maintainers	test-support
 github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit	contrib-tooling-maintainers	tooling	contrib-tooling-test-maintainers	touch-scoped-tooling
+github.com/aatuh/api-toolkit/contrib/v4/cmd/provider-live-check	contrib-tooling-maintainers	tooling	contrib-tooling-test-maintainers	touch-scoped-tooling
 github.com/aatuh/api-toolkit/contrib/v4/cmd/migrate	contrib-tooling-maintainers	tooling	contrib-tooling-test-maintainers	touch-scoped-tooling
 github.com/aatuh/api-toolkit/contrib/v4/cmd/tester	contrib-tooling-maintainers	tooling	contrib-tooling-test-maintainers	touch-scoped-tooling
 github.com/aatuh/api-toolkit/contrib/v4/config	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter

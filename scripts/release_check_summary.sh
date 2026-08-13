@@ -935,7 +935,7 @@ full_profile_scaffold_evidence_json() {
   worker_status="$client_status"
   integration_workflow_status="$client_status"
   recorded_integration_status="$(cat "$repo_root/.ci-result/generated-integration/status" 2>/dev/null || true)"
-  integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-${recorded_integration_status:-not_run_opt_in}}"
+  integration_status="${FULL_PROFILE_INTEGRATION_CHECK_STATUS:-${recorded_integration_status:-required_github_workflow}}"
   integration_log="${FULL_PROFILE_INTEGRATION_CHECK_LOG_PATH:-}"
   if [ -z "$integration_log" ] && [ -n "$recorded_integration_status" ]; then
     integration_log="$recorded_integration_log"
@@ -1045,7 +1045,7 @@ full_profile_scaffold_evidence_json() {
   printf '},'
   printf '"integration_workflow":{'
   printf '"path":".github/workflows/integration.yml",'
-  printf '"trigger_policy":"workflow_dispatch_and_schedule_only",'
+  printf '"trigger_policy":"pull_request_schedule_and_dispatch",'
   printf '"status":'; json_string "$integration_workflow_status"; printf ','
   printf '"log_path":'; json_string "$log_dir/full-profile-scaffold-check.log"; printf ','
   printf '"release_blocking":true'
@@ -1054,7 +1054,7 @@ full_profile_scaffold_evidence_json() {
   printf '"command_line":'; json_string "make generated-integration-check"; printf ','
   printf '"status":'; json_string "$integration_status"; printf ','
   printf '"log_path":'; json_nullable_string "$integration_log"; printf ','
-  printf '"release_blocking":false'
+  printf '"release_blocking":true'
   printf '}'
   printf '}'
 }

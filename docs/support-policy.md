@@ -57,3 +57,14 @@ Generated services are app-owned. Their platform support depends on the
 application's deployment target, provider choices, Docker image, and database or
 cache adapters. The toolkit only supports the generated defaults that are
 exercised by repository CI and release evidence.
+
+## Provider Sandbox Evidence
+
+Provider adapters use hermetic fixture tests by default. Their optional live
+sandbox evidence is current only when the protected `nightly / provider-sandbox`
+workflow has a `passed` sanitized artifact no more than **30 days** old. Missing
+credentials, `not_requested`, skipped, failed, or stale records are not
+success. In those cases retain the explicitly dispositioned
+`hermetic-provider-fixture+manual-real-service` realism status in
+`docs/supported-adapter-test-realism.tsv`; do not claim current provider
+sandbox verification.

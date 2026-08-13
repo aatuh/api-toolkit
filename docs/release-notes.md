@@ -1522,3 +1522,8 @@ source of truth is `docs/release-runbook.md`.
 - If deployment environments used undocumented semantic values such as `ENV=qa`, `ENV=prod`, `LOG_LEVEL=verbose`, or `LOG_LEVEL=warning`, startup now fails fast. Use `development|staging|production` for `ENV` and `debug|info|warn|error` for `LOG_LEVEL`.
 - Docs handlers no longer return a synthetic OpenAPI document when no authoritative spec exists. Expect `404` for disabled docs surfaces and for missing OpenAPI files unless a real document is configured.
 - `DocsConfig.EnableJSON` and `DocsConfig.EnableYAML` now control which discovered OpenAPI formats can be served. Verify custom docs paths and any YAML-based docs setup during upgrade.
+- Generated full-profile integration now runs provider workflow fixtures on pull
+  requests and blocks release preflight. Protected nightly Stripe, Resend, and
+  Clerk reachability evidence is sanitized, retained for 90 days, and current
+  only for 30 days; absent credentials report a non-success skip rather than a
+  false pass. See `docs/provider-live-evidence.md`.

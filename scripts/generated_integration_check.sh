@@ -13,6 +13,9 @@ log_path="$result_dir/integration-check.log"
 status_path="$result_dir/status"
 summary_path="$result_dir/summary.json"
 include_minio="${INCLUDE_MINIO:-false}"
+provider_workflows="${GENERATED_INTEGRATION_PROVIDERS:-stripe-billing,resend-email,clerk-webhooks,entitlements}"
+provider_args=()
+provider_names=()
 
 mkdir -p "$repo_root/$result_dir"
 tmpdir="$(mktemp -d)"
@@ -73,6 +76,7 @@ write_summary() {
   "toolchain": "$(json_escape "$toolchain")",
   "profile": "saas-api-full",
   "auth": "api-key",
+  "provider_workflows": $(json_string_array "${provider_names[@]}"),
   "minio": $(json_bool "$include_minio"),
   "log_path": "$(json_escape "$log_path")",
   "runtime_contract": {
@@ -84,11 +88,33 @@ JSON
 }
 
 run_check() {
+  provider_args=()
+  if [ -n "$provider_workflows" ]; then
+    local workflow
+    local old_ifs="$IFS"
+    IFS=','
+    for workflow in $provider_workflows; do
+      workflow="$(printf '%s' "$workflow" | tr -d '[:space:]')"
+      case "$workflow" in
+        stripe-billing|resend-email|clerk-webhooks|entitlements)
+          provider_args+=("--with" "$workflow")
+          provider_names+=("$workflow")
+          ;;
+        *)
+          IFS="$old_ifs"
+          echo "GENERATED_INTEGRATION_PROVIDERS contains unsupported workflow $workflow" >&2
+          return 2
+          ;;
+      esac
+    done
+    IFS="$old_ifs"
+  fi
   cd "$repo_root/contrib"
   go run ./cmd/api-toolkit new service \
     --module example.com/full-api \
     --profile saas-api-full \
     --auth api-key \
+    "${provider_args[@]}" \
     --dir "$service_dir" \
     --core-replace "$repo_root" \
     --contrib-replace "$repo_root/contrib" || return
@@ -101,6 +127,7 @@ run_check() {
   make contracts-diff || return
   make openapi-check || return
   make client-check || return
+  make provider-check || return
   if [ "$include_minio" = "true" ]; then
     COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" \
       ENABLE_MINIO_INTEGRATION="${ENABLE_MINIO_INTEGRATION:-1}" \

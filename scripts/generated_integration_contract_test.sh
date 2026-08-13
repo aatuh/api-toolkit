@@ -126,6 +126,7 @@ for required in \
   '"status": "passed"' \
   '"profile": "saas-api-full"' \
   '"auth": "api-key"' \
+  '"provider_workflows": ["stripe-billing","resend-email","clerk-webhooks","entitlements"]' \
   '"minio": false' \
   '"runtime_contract": {' \
   '"make build"' \
@@ -142,6 +143,10 @@ for required in \
   "go run ./cmd/api-toolkit new service" \
   "--profile saas-api-full" \
   "--auth api-key" \
+  "--with stripe-billing" \
+  "--with resend-email" \
+  "--with clerk-webhooks" \
+  "--with entitlements" \
   "go mod tidy" \
   "go test ./..." \
   "make build" \
@@ -149,6 +154,7 @@ for required in \
   "make contracts-diff" \
   "make openapi-check" \
   "make client-check" \
+  "make provider-check" \
   "make integration-check"; do
   if ! grep -Fq -- "$required" "$tmp/default/calls"; then
     printf 'default calls missing %q:\n%s\n' "$required" "$(cat "$tmp/default/calls")" >&2
@@ -185,6 +191,16 @@ if [ "$(cat "$tmp/failure/repo/.ci-result/failure/status")" != "failed" ]; then
 fi
 if ! grep -Fq '"status": "failed"' "$tmp/failure/repo/.ci-result/failure/summary.json"; then
   printf 'failure summary should record failed status:\n%s\n' "$(cat "$tmp/failure/repo/.ci-result/failure/summary.json")" >&2
+  exit 1
+fi
+
+unsupported_provider_output="$(require_failure unsupported-provider run_contract unsupported env GENERATED_INTEGRATION_PROVIDERS=unknown-provider)"
+case "$unsupported_provider_output" in
+  *"generated integration check failed"*) ;;
+  *) printf 'unsupported provider output changed unexpectedly:\n%s\n' "$unsupported_provider_output" >&2; exit 1 ;;
+esac
+if ! grep -Fq 'GENERATED_INTEGRATION_PROVIDERS contains unsupported workflow unknown-provider' "$tmp/unsupported/repo/.ci-result/unsupported/integration-check.log"; then
+  printf 'unsupported provider error was not recorded safely:\n%s\n' "$(cat "$tmp/unsupported/repo/.ci-result/unsupported/integration-check.log")" >&2
   exit 1
 fi
 

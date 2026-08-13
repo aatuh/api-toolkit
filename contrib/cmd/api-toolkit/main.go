@@ -22720,7 +22720,7 @@ provider-check:
 
 provider-live-check:
 	@if [ "$${RUN_PROVIDER_LIVE_CHECKS:-}" != "true" ]; then echo "set RUN_PROVIDER_LIVE_CHECKS=true to run live provider checks"; exit 2; fi
-	$(GO) test -tags=provider_live ./internal/providers/...
+	$(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v4/cmd/provider-live-check
 
 migrate-plan:
 	$(GO) run ./cmd/migrate plan

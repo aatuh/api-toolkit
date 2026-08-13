@@ -199,6 +199,7 @@ identifies the installed generator and contract tool.
 | [Changelog](../CHANGELOG.md) | Release consumers | Concise user-facing history for published releases. |
 | [Release notes](release-notes.md) | Release consumers and maintainers | Dated behavior changes, upgrade notes, and package-tied contrib drift acknowledgements. |
 | [Release manifests](release-manifests.md) | Release reviewers and maintainers | Human guide for package classification, contrib drift, contrib dispositions, and vulnerability dispositions. |
+| [Provider live evidence](provider-live-evidence.md) | Release reviewers and provider-adapter owners | Interpret protected sandbox artifacts, non-success skips, and the 30-day freshness policy. |
 | `docs/contrib-api-drift-packages.txt` | Maintainers and automation | Selected contrib packages reviewed by drift checks; supported-adapter incompatible drift is gate-enforced. |
 | `docs/supported-adapter-contracts.tsv` | Maintainers and automation | Required supported-adapter behavior contracts with direct-test and release-drift evidence. |
 | `docs/supported-adapter-test-realism.tsv` | Maintainers and automation | Required supported-adapter realism rows that distinguish direct-unit, fake DB, miniredis, hermetic fixture, and scheduled/manual real-service evidence. |

@@ -63,8 +63,22 @@ an independent review records new evidence.
 
 1. Copy this backlog into
    `docs/roadmap/production-grade-9x.md`.
-2. Keep every epic and ticket as `[ ]` until it is fully complete.
-3. Change a ticket from `[ ]` to `[x]` only after:
+2. Use these ticket states:
+
+   * `[ ]` — local implementation, validation, documentation, generated-file,
+     dependency, or external coordination work remains.
+   * `[pr]` — locally PR-ready. The ticket has one conventional local commit
+     with its `Refs:` trailer, and its implementation, locally executable
+     acceptance checks, documentation/release-note impact, and generated files
+     are complete. It may await a dedicated PR, review, protected merge, or an
+     explicitly recorded prerequisite in the merge sequence. This is not done.
+   * `[x]` — complete under the merge and GitHub-evidence requirements below.
+
+3. Mark a ticket `[pr]` only after all of its own local work is complete. Do
+   not use `[pr]` to hide unfinished implementation, missing generated output,
+   failing verification, or an unrecorded external action required by that
+   ticket.
+4. Change a ticket from `[pr]` to `[x]` only after:
 
    * The implementation is complete.
    * Acceptance criteria pass.
@@ -73,35 +87,35 @@ an independent review records new evidence.
    * The ticket has one merged conventional commit on the protected default
      branch.
    * The commit SHA is recorded in the GitHub issue or project item.
-4. Change an epic from `[ ]` to `[x]` only after every child ticket is `[x]`.
-5. Use one ticket per pull request and one final merged commit per ticket.
-6. Do not combine unrelated tickets into one commit.
-7. If a ticket cannot be completed atomically, split it into smaller tickets
+5. Change an epic from `[ ]` to `[x]` only after every child ticket is `[x]`.
+6. Use one ticket per pull request and one final merged commit per ticket.
+7. Do not combine unrelated tickets into one commit.
+8. If a ticket cannot be completed atomically, split it into smaller tickets
    before implementation.
-8. Every conventional commit body should contain:
+9. Every conventional commit body should contain:
 
 ```text
 Refs: <ticket-id>
 ```
 
-9. Breaking commits must use `!` and include:
+10. Breaking commits must use `!` and include:
 
 ```text
 BREAKING CHANGE: <migration impact and replacement>
 ```
 
-10. Settings-only work, such as enabling branch protection, must still produce
+11. Settings-only work, such as enabling branch protection, must still produce
     a repository commit containing machine-readable or documented evidence of
     the applied configuration.
-11. Generated files changed by a ticket belong in that ticket's commit.
-12. Unless a ticket defines a narrower command, use:
+12. Generated files changed by a ticket belong in that ticket's commit.
+13. Unless a ticket defines a narrower command, use:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make fast-check
 GOWORK=off GOTOOLCHAIN=local make audit-check
 ```
 
-13. Before release-sensitive tickets are marked complete, use:
+14. Before release-sensitive tickets are marked complete, use:
 
 ```sh
 API_BASE_REF=<latest-verified-supported-tag> \
@@ -222,7 +236,7 @@ docs(roadmap): add production-grade 9x program
 
 ---
 
-## [ ] PRG-002: Enforce one ticket per conventional commit
+## [pr] PRG-002: Enforce one ticket per conventional commit
 
 **Priority:** P0
 **Owner:** Maintainer
@@ -1022,7 +1036,7 @@ flakiness, and test downstream consumers rather than only repository fixtures.
 * Fuzz, mutation, and timing-sensitive tests are trustworthy.
 * Downstream consumer compatibility is continuously tested.
 
-## [ ] CI-001: Test minimum and current Go releases
+## [pr] CI-001: Test minimum and current Go releases
 
 **Priority:** P0
 **Owner:** Build engineer
@@ -1089,7 +1103,7 @@ ci(go): test supported and current toolchains
 
 ---
 
-## [ ] CI-002: Add cross-platform core verification
+## [pr] CI-002: Add cross-platform core verification
 
 **Priority:** P1
 **Owner:** Build engineer
@@ -1206,7 +1220,7 @@ ci: stabilize required quality gates
 
 ---
 
-## [ ] CI-004: Harden timing, fuzz, and mutation testing
+## [pr] CI-004: Harden timing, fuzz, and mutation testing
 
 **Priority:** P1
 **Owner:** Test lead
@@ -2148,7 +2162,7 @@ test(redis): validate supported adapters on real redis
 
 ---
 
-## [ ] TST-004: Require provider and generated-service integration evidence
+## [pr] TST-004: Require provider and generated-service integration evidence
 
 **Priority:** P1
 **Owner:** Integration test team
