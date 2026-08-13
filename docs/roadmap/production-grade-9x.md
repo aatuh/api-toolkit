@@ -2176,7 +2176,7 @@ test(postgres): validate supported adapters on real postgres
 
 ---
 
-## [ ] TST-003: Validate supported Redis adapters against real Redis
+## [pr] TST-003: Validate supported Redis adapters against real Redis
 
 **Priority:** P1
 **Owner:** Adapter team
