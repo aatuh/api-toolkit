@@ -15,7 +15,7 @@ import (
 	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
-func TestMiddlewareStressSameKeyRace(t *testing.T) {
+func TestMiddlewareConcurrentSameKeyRace(t *testing.T) {
 	mw, err := New(Options{
 		Store:        newMemoryStore(),
 		MaxBodyBytes: 1024,
