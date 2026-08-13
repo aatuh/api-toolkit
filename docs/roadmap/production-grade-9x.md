@@ -127,6 +127,14 @@ API_BASE_REF=<latest-verified-supported-tag> \
 `REL-000` must designate the verified v4 baseline before a v4 release ticket
 uses it in `API_BASE_REF`.
 
+## External coordination rule
+
+GitHub configuration, protected credentials, published tags/artifacts,
+independent review, adopter participation, and elapsed-time proof are owned by
+`EXT-*` tickets only. Referenced implementation tickets may become `[pr]` when
+their local source, generated files, documentation, checks, and `Refs:` commit
+are complete; they need `EXT-*` evidence only to become `[x]`.
+
 ---
 
 # Delivery milestones
@@ -138,6 +146,61 @@ uses it in `API_BASE_REF`.
 | M2: v5 architecture | Focused core, independently versioned modules, and reduced compatibility burden.   |
 | M3: v5 release      | Release candidate validated by external adopters and independent reviewers.        |
 | M4: 90-day proof    | Maintenance, compatibility, security, and adoption claims validated after release. |
+
+---
+
+# [ ] EPIC EXT: External coordination and evidence
+
+**Goal:** Track non-local authority and time-based proof separately from local implementation.
+
+## [ ] EXT-001: Reconcile GitHub project and ticket evidence
+
+**Owner:** GitHub administrator
+**Unblocks:** PRG-001 and all `[x]` transitions
+
+Create required labels/project items and record merged ticket SHAs.
+
+## [ ] EXT-002: Apply and verify repository protections
+
+**Owner:** GitHub administrator
+**Unblocks:** CI-003, SEC-001, SEC-002, GOV-001 through GOV-003
+
+Apply branch/tag/ruleset, CodeQL, secret-scanning, push-protection, and required-check settings; attach authenticated governance evidence.
+
+## [ ] EXT-003: Configure provider sandbox and collect live evidence
+
+**Owner:** Provider account administrator
+**Unblocks:** TST-004
+
+Configure protected Stripe, Resend, and Clerk/OIDC credentials and record sanitized scheduled evidence.
+
+## [ ] EXT-004: Verify and publish v4 trust-repair release
+
+**Owner:** Release maintainer
+**Unblocks:** REL-000 through REL-005 and FIN-001
+
+Resolve tag/module identity and publish only from protected release evidence.
+
+## [ ] EXT-005: Publish verifiable CLI artifacts
+
+**Owner:** Release maintainer
+**Unblocks:** CLI-005
+
+Publish protected cross-platform assets, checksums, signatures, and provenance.
+
+## [ ] EXT-006: Obtain independent review and adopter evidence
+
+**Owner:** Independent reviewers and adopters
+**Unblocks:** ARC-001, GOV-004, FIN-002, FIN-003
+
+Record independent stable-core/production review and two adopter reports.
+
+## [ ] EXT-007: Publish v5 and complete the 90-day proof window
+
+**Owner:** Release maintainer and adopters
+**Unblocks:** FIN-004 and FIN-005
+
+Publish protected v5 releases, then record the required 90-day maintenance and compatibility evidence.
 
 ---
 
