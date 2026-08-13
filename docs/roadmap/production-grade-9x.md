@@ -1610,7 +1610,7 @@ fix(binding): prevent unsafe validation detail exposure
 
 ---
 
-## [ ] API-004: Separate required presence from non-zero validation
+## [pr] API-004: Separate required presence from non-zero validation
 
 **Priority:** P1
 **Owner:** Core API team
