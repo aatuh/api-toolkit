@@ -15,7 +15,7 @@ import (
 	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
-func TestMiddlewareConcurrentSameKeyRace(t *testing.T) {
+func TestMiddlewareStressSameKeyRace(t *testing.T) {
 	mw, err := New(Options{
 		Store:        newMemoryStore(),
 		MaxBodyBytes: 1024,
@@ -43,10 +43,11 @@ func TestMiddlewareConcurrentSameKeyRace(t *testing.T) {
 		httpx.WriteJSON(w, http.StatusCreated, map[string]string{"body": string(body)})
 	}))
 
-	errs := make(chan error, 32)
+	const callers = 256
+	errs := make(chan error, callers)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 32; i++ {
+	for i := 0; i < callers; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

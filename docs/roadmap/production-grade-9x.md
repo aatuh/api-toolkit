@@ -2417,7 +2417,7 @@ test(timeout): add stress and leak coverage
 
 ---
 
-## [ ] PERF-003: Add idempotency and rate-limit concurrency stress tests
+## [pr] PERF-003: Add idempotency and rate-limit concurrency stress tests
 
 **Priority:** P1
 **Owner:** Runtime test team
