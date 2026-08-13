@@ -1489,7 +1489,7 @@ feat(httpx): add error-returning response writers
 
 ---
 
-## [ ] API-002: Migrate repository internals to checked response writers
+## [pr] API-002: Migrate repository internals to checked response writers
 
 **Priority:** P1
 **Owner:** Core API team
