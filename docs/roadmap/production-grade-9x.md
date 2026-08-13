@@ -1339,12 +1339,15 @@ test: harden timing fuzz and mutation coverage
 
 ---
 
-## [ ] CI-005: Add a downstream consumer compatibility corpus
+## [pr] CI-005: Add a downstream consumer compatibility corpus
 
 **Priority:** P1
 **Owner:** Compatibility lead
 **Size:** L
 **Depends on:** CI-001, DOC-004
+
+**External completion:** `[x]` remains owned by EXT-004's repaired,
+independently verified v4 release baseline and EXT-007's v5 migration matrix.
 
 ### Work
 

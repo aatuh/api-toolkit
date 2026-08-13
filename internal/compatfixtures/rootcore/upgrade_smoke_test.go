@@ -1,3 +1,5 @@
+//go:build downstreamcompat
+
 // Package upgradesmoke is copied by scripts/upgrade_smoke_check.sh into a
 // temporary module pinned to the previous release before replacing the module
 // with the current checkout.

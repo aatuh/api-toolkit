@@ -87,7 +87,7 @@ for required in \
   "go mod init example.com/api-toolkit-upgrade-smoke" \
   "go get github.com/aatuh/api-toolkit/v4@v3.1.2" \
   "go mod edit -replace=github.com/aatuh/api-toolkit/v4=$tmp/default/repo" \
-  "go test ./..."; do
+  "go test -tags=downstreamcompat ./..."; do
   if ! grep -Fqx "$required" "$tmp/default/calls"; then
     printf 'fake go calls missing %q:\n%s\n' "$required" "$(cat "$tmp/default/calls")" >&2
     exit 1

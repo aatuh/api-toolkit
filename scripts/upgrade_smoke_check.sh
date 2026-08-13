@@ -25,6 +25,7 @@ write_root_core_fixture() {
     return 2
   fi
   cp "$root_core_fixture" "$path/upgrade_smoke_test.go"
+  printf '%s\n' 'package upgradesmoke' >"$path/consumer.go"
 }
 
 run_root_core_fixture() {
@@ -50,10 +51,10 @@ run_root_core_fixture() {
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod init "$module_path"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go get "github.com/aatuh/api-toolkit/v4@$base_ref"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod tidy
-    GOWORK=off GOTOOLCHAIN="$gotoolchain" go test ./...
+    GOWORK=off GOTOOLCHAIN="$gotoolchain" go test -tags=downstreamcompat ./...
     go mod edit -replace=github.com/aatuh/api-toolkit/v4="$repo_root"
     GOWORK=off GOTOOLCHAIN="$gotoolchain" go mod tidy
-    GOWORK=off GOTOOLCHAIN="$gotoolchain" go test ./...
+    GOWORK=off GOTOOLCHAIN="$gotoolchain" go test -tags=downstreamcompat ./...
   } >"$repo_root/$log_path" 2>&1; then
     printf 'root-core\t%s\tpassed\t%s\n' "$base_ref" "$log_path" >>"$status_tsv"
     printf 'upgrade smoke check passed for root-core from %s; log=%s\n' "$base_ref" "$log_path"

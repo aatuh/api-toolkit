@@ -41,7 +41,6 @@ github.com/aatuh/api-toolkit/v4/httpx/recover	stable	direct-tests	Stable panic r
 github.com/aatuh/api-toolkit/v4/idempotent	stable	direct-tests	Stable idempotent HTTP contract and response helpers.
 github.com/aatuh/api-toolkit/v4/examples/snippets/minimal-existing-service	example-only	example-only	Copy-paste README snippet source, build-smoke checked by docscheck.
 github.com/aatuh/api-toolkit/v4/examples/snippets/nethttp-migration	example-only	example-only	Copy-paste net/http migration snippet source, behavior checked by package tests and docscheck.
-github.com/aatuh/api-toolkit/v4/internal/compatfixtures/rootcore	excluded	direct-tests	Checked-in root stable API compatibility fixture copied by upgrade-smoke-check; not public API.
 github.com/aatuh/api-toolkit/v4/internal/tools/apiadditions	excluded	direct-tests	Internal review gate for API addition evidence, not public API.
 github.com/aatuh/api-toolkit/v4/internal/tools/apiinventory	excluded	excluded	Internal generator for docs/api-inventory.md, not public API.
 github.com/aatuh/api-toolkit/v4/internal/tools/coveragetrend	excluded	direct-tests	Internal generator and verifier for published package coverage trend evidence, not public API.

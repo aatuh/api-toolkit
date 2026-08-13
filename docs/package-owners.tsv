@@ -21,7 +21,6 @@ github.com/aatuh/api-toolkit/v4/httpx/recover	core-maintainers	stable	core-test-
 github.com/aatuh/api-toolkit/v4/idempotent	core-maintainers	stable	core-test-maintainers	release-blocking-stable
 github.com/aatuh/api-toolkit/v4/examples/snippets/minimal-existing-service	examples-maintainers	example-only	examples-test-maintainers	example-smoke
 github.com/aatuh/api-toolkit/v4/examples/snippets/nethttp-migration	examples-maintainers	example-only	examples-test-maintainers	example-smoke
-github.com/aatuh/api-toolkit/v4/internal/compatfixtures/rootcore	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v4/internal/tools/apiadditions	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v4/internal/tools/apiinventory	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance
 github.com/aatuh/api-toolkit/v4/internal/tools/coveragetrend	repo-tooling-maintainers	excluded	repo-tooling-test-maintainers	repo-governance

@@ -3455,7 +3455,7 @@ func TestOptionalGovernanceAndGeneratedIntegrationChecksStayDocumented(t *testin
 		"internal/compatfixtures/rootcore/upgrade_smoke_test.go",
 		"go get \"github.com/aatuh/api-toolkit/v4@$base_ref\"",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/v4=",
-		"go test ./...",
+		"go test -tags=downstreamcompat ./...",
 		".ci-result/upgrade-smoke",
 		"status.tsv",
 	} {
@@ -3578,7 +3578,7 @@ func TestCompatibilityFixtureUpgradeSmokeUsesCheckedInFixture(t *testing.T) {
 		"cp \"$root_core_fixture\" \"$path/upgrade_smoke_test.go\"",
 		"go get \"github.com/aatuh/api-toolkit/v4@$base_ref\"",
 		"go mod edit -replace=github.com/aatuh/api-toolkit/v4=\"$repo_root\"",
-		"GOWORK=off GOTOOLCHAIN=\"$gotoolchain\" go test ./...",
+		"GOWORK=off GOTOOLCHAIN=\"$gotoolchain\" go test -tags=downstreamcompat ./...",
 	} {
 		if !strings.Contains(script, required) {
 			t.Fatalf("upgrade smoke script missing checked-in fixture flow %q", required)
@@ -3594,6 +3594,55 @@ func TestCompatibilityFixtureUpgradeSmokeUsesCheckedInFixture(t *testing.T) {
 	}
 	if !strings.Contains(runbook, "internal/compatfixtures/rootcore/upgrade_smoke_test.go") {
 		t.Fatal("release runbook must document the checked-in compatibility fixture path")
+	}
+}
+
+func TestDownstreamCompatibilityCorpusIsReleaseGated(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	script := readText(t, filepath.Join(repoRoot, "scripts", "downstream_compat_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "downstream_compat_contract_test.sh"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	runbook := readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))
+
+	for _, fixture := range []string{"nethttp", "chi", "idempotency", "adapters"} {
+		path := filepath.Join(repoRoot, "internal", "compatfixtures", fixture, "upgrade_smoke_test.go")
+		if !strings.Contains(readText(t, path), "//go:build downstreamcompat") {
+			t.Fatalf("downstream fixture %s must be isolated from the root module test graph", fixture)
+		}
+	}
+	for _, required := range []string{
+		"DOWNSTREAM_COMPAT_BASE_REFS",
+		"must name at least one verified released version tag",
+		"rootcore", "nethttp", "chi", "idempotency", "adapters", "run_cli_fixture",
+		"release verification unexpectedly contains a replace directive",
+		"go test -tags=downstreamcompat ./...",
+		"go mod tidy",
+		"status.tsv",
+	} {
+		if !strings.Contains(script, required) {
+			t.Fatalf("downstream compatibility script missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"missing-baseline", "invalid-ref", "traversal-result-dir", "failed-test", "12 fixture phases",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("downstream compatibility contract missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"downstream-compatibility:", "VERIFIED_V4_BASE_REF", "make downstream-compat-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow missing downstream compatibility gate %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Downstream consumer migration gate", "DOWNSTREAM_COMPAT_BASE_REFS", "v4.0.0", "checksum verification",
+	} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("release runbook missing downstream migration instruction %q", required)
+		}
 	}
 }
 

@@ -30,6 +30,31 @@ update this line first, then update command examples in `README.md`,
 mention the supported baseline, and any release evidence fixtures in the same
 change. Do not introduce a second baseline table in another document.
 
+## Downstream consumer migration gate
+
+`make downstream-compat-check` copies five hand-written consumer fixtures to
+temporary modules outside `go.work`: net/http, chi, root plus idempotency,
+PostgreSQL plus Redis adapters, and a CLI-generated service. It tests each
+against a released module first (with no `replace` directives), then against
+the release candidate through explicit local replacements. The generated CLI
+fixture also runs `go mod tidy` and generated-service tests, so its scaffold
+is the consumer under test rather than a copied golden file.
+
+The command intentionally has no fallback release tag. Until the
+release-identity incident is resolved, it must fail without
+`DOWNSTREAM_COMPAT_BASE_REFS`. After independent review records
+`VERIFIED_V4_BASE_REF`, set the GitHub repository variable of that exact name
+to the approved tag; the release workflow passes it to the gate. For a local
+review of the same upgrade path, run:
+
+```sh
+DOWNSTREAM_COMPAT_BASE_REFS="$VERIFIED_V4_BASE_REF" GOWORK=off GOTOOLCHAIN=local make downstream-compat-check
+```
+
+Do not set the variable to `v4.0.0` or `v4.0.1` while the incident remains
+open. A failed released phase is release evidence, not a reason to disable Go
+module checksum verification.
+
 ## Release candidate flow
 
 Minor releases that touch the stable surface must publish at least one release
@@ -89,6 +114,7 @@ after the final stable `vX.Y.0` release is published.
 | `GOTOOLCHAIN=local make generated-failure-check` | Optional nightly generated full-profile chaos/failure evidence. | Generates API-key and JWT `saas-api-full` services, injects hermetic failure tests for Redis down, Postgres down, expired API keys, bad JWKS endpoints, and slow downstream hard-timeout behavior, then writes `.ci-result/generated-failure/status`, `summary.json`, and per-auth failure logs. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make generated-upgrade-compat-check` | Optional generated-service upgrade compatibility evidence from published v3 baselines. | Generates `saas-api-full` from `GENERATED_UPGRADE_COMPAT_REFS` defaulting to `v3.0.0 v3.1.2`, replaces toolkit modules with the workspace, then runs `go mod tidy`, generated tests, OpenAPI/client checks, contracts lint, and contracts diff for each ref. `GENERATOR_REF` remains a single-ref alias. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make upgrade-smoke-check` | Downstream root-core upgrade smoke from the latest v3 tag. | Copies `internal/compatfixtures/rootcore/upgrade_smoke_test.go` into a temporary fixture module pinned to `UPGRADE_SMOKE_BASE_REF` defaulting to `v3.1.2`, runs stable root package tests, replaces `github.com/aatuh/api-toolkit/v4` with the current checkout, tidies, and runs the tests again. CI runs this in the API compatibility job. |
+| `DOWNSTREAM_COMPAT_BASE_REFS="$VERIFIED_V4_BASE_REF" GOTOOLCHAIN=local make downstream-compat-check` | Release-grade downstream consumer compatibility. | Tests five independently buildable fixtures outside `go.work` against each verified released baseline without replacements and then against the candidate checkout; writes `.ci-result/downstream-compat/status.tsv` and per-phase logs. The release workflow uses repository variable `VERIFIED_V4_BASE_REF` and fails closed when it is unset or a documented upgrade path fails. |
 | `GOTOOLCHAIN=local make reference-service-check` | Optional checked-in reference service evidence. | Verifies `examples/reference-saas-api` as an app-owned `saas-api-full` consumer without Docker. Not part of `finalize`; Docker-backed runtime evidence stays in the service-owned `integration-check`. |
 | `GOTOOLCHAIN=local make reference-service-coverage` | Optional checked-in reference service coverage diagnostic. | Writes `.ci-result/coverage/reference-service.func` and `.ci-result/coverage/reference-service-summary.md` without folding generated app code into root/contrib aggregate coverage thresholds. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-load` | Optional checked-in reference service load-smoke baseline. | Runs the reference-service router in-process, writes `.ci-result/reference-service-load/status`, `summary.json`, `summary.md`, and `load-smoke.log`, and records latency, throughput, memory, allocations, and expected missing-API-key failure behavior. Not part of `finalize`. |

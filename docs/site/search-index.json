@@ -1008,12 +1008,6 @@
     "text": "github.com/aatuh/api-toolkit/v4/idempotent stable direct-tests Stable idempotent HTTP contract and response helpers. https://github.com/aatuh/api-toolkit/blob/master/idempotent/example_test.go"
   },
   {
-    "title": "github.com/aatuh/api-toolkit/v4/internal/compatfixtures/rootcore",
-    "category": "package-status",
-    "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/internal/compatfixtures/rootcore",
-    "text": "github.com/aatuh/api-toolkit/v4/internal/compatfixtures/rootcore excluded direct-tests Checked-in root stable API compatibility fixture copied by upgrade-smoke-check; not public API. "
-  },
-  {
     "title": "github.com/aatuh/api-toolkit/v4/internal/tools/apiadditions",
     "category": "package-status",
     "url": "https://pkg.go.dev/github.com/aatuh/api-toolkit/v4/internal/tools/apiadditions",
