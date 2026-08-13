@@ -212,6 +212,15 @@ controlled runner, attach the raw JSON, human summary, comparison report, and
 runner metadata to each release candidate, and retain the evidence with the
 release review.
 
+## [ ] EXT-009: Triage live dependency update pull requests
+
+**Owner:** Dependency maintainer
+**Unblocks:** SEC-003 external completion
+
+Review every live dependency-update pull request against the checked-in SLA.
+Record its current owner and merge, defer, replacement, or close disposition;
+do not treat the historical local triage snapshot as current GitHub evidence.
+
 ---
 
 # [ ] EPIC PRG: Program control and handover
@@ -3413,12 +3422,15 @@ ci(security): enforce secret scanning controls
 
 ---
 
-## [ ] SEC-003: Establish a dependency maintenance cadence
+## [pr] SEC-003: Establish a dependency maintenance cadence
 
 **Priority:** P1
 **Owner:** Dependency maintainer
 **Size:** M
 **Depends on:** CI-001
+
+**External completion:** `[x]` remains owned by EXT-009's current pull-request
+triage and disposition record.
 
 ### Work
 
