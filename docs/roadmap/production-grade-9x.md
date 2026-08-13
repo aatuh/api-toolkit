@@ -1842,7 +1842,7 @@ refactor(idempotency): separate compatibility options
 
 ---
 
-## [ ] API-007: Normalize and validate health manager construction
+## [pr] API-007: Normalize and validate health manager construction
 
 **Priority:** P1
 **Owner:** Runtime API team
