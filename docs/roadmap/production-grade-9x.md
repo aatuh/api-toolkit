@@ -1985,7 +1985,7 @@ feat(ratelimit): improve decisions and bounded cleanup
 
 ---
 
-## [ ] API-009: Make buffered hard timeout behavior route-explicit
+## [pr] API-009: Make buffered hard timeout behavior route-explicit
 
 **Priority:** P1
 **Owner:** Runtime API team
