@@ -27,7 +27,7 @@ type Cache struct {
 }
 
 type Idempotency struct {
-	Store  idempotency.Store
+	Store  idempotency.ReleasableStore
 	client redis.UniversalClient
 }
 

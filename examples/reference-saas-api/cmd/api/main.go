@@ -65,7 +65,7 @@ func run(ctx context.Context) error {
 
 	// api-toolkit:main-service-defaults
 	var rateLimiter rootratelimit.Limiter
-	idempotencyStore := rootidempotency.Store(idempotency.NewMemoryStore())
+	idempotencyStore := rootidempotency.ReleasableStore(idempotency.NewMemoryStore())
 	var objectMetadata app.ObjectMetadataStore
 	var cacheReadiness httpapi.HealthChecker = cacheService
 	var readiness httpapi.HealthChecker = httpapi.HealthCheckFunc(func(context.Context) error { return nil })
