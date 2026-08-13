@@ -217,12 +217,15 @@ maintainer knowledge.
 * GitHub project status matches the checked-in backlog.
 * No work is marked complete without a merged commit.
 
-## [ ] PRG-001: Add the 9/10 roadmap and evidence scorecard
+## [pr] PRG-001: Add the 9/10 roadmap and evidence scorecard
 
 **Priority:** P0
 **Owner:** Technical program lead
 **Size:** S
 **Depends on:** None
+
+**External completion:** `[x]` remains owned by EXT-001's GitHub project,
+label, and merged-SHA reconciliation.
 
 ### Work
 
