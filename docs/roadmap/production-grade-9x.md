@@ -1414,7 +1414,7 @@ surfaces with explicit and composable APIs.
 * Rate limiting reports complete decisions and scales predictably.
 * Buffered hard timeout behavior is route-explicit.
 
-## [ ] API-001: Add error-returning HTTP response writers
+## [pr] API-001: Add error-returning HTTP response writers
 
 **Priority:** P0
 **Owner:** Core API team
