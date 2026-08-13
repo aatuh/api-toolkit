@@ -1686,7 +1686,7 @@ feat(binding): add presence-aware required fields
 
 ---
 
-## [ ] API-005: Make idempotency store requirements compile-time visible
+## [pr] API-005: Make idempotency store requirements compile-time visible
 
 **Priority:** P1
 **Owner:** Runtime API team
