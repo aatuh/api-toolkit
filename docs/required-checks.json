@@ -1,0 +1,12 @@
+[
+  {"check_name":"ci / test (1.26.x)","workflow_file":".github/workflows/ci.yml","job_id":"test","required_for_pr":true,"required_for_release":true,"owner":"build-engineering"},
+  {"check_name":"ci / lint","workflow_file":".github/workflows/ci.yml","job_id":"lint","required_for_pr":true,"required_for_release":true,"owner":"build-engineering"},
+  {"check_name":"ci / governance","workflow_file":".github/workflows/ci.yml","job_id":"governance","required_for_pr":true,"required_for_release":true,"owner":"maintainers"},
+  {"check_name":"ci / api-check","workflow_file":".github/workflows/ci.yml","job_id":"api-check","required_for_pr":true,"required_for_release":true,"owner":"api-review"},
+  {"check_name":"ci / fuzz","workflow_file":".github/workflows/ci.yml","job_id":"fuzz","required_for_pr":true,"required_for_release":true,"owner":"test-engineering"},
+  {"check_name":"ci / mutation","workflow_file":".github/workflows/ci.yml","job_id":"mutation","required_for_pr":true,"required_for_release":true,"owner":"test-engineering"},
+  {"check_name":"ci / platform-core (linux-amd64)","workflow_file":".github/workflows/ci.yml","job_id":"platform-core","required_for_pr":true,"required_for_release":true,"owner":"build-engineering"},
+  {"check_name":"codeql / analyze","workflow_file":".github/workflows/codeql.yml","job_id":"analyze","required_for_pr":true,"required_for_release":false,"owner":"security"},
+  {"check_name":"dependency-review / dependency-review","workflow_file":".github/workflows/dependency-review.yml","job_id":"dependency-review","required_for_pr":true,"required_for_release":false,"owner":"security"},
+  {"check_name":"generated-full-integration","workflow_file":".github/workflows/release.yml","job_id":"generated-full-integration","required_for_pr":false,"required_for_release":true,"owner":"integration-test-team"}
+]

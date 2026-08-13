@@ -1163,7 +1163,7 @@ ci(platform): verify core portability
 
 ---
 
-## [ ] CI-003: Stabilize required quality gate names and outputs
+## [pr] CI-003: Stabilize required quality gate names and outputs
 
 **Priority:** P1
 **Owner:** Build engineer

@@ -34,6 +34,9 @@ check_true() {
 
 require_jq
 
+manifest="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/docs/required-checks.json"
+"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/required_checks_verify.sh"
+
 branch_json="$(gh api "repos/$repo/branches/$branch" 2>/dev/null || true)"
 if [ -z "$branch_json" ]; then
   echo "FAIL branch protection: unable to read repos/$repo/branches/$branch" >&2
@@ -49,6 +52,16 @@ if [ -z "$protection_json" ]; then
 fi
 
 check_true "required status checks enabled" "$(printf '%s' "$protection_json" | jq -r '.required_status_checks != null')"
+required_contexts="$(printf '%s' "$protection_json" | jq -r '.required_status_checks.contexts[]?')"
+while IFS= read -r check_name; do
+  [ -n "$check_name" ] || continue
+  if printf '%s\n' "$required_contexts" | grep -Fxq "$check_name"; then
+    echo "PASS required check $check_name"
+  else
+    echo "FAIL required check $check_name" >&2
+    fail=1
+  fi
+done < <(jq -r '.[] | select(.required_for_pr) | .check_name' "$manifest")
 check_true "admin enforcement enabled" "$(printf '%s' "$protection_json" | jq -r '.enforce_admins.enabled == true')"
 check_true "linear history enabled" "$(printf '%s' "$protection_json" | jq -r '.required_linear_history.enabled == true')"
 check_true "force pushes disabled" "$(printf '%s' "$protection_json" | jq -r '.allow_force_pushes.enabled == false')"
