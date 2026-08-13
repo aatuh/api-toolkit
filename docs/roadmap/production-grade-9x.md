@@ -1547,7 +1547,7 @@ refactor(httpx): use checked response writers internally
 
 ---
 
-## [ ] API-003: Prevent unsafe validation detail exposure
+## [pr] API-003: Prevent unsafe validation detail exposure
 
 **Priority:** P0
 **Owner:** Security engineer

@@ -24274,6 +24274,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -24801,6 +24802,7 @@ func createWidget(w http.ResponseWriter, r *http.Request) {
 	}
 	input, err := binding.DecodeJSON[createWidgetRequest](r, binding.JSONConfig{RequireObject: true})
 	if err != nil {
+		logValidationFailure(err)
 		binding.WriteValidationProblem(w, err)
 		return
 	}
@@ -24809,6 +24811,17 @@ func createWidget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSONChecked(w, http.StatusCreated, widgetResponse{ID: "w_123", TenantID: tenantID, Name: strings.TrimSpace(input.Name)})
+}
+
+// logValidationFailure records a stable internal classification without logging
+// an error string that can contain rejected request data, tokens, or provider
+// details. Applications that need richer diagnostics can attach a redacting
+// handler to the default slog logger.
+func logValidationFailure(err error) {
+	if err == nil {
+		return
+	}
+	slog.Default().Warn("request validation failed", "error_type", fmt.Sprintf("%T", err))
 }
 
 func idempotencyOutcomeHooks(handlers ...idempotencymw.OutcomeHandler) idempotencymw.OutcomeHandler {
