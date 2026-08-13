@@ -827,7 +827,7 @@ ci(docs): enforce current version references
 
 ---
 
-## [ ] DOC-002: Rewrite the README around focused HTTP API guardrails
+## [pr] DOC-002: Rewrite the README around focused HTTP API guardrails
 
 **Priority:** P1
 **Owner:** Documentation lead

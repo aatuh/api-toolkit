@@ -65,6 +65,16 @@ func main() {
 }
 ```
 
+## Choose an adoption path
+
+| Choose this when | Start with | Why |
+| --- | --- | --- |
+| You need bounded JSON/HTTP handling in an existing Go service. | The stable root core. | It keeps your router, persistence, auth model, and application architecture intact. |
+| You need a maintained PostgreSQL, Redis, provider, router, or observability integration. | A targeted contrib adapter. | Contrib is useful production wiring, but it is outside the stable core API promise. |
+| You are starting an application and want an app-owned reference scaffold. | The CLI. | Generated code is ordinary Go owned and evolved by your application. |
+| Your service only needs routing and a few standard-library handlers. | Plain `net/http` or chi. | Do not add this library merely for a router. |
+| You want schema-first generation, an RPC framework, or a broader application platform. | Evaluate Huma, oapi-codegen, Goa, or Connect. | Those tools solve a different architectural problem; see [alternatives](docs/alternatives.md). |
+
 ## Start Here
 
 - Add the core library to an existing service: [docs/library-first.md](docs/library-first.md)
