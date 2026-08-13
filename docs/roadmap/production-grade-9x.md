@@ -2055,7 +2055,7 @@ contracts for supported adapters.
 * Generated full-service integration is release-blocking.
 * Adapter maturity classifications match actual evidence.
 
-## [ ] TST-001: Add a reusable real PostgreSQL contract harness
+## [pr] TST-001: Add a reusable real PostgreSQL contract harness
 
 **Priority:** P1
 **Owner:** Integration test team
