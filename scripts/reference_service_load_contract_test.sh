@@ -47,6 +47,8 @@ if [ "${1:-}" = "run" ] && [ "${2:-}" = "./cmd/loadsmoke" ]; then
     case "$1" in
       -requests) requests="$2"; shift 2 ;;
       -concurrency) concurrency="$2"; shift 2 ;;
+	  -commit) commit="$2"; shift 2 ;;
+	  -profile) profile="$2"; shift 2 ;;
       -out) out="$2"; shift 2 ;;
       *) printf 'unexpected load smoke flag: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -63,6 +65,7 @@ if [ "${1:-}" = "run" ] && [ "${2:-}" = "./cmd/loadsmoke" ]; then
   "latency_ms": {"p95": 1.25},
   "memory": {"total_alloc_delta_bytes": 2048},
   "allocations": {"allocs_per_request": 10},
+  "environment": {"commit": "$commit", "profile": "$profile"},
   "failure_behavior": {"expected_status": 401, "unexpected_status_count": 0}
 }
 JSON
@@ -90,6 +93,7 @@ output="$(FAKE_TOOL_CALLS="$tmp/calls" \
   REFERENCE_SERVICE_LOAD_RESULT_DIR=".ci-result/load-contract" \
   REFERENCE_SERVICE_LOAD_REQUESTS=17 \
   REFERENCE_SERVICE_LOAD_CONCURRENCY=3 \
+	REFERENCE_SERVICE_LOAD_PROFILE="contract-profile" \
   PATH="$tmp/bin:$PATH" \
   require_success load-contract "$script")"
 
@@ -105,7 +109,7 @@ for file in status summary.json summary.md load-smoke.log; do
     exit 1
   fi
 done
-for required in '"schema": "reference-service-load-smoke.v1"' '"requests": 17' '"concurrency": 3' '"expected_status": 401'; do
+for required in '"schema": "reference-service-load-smoke.v1"' '"requests": 17' '"concurrency": 3' '"expected_status": 401' '"profile": "contract-profile"'; do
   if ! grep -Fq "$required" "$result/summary.json"; then
     printf 'load summary missing %q:\n%s\n' "$required" "$(cat "$result/summary.json")" >&2
     exit 1
@@ -115,7 +119,7 @@ if ! grep -Fqx "passed" "$result/status"; then
   printf 'load status file is wrong:\n%s\n' "$(cat "$result/status")" >&2
   exit 1
 fi
-for required in "go run ./cmd/loadsmoke" "-requests 17" "-concurrency 3" "-out $result"; do
+for required in "go run ./cmd/loadsmoke" "-requests 17" "-concurrency 3" "-profile contract-profile" "-out $result"; do
   if ! grep -Fq -- "$required" "$tmp/calls"; then
     printf 'fake go call missing %q:\n%s\n' "$required" "$(cat "$tmp/calls")" >&2
     exit 1

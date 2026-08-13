@@ -69,6 +69,7 @@ it with:
 
 ```sh
 GOWORK=off GOTOOLCHAIN=local make reference-service-load
+GOWORK=off GOTOOLCHAIN=local make reference-service-load-check
 ```
 
 The command writes `.ci-result/reference-service-load/status`,
@@ -77,13 +78,25 @@ The command writes `.ci-result/reference-service-load/status`,
 summary records request count, concurrency, throughput, latency percentiles,
 heap and total allocation deltas, malloc deltas, per-request allocation
 estimates, rate-limit responses, timeouts, unexpected statuses, and the expected
-missing-API-key failure behavior for `GET /widgets`.
+missing-API-key failure behavior for `GET /widgets`. It also records the peak
+goroutine count, in-process worker-drain duration, source commit, controlled-runner
+profile, Go version, platform, and `GOMAXPROCS`.
 
 `docs/reference-service-load-baseline.tsv` is the committed seed baseline for
 that local smoke. It records latency, throughput, memory, allocations, expected
 failure status, unexpected status count, secret-leak count, and the evidence
 command. Use it as release-review context on the same machine and Go toolchain;
 do not treat it as a public performance SLA.
+
+`make reference-service-load-check` writes
+`.ci-result/reference-service-load/comparison.json`. It rejects failed smoke
+status, unexpected statuses, secret leaks, timeouts, absent environment metadata,
+throughput below 10% of the seed baseline, p95 latency above five times the seed
+baseline, or total/per-request allocations above three times the seed baseline.
+It also bounds the observed goroutine peak and worker-drain duration. These are
+deliberately broad release-review budgets for this hermetic router smoke, not
+universal application promises. Compare only records from the same declared
+runner profile, Go version, platform, and `GOMAXPROCS`.
 
 ## Review Rules
 
@@ -96,6 +109,7 @@ do not treat it as a public performance SLA.
   numbers across releases.
 - Keep generated scaffold benchmarks writing to benchmark temp directories only;
   they must not write evidence or generated services into the working tree.
-- Re-run `make reference-service-load` after changes to the generated full
+- Re-run `make reference-service-load` and `make reference-service-load-check`
+  after changes to the generated full
   service router, auth/idempotency paths, in-memory app services, or evidence
   scripts before updating `docs/reference-service-load-baseline.tsv`.

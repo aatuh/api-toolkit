@@ -20,6 +20,8 @@ func TestValidateOptionsRejectsUnboundedLoad(t *testing.T) {
 		{name: "excessive concurrency", opts: loadOptions{Requests: maxConcurrency + 1, Concurrency: maxConcurrency + 1, OutDir: "out"}},
 		{name: "concurrency exceeds requests", opts: loadOptions{Requests: 1, Concurrency: 2, OutDir: "out"}},
 		{name: "empty output", opts: loadOptions{Requests: 1, Concurrency: 1, OutDir: "   "}},
+		{name: "unsafe commit", opts: loadOptions{Requests: 1, Concurrency: 1, OutDir: "out", Commit: "release-candidate", Profile: "local-in-process"}},
+		{name: "unsafe profile", opts: loadOptions{Requests: 1, Concurrency: 1, OutDir: "out", Commit: "unknown", Profile: "local profile"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,12 +52,14 @@ func TestBuildSummaryRecordsFailureBehaviorAndSecretLeaks(t *testing.T) {
 		{Operation: "auth_failure", ExpectedStatus: 401, ExpectedFailure: true, Status: 401, ProblemDetails: true, SecretLeak: true, Duration: time.Millisecond},
 	}
 	summary := buildSummary(
-		loadOptions{Requests: len(results), Concurrency: 2},
+		loadOptions{Requests: len(results), Concurrency: 2, Commit: "unknown", Profile: "test-profile"},
 		time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC),
 		10*time.Millisecond,
 		runtime.MemStats{HeapAlloc: 100, TotalAlloc: 1000, Mallocs: 10},
 		runtime.MemStats{HeapAlloc: 400, TotalAlloc: 1600, Mallocs: 22},
 		results,
+		9,
+		3*time.Millisecond,
 	)
 	if summary.Status != "failed" {
 		t.Fatalf("status = %q, want failed", summary.Status)
@@ -69,6 +73,9 @@ func TestBuildSummaryRecordsFailureBehaviorAndSecretLeaks(t *testing.T) {
 	if summary.Allocations.MallocsDelta != 12 || summary.Memory.TotalAllocDeltaBytes != 600 {
 		t.Fatalf("allocation summary = %#v memory = %#v", summary.Allocations, summary.Memory)
 	}
+	if summary.GoroutinePeak != 9 || summary.GracefulShutdownMS != 3 || summary.Environment.Profile != "test-profile" {
+		t.Fatalf("runtime metadata = %#v", summary)
+	}
 }
 
 func TestWriteEvidenceCreatesStatusJSONAndMarkdown(t *testing.T) {
@@ -79,7 +86,12 @@ func TestWriteEvidenceCreatesStatusJSONAndMarkdown(t *testing.T) {
 		Requests:      2,
 		Concurrency:   1,
 		ThroughputRPS: 100,
-		LatencyMS:     latencySummary{P95: 1.25},
+		GoroutinePeak: 3,
+		Environment: environmentMetadata{
+			Profile: "test-profile",
+			Commit:  "unknown",
+		},
+		LatencyMS: latencySummary{P95: 1.25},
 		FailureBehavior: failureBehaviorSummary{
 			Scenario:             "missing API key on GET /widgets",
 			ExpectedStatus:       401,

@@ -6,6 +6,8 @@ result_dir="${REFERENCE_SERVICE_LOAD_RESULT_DIR:-.ci-result/reference-service-lo
 requests="${REFERENCE_SERVICE_LOAD_REQUESTS:-240}"
 concurrency="${REFERENCE_SERVICE_LOAD_CONCURRENCY:-8}"
 go_cmd="${GO:-go}"
+commit="$(git -C "$repo_root" rev-parse --verify HEAD 2>/dev/null || printf 'unknown')"
+profile="${REFERENCE_SERVICE_LOAD_PROFILE:-local-in-process}"
 
 case "$result_dir" in
   /*) result_path="$result_dir" ;;
@@ -20,6 +22,8 @@ if (
   GOTOOLCHAIN="${GOTOOLCHAIN:-local}" GOWORK="${GOWORK:-off}" "$go_cmd" run ./cmd/loadsmoke \
     -requests "$requests" \
     -concurrency "$concurrency" \
+    -commit "$commit" \
+    -profile "$profile" \
     -out "$result_path"
 ) >"$log_path" 2>&1; then
   for required in status summary.json summary.md; do

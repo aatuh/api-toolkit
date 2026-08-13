@@ -202,6 +202,16 @@ Record independent stable-core/production review and two adopter reports.
 
 Publish protected v5 releases, then record the required 90-day maintenance and compatibility evidence.
 
+## [ ] EXT-008: Collect controlled reference-service load evidence
+
+**Owner:** Release maintainer
+**Unblocks:** PERF-004 external completion
+
+Run the checked-in reference-service load and comparison commands on the approved
+controlled runner, attach the raw JSON, human summary, comparison report, and
+runner metadata to each release candidate, and retain the evidence with the
+release review.
+
 ---
 
 # [ ] EPIC PRG: Program control and handover
@@ -2479,12 +2489,15 @@ test(runtime): add idempotency and rate limit stress tests
 
 ---
 
-## [ ] PERF-004: Automate reference-service load regression evidence
+## [pr] PERF-004: Automate reference-service load regression evidence
 
 **Priority:** P1
 **Owner:** Performance engineer
 **Size:** L
 **Depends on:** TST-004, PERF-001
+
+**External completion:** `[x]` remains owned by EXT-008's controlled-runner
+execution and release-candidate evidence attachment.
 
 ### Work
 

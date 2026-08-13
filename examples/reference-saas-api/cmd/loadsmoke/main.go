@@ -40,6 +40,8 @@ type loadOptions struct {
 	Requests    int
 	Concurrency int
 	OutDir      string
+	Commit      string
+	Profile     string
 	Now         func() time.Time
 }
 
@@ -62,6 +64,18 @@ type loadSummary struct {
 	Limits                limitSummary                `json:"limits"`
 	FailureBehavior       failureBehaviorSummary      `json:"failure_behavior"`
 	Operations            map[string]operationSummary `json:"operations"`
+	GoroutinePeak         int                         `json:"goroutine_peak"`
+	GracefulShutdownMS    float64                     `json:"graceful_shutdown_ms"`
+	Environment           environmentMetadata         `json:"environment"`
+}
+
+type environmentMetadata struct {
+	Profile    string `json:"profile"`
+	Commit     string `json:"commit"`
+	GoVersion  string `json:"go_version"`
+	GOOS       string `json:"goos"`
+	GOARCH     string `json:"goarch"`
+	GOMAXPROCS int    `json:"gomaxprocs"`
 }
 
 type latencySummary struct {
@@ -142,6 +156,8 @@ func main() {
 	flag.IntVar(&opts.Requests, "requests", defaultRequests, "number of in-process HTTP requests to issue")
 	flag.IntVar(&opts.Concurrency, "concurrency", defaultConcurrency, "number of concurrent workers")
 	flag.StringVar(&opts.OutDir, "out", defaultOutDir, "directory for status, summary.json, and summary.md")
+	flag.StringVar(&opts.Commit, "commit", os.Getenv("REFERENCE_SERVICE_LOAD_COMMIT"), "source commit identifier or unknown")
+	flag.StringVar(&opts.Profile, "profile", os.Getenv("REFERENCE_SERVICE_LOAD_PROFILE"), "controlled-runner profile identifier")
 	flag.Parse()
 
 	summary, err := runLoadSmoke(context.Background(), opts)
@@ -157,6 +173,12 @@ func main() {
 func runLoadSmoke(ctx context.Context, opts loadOptions) (loadSummary, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
+	}
+	if opts.Commit == "" {
+		opts.Commit = "unknown"
+	}
+	if opts.Profile == "" {
+		opts.Profile = "local-in-process"
 	}
 	if err := validateOptions(opts); err != nil {
 		return loadSummary{}, err
@@ -177,12 +199,12 @@ func runLoadSmoke(ctx context.Context, opts loadOptions) (loadSummary, error) {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	started := time.Now()
-	results := executeRequests(ctx, handler, tenantID, opts)
+	results, goroutinePeak, shutdownDuration := executeRequests(ctx, handler, tenantID, opts)
 	duration := time.Since(started)
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)
 
-	summary := buildSummary(opts, opts.Now().UTC(), duration, before, after, results)
+	summary := buildSummary(opts, opts.Now().UTC(), duration, before, after, results, goroutinePeak, shutdownDuration)
 	if err := writeEvidence(opts.OutDir, summary); err != nil {
 		return summary, err
 	}
@@ -206,7 +228,37 @@ func validateOptions(opts loadOptions) error {
 	if strings.TrimSpace(opts.OutDir) == "" {
 		return errors.New("out directory is required")
 	}
+	if opts.Commit != "unknown" && !isCommitID(opts.Commit) {
+		return errors.New("commit must be a lowercase hexadecimal identifier or unknown")
+	}
+	if !isMetadataIdentifier(opts.Profile) {
+		return errors.New("profile must be a non-empty controlled-runner identifier")
+	}
 	return nil
+}
+
+func isCommitID(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= '0' && r <= '9') && !(r >= 'a' && r <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func isMetadataIdentifier(value string) bool {
+	if len(value) < 1 || len(value) > 64 {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' && r != '_' && r != '.' {
+			return false
+		}
+	}
+	return true
 }
 
 func configureLoadSmokeEnv() func() {
@@ -276,10 +328,11 @@ func seedTenant(handler http.Handler) (string, error) {
 	return body.ID, nil
 }
 
-func executeRequests(ctx context.Context, handler http.Handler, tenantID string, opts loadOptions) []requestResult {
+func executeRequests(ctx context.Context, handler http.Handler, tenantID string, opts loadOptions) ([]requestResult, int, time.Duration) {
 	jobs := make(chan int)
 	results := make(chan requestResult, opts.Requests)
 	var wg sync.WaitGroup
+	goroutinePeak := runtime.NumGoroutine()
 	for worker := 0; worker < opts.Concurrency; worker++ {
 		wg.Add(1)
 		go func() {
@@ -299,19 +352,24 @@ func executeRequests(ctx context.Context, handler http.Handler, tenantID string,
 				}
 			}
 		}()
+		if current := runtime.NumGoroutine(); current > goroutinePeak {
+			goroutinePeak = current
+		}
 	}
 	for index := 0; index < opts.Requests; index++ {
 		jobs <- index
 	}
+	shutdownStarted := time.Now()
 	close(jobs)
 	wg.Wait()
+	shutdownDuration := time.Since(shutdownStarted)
 	close(results)
 
 	out := make([]requestResult, 0, opts.Requests)
 	for result := range results {
 		out = append(out, result)
 	}
-	return out
+	return out, goroutinePeak, shutdownDuration
 }
 
 func operationFor(index int, tenantID string) requestSpec {
@@ -413,7 +471,7 @@ func leaksSyntheticSecret(body string) bool {
 	return false
 }
 
-func buildSummary(opts loadOptions, timestamp time.Time, duration time.Duration, before, after runtime.MemStats, results []requestResult) loadSummary {
+func buildSummary(opts loadOptions, timestamp time.Time, duration time.Duration, before, after runtime.MemStats, results []requestResult, goroutinePeak int, shutdownDuration time.Duration) loadSummary {
 	operations := make(map[string]operationSummary)
 	durations := make([]time.Duration, 0, len(results))
 	var expectedFailures, unexpected, secretLeaks, rateLimited, timeouts int
@@ -515,7 +573,17 @@ func buildSummary(opts loadOptions, timestamp time.Time, duration time.Duration,
 			SecretLeakCount:       authFailure.SecretLeakCount,
 			FailureRate:           float64(authFailure.Count) / requestCount,
 		},
-		Operations: operations,
+		Operations:         operations,
+		GoroutinePeak:      goroutinePeak,
+		GracefulShutdownMS: milliseconds(shutdownDuration),
+		Environment: environmentMetadata{
+			Profile:    opts.Profile,
+			Commit:     opts.Commit,
+			GoVersion:  runtime.Version(),
+			GOOS:       runtime.GOOS,
+			GOARCH:     runtime.GOARCH,
+			GOMAXPROCS: runtime.GOMAXPROCS(0),
+		},
 	}
 }
 
@@ -608,6 +676,15 @@ func renderMarkdown(summary loadSummary) string {
 	fmt.Fprintf(&b, "- Mallocs delta: %d\n", summary.Allocations.MallocsDelta)
 	fmt.Fprintf(&b, "- Allocations per request: %.2f\n", summary.Allocations.AllocsPerRequest)
 	fmt.Fprintf(&b, "- Bytes per request: %.2f\n", summary.Allocations.BytesPerRequest)
+	fmt.Fprintf(&b, "- Goroutine peak: %d\n", summary.GoroutinePeak)
+	fmt.Fprintf(&b, "- Graceful worker shutdown: %.3f ms\n", summary.GracefulShutdownMS)
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "## Environment")
+	fmt.Fprintln(&b)
+	fmt.Fprintf(&b, "- Profile: %s\n", summary.Environment.Profile)
+	fmt.Fprintf(&b, "- Commit: %s\n", summary.Environment.Commit)
+	fmt.Fprintf(&b, "- Go: %s\n", summary.Environment.GoVersion)
+	fmt.Fprintf(&b, "- Platform: %s/%s, GOMAXPROCS=%d\n", summary.Environment.GOOS, summary.Environment.GOARCH, summary.Environment.GOMAXPROCS)
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "## Failure Behavior")
 	fmt.Fprintln(&b)

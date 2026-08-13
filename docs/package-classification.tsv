@@ -47,6 +47,7 @@ github.com/aatuh/api-toolkit/v4/internal/tools/coveragetrend	excluded	direct-tes
 github.com/aatuh/api-toolkit/v4/internal/tools/docsite	excluded	excluded	Internal generator for docs/site, not public API.
 github.com/aatuh/api-toolkit/v4/internal/tools/mutationsmoke	excluded	direct-tests	Internal non-blocking mutation smoke experiment, not public API.
 github.com/aatuh/api-toolkit/v4/internal/tools/portsledger	excluded	excluded	Internal AST verifier for the root ports v4 migration ledger, not public API.
+github.com/aatuh/api-toolkit/v4/internal/tools/referenceserviceloadcheck	excluded	direct-tests	Internal comparator for bounded reference-service load evidence, not public API.
 github.com/aatuh/api-toolkit/v4/middleware/auth/apikey	stable	direct-tests	Stable API key authentication and scope middleware.
 github.com/aatuh/api-toolkit/v4/middleware/auth/authz	stable	direct-tests	Stable role authorization middleware.
 github.com/aatuh/api-toolkit/v4/middleware/auth/tenant	stable	direct-tests	Stable tenant context middleware.
