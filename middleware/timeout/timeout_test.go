@@ -722,7 +722,8 @@ func TestHardTimeoutStressConcurrentLifecycle(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for runtime.NumGoroutine() > baselineGoroutines+16 && time.Now().Before(deadline) {
 		runtime.Gosched()
-		time.Sleep(time.Millisecond)
+		timer := time.NewTimer(time.Millisecond)
+		<-timer.C
 	}
 	if got := runtime.NumGoroutine(); got > baselineGoroutines+16 {
 		t.Fatalf("goroutines after handlers drained = %d, baseline = %d", got, baselineGoroutines)
