@@ -258,6 +258,16 @@ vulnerability details; use `SECURITY.md` for private security reports.
 
 ## Stable API Review Board
 
+### V5 Stable-Core Freeze
+
+Until the independent stable-core review recorded in
+`docs/roadmap/production-grade-9x.md` is complete, do not add a stable root
+package or export, promote a package into the recommended stable core, or add a
+broad root abstraction. Route new capability to a package-local API, contrib,
+or application-owned code unless an urgent security fix needs a narrowly scoped
+exception. Record every exception in the public design issue, release notes,
+and the affected package's review evidence.
+
 Stable root API growth requires public design review before implementation.
 This applies to:
 

@@ -2572,12 +2572,15 @@ independently maintainable optional modules.
 * V5 removes compatibility residue rather than adding more features.
 * Every stable module has a compatibility gate.
 
-## [ ] ARC-001: Freeze root API expansion and run an external stable-core review
+## [pr] ARC-001: Freeze root API expansion and run an external stable-core review
 
 **Priority:** P0
 **Owner:** Lead architect
 **Size:** M
 **Depends on:** PRG-001
+
+**External completion:** `[x]` remains owned by EXT-006's independent review
+comments and recorded stable-core dispositions.
 
 ### Work
 
