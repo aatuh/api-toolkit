@@ -1747,7 +1747,7 @@ feat(idempotency): require releasable stores at construction
 
 ---
 
-## [ ] API-006: Decompose idempotency configuration
+## [pr] API-006: Decompose idempotency configuration
 
 **Priority:** P1
 **Owner:** Runtime API team
