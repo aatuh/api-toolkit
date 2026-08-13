@@ -1,0 +1,12 @@
+# Current guidance inspected by scripts/version_consistency_check.sh.
+# Historical migration, changelog, and archive documents are deliberately not
+# listed here; their version references are governed by the allowlist below.
+README.md
+SECURITY.md
+VERSIONING.md
+CONTRIBUTING.md
+ROADMAP.md
+docs/README.md
+docs/support-policy.md
+docs/production-readiness.md
+docs/release-runbook.md

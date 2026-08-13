@@ -48,7 +48,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools required-checks-verify api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract provider-live-check provider-live-check-contract upgrade-smoke-check upgrade-smoke-contract downstream-compat-check downstream-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke benchmark-check clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools required-checks-verify api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check version-consistency-check version-consistency-contract dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract provider-live-check provider-live-check-contract upgrade-smoke-check upgrade-smoke-contract downstream-compat-check downstream-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke benchmark-check clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -95,6 +95,12 @@ docs-site: ## Regenerate the static API docs site
 
 docs-site-check: ## Verify the static API docs site is current
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(GO) run ./internal/tools/docsite -check
+
+version-consistency-check: ## Reject stale current-version guidance outside documented historical records
+	@scripts/version_consistency_check.sh
+
+version-consistency-contract: ## Run current-version consistency gate contract tests
+	@scripts/version_consistency_contract_test.sh
 
 dead-code-todo-check: ## Reject unclassified TODO/FIXME in stable packages
 	@scripts/dead_code_todo_check.sh
@@ -204,6 +210,8 @@ sbom-license-report-contract: ## Run SPDX dependency license report contract tes
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) version-consistency-check
+	@$(MAKE) version-consistency-contract
 	@$(MAKE) coverage-trend-check
 	@$(MAKE) docs-site-check
 	@$(MAKE) api-inventory-check

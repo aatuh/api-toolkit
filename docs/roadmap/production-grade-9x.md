@@ -769,7 +769,7 @@ requiring users to study repository governance internals.
 * Current-state documentation is version-correct.
 * Maintainer material is separated from adopter material.
 
-## [ ] DOC-001: Add a current-version consistency gate
+## [pr] DOC-001: Add a current-version consistency gate
 
 **Priority:** P0
 **Owner:** Documentation lead

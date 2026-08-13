@@ -140,7 +140,7 @@ identifies the installed generator and contract tool.
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |
 | [Support policy](support-policy.md) | Adopters and maintainers | Understand the supported Go line, platform gate, and generated-service ownership limits. |
 | [Dependency boundary](dependency-boundary.md) | Maintainers | Keep root stable code free of contrib adapter dependencies. |
-| [Auth dependency split decision](auth-dependency-split.md) | Adopters and maintainers | Understand current v3 JWT/JWK module graph cost and the v4 target for auth-heavy packages. |
+| [Auth dependency split decision](auth-dependency-split.md) | Adopters and maintainers | Understand the historical v3 JWT/JWK module graph cost and the v4 target for auth-heavy packages. |
 | [Provider adapter split decision](provider-adapter-split.md) | Adopters and maintainers | Keep Postgres, Redis, Stripe, Resend, OpenTelemetry, router, and provider adapters out of stable core. |
 | [Extension module assessment](extension-module-assessment.md) | Maintainers and release reviewers | Reject speculative provider-module splits until adoption, ownership, dependency, and release-cadence evidence supports one. |
 | [Dependency policy](dependency-policy.md) | Maintainers | Review allowed dependency classes, banned patterns, update SLA, and security-sensitive review gates. |
@@ -172,7 +172,7 @@ identifies the installed generator and contract tool.
 | [Ports export exceptions](ports-export-exceptions.tsv) | Maintainers | Review the accepted ADR required for any new root `ports` export. |
 | [V3 compatibility record](v3-compatibility-roadmap.md) | Maintainers | Track completed v3 cleanup decisions and remaining compatibility-sensitive guardrails. |
 | [V4 scope cleanup plan](v4-plan.md) | Maintainers and advanced adopters | Plan which root surfaces to keep stable, demote, split, or remove only in a future major release. |
-| [Ports v4 migration ledger](ports-v4-migration-ledger.tsv) | Maintainers and advanced adopters | Record every current root-port export, consumer packages, implementation evidence, v3 deprecation status, and v4 disposition. |
+| [Ports v4 migration ledger](ports-v4-migration-ledger.tsv) | Maintainers and advanced adopters | Record every current root-port export, consumer packages, implementation evidence, historical v3 deprecation status, and v4 disposition. |
 | [Package doc standard](package-doc-standard.md) | Maintainers | Apply the minimum package-doc template and see the placeholder inventory remediated in this pass. |
 | [Package classification guide](package-classification.md) | Maintainers and adopters | Read the rendered status glossary before using the TSV source of truth. |
 | [Core readiness matrix](core-readiness.md) | API consumers and release reviewers | Review stable package readiness by docs, examples, tests, fuzz, benchmark, compatibility, security review, and production caveat. |

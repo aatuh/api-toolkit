@@ -1,0 +1,14 @@
+# Documents allowed to contain historical v3 references. Each is a migration,
+# archival, compatibility, or dated-evidence record rather than current
+# adoption guidance. Additions require a comment explaining the exception.
+CHANGELOG.md
+# `.audits/` contains dated audit snapshots and is excluded by the checker as
+# a historical archive rather than current adoption guidance.
+.audits/
+docs/adr/0001-module-boundaries.md
+docs/api-inventory.md
+docs/coverage-trend.md
+docs/migration/v3.md
+docs/migration/v4.md
+docs/roadmap/production-grade-9x.md
+docs/v3-compatibility-roadmap.md

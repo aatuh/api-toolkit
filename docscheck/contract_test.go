@@ -1515,7 +1515,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=\"$VERIFIED_V4_BASE_REF\" GOTOOLCHAIN=local make release-evidence",
 		"API_BASE_REF=v3.1.2",
 		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 		"local dirty-tree audit",
@@ -1565,7 +1565,7 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 		"`vX.Y.0-rc.1`",
 		"`vX.Y.0-rc.2`",
 		"No stable surface touch",
-		"latest published stable v4 tag",
+		"`VERIFIED_V4_BASE_REF`",
 		"RELEASE_TAG=vX.Y.0-rc.1",
 		"prerelease: true",
 		"Do not advance the supported v4 baseline to an RC tag",
@@ -1588,7 +1588,7 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 	for _, required := range []string{
 		"Minor releases that touch the stable surface must publish a `vX.Y.0-rc.1`",
 		"before the final stable `vX.Y.0` tag",
-		"latest published stable v4 tag, not a previous RC",
+		"`VERIFIED_V4_BASE_REF`, not a previous RC",
 	} {
 		if !strings.Contains(versioning, required) {
 			t.Fatalf("VERSIONING.md missing release-candidate versioning policy %q", required)
@@ -2495,7 +2495,7 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 		"CodeQL `code_scanning` ruleset",
 		"Protect `master`",
 		"Protect `v*` release tags",
-		"latest published v3 tag",
+		"documented v3 transition tag",
 		"make github-governance-check",
 		"Live provider checks are opt-in only",
 	} {
@@ -7011,7 +7011,8 @@ func TestParserFuzzCoverageCoversStableInputSurfaces(t *testing.T) {
 		"make generated-soak-check",
 		"make generated-failure-check",
 		"make vuln",
-		"BENCHTIME=1x make benchmark-smoke",
+		"make benchmark-check",
+		"Upload benchmark allocation evidence",
 	} {
 		if !strings.Contains(nightly, required) {
 			t.Fatalf(".github/workflows/nightly.yml missing deep test wiring %q", required)
@@ -8228,7 +8229,7 @@ func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_ADDITIONS_BASE_REF=v4.0.0 GOTOOLCHAIN=local make api-additions-check",
+		"API_ADDITIONS_BASE_REF=\"$VERIFIED_V4_BASE_REF\" GOTOOLCHAIN=local make api-additions-check",
 		"stable identifiers need doc comments",
 		"compile-checked examples or exact exceptions",
 	} {

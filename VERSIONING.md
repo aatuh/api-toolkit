@@ -189,12 +189,12 @@ CLI behavior notes.
 Publication evidence must come from a clean worktree with an explicit baseline.
 Use `docs/release-runbook.md` for the current command examples. The v4
 major-release evidence used `API_BASE_REF=v3.1.2` as documented v3-to-v4
-transition evidence; v4 patch and minor releases use the latest published v4
-tag. A local dirty-tree audit must opt in with
+transition evidence; v4 patch and minor releases use only
+`VERIFIED_V4_BASE_REF` from the release-identity incident. A local dirty-tree audit must opt in with
 `ALLOW_DIRTY_RELEASE_EVIDENCE=1` and an explicit `API_BASE_REF`; it is not acceptable before publishing. This is local dirty-tree audit evidence, not publication evidence.
 Minor releases that touch the stable surface must publish a `vX.Y.0-rc.1`
 release candidate before the final stable `vX.Y.0` tag. RC evidence still
-compares against the latest published stable v4 tag, not a previous RC.
+compares against `VERIFIED_V4_BASE_REF`, not a previous RC.
 
 For exact commands, artifact verification, manifest review, and baseline
 maintenance rules, use `docs/release-runbook.md`.

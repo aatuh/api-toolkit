@@ -345,7 +345,7 @@ Keep this landing page as a pointer, not a second release runbook.
 - Contrib drift package manifest: `docs/contrib-api-drift-packages.txt`
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
 - Current supported v4 API baseline: see `docs/release-runbook.md`.
-- The v4 major-release evidence compared against `API_BASE_REF=v3.1.2`; v4 patch and minor releases compare against the latest published v4 tag from the runbook.
+- The v4 major-release evidence compared against `API_BASE_REF=v3.1.2`; v4 patch and minor releases compare only against `VERIFIED_V4_BASE_REF` from the runbook.
 - Release readiness and publication evidence require an explicit `API_BASE_REF`; use the current command examples in `docs/release-runbook.md`.
 - `ALLOW_DIRTY_RELEASE_EVIDENCE=1` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.
