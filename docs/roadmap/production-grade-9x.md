@@ -2110,7 +2110,7 @@ test(postgres): add real adapter contract harness
 
 ---
 
-## [ ] TST-002: Validate every supported PostgreSQL adapter against real PostgreSQL
+## [pr] TST-002: Validate every supported PostgreSQL adapter against real PostgreSQL
 
 **Priority:** P1
 **Owner:** Adapter team
