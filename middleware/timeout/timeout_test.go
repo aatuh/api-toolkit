@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -612,5 +615,132 @@ func TestHardTimeoutEventHookPanicDoesNotChangeResponse(t *testing.T) {
 
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("status = %d, want 504", rec.Code)
+	}
+}
+
+func TestHardTimeoutStressConcurrentLifecycle(t *testing.T) {
+	const requests = 96
+	baselineGoroutines := runtime.NumGoroutine()
+	var timeoutEvents atomic.Int64
+	var continuationEvents atomic.Int64
+
+	releaseIgnored := make(chan struct{})
+	var ignoredStarted sync.WaitGroup
+	var ignoredFinished sync.WaitGroup
+	ignoredCount := 0
+	for i := 0; i < requests; i++ {
+		if i%6 == 4 {
+			ignoredCount++
+		}
+	}
+	ignoredStarted.Add(ignoredCount)
+	ignoredFinished.Add(ignoredCount)
+
+	mw, err := NewHard(Options{
+		Timeout:         15 * time.Millisecond,
+		MaxCaptureBytes: 32,
+		EventHooks: &HardTimeoutEventHooks{
+			OnEvent: func(event HardTimeoutEvent) {
+				if event.Outcome == HardTimeoutOutcomeTimeout {
+					timeoutEvents.Add(1)
+				}
+			},
+			OnHandlerContinues: func(HardTimeoutContinuationEvent) {
+				continuationEvents.Add(1)
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new hard timeout: %v", err)
+	}
+
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("mode") {
+		case "fast":
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		case "overflow":
+			_, _ = w.Write([]byte(strings.Repeat("x", 64)))
+		case "panic":
+			panic("handler failure")
+		case "ignore":
+			ignoredStarted.Done()
+			<-releaseIgnored
+			ignoredFinished.Done()
+		default:
+			<-r.Context().Done()
+		}
+	}))
+
+	type result struct {
+		mode   string
+		status int
+	}
+	results := make(chan result, requests)
+	var responses sync.WaitGroup
+	for i := 0; i < requests; i++ {
+		mode := []string{"fast", "overflow", "panic", "timeout", "ignore", "canceled"}[i%6]
+		responses.Add(1)
+		go func() {
+			defer responses.Done()
+			requestContext := context.Background()
+			if mode == "canceled" {
+				var cancel context.CancelFunc
+				requestContext, cancel = context.WithCancel(requestContext)
+				cancel()
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequestWithContext(requestContext, http.MethodGet, "/widgets?mode="+mode+"&token=secret", nil))
+			results <- result{mode: mode, status: recorder.Code}
+		}()
+	}
+
+	ignoredStarted.Wait()
+	responses.Wait()
+	close(releaseIgnored)
+	ignoredFinished.Wait()
+	close(results)
+
+	for result := range results {
+		want := http.StatusGatewayTimeout
+		switch result.mode {
+		case "fast":
+			want = http.StatusOK
+		case "overflow", "panic":
+			want = http.StatusInternalServerError
+		}
+		if result.status != want {
+			t.Errorf("%s response status = %d, want %d", result.mode, result.status, want)
+		}
+	}
+	if got := continuationEvents.Load(); got < int64(ignoredCount) {
+		t.Fatalf("continuation events = %d, want at least %d", got, ignoredCount)
+	}
+	if timeoutEvents.Load() == 0 {
+		t.Fatal("expected bounded timeout outcome events")
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for runtime.NumGoroutine() > baselineGoroutines+16 && time.Now().Before(deadline) {
+		runtime.Gosched()
+		time.Sleep(time.Millisecond)
+	}
+	if got := runtime.NumGoroutine(); got > baselineGoroutines+16 {
+		t.Fatalf("goroutines after handlers drained = %d, baseline = %d", got, baselineGoroutines)
+	}
+}
+
+func TestHardTimeoutStressRepeatedConstruction(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		mw, err := NewHard(Options{Timeout: time.Second, MaxCaptureBytes: 64})
+		if err != nil {
+			t.Fatalf("new hard timeout %d: %v", i, err)
+		}
+		recorder := httptest.NewRecorder()
+		mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/widgets", nil))
+		if recorder.Code != http.StatusOK || recorder.Body.String() != "ok" {
+			t.Fatalf("response %d = (%d, %q), want (200, %q)", i, recorder.Code, recorder.Body.String(), "ok")
+		}
 	}
 }

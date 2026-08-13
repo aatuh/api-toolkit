@@ -2361,7 +2361,7 @@ ci(bench): add controlled performance regression checks
 
 ---
 
-## [ ] PERF-002: Add hard-timeout stress and leak coverage
+## [pr] PERF-002: Add hard-timeout stress and leak coverage
 
 **Priority:** P1
 **Owner:** Runtime test team
