@@ -1909,7 +1909,7 @@ feat(health): add validated manager construction
 
 ---
 
-## [ ] API-008: Improve rate-limit decisions and bound cleanup work
+## [pr] API-008: Improve rate-limit decisions and bound cleanup work
 
 **Priority:** P1
 **Owner:** Runtime API team
