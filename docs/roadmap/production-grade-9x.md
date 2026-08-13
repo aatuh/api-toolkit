@@ -2317,7 +2317,7 @@ features do not leak resources.
 * Idempotency and rate limiting behave correctly under concurrency.
 * Reference-service load evidence is repeatable.
 
-## [ ] PERF-001: Add controlled benchmark regression checks
+## [pr] PERF-001: Add controlled benchmark regression checks
 
 **Priority:** P1
 **Owner:** Performance engineer

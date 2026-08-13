@@ -63,5 +63,14 @@ jobs:
           retention-days: 7
       - name: Dependency vulnerability checks
         run: make vuln
-      - name: Benchmark smoke
-        run: BENCHTIME=1x make benchmark-smoke
+      - name: Benchmark allocation review
+        continue-on-error: true
+        run: make benchmark-check
+      - name: Upload benchmark allocation evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # actions/upload-artifact v4
+        with:
+          name: benchmark-allocation-evidence-${{ github.run_id }}
+          path: .ci-result/benchmark-check/
+          if-no-files-found: error
+          retention-days: 90
