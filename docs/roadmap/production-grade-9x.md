@@ -2633,7 +2633,7 @@ docs(api): freeze stable core for v5 review
 
 ---
 
-## [ ] ARC-002: Define the focused v5 core surface
+## [pr] ARC-002: Define the focused v5 core surface
 
 **Priority:** P1
 **Owner:** Lead architect

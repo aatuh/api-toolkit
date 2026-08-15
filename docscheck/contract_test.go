@@ -11799,6 +11799,33 @@ func TestDocumentationIndexOwnsAndLinksEveryPublicDocument(t *testing.T) {
 	}
 }
 
+func TestFocusedV5CoreSurfaceIsExplicitlyProposedAndBounded(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	plan := readText(t, filepath.Join(repoRoot, "docs", "v5-core-surface.md"))
+	for _, required := range []string{
+		"Status: proposed v5 architecture, not a released module",
+		"## Adoption Story",
+		"## Boundary Decisions",
+		"## Core Contract Rules",
+		"## Non-goals",
+		"## Release Preconditions",
+		"`httpx`", "`fielderrors`", "`binding`", "`negotiation`",
+		"`queryparams`", "`upload`", "`middleware/json`", "`middleware/maxbody`",
+		"`middleware/querylimits`", "`middleware/secure`", "`routecontracts`", "`endpoints/health`",
+		"dependency-policy.md", "api-review-checklist.md", "interface-ownership.md",
+		"context-cancellation.md", "errors.md", "options-structs.md",
+	} {
+		if !strings.Contains(plan, required) {
+			t.Fatalf("v5 core surface missing %q", required)
+		}
+	}
+	for _, path := range []string{"docs/stable-core.md", "docs/api-reference.md", "docs/README.md"} {
+		if !strings.Contains(readText(t, filepath.Join(repoRoot, path)), "v5-core-surface.md") {
+			t.Fatalf("%s must link the focused v5 core surface", path)
+		}
+	}
+}
+
 func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
 	t.Helper()
 	paths := map[string]bool{

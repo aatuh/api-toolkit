@@ -91,3 +91,4 @@ docs/threat-model.md	developers and security reviewers	security-maintainers	curr
 docs/troubleshooting.md	application teams and adopters	adoption-maintainers	current
 docs/v3-compatibility-roadmap.md	maintainers and adopters	documentation-maintainers	historical
 docs/v4-plan.md	maintainers and API adopters	core-maintainers	historical
+docs/v5-core-surface.md	maintainers and API adopters	core-maintainers	current

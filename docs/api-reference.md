@@ -7,6 +7,10 @@ pkg.go.dev and a compile-checked local example.
 remain the source of truth for the stable API surface. This page is a rendered
 index for the stable and compatibility-only root packages.
 
+This is the current v4 reference, not the proposed v5 default adoption set.
+For the focused v5 core decision and every non-core destination, see
+[v5-core-surface.md](v5-core-surface.md).
+
 Maturity tier badges:
 
 - `[stable]`: protected by the v3 stable API gate.

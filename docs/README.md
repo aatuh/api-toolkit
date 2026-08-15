@@ -23,7 +23,8 @@ Use the [core package decision guide](core-package-guide.md),
 ## Core API guides
 
 The [API reference index](api-reference.md), [API review checklist](api-review-checklist.md),
-and [response writer inventory](response-writer-inventory.md) cover the public
+the [focused v5 core surface](v5-core-surface.md), and
+[response writer inventory](response-writer-inventory.md) cover the public
 surface and its implementation guardrails.
 
 ## Middleware safety
@@ -101,6 +102,7 @@ are historical records. They remain available for context, not as current policy
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
 | [Response writer inventory](response-writer-inventory.md) | Maintainers | Track the intended response-writing surface while reviewing compatibility-sensitive changes. |
+| [Focused v5 core surface](v5-core-surface.md) | API consumers and maintainers | Review the proposed minimal v5 adoption set, non-core destinations, and release preconditions without treating it as current v4 policy. |
 
 The contrib CLI can scaffold the fuller reusable service baseline:
 

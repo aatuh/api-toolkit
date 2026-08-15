@@ -93,3 +93,12 @@ rendered companion is `docs/package-classification.md`.
 The per-package readiness companion is `docs/core-readiness.md`. It records the
 docs, examples, tests, fuzz, benchmark, compatibility, security review, and
 production caveat status for each stable or compatibility-only root package.
+
+## Proposed V5 Focus
+
+The current v4 package list above is a compatibility and maintenance statement,
+not a recommendation that every stable package belongs in a future minimal
+core. The proposed twelve-package v5 adoption surface, its reuse evidence,
+non-core destinations, and release preconditions are defined once in
+[v5-core-surface.md](v5-core-surface.md). It is a planning record until a v5
+release is published; do not present it as current v4 support policy.
