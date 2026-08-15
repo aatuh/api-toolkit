@@ -319,7 +319,10 @@ Stable core package list: `VERSIONING.md` is the source of truth, and
 - Stable core readiness matrix: [docs/core-readiness.md](docs/core-readiness.md)
 - V3 migration guide: [docs/migration/v3.md](docs/migration/v3.md)
 - Troubleshooting guide: [docs/troubleshooting.md](docs/troubleshooting.md)
-- Latest published release line: `v4.0.0` and `contrib/v4.0.0`.
+- Published v4 tags: `v4.0.0`, `contrib/v4.0.0`, `v4.0.1`, and
+  `contrib/v4.0.1`. Before a new deployment or release, follow the
+  [v4 release-identity incident](docs/release-incident-v4-release-identity.md);
+  `v4.0.1` and `contrib/v4.0.1` are not approved release baselines.
 - `master` may contain unreleased changes after the latest tag; release
   consumers should use tags and release notes instead of assuming `master` is
   published evidence.
