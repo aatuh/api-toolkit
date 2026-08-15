@@ -7,6 +7,13 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased
 
+### Release integrity
+
+- `v4.0.1` is the verified supported **root-only** v4 baseline. `v4.0.0`,
+  `contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn and must not be used;
+  see the v4 release-identity incident for the evidence and contrib repair
+  path.
+
 ### Security
 
 - `contrib/adapters/chi.Middleware.RealIP` no longer trusts client-supplied

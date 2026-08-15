@@ -423,7 +423,7 @@ documentation describe the same immutable source state.
 * Release artifacts are independently verifiable.
 * A repair release has been published.
 
-## [ ] REL-000: Disposition the v4 release-identity incident
+## [pr] REL-000: Disposition the v4 release-identity incident
 
 **Priority:** P0
 **Owner:** Release engineer

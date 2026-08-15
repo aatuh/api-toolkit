@@ -19,6 +19,13 @@ Supporting the two most recent Go releases would require adding an explicit CI
 matrix, release evidence, and compatibility notes. Until that exists, users
 should treat `1.25.x` as the supported line.
 
+## Release Baseline
+
+The supported v4 root-module baseline is `v4.0.1`. `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn and receive no support or
+security-backport commitment. The [v4 release-identity incident](release-incident-v4-release-identity.md)
+records the immutable evidence and the required paired contrib repair path.
+
 ## Platform
 
 The required CI platform is:

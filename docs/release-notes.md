@@ -66,6 +66,14 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-08-15
 
+### Release integrity and migration
+
+- The v4 release-identity review verifies root `v4.0.1` as the sole
+  root-module baseline. Use `API_BASE_REF=v4.0.1` for v4 root release checks.
+- `v4.0.0`, `contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn. Contrib
+  consumers must wait for a new paired repair release; do not substitute the
+  root tag for the withdrawn contrib module.
+
 ### Security and migration
 
 - `contrib/adapters/chi.Middleware.RealIP` now ignores untrusted forwarding

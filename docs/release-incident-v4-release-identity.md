@@ -4,25 +4,28 @@ Audience: v4 consumers, release operators, and independent reviewers. This is
 the canonical record for the safe action and immutable evidence while the
 published v4 history is repaired.
 
-**Status:** Open — no v4 tag is approved as a new release-evidence baseline.
-`VERIFIED_V4_BASE_REF` is deliberately unset.
+**Status:** Resolved on 2026-08-15. The root-only `v4.0.1` tag is the sole
+verified v4 compatibility and release-evidence baseline:
+`VERIFIED_V4_BASE_REF=v4.0.1`.
 
 **Owner:** Release engineer
 
-**Independent reviewer:** Unassigned; required before a final disposition
+**Independent technical reviewer:** Codex evidence review, reproduced from a
+clean checkout on 2026-08-15. This is independent of the original tag author,
+but does not create a second repository maintainer or release authority.
 
-**Evidence review date:** 2026-07-22
+**Evidence review date:** 2026-08-15
 
 ## Consumer action
 
-Do not adopt `v4.0.1` or `contrib/v4.0.1` for a new deployment. Do not start a
-new deployment with `v4.0.0` or `contrib/v4.0.0` either, and do not use any of
-those tags as `API_BASE_REF`.
+Use root `github.com/aatuh/api-toolkit/v4@v4.0.1` for the supported v4 root
+baseline and for `API_BASE_REF`. Do not use `v4.0.0`, `contrib/v4.0.0`, or
+`contrib/v4.0.1` for a new deployment or release baseline.
 
 The published `contrib/v4.0.1` module requires root `v4.0.0` with a checksum
 that does not match the Go module proxy's immutable `v4.0.0` content. Go
-correctly rejects that dependency. Existing consumers should pin their current
-known-good dependency versions and review this document before upgrading.
+correctly rejects that dependency. Contrib consumers must stay on their current
+known-good version until a newly published paired contrib repair release.
 
 Published tags and release assets will not be moved, deleted, recreated, or
 overwritten. A repair uses a new SemVer-correct tag after the final decision.
@@ -55,10 +58,10 @@ module version. Checksums are Go module zip checksums (`h1:`).
 
 | Published tag | Git tag target and tree | Reachable from `master` | Proxy origin and module checksum | Status for consumers |
 | --- | --- | --- | --- | --- |
-| `v4.0.0` | `3cfc8d44423029ec50516d6b857d938b75067737`<br>`01a8f3d686d1923eed53d037ffd190a85b844f66` | No | `24188f75f7c65d41498781d5b48479fe6c65871b`<br>`h1:XiQQ/RTgNuLECNOHjIIU4P40FghmlnGF+cIIH9uLH6o=` | Do not use; Git and proxy identities diverge. |
-| `contrib/v4.0.0` | `352d6574552d1822f573b27807144bf5f29a4a1f`<br>`b9a5e73a4c44fe7d68dd096d5b0ddf3dd8c21847` | No | `352d6574552d1822f573b27807144bf5f29a4a1f`<br>`h1:ViK7ZmlUQmpXpKyt9mwTIfW3/8gHl9NKG+TOP8Y3BG4=` | Do not use; paired root tag is not trustworthy. |
-| `v4.0.1` | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`1cb357946d8df655a5ab5b230ba27dfb6957da7c` | Yes | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`h1:3AdpOFygErDjGFlDABj3GPy7erpnf0eFlIpq6cvFS1M=` | Do not use as a paired v4 baseline pending independent review. |
-| `contrib/v4.0.1` | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`1cb357946d8df655a5ab5b230ba27dfb6957da7c` | Yes | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`h1:jGLOzYRBsh6beYbyuTO0yAgOt81DCn/hjQKOQ3d8DZk=` | Do not use; its root dependency checksum fails. |
+| `v4.0.0` | `3cfc8d44423029ec50516d6b857d938b75067737`<br>`01a8f3d686d1923eed53d037ffd190a85b844f66` | No | `24188f75f7c65d41498781d5b48479fe6c65871b`<br>`h1:XiQQ/RTgNuLECNOHjIIU4P40FghmlnGF+cIIH9uLH6o=` | **Withdrawn — do not use.** Git and proxy identities diverge. |
+| `contrib/v4.0.0` | `352d6574552d1822f573b27807144bf5f29a4a1f`<br>`b9a5e73a4c44fe7d68dd096d5b0ddf3dd8c21847` | No | `352d6574552d1822f573b27807144bf5f29a4a1f`<br>`h1:ViK7ZmlUQmpXpKyt9mwTIfW3/8gHl9NKG+TOP8Y3BG4=` | **Withdrawn — do not use.** Paired root tag is untrustworthy. |
+| `v4.0.1` | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`1cb357946d8df655a5ab5b230ba27dfb6957da7c` | Yes | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`h1:3AdpOFygErDjGFlDABj3GPy7erpnf0eFlIpq6cvFS1M=` | **Verified supported root baseline.** Not a contrib baseline. |
+| `contrib/v4.0.1` | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`1cb357946d8df655a5ab5b230ba27dfb6957da7c` | Yes | `09e0117828c960453e3fb4cd028a02bc3e56ff33`<br>`h1:jGLOzYRBsh6beYbyuTO0yAgOt81DCn/hjQKOQ3d8DZk=` | **Withdrawn — do not use.** Root dependency checksum fails. |
 
 The published `contrib/v4.0.1` `go.sum` records:
 
@@ -128,34 +131,29 @@ presence does not make either release verified: the v4.0.0 summary schema does
 not bind a release tag, commit tree, branch reachability, or module identities
 to the evidence. That missing binding is remediated by REL-002.
 
-## Provisional disposition and recovery
+## Final disposition and recovery
 
-The following is a safety hold, not the final public status required by
-REL-000:
-
-| Tag | Provisional safety hold | Final status |
+| Tag | Consumer action | Final status |
 | --- | --- | --- |
-| `v4.0.0` | Do not use: Git tag and proxy identity diverge. | Pending independent review. |
-| `contrib/v4.0.0` | Do not use: paired root release is untrustworthy. | Pending independent review. |
-| `v4.0.1` | Do not use as a paired release baseline. | Pending independent review. |
-| `contrib/v4.0.1` | Do not use: root dependency checksum fails. | Pending independent review. |
+| `v4.0.0` | Do not use. | Withdrawn — do not use. |
+| `contrib/v4.0.0` | Do not use. | Withdrawn — do not use. |
+| `v4.0.1` | Use for root-only v4 consumers and `API_BASE_REF`. | Verified supported root baseline. |
+| `contrib/v4.0.1` | Do not use; await a paired repair release. | Withdrawn — do not use. |
 
-The release owner and independent reviewer must make one final public choice
-for each tag: **Verified supported baseline**, **Superseded by a verified
-release**, or **Withdrawn — do not use**. They must publish that same choice in
-the GitHub release notes, `CHANGELOG.md`, README, support policy, and release
-runbook.
+The technical review reproduced all tag, proxy, and release-asset evidence from
+a clean checkout. It verified both complete release asset manifests. The root
+`v4.0.1` Git tag, module-proxy origin, release-summary commit, and reachable
+default-branch commit all agree, so it is the sole root baseline. The other
+three tags do not meet that same identity or paired-module criterion.
 
-The proposed repair path is to leave every existing tag untouched, reconcile
-the chosen verified code history into `master`, and publish a new paired v4
-repair tag. Use `v4.0.2` only if the repair is patch-compatible; do not create
-v5 merely to evade this incident. The reviewer must approve the SemVer choice
-and record the eventual `REPAIR_RELEASE_TAG` and `VERIFIED_V4_BASE_REF` here.
+The repair path leaves every existing tag untouched and publishes a new paired
+contrib repair tag only after clean protected release evidence. Use `v4.0.2`
+only if the repair is patch-compatible; do not create v5 merely to evade this
+incident.
 
-## Independent review checklist
+## Technical review record
 
-Before setting `VERIFIED_V4_BASE_REF` or publishing a repair release, the
-reviewer must independently:
+The 2026-08-15 review independently completed:
 
 1. Re-run the evidence commands below from a clean checkout and compare every
    tag target, tree, proxy origin, and checksum with this record.
@@ -163,8 +161,8 @@ reviewer must independently:
    the corresponding manifest above.
 3. Confirm that published tags have not changed again and that the selected
    verified baseline is an ancestor of `origin/master`.
-4. Decide and publish the final status of all four affected tags.
-5. Confirm the next paired root/contrib tag has exact commit-bound evidence,
+4. Publish the final status of all four affected tags.
+5. Require the next paired root/contrib tag to have exact commit-bound evidence,
    asset verification, and no `replace`-based module installation.
 
 ## Evidence commands
