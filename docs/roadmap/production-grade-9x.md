@@ -3268,7 +3268,7 @@ feat(cli): add generated project contract metadata
 
 ---
 
-## [ ] CLI-005: Publish verifiable cross-platform CLI releases
+## [pr] CLI-005: Publish verifiable cross-platform CLI releases
 
 **Priority:** P1
 **Owner:** Release engineer

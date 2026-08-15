@@ -99,6 +99,22 @@ deliberately, and retain the prior directory as rollback until validation
 succeeds. Unsupported manifest schemas fail with this same actionable manual
 migration guidance.
 
+## Release verification and compatibility
+
+CLI releases use the independent `cmd/api-toolkit/v5.*` tag stream. The local
+`make cli-release-check` builds Linux amd64/arm64, macOS arm64, and Windows
+amd64 artifacts, writes SHA-256 checksums, validates Linux `version --json`,
+and rejects embedded local paths or credential-shaped values. Published assets,
+SBOMs, signatures, certificates, and provenance remain release-operator work;
+verify those attached release assets before installing a binary.
+
+Install a tagged module with `go install` as shown above, or download the
+matching verified platform asset. CLI flags and project-manifest schema v1 are
+backward compatible within v5. New behavior may add optional flags and fields;
+removing or changing an accepted flag or schema meaning requires a new major
+CLI version and a documented migration path. Commands return `0` on success,
+`1` for an operational/check failure, and `2` for invalid command usage.
+
 Until v5 core and adapter modules are published, v5 CLI templates deliberately
 generate explicit v4 core and contrib requirements. The CLI module itself does
 not import contrib provider libraries. Do not claim a v5 generated-project

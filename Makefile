@@ -136,6 +136,9 @@ cli-security-check: ## Verify CLI service-generation filesystem boundaries
 cli-offline-check: ## Verify generation uses embedded templates and reviewed checksums
 	@(cd cmd/api-toolkit && GOPROXY=off GOSUMDB=off GOWORK=off GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" $(GO) test ./... -run 'TestGenerateServiceIsOfflineAndIncludesReviewedChecksums$$')
 
+cli-release-check: ## Build and verify the local cross-platform CLI release matrix
+	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" bash scripts/cli_release_check.sh
+
 full-profile-scaffold-check: ## Generate and validate the saas-api-full scaffold, clients, contracts, resource generator, providers, and web profile
 	@(cd cmd/api-toolkit && GOWORK=off GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" $(GO) test ./... -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
 
