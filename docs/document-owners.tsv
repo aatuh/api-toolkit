@@ -56,6 +56,7 @@ docs/metrics.md	maintainers and adopters	documentation-maintainers	current
 docs/middleware-safety.md	developers and security reviewers	security-maintainers	current
 docs/migration/v3.md	maintainers and adopters	documentation-maintainers	historical
 docs/migration/v4.md	maintainers and adopters	documentation-maintainers	current
+docs/migration/v5.md	maintainers and adopters	documentation-maintainers	current
 docs/minimal-core.md	application teams and adopters	adoption-maintainers	current
 docs/observability.md	maintainers and adopters	documentation-maintainers	current
 docs/openapi-workflow.md	maintainers and adopters	documentation-maintainers	current

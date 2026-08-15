@@ -57,8 +57,9 @@ Use the [security posture](security.md), [threat model](threat-model.md), and
 
 ## Versioning and migration
 
-Read [versioning](../VERSIONING.md), [deprecations](deprecations.md), and the
-[v4 migration guide](migration/v4.md) for current compatibility guidance.
+Read [versioning](../VERSIONING.md), [deprecations](deprecations.md), the
+[v4 migration guide](migration/v4.md), and the [v5 migration guide](migration/v5.md)
+for current compatibility guidance.
 
 ## Contributor and maintainer
 
@@ -94,6 +95,7 @@ are historical records. They remain available for context, not as current policy
 | [Production readiness](production-readiness.md) | Technical leads and platform owners | Decide which surfaces are production-ready, supported-adapter, experimental, caveated, or part of the adapter maturity review. |
 | [V3 migration guide](migration/v3.md) | Application teams upgrading dependencies | Upgrade root, contrib, and generated-service adoption paths within the v3 line. |
 | [V4 migration guide](migration/v4.md) | Application teams upgrading major versions | Update module paths and replace removed root-port contracts. |
+| [V5 migration guide](migration/v5.md) | Application teams evaluating future major versions | Keep v4 until a verified v5 release and migration plan exist. |
 | [Troubleshooting](troubleshooting.md) | Application developers and maintainers | Diagnose Go version, contrib tier, timeout buffering, health, idempotency, auth, and generated-service issues. |
 | [Test coverage evidence](test-coverage.md) | Maintainers and release reviewers | Read the coverage gate outputs, package-level floor summary, and release-evidence relationship. |
 | [Package coverage trend](coverage-trend.md) | Maintainers and release reviewers | Compare root and selected contrib package coverage across published releases. |

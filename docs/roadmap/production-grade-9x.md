@@ -1051,7 +1051,7 @@ docs(api): standardize package adoption guidance
 
 ---
 
-## [ ] DOC-005: Synchronize versioning, support, security, and migration policy
+## [pr] DOC-005: Synchronize versioning, support, security, and migration policy
 
 **Priority:** P0
 **Owner:** Release engineer
