@@ -3536,7 +3536,7 @@ docs(security): publish openssf compliance evidence
 
 ---
 
-## [ ] SEC-005: Strengthen release authenticity
+## [pr] SEC-005: Strengthen release authenticity
 
 **Priority:** P1
 **Owner:** Release engineer
