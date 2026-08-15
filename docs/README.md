@@ -186,6 +186,8 @@ identifies the installed generator and contract tool.
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
+| [Production-grade 9/10 roadmap](roadmap/production-grade-9x.md) | Maintainers and program owners | Track the prioritized remediation program, its dependencies, acceptance criteria, and closure rules. |
+| [Production-grade scorecard](roadmap/scorecard.tsv) | Maintainers and reviewers | Track evidence-based baseline, target, owner, and review status for the eight production-readiness areas. |
 | [Audit and scratch archive policy](audits.md) | Maintainers and release reviewers | Keep local `.audits` and `.trash` scratch material out of tracked release evidence. |
 | [OpenSSF Best Practices gap review](openssf-best-practices.md) | Maintainers and release reviewers | Track Best Practices badge readiness, unclaimed status, and remaining gaps before publishing a badge. |
 | [V4 release-identity incident](release-incident-v4-release-identity.md) | V4 consumers and release reviewers | Follow the current safe action while the v4 tag history and checksum mismatch are reconciled. |
