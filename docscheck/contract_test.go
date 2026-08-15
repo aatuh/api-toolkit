@@ -11875,6 +11875,31 @@ func TestMaintainerArtifactsDescribeCurrentCapacityWithoutAccessClaims(t *testin
 	}
 }
 
+func TestSupportPolicyDefinesModuleLifecycleAndCapacityBoundaries(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	support := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
+	security := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
+	readme := readText(t, filepath.Join(repoRoot, "README.md"))
+	for _, required := range []string{
+		"## Module Support And Maintenance", "## Lifecycle And Deprecation",
+		"## Objective Support Triggers", "## End Of Life", "MAINTAINERS.md",
+		"docs/package-classification.tsv", "Provider sandbox evidence",
+		"Generated services and reference applications", "There is no 24/7 support",
+		"Streaming, SSE, WebSocket, and large-download behavior are not a general",
+		"EXT-010",
+	} {
+		if !strings.Contains(support, required) {
+			t.Fatalf("docs/support-policy.md missing support lifecycle rule %q", required)
+		}
+	}
+	if !strings.Contains(security, "module support tiers, maintenance boundaries") {
+		t.Fatal("SECURITY.md must link its support lifecycle boundary")
+	}
+	if !strings.Contains(readme, "lifecycle, archival,\n  and end-of-life triggers") {
+		t.Fatal("README.md must link support lifecycle guidance")
+	}
+}
+
 func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
 	t.Helper()
 	paths := map[string]bool{

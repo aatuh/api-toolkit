@@ -6,6 +6,9 @@ Private vulnerability reporting URL: https://github.com/aatuh/api-toolkit/securi
 
 We provide security updates for the latest release on the default branch. The
 supported Go and platform line is documented in `docs/support-policy.md`.
+That policy also defines module support tiers, maintenance boundaries,
+deprecation, archival, and end-of-life triggers; it does not replace this
+policy's private disclosure and security-backport rules.
 
 ## Previous Minor Backport Policy
 

@@ -96,6 +96,9 @@ docs-site: ## Regenerate the static API docs site
 docs-site-check: ## Verify the static API docs site is current
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" $(GO) run ./internal/tools/docsite -check
 
+package-classification-check: ## Verify package tiers, ownership, and classification evidence
+	@$(GO) test ./docscheck -count=1 -run 'Test(StableAPISurfaceMatchesAPICheckPackages|APIReferenceTrustProofAndMaturityBadgesMatchClassification|PublicPackageClassificationManifestCoversRootPackages|ContribPackageClassificationAndCompatibilityPolicy|PackageOwnersManifestMatchesClassification|NoTestPackagesAreExplicitlyClassified|PackageClassificationTestStatusEvidence|WrapperSmokeClassificationsRemainThinAndExplained)$$'
+
 version-consistency-check: ## Reject stale current-version guidance outside documented historical records
 	@scripts/version_consistency_check.sh
 

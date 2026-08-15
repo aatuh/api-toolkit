@@ -3926,7 +3926,7 @@ docs(adoption): add release candidate adopter program
 
 ---
 
-## [ ] GOV-005: Define bounded support, maintenance, and archival triggers
+## [pr] GOV-005: Define bounded support, maintenance, and archival triggers
 
 **Priority:** P1
 **Owner:** Project lead

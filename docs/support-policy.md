@@ -68,3 +68,70 @@ success. In those cases retain the explicitly dispositioned
 `hermetic-provider-fixture+manual-real-service` realism status in
 `docs/supported-adapter-test-realism.tsv`; do not claim current provider
 sandbox verification.
+
+## Module Support And Maintenance
+
+This policy covers current v4 surfaces and the planned v5 module boundaries in
+[ADR 0002](adr/0002-v5-module-decomposition.md). The ADR is not a released
+module list: until a v5 module is published, its support tier is a planning
+decision only. `docs/package-classification.tsv` remains the source of truth
+for the current package tier.
+
+| Surface | Current or planned tier | Maintenance boundary |
+| --- | --- | --- |
+| Current v4 stable root packages | Stable | SemVer compatibility and release API checks apply to the released root module. |
+| Current v4 compatibility-only packages | Compatibility-only | Kept for the documented v4 compatibility window; not a recommended new abstraction. |
+| Current contrib supported adapters | Supported adapter | Require a named owner route, package/docs evidence, behavior contract, direct tests, and current release-drift review. They remain outside the stable-root promise. |
+| Current contrib experimental, tooling, generated, example, and test-support packages | Non-stable | Best-effort maintenance only; no implied API compatibility or production guarantee. |
+| Generated services and reference applications | Application-owned | Application teams own deployment, provider workflow, data, load, incident, and upgrade decisions. Repository examples are starters and evidence fixtures, not universal production guarantees. |
+| Planned v5 core and optional modules | Proposed | Their module-specific owner, support tier, baseline, and migration path must be published before they can be described as supported. |
+
+Routine maintenance is best effort and fits the currently recorded maintainer
+capacity in [MAINTAINERS.md](../MAINTAINERS.md). There is no 24/7 support,
+commercial response commitment, or promise to accept a feature, provider, or
+module request. Security intake and severity targets are defined once in
+[SECURITY.md](../SECURITY.md); that policy also defines the limited exceptional
+previous-minor backport decision.
+
+## Lifecycle And Deprecation
+
+A stable or compatibility-only public API is deprecated only with a replacement,
+reason, earliest removal major, and migration guidance in
+[deprecations.md](deprecations.md). A removal occurs only in the documented
+next major release after the compatibility period, unless a security exception
+requires a narrower emergency change.
+
+An optional module or adapter can be deprecated when its owner route is vacant,
+its dependency or provider cannot be maintained safely, its replacement is
+ready, or its evidence no longer supports the published tier. The deprecation
+record must say whether users should migrate, pin a final release, or adopt an
+application-owned implementation. Archival is a repository decision after the
+module is deprecated and its read-only migration, security, license, and release
+records remain available; archive status is not a claim that an old release is
+safe to deploy.
+
+## Objective Support Triggers
+
+| Trigger | Required action |
+| --- | --- |
+| A supported adapter lacks its owner route, direct-test/contract evidence, required release-drift review, or safe dependency posture. | Downgrade it to experimental or block the release until the evidence is restored; update package classification, maturity docs, and release notes together. |
+| Provider sandbox evidence is required by an adapter contract but becomes stale, skipped, or failed. | Do not claim current live-provider verification; retain the recorded realism status and require a fresh protected run before promotion or release claim. |
+| An owner is unavailable or a critical route has no accepted backup. | Freeze new scope for that route, document the staffing gap, and require another maintainer before expanding the support promise. |
+| A provider integration needs business workflow, billing, consent, regional, or incident policy beyond transport safety. | Refuse it from the toolkit surface or keep it application-owned; do not turn product operations into a generic adapter. |
+| An optional module repeatedly imports unrelated provider/domain dependencies or cannot release on its own cadence. | Split it only after ADR evidence defines the owner, compatibility baseline, migration path, and test/release burden. |
+| A deprecated module has a published destination, migration record, and no remaining supported obligation. | Archive it with its final support/EOL notice; preserve documentation and avoid deleting release verification material. |
+
+Streaming, SSE, WebSocket, and large-download behavior are not a general
+toolkit abstraction. Keep them route-specific and follow
+[middleware-safety.md](middleware-safety.md); hard-timeout buffering, response
+validation, and idempotency replay capture must not be applied globally to
+those routes.
+
+## End Of Life
+
+An end-of-life notice names the final supported version, effective date,
+security-backport decision, migration destination or lack of one, and the
+archive/read-only location. It must be linked from the module's release notes,
+support documentation, and package classification where applicable. An EOL
+notice is made only by an accepted maintainer with the authority recorded in
+EXT-010; a local policy edit cannot create or revoke a support commitment.

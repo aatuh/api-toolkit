@@ -219,7 +219,9 @@ Current repository trust signals:
   latest release on the default branch, with Go/platform support documented in
   [docs/support-policy.md](docs/support-policy.md). There is no automatic
   successor; [governance documents the unavailability and verified handover
-  policy](docs/governance.md#maintainer-succession-and-unavailability).
+  policy](docs/governance.md#maintainer-succession-and-unavailability). The
+  [support policy](docs/support-policy.md) also defines lifecycle, archival,
+  and end-of-life triggers for modules and adapters.
 
 ## Production readiness
 
