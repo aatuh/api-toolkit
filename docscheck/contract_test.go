@@ -11939,6 +11939,29 @@ func TestSupportPolicyDefinesModuleLifecycleAndCapacityBoundaries(t *testing.T) 
 	}
 }
 
+func TestWorkflowTrustBoundariesAreDocumentedAndEnforced(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	threatModel := readText(t, filepath.Join(repoRoot, "docs", "threat-model.md"))
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	for _, required := range []string{
+		"## Workflow Trust Boundaries", "make actions-audit", "make workflow-security-check",
+		"No `pull_request_target`, `workflow_run`", "Provider secrets exist only in the `nightly.yml`",
+		"release steps cannot use `continue-on-error`", "EXT-002",
+	} {
+		if !strings.Contains(threatModel, required) {
+			t.Fatalf("docs/threat-model.md missing workflow trust rule %q", required)
+		}
+	}
+	for _, target := range []string{"workflow-security-check:", "workflow-security-check-contract:"} {
+		if !strings.Contains(makefile, target) {
+			t.Fatalf("Makefile missing workflow trust target %q", target)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "workflow-security-check-contract") {
+		t.Fatal("docs-check must include workflow-security-check-contract")
+	}
+}
+
 func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
 	t.Helper()
 	paths := map[string]bool{

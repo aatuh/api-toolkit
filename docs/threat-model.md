@@ -57,6 +57,27 @@ defaults.
 | Webhook payloads and delivery state | Forged callbacks, replay, SSRF, secret leakage, or provider payload disclosure | Verify signatures before trust, cap bodies, enforce replay windows, suppress duplicate deliveries, use trusted outbound transports, and redact delivery metadata. |
 | Generated scaffolds and deployment starters | Unsafe defaults copied into production | Treat generated code and deployment assets as app-owned templates; require production env validation, secret replacement, network policy review, and service-owned tests. |
 
+## Workflow Trust Boundaries
+
+Repository workflows are a supply-chain boundary. The checked-in policy is
+enforced by `make actions-audit` and `make workflow-security-check`; GitHub
+branch rules, environment protections, and required-check enforcement remain
+external configuration verified through EXT-002.
+
+| Workflow class | Trusted inputs and permissions | Required boundary |
+| --- | --- | --- |
+| Pull-request CI, CodeQL, integration, and dependency review | Untrusted fork or contributor code; workflow-level `contents: read`. CodeQL may write security events only. | No `pull_request_target`, `workflow_run`, repository-write permission, release token, provider secret, artifact download, or shared Actions cache. Pull-request title/body fields are passed only as data to bounded validators, never interpolated directly into shell. |
+| Scheduled provider sandbox | Default-branch workflow plus protected sandbox environment. | Provider secrets exist only in the `nightly.yml` sandbox job; outputs are sanitized evidence with explicit retention. The workflow has no pull-request trigger. |
+| Release | Protected push tag and scoped release-preflight job permissions. | `contents: write`, attestation, and OIDC permissions are confined to release preflight after compatibility and contract jobs. Tags are validated before publication; release steps cannot use `continue-on-error`. |
+| Scorecard and CodeQL reports | Default-branch/scheduled events with narrowly scoped reporting permissions. | Immutable SHA-pinned actions, no checkout credential persistence where no write is required, and bounded artifact retention. |
+
+The static gate rejects mutable action references through the companion actions
+audit, broad workflow permissions, unsafe privileged triggers, secrets in
+pull-request workflows, direct shell interpolation of event data, artifact
+downloads, shared Actions caches, unbounded artifact retention, and unsafe
+release failure handling. It reports only workflow paths and rule names; it
+does not read, print, or persist secret values.
+
 ## Threat Surface Matrix
 
 | Surface | Threats | Required mitigations | Verification evidence |

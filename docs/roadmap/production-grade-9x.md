@@ -3590,7 +3590,7 @@ ci(release): strengthen release authenticity
 
 ---
 
-## [ ] SEC-006: Harden workflow trust boundaries
+## [pr] SEC-006: Harden workflow trust boundaries
 
 **Priority:** P0
 **Owner:** Security engineer

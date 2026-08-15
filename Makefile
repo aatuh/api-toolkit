@@ -233,6 +233,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) release-evidence-parser-contract
 	@$(MAKE) pr-title-check-contract
 	@$(MAKE) pr-template-check-contract
+	@$(MAKE) workflow-security-check-contract
 	@$(MAKE) generated-integration-contract
 	@$(MAKE) generated-soak-contract
 	@$(MAKE) generated-failure-contract
@@ -442,6 +443,12 @@ pr-template-check: ## Validate required pull-request body sections and classific
 
 pr-template-check-contract: ## Run pull-request body validation contract tests
 	@bash scripts/pr_template_check_contract_test.sh
+
+workflow-security-check: ## Reject unsafe workflow trust boundaries
+	@bash scripts/workflow_security_check.sh
+
+workflow-security-check-contract: ## Run workflow trust-boundary contract tests
+	@bash scripts/workflow_security_check_contract_test.sh
 
 ci-build-smoke: ## Build root and contrib modules via the local CI build target
 	$(MAKE) .codeql-local-build
