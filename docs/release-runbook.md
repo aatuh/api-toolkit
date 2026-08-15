@@ -27,6 +27,20 @@ update this line first, then update command examples in `README.md`,
 mention the supported baseline, and any release evidence fixtures in the same
 change. Do not introduce a second baseline table in another document.
 
+## Release identity prevention
+
+Before accepting a new v4 tag as a supported baseline, the release engineer
+must record one matching identity set from a clean checkout: the peeled Git tag
+and tree, the release-summary commit, the Go module proxy origin and checksum,
+and default-branch reachability. Confirm the tag commit is an ancestor of
+`origin/master`; never repair a mismatch by moving, deleting, or recreating a
+published tag.
+
+Until REL-002 makes these bindings machine-enforced, a missing or mismatched
+identity field is a release stop. Publish a new SemVer-correct repair tag only
+after protected release evidence passes; record the old tag's consumer status
+in the incident, release notes, support policy, and README.
+
 ## Release candidate flow
 
 Minor releases that touch the stable surface must publish at least one release

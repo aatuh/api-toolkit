@@ -376,7 +376,7 @@ docs(contributing): require one ticket per conventional commit
 
 ---
 
-## [pr] PRG-003: Reconcile protected merge evidence in the checked-in backlog
+## [x] PRG-003: Reconcile protected merge evidence in the checked-in backlog
 
 **Priority:** P0
 **Owner:** Technical program lead
@@ -423,7 +423,7 @@ documentation describe the same immutable source state.
 * Release artifacts are independently verifiable.
 * A repair release has been published.
 
-## [pr] REL-000: Disposition the v4 release-identity incident
+## [x] REL-000: Disposition the v4 release-identity incident
 
 **Priority:** P0
 **Owner:** Release engineer
@@ -531,7 +531,7 @@ fix(release): restore protected verification baseline
 
 ---
 
-## [ ] REL-001: Reconcile `master` with the verified v4 release history
+## [pr] REL-001: Reconcile `master` with the verified v4 release history
 
 **Priority:** P0
 **Owner:** Release engineer
