@@ -139,12 +139,15 @@ are complete; they need `EXT-*` evidence only to become `[x]`.
 
 **Goal:** Track non-local authority and time-based proof separately from local implementation.
 
-## [pr] EXT-001: Reconcile GitHub project and ticket evidence
+## [x] EXT-001: Reconcile GitHub project and ticket evidence
 
 **Owner:** GitHub administrator
 **Unblocks:** PRG-001 and all `[x]` transitions
 
 Create required labels/project items and record merged ticket SHAs.
+
+**Protected merge evidence:** PR #72, squash commit
+`8d61cdd6f731fd61494eae998a6dea30d7463994`.
 
 ## [ ] EXT-002: Apply and verify repository protections
 
@@ -228,12 +231,15 @@ maintainer knowledge.
 * GitHub project status matches the checked-in backlog.
 * No work is marked complete without a merged commit.
 
-## [pr] PRG-001: Add the 9/10 roadmap and evidence scorecard
+## [x] PRG-001: Add the 9/10 roadmap and evidence scorecard
 
 **Priority:** P0
 **Owner:** Technical program lead
 **Size:** S
 **Depends on:** None
+
+**Protected merge evidence:** PR #70, squash commit
+`748194967a31a0f1b43802b1512d314377d341a3`.
 
 **External completion:** `[x]` remains owned by EXT-001's GitHub project,
 label, and merged-SHA reconciliation.
@@ -313,12 +319,15 @@ docs(roadmap): add production-grade 9x program
 
 ---
 
-## [ ] PRG-002: Enforce one ticket per conventional commit
+## [x] PRG-002: Enforce one ticket per conventional commit
 
 **Priority:** P0
 **Owner:** Maintainer
 **Size:** S
 **Depends on:** PRG-001
+
+**Protected merge evidence:** PR #71, squash commit
+`b0f38b5866ed2a64a50722364bf7047a41901a34`.
 
 ### Work
 
@@ -363,6 +372,40 @@ GOWORK=off GOTOOLCHAIN=local make github-governance-check
 
 ```text
 docs(contributing): require one ticket per conventional commit
+```
+
+---
+
+## [pr] PRG-003: Reconcile protected merge evidence in the checked-in backlog
+
+**Priority:** P0
+**Owner:** Technical program lead
+**Size:** S
+**Depends on:** EXT-001
+
+### Work
+
+Record only already-merged ticket SHAs in the checked-in backlog. Do not mark
+a ticket complete based on a local commit, an open pull request, or a project
+column alone.
+
+### Done when
+
+* Every newly checked ticket has a protected-default-branch merge SHA.
+* The GitHub project item records the same SHA.
+* No pending or externally blocked ticket changes from `[ ]` or `[pr]` to
+  `[x]`.
+
+### Verification
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make docs-check
+```
+
+**Required commit:**
+
+```text
+docs(backlog): reconcile protected merge evidence
 ```
 
 ---
@@ -443,6 +486,47 @@ GOWORK=off GOTOOLCHAIN=local make docs-check
 
 ```text
 docs(release): disposition v4 release identity incident
+```
+
+---
+
+## [x] REL-000A: Restore the protected verification baseline
+
+**Priority:** P0
+**Owner:** Release engineer
+**Size:** S
+**Depends on:** PRG-001
+
+**Protected merge evidence:** PR #68, squash commit
+`ec557f996b620a9979455d3dcdf9f78d758ae9c0`.
+
+### Work
+
+Restore the blocked verification baseline without deciding the final v4
+release-identity disposition: repair the contrib checksum contract, add the
+release-identity safety hold, retain exact license-review evidence, and apply
+the security updates required for CI to evaluate later incident work.
+
+### Done when
+
+* Protected CI passes without a bypass.
+* The release-identity safety hold is published.
+* The trusted-proxy client-IP handling introduced by the chi update is covered
+  by tests.
+
+### Verification
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make docs-check
+GOWORK=off GOTOOLCHAIN=local make vuln
+GOWORK=off GOTOOLCHAIN=local make lint
+GOWORK=off GOTOOLCHAIN=local make gosec
+```
+
+**Required commit:**
+
+```text
+fix(release): restore protected verification baseline
 ```
 
 ---
