@@ -102,15 +102,15 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 		}
 	}
 
-	cmd := exec.CommandContext(context.Background(), "go", "run", ".",
+	cmd := exec.CommandContext(context.Background(), cliBinary,
 		"new", "service",
 		"--module", "example.com/my-api",
 		"--profile", "saas-api",
-		"--dir", serviceDir,
+		"--dir", "my-api",
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
 	)
-	cmd.Dir = filepath.Join(repoRoot, "cmd", "api-toolkit")
+	cmd.Dir = tmpDir
 	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("generate getting-started service:\n%s\nerror: %v", out, err)

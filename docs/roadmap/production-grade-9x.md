@@ -3105,7 +3105,7 @@ fix(cli): make generation deterministic and atomic
 
 ---
 
-## [ ] CLI-002: Harden generator filesystem boundaries
+## [pr] CLI-002: Harden generator filesystem boundaries
 
 **Priority:** P0
 **Owner:** Security engineer

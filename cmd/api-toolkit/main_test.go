@@ -6,9 +6,11 @@ import (
 	"errors"
 	"go/parser"
 	"go/token"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -630,7 +632,7 @@ func TestClientsGoRejectsUnsafeInputs(t *testing.T) {
 		{
 			name: "traversal output",
 			args: []string{"clients", "go", "--openapi", specPath, "--out", "../escape", "--package", "apiclient"},
-			want: "output directory must stay under the current working directory",
+			want: "output directory must not contain '..' path traversal",
 		},
 		{
 			name: "invalid package",
@@ -767,8 +769,160 @@ func TestNewServiceRejectsTraversalOutput(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("expected traversal output to fail")
 	}
-	if !strings.Contains(errOut.String(), "output directory must stay under the current working directory") {
+	if !strings.Contains(errOut.String(), "output directory must not contain '..' path traversal") {
 		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
+func TestNewServiceFilesystemBoundaryFlags(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	absolute := filepath.Join(root, "absolute-service")
+
+	var stdout, stderr strings.Builder
+	code := run(context.Background(), []string{"new", "service", "--module", "example.com/absolute-api", "--dir", absolute}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "absolute output directories require --allow-absolute-dir") {
+		t.Fatalf("absolute destination without opt-in = code %d stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Stat(absolute); !os.IsNotExist(err) {
+		t.Fatalf("absolute destination exists after rejection: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run(context.Background(), []string{"new", "service", "--module", "example.com/absolute-api", "--dir", absolute, "--allow-absolute-dir", "--fail-if-exists"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("explicit absolute destination failed: code %d stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(absolute, ".api-toolkit-generator.json")); err != nil {
+		t.Fatalf("explicit absolute generation missing metadata: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run(context.Background(), []string{"new", "service", "--module", "example.com/absolute-api", "--dir", absolute, "--allow-absolute-dir", "--fail-if-exists"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "output directory already exists") {
+		t.Fatalf("fail-if-exists on existing destination = code %d stderr=%q", code, stderr.String())
+	}
+
+	outside := filepath.Join(t.TempDir(), "outside-service")
+	stdout.Reset()
+	stderr.Reset()
+	code = run(context.Background(), []string{"new", "service", "--module", "example.com/outside-api", "--dir", outside, "--allow-absolute-dir"}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), "must stay under the approved root") {
+		t.Fatalf("outside approved root = code %d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestNewServiceRejectsSymlinkAndSpecialDestinationsWithoutWrites(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named-pipe and unix-socket assertions require Unix")
+	}
+	root := t.TempDir()
+	outside := t.TempDir()
+	t.Chdir(root)
+	link := filepath.Join(root, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+	assertNewServiceDestinationRejected(t, "symlink", "escape/project", "symbolic link")
+	if _, err := os.Stat(filepath.Join(outside, "project")); !os.IsNotExist(err) {
+		t.Fatalf("symlink escape wrote outside approved root: %v", err)
+	}
+
+	pipe := filepath.Join(root, "output-pipe")
+	if output, err := exec.Command("mkfifo", pipe).CombinedOutput(); err != nil {
+		t.Fatalf("create named pipe: %v: %s", err, output)
+	}
+	assertNewServiceDestinationRejected(t, "named pipe", "output-pipe", "unsupported file type")
+
+	socket := filepath.Join(root, "output-socket")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatalf("create unix socket: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	assertNewServiceDestinationRejected(t, "socket", "output-socket", "unsupported file type")
+}
+
+func TestNewServiceCheckAndOverwriteProtectUserFiles(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	project := "service"
+	args := []string{"new", "service", "--module", "example.com/secure-api", "--dir", project}
+	var stdout, stderr strings.Builder
+	if code := run(context.Background(), args, &stdout, &stderr); code != 0 {
+		t.Fatalf("initial generation failed: code %d stderr=%q", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), append(args, "--check"), &stdout, &stderr); code != 0 {
+		t.Fatalf("fresh generation check failed: code %d stderr=%q", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), append(args, "--overwrite-generated"), &stdout, &stderr); code != 0 {
+		t.Fatalf("recognized generated project overwrite failed: code %d stderr=%q", code, stderr.String())
+	}
+
+	mainPath := filepath.Join(root, project, "main.go")
+	if err := os.WriteFile(mainPath, []byte("package main\n// user change\n"), 0o600); err != nil {
+		t.Fatalf("change generated file: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), append(args, "--check"), &stdout, &stderr); code == 0 || !strings.Contains(stderr.String(), "not current") {
+		t.Fatalf("changed project check = code %d stderr=%q", code, stderr.String())
+	}
+	changed, err := os.ReadFile(mainPath)
+	if err != nil || !strings.Contains(string(changed), "user change") {
+		t.Fatalf("check modified project: contents=%q err=%v", changed, err)
+	}
+
+	userFile := filepath.Join(root, project, "user-owned.txt")
+	if err := os.WriteFile(userFile, []byte("preserve me"), 0o600); err != nil {
+		t.Fatalf("write user-owned file: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), append(args, "--overwrite-generated"), &stdout, &stderr); code == 0 || !strings.Contains(stderr.String(), "not part of the generated project") {
+		t.Fatalf("overwrite with user file = code %d stderr=%q", code, stderr.String())
+	}
+	preserved, err := os.ReadFile(userFile)
+	if err != nil || string(preserved) != "preserve me" {
+		t.Fatalf("user-owned file not preserved: contents=%q err=%v", preserved, err)
+	}
+}
+
+func TestNewServiceRejectsHardLinkedGeneratedProject(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	project := "service"
+	args := []string{"new", "service", "--module", "example.com/hardlink-api", "--dir", project}
+	var stdout, stderr strings.Builder
+	if code := run(context.Background(), args, &stdout, &stderr); code != 0 {
+		t.Fatalf("initial generation failed: code %d stderr=%q", code, stderr.String())
+	}
+	metadata := filepath.Join(root, project, ".api-toolkit-generator.json")
+	link := filepath.Join(root, project, "metadata-link")
+	if err := os.Link(metadata, link); err != nil {
+		t.Fatalf("create hard link: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), append(args, "--overwrite-generated"), &stdout, &stderr); code == 0 || !strings.Contains(stderr.String(), "hard-linked file") {
+		t.Fatalf("overwrite hard-linked project = code %d stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Lstat(link); err != nil {
+		t.Fatalf("hard link was modified after rejection: %v", err)
+	}
+}
+
+func assertNewServiceDestinationRejected(t *testing.T, name, destination, want string) {
+	t.Helper()
+	var stdout, stderr strings.Builder
+	code := run(context.Background(), []string{"new", "service", "--module", "example.com/secure-api", "--dir", destination}, &stdout, &stderr)
+	if code == 0 || !strings.Contains(stderr.String(), want) {
+		t.Fatalf("%s destination = code %d stderr=%q, want %q", name, code, stderr.String(), want)
 	}
 }
 
@@ -838,7 +992,9 @@ func TestNewServiceRejectsUnsupportedProviderWorkflows(t *testing.T) {
 }
 
 func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testing.T) {
-	serviceDir := filepath.Join(t.TempDir(), "service")
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
 		"new", "service",
@@ -847,6 +1003,7 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 		"--auth", "api-key",
 		"--client", "typescript",
 		"--with", "entitlements",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 	}, &out, &out)
 	if code != 0 {
@@ -914,13 +1071,16 @@ func TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements(t *testin
 }
 
 func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
-	serviceDir := filepath.Join(t.TempDir(), "web")
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	serviceDir := filepath.Join(tmp, "web")
 	var out strings.Builder
 	code := run(context.Background(), []string{
 		"new", "service",
 		"--module", "example.com/my-web",
 		"--profile", "saas-web",
 		"--auth", "session",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 	}, &out, &out)
 	if code != 0 {
@@ -1018,6 +1178,7 @@ func TestNewServiceGeneratesSaaSWebSessionProfile(t *testing.T) {
 func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -1025,6 +1186,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 		"--module", "example.com/my-api",
 		"--profile", "dev-api",
 		"--auth", "dev-headers",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -1099,6 +1261,7 @@ func TestNewServiceGeneratesBuildableDevAPIWithDevHeaders(t *testing.T) {
 func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -1106,6 +1269,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 		"--module", "example.com/my-api",
 		"--profile", "saas-api",
 		"--auth", "clerk",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -1175,6 +1339,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithClerk(t *testing.T) {
 func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -1182,6 +1347,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 		"--module", "example.com/my-api",
 		"--profile", "saas-api",
 		"--auth", "jwt",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -1251,12 +1417,14 @@ func TestNewServiceGeneratesBuildableSaaSAPIWithJWT(t *testing.T) {
 func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
 		"new", "service",
 		"--module", "example.com/my-api",
 		"--profile", "saas-api",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -1523,6 +1691,7 @@ func TestNewServiceGeneratesBuildableSaaSAPI(t *testing.T) {
 func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -1530,6 +1699,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFull(t *testing.T) {
 		"--module", "example.com/my-api",
 		"--profile", "saas-api-full",
 		"--auth", "api-key",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -2042,6 +2212,7 @@ func TestGeneratedScaffoldArchitectureBoundaries(t *testing.T) {
 func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -2053,6 +2224,7 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 		"--with", "resend-email",
 		"--with", "clerk-webhooks",
 		"--with", "entitlements",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -2260,12 +2432,14 @@ func TestNewServiceGeneratesFullProfileProviderWorkflows(t *testing.T) {
 func TestGenerateResourceSupportsAppOwnedReplacementErgonomics(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
 		"new", "service",
 		"--module", "example.com/my-api",
 		"--profile", "saas-api-full",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -2435,12 +2609,14 @@ func TestGenerateResourceFailsOutsideFullProfile(t *testing.T) {
 func TestGenerateResourceFailsClosedWhenAnchorsMissing(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
 		"new", "service",
 		"--module", "example.com/my-api",
 		"--profile", "saas-api-full",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -2478,6 +2654,7 @@ func TestGenerateResourceFailsClosedWhenAnchorsMissing(t *testing.T) {
 func TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -2485,6 +2662,7 @@ func TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC(t *testing.T) {
 		"--module", "example.com/my-api",
 		"--profile", "saas-api-full",
 		"--auth", "oidc",
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
@@ -2548,6 +2726,7 @@ func assertFullScaffoldBearerAuthMode(t *testing.T, authMode string, mainWant, r
 	t.Helper()
 	repoRoot := mustRepoRoot(t)
 	tmp := t.TempDir()
+	t.Chdir(tmp)
 	serviceDir := filepath.Join(tmp, "service")
 	var out strings.Builder
 	code := run(context.Background(), []string{
@@ -2555,6 +2734,7 @@ func assertFullScaffoldBearerAuthMode(t *testing.T, authMode string, mainWant, r
 		"--module", "example.com/my-api",
 		"--profile", "saas-api-full",
 		"--auth", authMode,
+		"--allow-absolute-dir",
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),

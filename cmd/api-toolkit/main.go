@@ -10,10 +10,12 @@ import (
 	"go/format"
 	"go/token"
 	"io"
+	iofs "io/fs"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -86,7 +88,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 const (
 	usageTopLevel           = "usage: api-toolkit <new|generate|contracts|clients|ops|deploy|version>"
 	usageVersion            = "usage: api-toolkit version [--json]"
-	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
+	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--allow-absolute-dir] [--check|--fail-if-exists|--overwrite-generated] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
 	usageGenerate           = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--admin] [--field <field>] [--filter <field>] [--sort <field>] [--relationship <spec>] [--object-field <field>] [--dir <path>]"
 	usageContracts          = "usage: api-toolkit contracts <lint|diff|changelog|impact>"
 	usageContractsLint      = "usage: api-toolkit contracts lint --openapi <openapi.json> [--public-path <path>] [--admin-path <path>]"
@@ -298,6 +300,10 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	profile := fs.String("profile", "saas-api", "service profile")
 	authMode := fs.String("auth", "api-key", "authentication mode")
 	dir := fs.String("dir", ".", "output directory")
+	allowAbsoluteDir := fs.Bool("allow-absolute-dir", false, "allow an absolute --dir under the current working directory")
+	check := fs.Bool("check", false, "verify that an existing generated project is current without modifying it")
+	failIfExists := fs.Bool("fail-if-exists", false, "fail when the output directory already exists")
+	overwriteGenerated := fs.Bool("overwrite-generated", false, "replace a recognized generator-owned project with no unrecognized files")
 	coreReplace := fs.String("core-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/v4")
 	contribReplace := fs.String("contrib-replace", "", "optional local replace path for github.com/aatuh/api-toolkit/contrib/v4")
 	var providerWorkflows providerWorkflowFlag
@@ -305,6 +311,10 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	var scaffoldClients scaffoldClientFlag
 	fs.Var(&scaffoldClients, "client", "client to generate for saas-api-full; repeatable: go, typescript")
 	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if (*check && *failIfExists) || (*check && *overwriteGenerated) || (*failIfExists && *overwriteGenerated) {
+		fmt.Fprintln(stderr, "--check, --fail-if-exists, and --overwrite-generated are mutually exclusive")
 		return 2
 	}
 	if err := ctx.Err(); err != nil {
@@ -331,20 +341,34 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
+	approvedRoot, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(stderr, "get approved output root: %v\n", err)
+		return 1
+	}
 	cfg := scaffoldConfig{
-		Module:         strings.TrimSpace(*module),
-		Dir:            strings.TrimSpace(*dir),
-		Profile:        profileName,
-		AuthMode:       authName,
-		Providers:      providers,
-		Clients:        clients,
-		CoreReplace:    strings.TrimSpace(*coreReplace),
-		ContribReplace: strings.TrimSpace(*contribReplace),
-		ToolkitVersion: scaffoldDependencyVersion(collectVersionMetadata()),
+		Module:             strings.TrimSpace(*module),
+		Dir:                strings.TrimSpace(*dir),
+		ApprovedRoot:       approvedRoot,
+		AllowAbsolute:      *allowAbsoluteDir,
+		Check:              *check,
+		FailIfExists:       *failIfExists,
+		OverwriteGenerated: *overwriteGenerated,
+		Profile:            profileName,
+		AuthMode:           authName,
+		Providers:          providers,
+		Clients:            clients,
+		CoreReplace:        strings.TrimSpace(*coreReplace),
+		ContribReplace:     strings.TrimSpace(*contribReplace),
+		ToolkitVersion:     scaffoldDependencyVersion(collectVersionMetadata()),
 	}
 	if err := generateService(cfg); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
+	}
+	if cfg.Check {
+		fmt.Fprintf(stdout, "verified %s\n", cfg.Dir)
+		return 0
 	}
 	fmt.Fprintf(stdout, "created %s\n", cfg.Dir)
 	return 0
@@ -4761,15 +4785,20 @@ func isASCIIDigit(ch byte) bool {
 }
 
 type scaffoldConfig struct {
-	Module         string
-	Dir            string
-	Profile        string
-	AuthMode       string
-	Providers      []string
-	Clients        []string
-	CoreReplace    string
-	ContribReplace string
-	ToolkitVersion string
+	Module             string
+	Dir                string
+	ApprovedRoot       string
+	Profile            string
+	AuthMode           string
+	Providers          []string
+	Clients            []string
+	CoreReplace        string
+	ContribReplace     string
+	ToolkitVersion     string
+	AllowAbsolute      bool
+	Check              bool
+	FailIfExists       bool
+	OverwriteGenerated bool
 }
 
 var renderScaffoldTemplate = renderTemplate
@@ -4797,19 +4826,29 @@ func generateService(cfg scaffoldConfig) error {
 	if !isSemVerModuleVersion(cfg.ToolkitVersion) {
 		cfg.ToolkitVersion = defaultScaffoldModuleVersion
 	}
-	outDir, err := safeOutputDir(cfg.Dir)
+	target, err := resolveScaffoldOutput(cfg)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(outDir), 0o750); err != nil {
-		return fmt.Errorf("create output parent: %w", err)
+	destination, err := inspectScaffoldDestination(target)
+	if err != nil {
+		return err
 	}
-	if entries, err := os.ReadDir(outDir); err == nil && len(entries) > 0 {
-		return fmt.Errorf("output directory must be empty: %s", outDir)
-	} else if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("read output directory: %w", err)
+	if cfg.FailIfExists && destination.exists {
+		return fmt.Errorf("output directory already exists: %s", target.absolute)
 	}
-	temporaryDir, err := os.MkdirTemp(filepath.Dir(outDir), "."+filepath.Base(outDir)+".tmp-")
+	if destination.exists && !cfg.Check && !cfg.OverwriteGenerated && !destination.empty {
+		return fmt.Errorf("output directory must be empty; use --overwrite-generated only for a recognized generator-owned project: %s", target.absolute)
+	}
+	if cfg.Check && !destination.exists {
+		return fmt.Errorf("generation check failed: output directory does not exist: %s", target.absolute)
+	}
+	if !cfg.Check {
+		if err := createScaffoldOutputParent(target); err != nil {
+			return err
+		}
+	}
+	temporaryDir, err := os.MkdirTemp(filepath.Dir(target.absolute), "."+filepath.Base(target.absolute)+".tmp-")
 	if err != nil {
 		return fmt.Errorf("create generation staging directory: %w", err)
 	}
@@ -4897,11 +4936,26 @@ func generateService(cfg scaffoldConfig) error {
 	if err := root.Close(); err != nil {
 		return fmt.Errorf("close generation staging root: %w", err)
 	}
-	if err := os.Remove(outDir); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("prepare empty output directory for publish: %w", err)
+	if cfg.Check {
+		equal, err := equalScaffoldTrees(temporaryDir, target.absolute)
+		if err != nil {
+			return fmt.Errorf("inspect generated project for check: %w", err)
+		}
+		if !equal {
+			return errors.New("generation check failed: generated project is not current")
+		}
+		return nil
 	}
-	if err := os.Rename(temporaryDir, outDir); err != nil {
-		return fmt.Errorf("publish generated project atomically (directory replacement is unavailable on this platform): %w", err)
+	if cfg.OverwriteGenerated {
+		if !destination.exists {
+			return errors.New("--overwrite-generated requires an existing generator-owned project")
+		}
+		if err := validateGeneratedOverwrite(destination, temporaryDir); err != nil {
+			return err
+		}
+	}
+	if err := publishScaffoldProject(temporaryDir, target.absolute, destination.exists); err != nil {
+		return err
 	}
 	published = true
 	return nil
@@ -4920,22 +4974,314 @@ func validateModulePath(module string) error {
 	return nil
 }
 
-func safeOutputDir(raw string) (string, error) {
+type scaffoldOutputTarget struct {
+	approvedRoot string
+	absolute     string
+	relative     string
+}
+
+type scaffoldDestination struct {
+	exists bool
+	empty  bool
+	root   string
+}
+
+func resolveScaffoldOutput(cfg scaffoldConfig) (scaffoldOutputTarget, error) {
+	raw := strings.TrimSpace(cfg.Dir)
 	if raw == "" {
 		raw = "."
 	}
-	cleaned := filepath.Clean(raw)
-	if !filepath.IsAbs(cleaned) {
-		if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-			return "", errors.New("output directory must stay under the current working directory")
-		}
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("get working directory: %w", err)
-		}
-		cleaned = filepath.Join(wd, cleaned)
+	if containsParentPathElement(raw) {
+		return scaffoldOutputTarget{}, errors.New("output directory must not contain '..' path traversal")
 	}
-	return cleaned, nil
+	approvedRoot := strings.TrimSpace(cfg.ApprovedRoot)
+	var err error
+	if approvedRoot == "" {
+		if filepath.IsAbs(raw) {
+			// generateService is also a package-local test seam. Command-line calls
+			// always provide their approved root and cannot use this fallback.
+			approvedRoot, err = nearestExistingDirectory(filepath.Dir(filepath.Clean(raw)))
+			if err != nil {
+				return scaffoldOutputTarget{}, err
+			}
+			cfg.AllowAbsolute = true
+		} else {
+			var err error
+			approvedRoot, err = os.Getwd()
+			if err != nil {
+				return scaffoldOutputTarget{}, fmt.Errorf("get approved output root: %w", err)
+			}
+		}
+	}
+	if !filepath.IsAbs(approvedRoot) {
+		return scaffoldOutputTarget{}, errors.New("approved output root must be absolute")
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(filepath.Clean(approvedRoot))
+	if err != nil {
+		return scaffoldOutputTarget{}, fmt.Errorf("resolve approved output root: %w", err)
+	}
+	rootInfo, err := os.Lstat(canonicalRoot)
+	if err != nil {
+		return scaffoldOutputTarget{}, fmt.Errorf("inspect approved output root: %w", err)
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return scaffoldOutputTarget{}, errors.New("approved output root must be a real directory")
+	}
+	if rootInfo.Mode().Perm()&0o022 != 0 {
+		return scaffoldOutputTarget{}, errors.New("approved output root has unsafe writable permissions")
+	}
+	var absolute string
+	if filepath.IsAbs(raw) {
+		if !cfg.AllowAbsolute {
+			return scaffoldOutputTarget{}, errors.New("absolute output directories require --allow-absolute-dir")
+		}
+		absolute = filepath.Clean(raw)
+	} else {
+		absolute = filepath.Join(canonicalRoot, filepath.Clean(raw))
+	}
+	relative, err := filepath.Rel(canonicalRoot, absolute)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return scaffoldOutputTarget{}, errors.New("output directory must stay under the approved root")
+	}
+	return scaffoldOutputTarget{approvedRoot: canonicalRoot, absolute: absolute, relative: relative}, nil
+}
+
+func nearestExistingDirectory(path string) (string, error) {
+	for {
+		info, err := os.Lstat(path)
+		if err == nil {
+			if !info.IsDir() {
+				return "", fmt.Errorf("find output parent: %s is not a directory", path)
+			}
+			return path, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("find output parent: %w", err)
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", fmt.Errorf("find output parent for %s", path)
+		}
+		path = parent
+	}
+}
+
+func containsParentPathElement(raw string) bool {
+	return strings.Contains(raw, ".."+string(filepath.Separator)) || raw == ".." || strings.Contains(raw, "../") || strings.Contains(raw, "..\\")
+}
+
+// safeOutputDir keeps the established boundary for generator subcommands that
+// operate on an already-created project. New-service scaffolding uses the
+// stricter resolveScaffoldOutput policy above, including its explicit CLI flag
+// for absolute destinations.
+func safeOutputDir(raw string) (string, error) {
+	target, err := resolveScaffoldOutput(scaffoldConfig{Dir: raw, AllowAbsolute: true})
+	if err != nil {
+		return "", err
+	}
+	return target.absolute, nil
+}
+
+func inspectScaffoldDestination(target scaffoldOutputTarget) (scaffoldDestination, error) {
+	current := target.approvedRoot
+	if target.relative == "." {
+		return inspectScaffoldDirectory(current)
+	}
+	for _, part := range strings.Split(target.relative, string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			return scaffoldDestination{}, nil
+		}
+		if err != nil {
+			return scaffoldDestination{}, fmt.Errorf("inspect output path: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return scaffoldDestination{}, fmt.Errorf("output path contains a symbolic link: %s", current)
+		}
+		if !info.IsDir() {
+			return scaffoldDestination{}, fmt.Errorf("output path contains unsupported file type: %s", current)
+		}
+		if info.Mode().Perm()&0o022 != 0 {
+			return scaffoldDestination{}, fmt.Errorf("output path has unsafe writable permissions: %s", current)
+		}
+	}
+	return inspectScaffoldDirectory(target.absolute)
+}
+
+func inspectScaffoldDirectory(path string) (scaffoldDestination, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return scaffoldDestination{}, fmt.Errorf("read output directory: %w", err)
+	}
+	return scaffoldDestination{exists: true, empty: len(entries) == 0, root: path}, nil
+}
+
+func createScaffoldOutputParent(target scaffoldOutputTarget) error {
+	parent := filepath.Dir(target.relative)
+	root, err := os.OpenRoot(target.approvedRoot)
+	if err != nil {
+		return fmt.Errorf("open approved output root: %w", err)
+	}
+	defer root.Close()
+	if parent == "." {
+		return nil
+	}
+	if err := root.MkdirAll(parent, 0o750); err != nil {
+		return fmt.Errorf("create output parent: %w", err)
+	}
+	return nil
+}
+
+func validateGeneratedOverwrite(destination scaffoldDestination, staged string) error {
+	if _, err := inspectScaffoldTree(destination.root); err != nil {
+		return fmt.Errorf("refuse overwrite of unsafe existing project: %w", err)
+	}
+	metadata, err := os.ReadFile(filepath.Join(destination.root, ".api-toolkit-generator.json"))
+	if err != nil {
+		return errors.New("--overwrite-generated requires .api-toolkit-generator.json owned by api-toolkit")
+	}
+	var identity struct {
+		CLIModule     string `json:"cli_module"`
+		SchemaVersion int    `json:"schema_version"`
+	}
+	if err := json.Unmarshal(metadata, &identity); err != nil || identity.CLIModule != cliModulePath || identity.SchemaVersion <= 0 {
+		return errors.New("--overwrite-generated requires valid api-toolkit generator metadata")
+	}
+	existing, err := inspectScaffoldTree(destination.root)
+	if err != nil {
+		return err
+	}
+	expected, err := inspectScaffoldTree(staged)
+	if err != nil {
+		return fmt.Errorf("inspect staged project: %w", err)
+	}
+	for name := range existing {
+		if _, ok := expected[name]; !ok {
+			return fmt.Errorf("refuse overwrite because %q is not part of the generated project", name)
+		}
+	}
+	return nil
+}
+
+type scaffoldTreeEntry struct {
+	directory bool
+	contents  []byte
+}
+
+func inspectScaffoldTree(root string) (map[string]scaffoldTreeEntry, error) {
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rootHandle.Close()
+	entries := make(map[string]scaffoldTreeEntry)
+	err = iofs.WalkDir(rootHandle.FS(), ".", func(relative string, _ iofs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if relative == "." {
+			return nil
+		}
+		info, err := rootHandle.Lstat(relative)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || (!info.IsDir() && !info.Mode().IsRegular()) {
+			return fmt.Errorf("unsupported filesystem object %q", relative)
+		}
+		if info.Mode().Perm()&0o022 != 0 {
+			return fmt.Errorf("unsafe writable permissions on %q", relative)
+		}
+		if info.Mode().IsRegular() && hasMultipleLinks(info) {
+			return fmt.Errorf("hard-linked file %q", relative)
+		}
+		if info.IsDir() {
+			entries[relative] = scaffoldTreeEntry{directory: true}
+			return nil
+		}
+		contents, err := rootHandle.ReadFile(relative)
+		if err != nil {
+			return err
+		}
+		entries[relative] = scaffoldTreeEntry{contents: contents}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+func hasMultipleLinks(info os.FileInfo) bool {
+	value := reflect.ValueOf(info.Sys())
+	if value.Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
+	if !value.IsValid() || value.Kind() != reflect.Struct {
+		return false
+	}
+	links := value.FieldByName("Nlink")
+	return links.IsValid() && links.CanUint() && links.Uint() > 1
+}
+
+func equalScaffoldTrees(expectedRoot, actualRoot string) (bool, error) {
+	expected, err := inspectScaffoldTree(expectedRoot)
+	if err != nil {
+		return false, err
+	}
+	actual, err := inspectScaffoldTree(actualRoot)
+	if err != nil {
+		return false, err
+	}
+	if len(expected) != len(actual) {
+		return false, nil
+	}
+	for name, expectedEntry := range expected {
+		actualEntry, ok := actual[name]
+		if !ok || expectedEntry.directory != actualEntry.directory || !bytes.Equal(expectedEntry.contents, actualEntry.contents) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func publishScaffoldProject(staged, destination string, destinationExists bool) error {
+	parent := filepath.Dir(destination)
+	root, err := os.OpenRoot(parent)
+	if err != nil {
+		return fmt.Errorf("open publish parent: %w", err)
+	}
+	defer root.Close()
+	stagedName := filepath.Base(staged)
+	destinationName := filepath.Base(destination)
+	if !destinationExists {
+		if err := root.Rename(stagedName, destinationName); err != nil {
+			return fmt.Errorf("publish generated project atomically: %w", err)
+		}
+		return nil
+	}
+	backup, err := os.MkdirTemp(parent, "."+destinationName+".backup-")
+	if err != nil {
+		return fmt.Errorf("create replacement backup directory: %w", err)
+	}
+	backupName := filepath.Base(backup)
+	if err := root.Remove(backupName); err != nil {
+		return fmt.Errorf("prepare replacement backup directory: %w", err)
+	}
+	if err := root.Rename(destinationName, backupName); err != nil {
+		return fmt.Errorf("move existing project to backup: %w", err)
+	}
+	if err := root.Rename(stagedName, destinationName); err != nil {
+		if restoreErr := root.Rename(backupName, destinationName); restoreErr != nil {
+			return fmt.Errorf("publish generated project: %w (also failed to restore existing project: %v)", err, restoreErr)
+		}
+		return fmt.Errorf("publish generated project: %w", err)
+	}
+	if err := root.RemoveAll(backupName); err != nil {
+		return fmt.Errorf("remove replacement backup: %w", err)
+	}
+	return nil
 }
 
 func writeGeneratedFile(root *os.Root, name string, data []byte) error {
