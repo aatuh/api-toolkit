@@ -990,7 +990,7 @@ docs: reorganize public documentation
 
 ---
 
-## [ ] DOC-004: Standardize package documentation and API reference
+## [pr] DOC-004: Standardize package documentation and API reference
 
 **Priority:** P1
 **Owner:** Core API team
