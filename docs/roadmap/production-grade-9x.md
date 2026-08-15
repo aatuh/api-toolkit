@@ -531,7 +531,7 @@ fix(release): restore protected verification baseline
 
 ---
 
-## [pr] REL-001: Reconcile `master` with the verified v4 release history
+## [x] REL-001: Reconcile `master` with the verified v4 release history
 
 **Priority:** P0
 **Owner:** Release engineer
@@ -1197,7 +1197,7 @@ flakiness, and test downstream consumers rather than only repository fixtures.
 * Fuzz, mutation, and timing-sensitive tests are trustworthy.
 * Downstream consumer compatibility is continuously tested.
 
-## [ ] CI-001: Test minimum and current Go releases
+## [x] CI-001: Test minimum and current Go releases
 
 **Priority:** P0
 **Owner:** Build engineer
@@ -3492,7 +3492,7 @@ ci(security): enforce secret scanning controls
 
 ---
 
-## [pr] SEC-003: Establish a dependency maintenance cadence
+## [x] SEC-003: Establish a dependency maintenance cadence
 
 **Priority:** P1
 **Owner:** Dependency maintainer
