@@ -13,6 +13,14 @@ if [ -z "$api_base_ref" ]; then
 fi
 
 gotoolchain="${GOTOOLCHAIN:-local}"
+toolchain_matrix_result="${TOOLCHAIN_MATRIX_RESULT:-not_run_locally}"
+case "$toolchain_matrix_result" in
+  passed|not_run_locally) ;;
+  *)
+    echo "TOOLCHAIN_MATRIX_RESULT must be passed or not_run_locally" >&2
+    exit 2
+    ;;
+esac
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 commit="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
 created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -848,6 +856,20 @@ tool_versions_json() {
   printf ']'
 }
 
+toolchain_matrix_json() {
+  printf '{'
+  printf '"minimum_supported_go":"1.25.x",'
+  printf '"current_tested_go":"1.26.x",'
+  printf '"workflow":".github/workflows/ci.yml",'
+  printf '"release_workflow":".github/workflows/release.yml",'
+  printf '"release_dependency":"toolchain-compatibility",'
+  printf '"results":['
+  printf '{"go_version":"1.25.x","status":'; json_string "$toolchain_matrix_result"; printf '},'
+  printf '{"go_version":"1.26.x","status":'; json_string "$toolchain_matrix_result"; printf '}'
+  printf ']'
+  printf '}'
+}
+
 asset_status_json() {
   local asset="$1"
   local status="missing"
@@ -1234,6 +1256,7 @@ for i in "${!check_jsons[@]}"; do
 done
 printf '\n  ],\n'
 printf '  "tool_versions": '; tool_versions_json; printf ',\n'
+printf '  "toolchain_matrix": '; toolchain_matrix_json; printf ',\n'
 printf '  "vulnerability_evidence": '; vulnerability_evidence_json "$log_dir/vuln.log"; printf ',\n'
 printf '  "contrib_drift": %s,\n' "$contrib_drift_json_value"
 printf '  "dependency_license_evidence": '; dependency_license_evidence_json; printf ',\n'

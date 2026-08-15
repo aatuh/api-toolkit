@@ -23,8 +23,9 @@ go get github.com/aatuh/api-toolkit/v4
 ```
 
 Stable core package list: `VERSIONING.md` is the source of truth, and
-`scripts/apicheck.sh` must cover the same package list. Root and contrib target
-Go 1.25.x.
+`scripts/apicheck.sh` must cover the same package list. The minimum supported
+Go line is Go 1.25.x and the current tested Go line is Go 1.26.x for both root
+and contrib.
 
 Minimal existing-service example
 ([source](examples/snippets/minimal-existing-service/main.go)):
@@ -122,10 +123,11 @@ contrib examples:
 go get github.com/aatuh/api-toolkit/contrib/v4
 ```
 
-Supported development and CI toolchain policy: root and contrib target Go 1.25.x.
-Local and release gates should run with `GOTOOLCHAIN=local` so drift between
-module `go` directives, GitHub Actions setup, and release evidence is visible
-before publication.
+Supported development and CI toolchain policy: root and contrib support Go
+1.25.x as the minimum line and test Go 1.26.x as the current line. Local and
+release gates should run with `GOTOOLCHAIN=local` so drift between module `go`
+directives, GitHub Actions setup, and release evidence is visible before
+publication.
 
 ## Package Map
 

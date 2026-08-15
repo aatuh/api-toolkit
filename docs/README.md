@@ -227,9 +227,9 @@ Use the narrowest check that matches the change:
 Do not treat `make finalize` as release evidence. Release publication evidence is
 owned by [release-runbook.md](release-runbook.md).
 
-If the local Go version is not Go 1.25.x, `GOTOOLCHAIN=local` failures are
-expected. Install the supported toolchain or use the repository CI image before
-running root and contrib gates.
+If the local Go version is older than Go 1.25.x, `GOTOOLCHAIN=local` failures
+are expected. Use Go 1.25.x for the minimum line or Go 1.26.x for the current
+tested line before running root and contrib gates.
 
 ## Canonical high-centrality paths
 

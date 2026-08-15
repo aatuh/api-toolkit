@@ -854,18 +854,48 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	rootGo := moduleGoDirective(t, filepath.Join(repoRoot, "go.mod"))
 	contribGo := moduleGoDirective(t, filepath.Join(repoRoot, "contrib", "go.mod"))
 	if rootGo != "1.25.0" || contribGo != rootGo {
-		t.Fatalf("module go directives drifted: root=%s contrib=%s; supported policy is Go 1.25.x", rootGo, contribGo)
+		t.Fatalf("module go directives drifted: root=%s contrib=%s; minimum supported Go is 1.25.x", rootGo, contribGo)
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	ciVersions := workflowGoVersions(ci)
+	for _, required := range []string{"1.25.x", "1.26.x"} {
+		if !containsString(ciVersions, required) {
+			t.Fatalf(".github/workflows/ci.yml missing required Go matrix version %s: %v", required, ciVersions)
+		}
+	}
+	for _, required := range []string{
+		"GOTOOLCHAIN: local",
+		"go mod verify",
+		"make ci-build-smoke",
+		"make example-compile-check",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing toolchain matrix requirement %q", required)
+		}
+	}
+
+	release := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	for _, required := range []string{
+		"toolchain-compatibility:",
+		"needs: toolchain-compatibility",
+		"go-version: [1.25.x, 1.26.x]",
+		"GOTOOLCHAIN: local",
+	} {
+		if !strings.Contains(release, required) {
+			t.Fatalf(".github/workflows/release.yml missing required toolchain release evidence %q", required)
+		}
 	}
 
 	for _, path := range []string{
-		filepath.Join(repoRoot, ".github", "workflows", "ci.yml"),
 		filepath.Join(repoRoot, ".github", "workflows", "codeql.yml"),
-		filepath.Join(repoRoot, ".github", "workflows", "release.yml"),
+		filepath.Join(repoRoot, ".github", "workflows", "integration.yml"),
+		filepath.Join(repoRoot, ".github", "workflows", "nightly.yml"),
 	} {
 		content := readText(t, path)
 		for _, version := range workflowGoVersions(content) {
-			if version != "1.25.x" {
-				t.Fatalf("%s provisions Go %s, want 1.25.x to match module policy", slashRel(repoRoot, path), version)
+			if version != "1.26.x" {
+				t.Fatalf("%s provisions Go %s, want current tested Go 1.26.x", slashRel(repoRoot, path), version)
 			}
 		}
 	}
@@ -877,11 +907,15 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 		{"README.md", readText(t, filepath.Join(repoRoot, "README.md"))},
 		{"docs/release-runbook.md", readText(t, filepath.Join(repoRoot, "docs", "release-runbook.md"))},
 	} {
-		for _, required := range []string{"Go 1.25.x", "`GOTOOLCHAIN=local`", "root and contrib"} {
+		for _, required := range []string{"Go 1.25.x", "Go 1.26.x", "`GOTOOLCHAIN=local`", "root and contrib"} {
 			if !strings.Contains(source.text, required) {
 				t.Fatalf("%s missing toolchain policy text %q", source.name, required)
 			}
 		}
+	}
+
+	if summary := readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh")); !strings.Contains(summary, "toolchain_matrix") || !strings.Contains(summary, "minimum_supported_go") || !strings.Contains(summary, "current_tested_go") {
+		t.Fatal("release evidence must record the required minimum and current Go matrix")
 	}
 }
 
@@ -1355,6 +1389,13 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 
 func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
+	invalidToolchainStatus := exec.CommandContext(context.Background(), "bash", "scripts/release_check_summary.sh")
+	invalidToolchainStatus.Dir = repoRoot
+	invalidToolchainStatus.Env = releaseEvidenceEnv("ALLOW_DIRTY_RELEASE_EVIDENCE=1", "TOOLCHAIN_MATRIX_RESULT=forged")
+	if out, err := invalidToolchainStatus.CombinedOutput(); err == nil || !strings.Contains(string(out), "TOOLCHAIN_MATRIX_RESULT") {
+		t.Fatalf("release evidence must reject an invalid toolchain matrix status: error=%v output=%s", err, out)
+	}
+
 	cmd := exec.CommandContext(context.Background(), "bash", "scripts/release_check_summary.sh")
 	cmd.Dir = repoRoot
 	cmd.Env = releaseEvidenceEnv("ALLOW_DIRTY_RELEASE_EVIDENCE=1")
@@ -1414,6 +1455,17 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 			ExitCode    int    `json:"exit_code"`
 			Version     string `json:"version"`
 		} `json:"tool_versions"`
+		ToolchainMatrix struct {
+			MinimumSupportedGo string `json:"minimum_supported_go"`
+			CurrentTestedGo    string `json:"current_tested_go"`
+			Workflow           string `json:"workflow"`
+			ReleaseWorkflow    string `json:"release_workflow"`
+			ReleaseDependency  string `json:"release_dependency"`
+			Results            []struct {
+				GoVersion string `json:"go_version"`
+				Status    string `json:"status"`
+			} `json:"results"`
+		} `json:"toolchain_matrix"`
 		VulnerabilityEvidence struct {
 			SourceLogPath                             string   `json:"source_log_path"`
 			Status                                    string   `json:"status"`
@@ -1683,6 +1735,20 @@ func TestReleaseEvidenceSummarySchema(t *testing.T) {
 	for _, required := range []string{"go", "golangci-lint", "govulncheck", "gosec", "apidiff", "syft", "cosign"} {
 		if !toolNames[required] {
 			t.Fatalf("tool_versions missing %s", required)
+		}
+	}
+	if summary.ToolchainMatrix.MinimumSupportedGo != "1.25.x" || summary.ToolchainMatrix.CurrentTestedGo != "1.26.x" {
+		t.Fatalf("toolchain matrix = %+v, want minimum 1.25.x and current 1.26.x", summary.ToolchainMatrix)
+	}
+	if summary.ToolchainMatrix.Workflow != ".github/workflows/ci.yml" || summary.ToolchainMatrix.ReleaseWorkflow != ".github/workflows/release.yml" || summary.ToolchainMatrix.ReleaseDependency != "toolchain-compatibility" {
+		t.Fatalf("toolchain matrix workflow evidence = %+v", summary.ToolchainMatrix)
+	}
+	if len(summary.ToolchainMatrix.Results) != 2 {
+		t.Fatalf("toolchain matrix results = %+v, want both supported Go lines", summary.ToolchainMatrix.Results)
+	}
+	for _, result := range summary.ToolchainMatrix.Results {
+		if (result.GoVersion != "1.25.x" && result.GoVersion != "1.26.x") || result.Status == "" {
+			t.Fatalf("invalid toolchain matrix result %+v", result)
 		}
 	}
 	if !strings.Contains(summary.ContribDrift.CommandLine, "make contrib-api-drift-report") {
@@ -7462,7 +7528,8 @@ func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 
 	support := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
 	for _, required := range []string{
-		"Root and contrib target Go `1.25.x`",
+		"Minimum supported Go is `1.25.x`",
+		"Current tested Go is `1.26.x`",
 		"`go 1.25.0`",
 		"`GOTOOLCHAIN=local`",
 		"| Linux | amd64 | Supported |",
@@ -10389,13 +10456,15 @@ func moduleGoDirective(t *testing.T, path string) string {
 func workflowGoVersions(content string) []string {
 	pattern := regexp.MustCompile(`go-version:\s*(?:\$\{\{\s*matrix\.go-version\s*\}\}|['"]?([0-9]+\.[0-9]+\.x)['"]?)`)
 	matrixPattern := regexp.MustCompile(`go-version:\s*\[([^\]]+)\]`)
-	matrixVersion := ""
-	if match := matrixPattern.FindStringSubmatch(content); len(match) == 2 {
+	var matrixVersions []string
+	for _, match := range matrixPattern.FindAllStringSubmatch(content, -1) {
+		if len(match) != 2 {
+			continue
+		}
 		for _, value := range strings.Split(match[1], ",") {
 			value = strings.Trim(strings.TrimSpace(value), `"'`)
 			if value != "" {
-				matrixVersion = value
-				break
+				matrixVersions = append(matrixVersions, value)
 			}
 		}
 	}
@@ -10403,11 +10472,10 @@ func workflowGoVersions(content string) []string {
 	for _, match := range pattern.FindAllStringSubmatch(content, -1) {
 		version := match[1]
 		if version == "" {
-			version = matrixVersion
+			versions = append(versions, matrixVersions...)
+			continue
 		}
-		if version != "" {
-			versions = append(versions, version)
-		}
+		versions = append(versions, version)
 	}
 	return versions
 }

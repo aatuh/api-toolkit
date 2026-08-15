@@ -11,9 +11,12 @@ records their withdrawal and the required paired contrib repair path. The v4
 major-release evidence compared against `v3.1.2` when recording intentional
 v3-to-v4 breakage evidence.
 
-Supported Go toolchain: Go 1.25.x for root and contrib. Release and reviewer
-commands use `GOTOOLCHAIN=local` to ensure the module `go` directives and
-GitHub Actions setup stay compatible with the provisioned local toolchain.
+Supported Go toolchains: Go 1.25.x is the minimum line and Go 1.26.x is the
+current tested line for root and contrib. Release preflight requires both
+matrix jobs to pass before the Go 1.26.x release-evidence job starts. Release
+and reviewer commands use `GOTOOLCHAIN=local` to ensure the module `go`
+directives and GitHub Actions setup stay compatible with the provisioned local
+toolchain.
 
 ## Baseline maintenance rule
 
