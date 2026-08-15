@@ -43,7 +43,9 @@ const (
 	templateSchema    = 39
 )
 
-const defaultScaffoldModuleVersion = "v4.0.0"
+// defaultScaffoldModuleVersion is the reviewed module manifest used by the
+// embedded templates. Updating it requires refreshed release checksums.
+const defaultScaffoldModuleVersion = "v4.0.1"
 
 func main() {
 	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
@@ -88,7 +90,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 const (
 	usageTopLevel           = "usage: api-toolkit <new|generate|contracts|clients|ops|deploy|version>"
 	usageVersion            = "usage: api-toolkit version [--json]"
-	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--allow-absolute-dir] [--check|--fail-if-exists|--overwrite-generated] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
+	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--allow-absolute-dir] [--allow-network] [--check|--fail-if-exists|--overwrite-generated] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
 	usageGenerate           = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--admin] [--field <field>] [--filter <field>] [--sort <field>] [--relationship <spec>] [--object-field <field>] [--dir <path>]"
 	usageContracts          = "usage: api-toolkit contracts <lint|diff|changelog|impact>"
 	usageContractsLint      = "usage: api-toolkit contracts lint --openapi <openapi.json> [--public-path <path>] [--admin-path <path>]"
@@ -301,6 +303,7 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	authMode := fs.String("auth", "api-key", "authentication mode")
 	dir := fs.String("dir", ".", "output directory")
 	allowAbsoluteDir := fs.Bool("allow-absolute-dir", false, "allow an absolute --dir under the current working directory")
+	allowNetwork := fs.Bool("allow-network", false, "record explicit approval for a future network-enabled workflow")
 	check := fs.Bool("check", false, "verify that an existing generated project is current without modifying it")
 	failIfExists := fs.Bool("fail-if-exists", false, "fail when the output directory already exists")
 	overwriteGenerated := fs.Bool("overwrite-generated", false, "replace a recognized generator-owned project with no unrecognized files")
@@ -351,6 +354,7 @@ func runNew(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		Dir:                strings.TrimSpace(*dir),
 		ApprovedRoot:       approvedRoot,
 		AllowAbsolute:      *allowAbsoluteDir,
+		AllowNetwork:       *allowNetwork,
 		Check:              *check,
 		FailIfExists:       *failIfExists,
 		OverwriteGenerated: *overwriteGenerated,
@@ -4796,6 +4800,7 @@ type scaffoldConfig struct {
 	ContribReplace     string
 	ToolkitVersion     string
 	AllowAbsolute      bool
+	AllowNetwork       bool
 	Check              bool
 	FailIfExists       bool
 	OverwriteGenerated bool
@@ -4873,6 +4878,8 @@ func generateService(cfg scaffoldConfig) error {
 		"AuthSchemeName":       scaffoldAuthSecuritySchemeName(cfg.AuthMode),
 		"CoreVersion":          cfg.ToolkitVersion,
 		"ContribVersion":       cfg.ToolkitVersion,
+		"DependencyChecksums":  scaffoldDependencyChecksums(cfg),
+		"NetworkEnabled":       boolTemplateValue(cfg.AllowNetwork),
 		"CoreReplace":          replaceLine("github.com/aatuh/api-toolkit/v4", cfg.CoreReplace),
 		"ContribReplace":       replaceLine("github.com/aatuh/api-toolkit/contrib/v4", cfg.ContribReplace),
 		"HasProviderWorkflows": boolTemplateValue(len(cfg.Providers) > 0),
@@ -8202,6 +8209,8 @@ type scaffoldFile struct {
 
 const generatorMetadataTemplate = `{
   "schema_version": {{ .TemplateSchema }},
+  "template_source": "embedded",
+  "network_enabled": {{ .NetworkEnabled }},
   "cli_module": "{{ .CLIModule }}",
   "cli_version": "{{ .CLIVersion }}",
   "core_module": "github.com/aatuh/api-toolkit/v4",
@@ -8238,6 +8247,9 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
 	files := append([]scaffoldFile(nil), scaffoldFilesForProfile(cfg.Profile)...)
 	files = append(files, scaffoldFile{Name: ".api-toolkit-generator.json", Body: generatorMetadataTemplate})
+	if scaffoldDependencyChecksums(cfg) != "" {
+		files = append(files, scaffoldFile{Name: "go.sum", Body: goSumTemplate})
+	}
 	if cfg.Profile != scaffoldProfileSaaSAPIFull {
 		return files
 	}
@@ -8260,6 +8272,27 @@ func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
 		files = append(files, fullTypeScriptClientScaffoldFiles...)
 	}
 	return files
+}
+
+func scaffoldDependencyChecksums(cfg scaffoldConfig) string {
+	if cfg.ToolkitVersion != defaultScaffoldModuleVersion {
+		return ""
+	}
+	lines := []string{
+		"github.com/aatuh/api-toolkit/v4 v4.0.1 h1:3AdpOFygErDjGFlDABj3GPy7erpnf0eFlIpq6cvFS1M=",
+		"github.com/aatuh/api-toolkit/v4 v4.0.1/go.mod h1:BAZGQkcxNfPRa12e5LdttmxC1MISTqiGtnqi5mRRDEs=",
+		"github.com/aatuh/api-toolkit/contrib/v4 v4.0.1 h1:jGLOzYRBsh6beYbyuTO0yAgOt81DCn/hjQKOQ3d8DZk=",
+		"github.com/aatuh/api-toolkit/contrib/v4 v4.0.1/go.mod h1:iBKXN+o8Dgt+min/z2PRlBhVp5TtqABHhg5yFyuOKwY=",
+		"github.com/redis/go-redis/v9 v9.19.0 h1:XPVaaPSnG6RhYf7p+rmSa9zZfeVAnWsH5h3lxthOm/k=",
+		"github.com/redis/go-redis/v9 v9.19.0/go.mod h1:v/M13XI1PVCDcm01VtPFOADfZtHf8YW3baQf57KlIkA=",
+	}
+	if isScaffoldBearerAuth(cfg.AuthMode) {
+		lines = append(lines,
+			"github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=",
+			"github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=",
+		)
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 var fullScaffoldFiles = []scaffoldFile{
@@ -24652,11 +24685,13 @@ go 1.25.0
 require (
 	github.com/aatuh/api-toolkit/v4 {{ .CoreVersion }}
 	github.com/aatuh/api-toolkit/contrib/v4 {{ .ContribVersion }}
-{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	github.com/golang-jwt/jwt/v5 v5.3.0
+{{ if or (eq .AuthMode "jwt") (eq .AuthMode "clerk") (eq .AuthMode "oidc") }}	github.com/golang-jwt/jwt/v5 v5.3.1
 {{ end }}	github.com/redis/go-redis/v9 v9.19.0
 )
 
 {{ .CoreReplace }}{{ .ContribReplace }}`
+
+const goSumTemplate = `{{ .DependencyChecksums }}`
 
 const mainGoTemplate = `package main
 

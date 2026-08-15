@@ -3160,7 +3160,7 @@ fix(cli): harden filesystem boundaries
 
 ---
 
-## [ ] CLI-003: Make generation offline and reproducible by default
+## [pr] CLI-003: Make generation offline and reproducible by default
 
 **Priority:** P1
 **Owner:** CLI team

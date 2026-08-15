@@ -68,6 +68,20 @@ replacement keeps a same-filesystem backup and restores it if publishing the
 new directory fails. These checks are local-filesystem safeguards, not a
 substitute for running the CLI from a trusted account and workspace.
 
+## Offline dependency manifest
+
+CLI releases embed templates and default to the reviewed v4.0.1 manifest.
+Generation does not fetch templates or dependencies: generated metadata records
+the embedded source and network policy, `go.mod` pins versions, and default
+output includes reviewed direct-module checksums in `go.sum`.
+
+`make cli-offline-check` proves generation works with `GOPROXY=off` and
+`GOSUMDB=off`. Update this manifest only in a reviewed CLI change: select
+immutable published versions, refresh their checksums, update the embedded
+manifest and assertions together, then run the offline check. `--allow-network`
+is explicit metadata for a future workflow; this generator makes no network
+calls.
+
 Until v5 core and adapter modules are published, v5 CLI templates deliberately
 generate explicit v4 core and contrib requirements. The CLI module itself does
 not import contrib provider libraries. Do not claim a v5 generated-project

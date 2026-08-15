@@ -263,6 +263,31 @@ func TestGenerateServiceIsDeterministicAcrossFreshDestinations(t *testing.T) {
 	}
 }
 
+func TestGenerateServiceIsOfflineAndIncludesReviewedChecksums(t *testing.T) {
+	t.Setenv("GOPROXY", "off")
+	t.Setenv("GOSUMDB", "off")
+	destination := filepath.Join(t.TempDir(), "service")
+	if err := generateService(scaffoldConfig{Module: "example.com/offline-api", Dir: destination, Profile: scaffoldProfileSaaSAPI, AuthMode: scaffoldAuthAPIKey}); err != nil {
+		t.Fatalf("offline generation: %v", err)
+	}
+	checksums, err := os.ReadFile(filepath.Join(destination, "go.sum"))
+	if err != nil {
+		t.Fatalf("read generated checksums: %v", err)
+	}
+	for _, want := range []string{"github.com/aatuh/api-toolkit/v4 v4.0.1 h1:", "github.com/aatuh/api-toolkit/contrib/v4 v4.0.1 h1:", "github.com/redis/go-redis/v9 v9.19.0 h1:"} {
+		if !strings.Contains(string(checksums), want) {
+			t.Fatalf("generated checksums missing %q:\n%s", want, checksums)
+		}
+	}
+	metadata, err := os.ReadFile(filepath.Join(destination, ".api-toolkit-generator.json"))
+	if err != nil {
+		t.Fatalf("read generated metadata: %v", err)
+	}
+	if strings.Contains(string(metadata), "@latest") || !strings.Contains(string(metadata), `"template_source": "embedded"`) || !strings.Contains(string(metadata), `"network_enabled": false`) {
+		t.Fatalf("unexpected offline metadata:\n%s", metadata)
+	}
+}
+
 func TestGenerateServiceFailureLeavesDestinationUntouched(t *testing.T) {
 	destination := filepath.Join(t.TempDir(), "service")
 	if err := os.Mkdir(destination, 0o750); err != nil {
