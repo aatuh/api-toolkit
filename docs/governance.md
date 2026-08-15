@@ -8,6 +8,11 @@ contrib adapter work is optional and must not expand the stable root promise
 without the API review and compatibility evidence required by `VERSIONING.md`
 and `docs/stable-core.md`.
 
+`MAINTAINERS.md` is the canonical local record of current capacity, ownership
+routes, role changes, and succession boundaries. It intentionally distinguishes
+documented routes from externally verified repository, release, and private
+security-advisory authority.
+
 ## Required Protections
 
 - Protect `master` and release branches.

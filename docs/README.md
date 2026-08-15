@@ -63,7 +63,7 @@ Read [versioning](../VERSIONING.md), [deprecations](deprecations.md), and the
 ## Contributor and maintainer
 
 Contributors should start with [CONTRIBUTING](../CONTRIBUTING.md),
-[governance](governance.md), and the
+[maintainer ownership](../MAINTAINERS.md), [governance](governance.md), and the
 [documentation ownership manifest](document-owners.tsv).
 
 ## Historical records

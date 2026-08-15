@@ -221,6 +221,22 @@ Review every live dependency-update pull request against the checked-in SLA.
 Record its current owner and merge, defer, replacement, or close disposition;
 do not treat the historical local triage snapshot as current GitHub evidence.
 
+## [ ] EXT-010: Confirm independent maintainer and security authority
+
+**Owner:** Project lead and repository administrators
+**Unblocks:** GOV-002 external completion
+
+Record acceptance by at least two active maintainers, verify repository and
+release capability with a dry run, and verify private security-advisory access
+for at least two people. Attach the authenticated evidence to the project item;
+local documentation and CODEOWNERS files are not evidence of granted access.
+
+**External verification:**
+
+```sh
+GOWORK=off GOTOOLCHAIN=local make github-governance-check
+```
+
 ---
 
 # [ ] EPIC PRG: Program control and handover
@@ -3707,7 +3723,7 @@ support boundaries.
 * Release candidates receive real external adoption feedback.
 * Maintenance and archival triggers are explicit.
 
-## [ ] GOV-001: Define maintainers, CODEOWNERS, and release roles
+## [pr] GOV-001: Define maintainership and CODEOWNERS artifacts
 
 **Priority:** P0
 **Owner:** Project lead
@@ -3716,7 +3732,8 @@ support boundaries.
 
 ### Work
 
-Add `MAINTAINERS.md` defining:
+Add `MAINTAINERS.md` defining the current maintainer capacity and the roles that
+must be filled before protected releases are delegated:
 
 * Active maintainers.
 * Module owners.
@@ -3731,26 +3748,17 @@ Add `MAINTAINERS.md` defining:
 
 Update `.github/CODEOWNERS` by module and risk area.
 
-Required target:
-
-* At least two maintainers with repository and release capability.
-* At least two people with private security advisory access.
-* At least one backup capable of verifying and publishing a release.
-
-Do not mark this complete based only on aspirational names.
-
 ### Done when
 
-* Two active people have accepted responsibility.
-* Release access is tested using a dry run.
-* Security advisory access is tested.
-* CODEOWNERS matches module ownership.
-* No critical area has only an unavailable owner.
+* The current maintainer capacity is explicit rather than aspirational.
+* Each planned v5 module and risk area has a CODEOWNERS route.
+* The role, succession, conflict, and removal policies have one local source.
+* Documentation says access and acceptance require EXT-010 evidence.
 
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make github-governance-check
+GOWORK=off GOTOOLCHAIN=local make docs-check
 ```
 
 **Required commit:**
@@ -3766,7 +3774,7 @@ docs(governance): define maintainers and ownership
 **Priority:** P0
 **Owner:** Project lead
 **Size:** M
-**Depends on:** GOV-001, SEC-001
+**Depends on:** GOV-001, EXT-010, SEC-001
 
 ### Work
 

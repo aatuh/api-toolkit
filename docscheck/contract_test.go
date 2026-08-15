@@ -11851,11 +11851,35 @@ func TestV5ModuleDecompositionADRDefinesIndependentBoundaries(t *testing.T) {
 	}
 }
 
+func TestMaintainerArtifactsDescribeCurrentCapacityWithoutAccessClaims(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	maintainers := readText(t, filepath.Join(repoRoot, "MAINTAINERS.md"))
+	codeowners := readText(t, filepath.Join(repoRoot, ".github", "CODEOWNERS"))
+	for _, required := range []string{
+		"currently records one CODEOWNERS account", "`@aatuh`", "EXT-010",
+		"## Module and Risk-Area Routes", "## Role Changes, Emeritus Status, and Removal",
+		"## Verification Boundary", "does not prove GitHub repository, release",
+	} {
+		if !strings.Contains(maintainers, required) {
+			t.Fatalf("MAINTAINERS.md missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"/MAINTAINERS.md @aatuh", "/adapters/postgres/ @aatuh",
+		"/adapters/redis/ @aatuh", "/adapters/providers/ @aatuh",
+		"/adapters/observability/ @aatuh", "/runtime/ @aatuh",
+	} {
+		if !strings.Contains(codeowners, required) {
+			t.Fatalf(".github/CODEOWNERS missing ownership route %q", required)
+		}
+	}
+}
+
 func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
 	t.Helper()
 	paths := map[string]bool{
 		"README.md": true, "CHANGELOG.md": true, "CODE_OF_CONDUCT.md": true,
-		"CONTRIBUTING.md": true, "PANIC_POLICY.md": true, "ROADMAP.md": true,
+		"CONTRIBUTING.md": true, "MAINTAINERS.md": true, "PANIC_POLICY.md": true, "ROADMAP.md": true,
 		"SECURITY.md": true, "VERSIONING.md": true,
 	}
 	err := filepath.WalkDir(filepath.Join(repoRoot, "docs"), func(path string, d fs.DirEntry, err error) error {

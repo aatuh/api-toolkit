@@ -1,12 +1,13 @@
-# Repository governance ownership.
-#
-# Ownership map for protected branches and release-tag changes. Re-enable
-# CODEOWNERS review when a second eligible maintainer is available.
+# Repository governance ownership routes. This file currently records one
+# account; it does not prove independent review, release, or advisory access.
+# See MAINTAINERS.md and EXT-010 before enabling CODEOWNERS approval rules.
 
 * @aatuh
 
 /README.md @aatuh
+/MAINTAINERS.md @aatuh
 /VERSIONING.md @aatuh
+/SECURITY.md @aatuh
 /docs/ @aatuh
 /scripts/ @aatuh
 /Makefile @aatuh
@@ -22,3 +23,12 @@
 
 /contrib/ @aatuh
 /contrib/cmd/api-toolkit/ @aatuh
+
+# Planned v5 module routes; these patterns become active only when the
+# independent modules from docs/adr/0002-v5-module-decomposition.md exist.
+/cmd/api-toolkit/ @aatuh
+/adapters/postgres/ @aatuh
+/adapters/redis/ @aatuh
+/adapters/providers/ @aatuh
+/adapters/observability/ @aatuh
+/runtime/ @aatuh

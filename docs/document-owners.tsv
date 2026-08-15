@@ -5,6 +5,7 @@ path	audience	canonical_owner	lifecycle
 CHANGELOG.md	release reviewers	release-maintainers	historical
 CODE_OF_CONDUCT.md	contributors and maintainers	project-maintainers	current
 CONTRIBUTING.md	contributors and maintainers	project-maintainers	current
+MAINTAINERS.md	contributors and maintainers	project-maintainers	current
 PANIC_POLICY.md	contributors and maintainers	project-maintainers	current
 README.md	application teams and adopters	adoption-maintainers	current
 ROADMAP.md	contributors and maintainers	project-maintainers	current
