@@ -11826,6 +11826,31 @@ func TestFocusedV5CoreSurfaceIsExplicitlyProposedAndBounded(t *testing.T) {
 	}
 }
 
+func TestV5ModuleDecompositionADRDefinesIndependentBoundaries(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	adr := readText(t, filepath.Join(repoRoot, "docs", "adr", "0002-v5-module-decomposition.md"))
+	for _, required := range []string{
+		"Status: Accepted for v5 planning; not implemented or released.",
+		"github.com/aatuh/api-toolkit/v5",
+		"github.com/aatuh/api-toolkit/cmd/api-toolkit/v5",
+		"github.com/aatuh/api-toolkit/adapters/postgres/v5",
+		"github.com/aatuh/api-toolkit/adapters/redis/v5",
+		"github.com/aatuh/api-toolkit/adapters/providers/v5",
+		"github.com/aatuh/api-toolkit/adapters/observability/v5",
+		"github.com/aatuh/api-toolkit/runtime/v5",
+		"## Dependency Direction", "## Release, Compatibility, and Security Rules",
+		"## Migration Process", "## Rejected Alternatives", "## Risks and Preconditions",
+		"Core imports the standard library only at runtime.",
+	} {
+		if !strings.Contains(adr, required) {
+			t.Fatalf("v5 module-decomposition ADR missing %q", required)
+		}
+	}
+	if !strings.Contains(readText(t, filepath.Join(repoRoot, "docs", "v5-core-surface.md")), "0002-v5-module-decomposition.md") {
+		t.Fatal("focused v5 core surface must link the module-decomposition ADR")
+	}
+}
+
 func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
 	t.Helper()
 	paths := map[string]bool{

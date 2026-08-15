@@ -2698,7 +2698,7 @@ docs(api): define focused v5 core surface
 
 ---
 
-## [ ] ARC-003: Approve the module decomposition ADR
+## [pr] ARC-003: Approve the module decomposition ADR
 
 **Priority:** P1
 **Owner:** Lead architect

@@ -14,6 +14,7 @@ docs/README.md	maintainers and adopters	documentation-maintainers	current
 docs/adapter-maturity.md	maintainers and adopters	documentation-maintainers	current
 docs/adopters.md	application teams and adopters	adoption-maintainers	current
 docs/adr/0001-module-boundaries.md	maintainers and API adopters	core-maintainers	current
+docs/adr/0002-v5-module-decomposition.md	maintainers and API adopters	core-maintainers	current
 docs/alternatives.md	application teams and adopters	adoption-maintainers	current
 docs/api-inventory.md	maintainers and API adopters	core-maintainers	current
 docs/api-reference.md	maintainers and API adopters	core-maintainers	current

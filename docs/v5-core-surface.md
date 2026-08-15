@@ -37,6 +37,9 @@ middleware that owns a concrete route concern.
 
 `docs/core-package-guide.md` remains the detailed v4 package selector until a
 v5 module is released. The table above is the v5 first-adoption recommendation.
+The planned independent module paths, tag prefixes, compatibility baselines,
+and release ownership are decided in
+[ADR 0002](adr/0002-v5-module-decomposition.md).
 
 ## Boundary Decisions
 

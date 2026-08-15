@@ -23,7 +23,8 @@ Use the [core package decision guide](core-package-guide.md),
 ## Core API guides
 
 The [API reference index](api-reference.md), [API review checklist](api-review-checklist.md),
-the [focused v5 core surface](v5-core-surface.md), and
+the [focused v5 core surface](v5-core-surface.md),
+[v5 module-decomposition ADR](adr/0002-v5-module-decomposition.md), and
 [response writer inventory](response-writer-inventory.md) cover the public
 surface and its implementation guardrails.
 
@@ -103,6 +104,7 @@ are historical records. They remain available for context, not as current policy
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
 | [Response writer inventory](response-writer-inventory.md) | Maintainers | Track the intended response-writing surface while reviewing compatibility-sensitive changes. |
 | [Focused v5 core surface](v5-core-surface.md) | API consumers and maintainers | Review the proposed minimal v5 adoption set, non-core destinations, and release preconditions without treating it as current v4 policy. |
+| [V5 module-decomposition ADR](adr/0002-v5-module-decomposition.md) | Maintainers and release reviewers | Review planned independent module paths, tags, compatibility, security support, ownership, and migration risks. |
 
 The contrib CLI can scaffold the fuller reusable service baseline:
 

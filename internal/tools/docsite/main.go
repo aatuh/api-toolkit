@@ -242,6 +242,7 @@ func loadDocumentRows(root string) ([]documentRow, error) {
 		{"docs/package-classification.md", "package-status"},
 		{"docs/core-readiness.md", "package-status"},
 		{"docs/v5-core-surface.md", "architecture"},
+		{"docs/adr/0002-v5-module-decomposition.md", "architecture"},
 		{"VERSIONING.md", "compatibility"},
 		{"docs/deprecations.md", "compatibility"},
 		{"docs/v3-compatibility-roadmap.md", "compatibility"},
