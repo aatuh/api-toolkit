@@ -1,0 +1,93 @@
+# Canonical public-document audience, ownership, and lifecycle manifest.
+# Columns: path, audience, canonical_owner, lifecycle (tab-separated).
+# Historical records remain searchable but are labelled separately in the generated site.
+path	audience	canonical_owner	lifecycle
+CHANGELOG.md	release reviewers	release-maintainers	historical
+CODE_OF_CONDUCT.md	contributors and maintainers	project-maintainers	current
+CONTRIBUTING.md	contributors and maintainers	project-maintainers	current
+PANIC_POLICY.md	contributors and maintainers	project-maintainers	current
+README.md	application teams and adopters	adoption-maintainers	current
+ROADMAP.md	contributors and maintainers	project-maintainers	current
+SECURITY.md	developers and security reviewers	security-maintainers	current
+VERSIONING.md	release reviewers	release-maintainers	current
+docs/README.md	maintainers and adopters	documentation-maintainers	current
+docs/adapter-maturity.md	maintainers and adopters	documentation-maintainers	current
+docs/adopters.md	application teams and adopters	adoption-maintainers	current
+docs/adr/0001-module-boundaries.md	maintainers and API adopters	core-maintainers	current
+docs/alternatives.md	application teams and adopters	adoption-maintainers	current
+docs/api-inventory.md	maintainers and API adopters	core-maintainers	current
+docs/api-reference.md	maintainers and API adopters	core-maintainers	current
+docs/api-review-checklist.md	maintainers and API adopters	core-maintainers	current
+docs/architecture.md	maintainers and API adopters	core-maintainers	current
+docs/audits.md	maintainers and adopters	documentation-maintainers	current
+docs/auth-dependency-split.md	maintainers and adopters	documentation-maintainers	current
+docs/auth.md	maintainers and adopters	documentation-maintainers	current
+docs/cli-scaffold-identity.md	application teams and adopters	adoption-maintainers	current
+docs/concurrency.md	maintainers and API adopters	core-maintainers	current
+docs/configuration.md	maintainers and adopters	documentation-maintainers	current
+docs/context-cancellation.md	maintainers and API adopters	core-maintainers	current
+docs/contrib-adapters.md	application teams and adopters	adoption-maintainers	current
+docs/cookbook.md	application teams and adopters	adoption-maintainers	current
+docs/core-package-guide.md	maintainers and API adopters	core-maintainers	current
+docs/core-readiness.md	maintainers and API adopters	core-maintainers	current
+docs/coverage-hardening-backlog.md	release reviewers	release-maintainers	current
+docs/coverage-trend.md	release reviewers	release-maintainers	current
+docs/dependency-boundary.md	maintainers and API adopters	core-maintainers	current
+docs/dependency-footprint.md	maintainers and API adopters	core-maintainers	current
+docs/dependency-policy.md	maintainers and API adopters	core-maintainers	current
+docs/dependency-risk.md	maintainers and API adopters	core-maintainers	current
+docs/deprecations.md	maintainers and adopters	documentation-maintainers	current
+docs/downstream-compatibility.md	maintainers and adopters	documentation-maintainers	current
+docs/errors.md	maintainers and API adopters	core-maintainers	current
+docs/extension-module-assessment.md	maintainers and adopters	documentation-maintainers	current
+docs/full-service-scaffold.md	application teams and adopters	adoption-maintainers	current
+docs/getting-started.md	application teams and adopters	adoption-maintainers	current
+docs/global-state-audit.md	maintainers and API adopters	core-maintainers	current
+docs/governance.md	maintainers and adopters	documentation-maintainers	current
+docs/idempotency.md	maintainers and adopters	documentation-maintainers	current
+docs/input-size-threat-review.md	developers and security reviewers	security-maintainers	current
+docs/interface-ownership.md	maintainers and API adopters	core-maintainers	current
+docs/library-first.md	application teams and adopters	adoption-maintainers	current
+docs/license-policy.md	maintainers and API adopters	core-maintainers	current
+docs/metrics.md	maintainers and adopters	documentation-maintainers	current
+docs/middleware-safety.md	developers and security reviewers	security-maintainers	current
+docs/migration/v3.md	maintainers and adopters	documentation-maintainers	historical
+docs/migration/v4.md	maintainers and adopters	documentation-maintainers	current
+docs/minimal-core.md	application teams and adopters	adoption-maintainers	current
+docs/observability.md	maintainers and adopters	documentation-maintainers	current
+docs/openapi-workflow.md	maintainers and adopters	documentation-maintainers	current
+docs/openssf-best-practices.md	maintainers and adopters	documentation-maintainers	current
+docs/operations.md	maintainers and adopters	documentation-maintainers	current
+docs/options-structs.md	maintainers and API adopters	core-maintainers	current
+docs/package-classification.md	maintainers and API adopters	core-maintainers	current
+docs/package-doc-standard.md	maintainers and API adopters	core-maintainers	current
+docs/performance.md	release reviewers	release-maintainers	current
+docs/ports-surface.md	maintainers and API adopters	core-maintainers	current
+docs/production-readiness.md	application teams and adopters	adoption-maintainers	current
+docs/provenance.md	release reviewers	release-maintainers	current
+docs/provider-adapter-split.md	maintainers and adopters	documentation-maintainers	current
+docs/provider-live-evidence.md	maintainers and adopters	documentation-maintainers	current
+docs/reference-service.md	application teams and adopters	adoption-maintainers	current
+docs/release-incident-v4-release-identity.md	release reviewers	release-maintainers	current
+docs/release-manifests.md	release reviewers	release-maintainers	current
+docs/release-notes.md	release reviewers	release-maintainers	historical
+docs/release-review.md	release reviewers	release-maintainers	current
+docs/release-runbook.md	release reviewers	release-maintainers	current
+docs/reproducible-builds.md	release reviewers	release-maintainers	current
+docs/resource-lifecycle.md	maintainers and API adopters	core-maintainers	current
+docs/response-writer-inventory.md	maintainers and adopters	documentation-maintainers	current
+docs/roadmap/production-grade-9x.md	contributors and maintainers	project-maintainers	current
+docs/safe-defaults.md	developers and security reviewers	security-maintainers	current
+docs/scaffold-first.md	application teams and adopters	adoption-maintainers	current
+docs/scaffold-support.md	maintainers and adopters	documentation-maintainers	current
+docs/security-advisory-drill.md	developers and security reviewers	security-maintainers	current
+docs/security-review.md	developers and security reviewers	security-maintainers	current
+docs/security.md	developers and security reviewers	security-maintainers	current
+docs/stable-core.md	maintainers and API adopters	core-maintainers	current
+docs/support-policy.md	maintainers and adopters	documentation-maintainers	current
+docs/test-coverage.md	maintainers and adopters	documentation-maintainers	current
+docs/testing.md	maintainers and adopters	documentation-maintainers	current
+docs/threat-model.md	developers and security reviewers	security-maintainers	current
+docs/troubleshooting.md	application teams and adopters	adoption-maintainers	current
+docs/v3-compatibility-roadmap.md	maintainers and adopters	documentation-maintainers	historical
+docs/v4-plan.md	maintainers and API adopters	core-maintainers	historical

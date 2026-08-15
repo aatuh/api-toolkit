@@ -917,7 +917,7 @@ docs(readme): focus adoption on http api guardrails
 
 ---
 
-## [ ] DOC-003: Reorganize public documentation
+## [pr] DOC-003: Reorganize public documentation
 
 **Priority:** P1
 **Owner:** Documentation lead

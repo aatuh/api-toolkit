@@ -11742,6 +11742,119 @@ func allowedDeprecatedBillingSource(repoRoot, path string) bool {
 	return rel == "ports/billing.go" || strings.HasPrefix(rel, "compat/billing/")
 }
 
+func TestDocumentationIndexOwnsAndLinksEveryPublicDocument(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	indexPath := filepath.Join(repoRoot, "docs", "README.md")
+	index := readText(t, indexPath)
+	for _, heading := range []string{
+		"## Getting started",
+		"## Choosing packages",
+		"## Core API guides",
+		"## Middleware safety",
+		"## Adapters and integrations",
+		"## CLI and generated projects",
+		"## Operations and production readiness",
+		"## Security",
+		"## Versioning and migration",
+		"## Contributor and maintainer",
+		"## Historical records",
+	} {
+		if !strings.Contains(index, heading) {
+			t.Fatalf("docs/README.md missing navigation heading %q", heading)
+		}
+	}
+
+	expected := publicDocumentationPaths(t, repoRoot)
+	manifest := documentOwnershipPaths(t, filepath.Join(repoRoot, "docs", "document-owners.tsv"))
+	if !reflect.DeepEqual(manifest, expected) {
+		t.Fatalf("documentation ownership manifest paths = %v, want %v", mapKeys(manifest), mapKeys(expected))
+	}
+	for path := range expected {
+		if path == "docs/README.md" {
+			continue
+		}
+		target := strings.TrimPrefix(path, "docs/")
+		if !strings.HasPrefix(path, "docs/") {
+			target = "../" + path
+		}
+		if !strings.Contains(index, "]("+target+")") {
+			t.Fatalf("docs/README.md does not link public document %s", path)
+		}
+	}
+
+	linkPattern := regexp.MustCompile(`\]\(([^)#?]+)(?:[?#][^)]*)?\)`)
+	for _, match := range linkPattern.FindAllStringSubmatch(index, -1) {
+		target := match[1]
+		if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
+			continue
+		}
+		resolved := filepath.Clean(filepath.Join(filepath.Dir(indexPath), target))
+		rel, err := filepath.Rel(repoRoot, resolved)
+		if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			t.Fatalf("docs/README.md link %q leaves repository", target)
+		}
+		if _, err := os.Stat(resolved); err != nil {
+			t.Fatalf("docs/README.md link %q does not resolve: %v", target, err)
+		}
+	}
+}
+
+func publicDocumentationPaths(t *testing.T, repoRoot string) map[string]bool {
+	t.Helper()
+	paths := map[string]bool{
+		"README.md": true, "CHANGELOG.md": true, "CODE_OF_CONDUCT.md": true,
+		"CONTRIBUTING.md": true, "PANIC_POLICY.md": true, "ROADMAP.md": true,
+		"SECURITY.md": true, "VERSIONING.md": true,
+	}
+	err := filepath.WalkDir(filepath.Join(repoRoot, "docs"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == "site" {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".md") {
+			paths[filepath.ToSlash(strings.TrimPrefix(path, repoRoot+string(filepath.Separator)))] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("list public documentation: %v", err)
+	}
+	return paths
+}
+
+func documentOwnershipPaths(t *testing.T, path string) map[string]bool {
+	t.Helper()
+	content := readText(t, path)
+	paths := map[string]bool{}
+	for lineNo, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "path\t") {
+			continue
+		}
+		parts := strings.Split(raw, "\t")
+		if len(parts) != 4 || strings.TrimSpace(parts[0]) == "" {
+			t.Fatalf("document ownership manifest line %d is malformed", lineNo+1)
+		}
+		path := strings.TrimSpace(parts[0])
+		if paths[path] {
+			t.Fatalf("document ownership manifest has duplicate path %s", path)
+		}
+		paths[path] = true
+	}
+	return paths
+}
+
+func mapKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func allowedDatabaseStatsSource(repoRoot, path string) bool {
 	rel := slashRel(repoRoot, path)
 	return rel == "ports/database.go" ||

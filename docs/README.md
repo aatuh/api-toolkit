@@ -3,7 +3,75 @@
 Audience: readers who need the fastest path to the right api-toolkit document
 without scanning the root README.
 
-## New users and application developers
+Document audiences, canonical owners, and current-versus-historical status are
+defined once in [the documentation ownership manifest](document-owners.tsv).
+The generated documentation search index carries that metadata so historical
+records do not look like current policy.
+
+## Getting started
+
+Start with the [repository README](../README.md), then choose the
+[library-first](library-first.md), [minimal-core](minimal-core.md), or
+[scaffold-first](scaffold-first.md) adoption path.
+
+## Choosing packages
+
+Use the [core package decision guide](core-package-guide.md),
+[package classification guide](package-classification.md), and
+[adapter maturity matrix](adapter-maturity.md) before importing a package.
+
+## Core API guides
+
+The [API reference index](api-reference.md), [API review checklist](api-review-checklist.md),
+and [response writer inventory](response-writer-inventory.md) cover the public
+surface and its implementation guardrails.
+
+## Middleware safety
+
+Review [middleware safety](middleware-safety.md), the
+[input-size threat review](input-size-threat-review.md), and
+[safe defaults audit](safe-defaults.md) before applying middleware globally.
+
+## Adapters and integrations
+
+Start with [contrib adapters](contrib-adapters.md), then use the
+[adapter maturity matrix](adapter-maturity.md) and
+[supported-adapter contracts](supported-adapter-contracts.tsv).
+
+## CLI and generated projects
+
+Use [getting started](getting-started.md), [CLI and scaffold identity](cli-scaffold-identity.md),
+and [scaffold support](scaffold-support.md) for generated application code.
+
+## Operations and production readiness
+
+Read [production readiness](production-readiness.md), [operations](operations.md),
+[configuration](configuration.md), and [observability](observability.md).
+
+## Security
+
+Use the [security posture](security.md), [threat model](threat-model.md), and
+[security policy](../SECURITY.md) as the current security sources.
+
+## Versioning and migration
+
+Read [versioning](../VERSIONING.md), [deprecations](deprecations.md), and the
+[v4 migration guide](migration/v4.md) for current compatibility guidance.
+
+## Contributor and maintainer
+
+Contributors should start with [CONTRIBUTING](../CONTRIBUTING.md),
+[governance](governance.md), and the
+[documentation ownership manifest](document-owners.tsv).
+
+## Historical records
+
+The [changelog](../CHANGELOG.md), [release notes](release-notes.md),
+[v3 compatibility record](v3-compatibility-roadmap.md),
+[v3 migration guide](migration/v3.md), and [v4 scope cleanup plan](v4-plan.md)
+are historical records. They remain available for context, not as current policy.
+
+## Detailed documentation catalog
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
@@ -32,6 +100,7 @@ without scanning the root README.
 | [Cookbook](cookbook.md) | Application developers | Complete common API tasks with commands, requests, expected responses, and caveats. |
 | [Examples catalog](../contrib/examples/README.md) | Developers copying runnable patterns | Find each contrib example, its command, endpoint, expected result, required env, and safety note. |
 | [Architecture](architecture.md) | Developers and maintainers | Understand the hexagonal boundary between stable core ports and contrib adapters. |
+| [Response writer inventory](response-writer-inventory.md) | Maintainers | Track the intended response-writing surface while reviewing compatibility-sensitive changes. |
 
 The contrib CLI can scaffold the fuller reusable service baseline:
 

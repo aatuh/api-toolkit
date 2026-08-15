@@ -46,12 +46,21 @@ type packageRow struct {
 }
 
 type documentRow struct {
-	Title    string
-	Category string
-	Path     string
-	URL      string
-	Summary  string
-	Text     string
+	Title     string
+	Category  string
+	Path      string
+	URL       string
+	Summary   string
+	Text      string
+	Audience  string
+	Owner     string
+	Lifecycle string
+}
+
+type documentMetadata struct {
+	Audience  string
+	Owner     string
+	Lifecycle string
 }
 
 type exampleRow struct {
@@ -216,6 +225,10 @@ func importRel(importPath string) (string, bool) {
 }
 
 func loadDocumentRows(root string) ([]documentRow, error) {
+	metadata, err := loadDocumentMetadata(root)
+	if err != nil {
+		return nil, err
+	}
 	sources := []struct {
 		Path     string
 		Category string
@@ -250,16 +263,68 @@ func loadDocumentRows(root string) ([]documentRow, error) {
 		if title == "" {
 			title = source.Path
 		}
+		meta, ok := metadata[source.Path]
+		if !ok {
+			return nil, fmt.Errorf("document ownership manifest has no row for %s", source.Path)
+		}
+		category := documentCategory(source.Category, meta.Lifecycle)
 		rows = append(rows, documentRow{
-			Title:    title,
-			Category: source.Category,
-			Path:     source.Path,
-			URL:      sourceURL(source.Path),
-			Summary:  summarizeMarkdown(text),
-			Text:     normalizeMarkdown(text),
+			Title:     title,
+			Category:  category,
+			Path:      source.Path,
+			URL:       sourceURL(source.Path),
+			Summary:   summarizeMarkdown(text),
+			Text:      normalizeMarkdown(text),
+			Audience:  meta.Audience,
+			Owner:     meta.Owner,
+			Lifecycle: meta.Lifecycle,
 		})
 	}
 	return rows, nil
+}
+
+func loadDocumentMetadata(root string) (map[string]documentMetadata, error) {
+	path := filepath.Join(root, "docs", "document-owners.tsv")
+	// #nosec G304 -- the manifest is a fixed file under the selected repository root.
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read document ownership manifest: %w", err)
+	}
+	rows := map[string]documentMetadata{}
+	for lineNo, raw := range strings.Split(string(content), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cols := strings.Split(raw, "\t")
+		if len(cols) != 4 {
+			return nil, fmt.Errorf("document ownership manifest line %d: expected 4 tab-separated columns", lineNo+1)
+		}
+		path := strings.TrimSpace(cols[0])
+		if path == "path" && strings.TrimSpace(cols[1]) == "audience" {
+			continue
+		}
+		meta := documentMetadata{
+			Audience:  strings.TrimSpace(cols[1]),
+			Owner:     strings.TrimSpace(cols[2]),
+			Lifecycle: strings.TrimSpace(cols[3]),
+		}
+		if path == "" || meta.Audience == "" || meta.Owner == "" || (meta.Lifecycle != "current" && meta.Lifecycle != "historical") {
+			return nil, fmt.Errorf("document ownership manifest line %d: invalid path, audience, owner, or lifecycle", lineNo+1)
+		}
+		if _, exists := rows[path]; exists {
+			return nil, fmt.Errorf("document ownership manifest line %d: duplicate path %s", lineNo+1, path)
+		}
+		rows[path] = meta
+	}
+	return rows, nil
+}
+
+func documentCategory(category, lifecycle string) string {
+	if lifecycle == "historical" {
+		return "historical"
+	}
+	return category
 }
 
 func exampleRowsFromPackages(packages []packageRow) []exampleRow {
@@ -287,7 +352,14 @@ func searchEntries(documents []documentRow, packages []packageRow, examples []ex
 			Title:    doc.Title,
 			Category: doc.Category,
 			URL:      doc.URL,
-			Text:     doc.Path + " " + doc.Summary + " " + doc.Text,
+			Text: strings.Join([]string{
+				doc.Path,
+				doc.Audience,
+				doc.Owner,
+				doc.Lifecycle,
+				doc.Summary,
+				doc.Text,
+			}, " "),
 		})
 	}
 	for _, pkg := range packages {
