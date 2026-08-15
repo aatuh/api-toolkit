@@ -1,0 +1,9 @@
+area	baseline_score	target_score	current_score	owner	required_evidence	evidence_location	status	last_reviewed
+Dependency-worthiness	6/10	9/10	6/10 (baseline)	Architecture lead	ARC-001; ARC-002; ARC-003	docs/roadmap/production-grade-9x.md; docs/dependency-policy.md	Open	2026-07-22
+Code quality	7/10	9/10	7/10 (baseline)	Runtime API team	API-002; API-007; API-008; API-009	docs/roadmap/production-grade-9x.md; docs/core-readiness.md	Open	2026-07-22
+Test quality	7/10	9/10	7/10 (baseline)	Test lead	CI-004; CI-005; TST-001; TST-004; PERF-002	docs/roadmap/production-grade-9x.md; docs/testing.md	Open	2026-07-22
+Documentation	7/10	9/10	7/10 (baseline)	Documentation lead	DOC-001; DOC-002; DOC-003; DOC-004; DOC-005	docs/roadmap/production-grade-9x.md; docs/README.md	Open	2026-07-22
+Open-source trust	7/10	9/10	7/10 (baseline)	Maintainer	REL-000; SEC-001; SEC-002; GOV-001; GOV-002	docs/roadmap/production-grade-9x.md; docs/governance.md	Open	2026-07-22
+Ecosystem fit	5/10	9/10	5/10 (baseline)	Product lead	ARC-001; ARC-002; GOV-004	docs/roadmap/production-grade-9x.md; docs/alternatives.md	Open	2026-07-22
+Scope and completeness	6/10	9/10	6/10 (baseline)	Architecture lead	ARC-002; ARC-003; ARC-006; ARC-007	docs/roadmap/production-grade-9x.md; docs/v4-plan.md	Open	2026-07-22
+API design	6/10	9/10	6/10 (baseline)	Runtime API team	API-001; API-003; API-004; API-005; API-006; API-007; API-008; API-009	docs/roadmap/production-grade-9x.md; docs/api-review-checklist.md	Open	2026-07-22
