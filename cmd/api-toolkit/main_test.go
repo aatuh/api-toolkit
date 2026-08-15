@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"go/parser"
 	"go/token"
 	"os"
@@ -224,6 +225,64 @@ func TestGenerateServiceUsesConfiguredToolkitVersion(t *testing.T) {
 	}
 	if strings.Contains(string(generatedMod), "v3.0.0") {
 		t.Fatalf("generated go.mod kept stale default version:\n%s", generatedMod)
+	}
+}
+
+func TestGenerateServiceIsDeterministicAcrossFreshDestinations(t *testing.T) {
+	root := t.TempDir()
+	config := scaffoldConfig{
+		Module:         "example.com/deterministic-api",
+		Profile:        scaffoldProfileSaaSAPI,
+		AuthMode:       scaffoldAuthAPIKey,
+		ToolkitVersion: "v4.0.0",
+	}
+	first := config
+	first.Dir = filepath.Join(root, "first")
+	if err := generateService(first); err != nil {
+		t.Fatalf("generate first project: %v", err)
+	}
+	second := config
+	second.Dir = filepath.Join(root, "second")
+	if err := generateService(second); err != nil {
+		t.Fatalf("generate second project: %v", err)
+	}
+	for _, name := range []string{"go.mod", "main.go", "Makefile", ".api-toolkit-generator.json", "testdata/openapi.golden.json"} {
+		one, err := os.ReadFile(filepath.Join(first.Dir, name))
+		if err != nil {
+			t.Fatalf("read first %s: %v", name, err)
+		}
+		two, err := os.ReadFile(filepath.Join(second.Dir, name))
+		if err != nil {
+			t.Fatalf("read second %s: %v", name, err)
+		}
+		if string(one) != string(two) {
+			t.Fatalf("generated %s differs across identical inputs", name)
+		}
+	}
+}
+
+func TestGenerateServiceFailureLeavesDestinationUntouched(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "service")
+	if err := os.Mkdir(destination, 0o750); err != nil {
+		t.Fatalf("create empty destination: %v", err)
+	}
+	original := renderScaffoldTemplate
+	t.Cleanup(func() { renderScaffoldTemplate = original })
+	calls := 0
+	renderScaffoldTemplate = func(name, body string, data map[string]string) ([]byte, error) {
+		calls++
+		if calls == 2 {
+			return nil, errors.New("forced render failure")
+		}
+		return original(name, body, data)
+	}
+	err := generateService(scaffoldConfig{Module: "example.com/atomic-api", Dir: destination, Profile: scaffoldProfileSaaSAPI, AuthMode: scaffoldAuthAPIKey, ToolkitVersion: "v4.0.0"})
+	if err == nil || !strings.Contains(err.Error(), "forced render failure") {
+		t.Fatalf("generate failure = %v, want forced render failure", err)
+	}
+	entries, err := os.ReadDir(destination)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("destination after failed generation = (%v, %v), want empty", entries, err)
 	}
 }
 

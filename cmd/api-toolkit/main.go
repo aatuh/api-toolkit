@@ -4772,6 +4772,8 @@ type scaffoldConfig struct {
 	ToolkitVersion string
 }
 
+var renderScaffoldTemplate = renderTemplate
+
 func generateService(cfg scaffoldConfig) error {
 	if err := validateModulePath(cfg.Module); err != nil {
 		return err
@@ -4799,19 +4801,27 @@ func generateService(cfg scaffoldConfig) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(outDir, 0o750); err != nil {
-		return fmt.Errorf("create output directory: %w", err)
+	if err := os.MkdirAll(filepath.Dir(outDir), 0o750); err != nil {
+		return fmt.Errorf("create output parent: %w", err)
 	}
-	entries, err := os.ReadDir(outDir)
-	if err != nil {
+	if entries, err := os.ReadDir(outDir); err == nil && len(entries) > 0 {
+		return fmt.Errorf("output directory must be empty: %s", outDir)
+	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read output directory: %w", err)
 	}
-	if len(entries) > 0 {
-		return fmt.Errorf("output directory must be empty: %s", outDir)
-	}
-	root, err := os.OpenRoot(outDir)
+	temporaryDir, err := os.MkdirTemp(filepath.Dir(outDir), "."+filepath.Base(outDir)+".tmp-")
 	if err != nil {
-		return fmt.Errorf("open output root: %w", err)
+		return fmt.Errorf("create generation staging directory: %w", err)
+	}
+	published := false
+	defer func() {
+		if !published {
+			_ = os.RemoveAll(temporaryDir)
+		}
+	}()
+	root, err := os.OpenRoot(temporaryDir)
+	if err != nil {
+		return fmt.Errorf("open generation staging root: %w", err)
 	}
 	defer root.Close()
 	data := map[string]string{
@@ -4837,7 +4847,7 @@ func generateService(cfg scaffoldConfig) error {
 	}
 	files := scaffoldFilesForConfig(cfg)
 	for _, file := range files {
-		rendered, err := renderTemplate(file.Name, file.Body, data)
+		rendered, err := renderScaffoldTemplate(file.Name, file.Body, data)
 		if err != nil {
 			return err
 		}
@@ -4884,6 +4894,16 @@ func generateService(cfg scaffoldConfig) error {
 			}
 		}
 	}
+	if err := root.Close(); err != nil {
+		return fmt.Errorf("close generation staging root: %w", err)
+	}
+	if err := os.Remove(outDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("prepare empty output directory for publish: %w", err)
+	}
+	if err := os.Rename(temporaryDir, outDir); err != nil {
+		return fmt.Errorf("publish generated project atomically (directory replacement is unavailable on this platform): %w", err)
+	}
+	published = true
 	return nil
 }
 

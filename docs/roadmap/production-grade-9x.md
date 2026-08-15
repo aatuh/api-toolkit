@@ -3062,7 +3062,7 @@ and honest about generated-code ownership.
 * Generated projects contain machine-readable origin metadata.
 * CLI releases are verifiable and cross-platform.
 
-## [ ] CLI-001: Make generation deterministic and atomic
+## [pr] CLI-001: Make generation deterministic and atomic
 
 **Priority:** P1
 **Owner:** CLI team
