@@ -3818,12 +3818,15 @@ docs(release): require independent release approval
 
 ---
 
-## [ ] GOV-003: Strengthen issue and pull-request intake
+## [pr] GOV-003: Strengthen issue and pull-request intake
 
 **Priority:** P1
 **Owner:** Community maintainer
 **Size:** M
 **Depends on:** PRG-002
+
+**External completion:** `[x]` remains owned by EXT-002's protected-branch
+and required-check configuration evidence.
 
 ### Work
 
@@ -3867,7 +3870,7 @@ Add automated template validation where practical.
 ### Verification
 
 ```sh
-GOWORK=off GOTOOLCHAIN=local make github-governance-check
+GOWORK=off GOTOOLCHAIN=local make docs-check
 ```
 
 **Required commit:**

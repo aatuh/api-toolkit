@@ -51,6 +51,13 @@ Describe the change and why it is needed.
 - [ ] No new trust boundary or sensitive data handling.
 - [ ] New or changed trust boundary is tested and documented.
 
+# Dependency impact
+
+**Dependency classification:** select one.
+
+- [ ] No dependency, license, or supply-chain impact.
+- [ ] Dependency, license, or supply-chain impact is documented and reviewed.
+
 # Generated-file impact
 
 - [ ] No generated files changed.

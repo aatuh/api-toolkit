@@ -232,6 +232,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) release-artifact-verify-contract
 	@$(MAKE) release-evidence-parser-contract
 	@$(MAKE) pr-title-check-contract
+	@$(MAKE) pr-template-check-contract
 	@$(MAKE) generated-integration-contract
 	@$(MAKE) generated-soak-contract
 	@$(MAKE) generated-failure-contract
@@ -435,6 +436,12 @@ pr-title-check: ## Validate PR_TITLE against the conventional commit title polic
 
 pr-title-check-contract: ## Run pull-request title validation contract tests
 	@bash scripts/pr_title_check_contract_test.sh
+
+pr-template-check: ## Validate required pull-request body sections and classifications
+	@bash scripts/pr_template_check.sh
+
+pr-template-check-contract: ## Run pull-request body validation contract tests
+	@bash scripts/pr_template_check_contract_test.sh
 
 ci-build-smoke: ## Build root and contrib modules via the local CI build target
 	$(MAKE) .codeql-local-build

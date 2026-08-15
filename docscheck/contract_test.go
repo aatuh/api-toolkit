@@ -8022,6 +8022,7 @@ func TestPullRequestTicketCommitGovernance(t *testing.T) {
 		"# Backlog ticket",
 		"Compatibility classification",
 		"Security classification",
+		"Dependency classification",
 		"Generated-file impact",
 		"Benchmark impact",
 		"Migration impact",
@@ -8036,8 +8037,12 @@ func TestPullRequestTicketCommitGovernance(t *testing.T) {
 	for _, required := range []string{
 		"pr-title-check:",
 		"pr-title-check-contract:",
+		"pr-template-check:",
+		"pr-template-check-contract:",
 		"scripts/pr_title_check.sh",
 		"scripts/pr_title_check_contract_test.sh",
+		"scripts/pr_template_check.sh",
+		"scripts/pr_template_check_contract_test.sh",
 	} {
 		if !strings.Contains(makefile, required) {
 			t.Fatalf("Makefile missing pull-request title check text %q", required)
@@ -8046,16 +8051,50 @@ func TestPullRequestTicketCommitGovernance(t *testing.T) {
 	if !containsString(makeSubtargets(t, makefile, "docs-check"), "pr-title-check-contract") {
 		t.Fatal("docs-check target must include pr-title-check-contract")
 	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "pr-template-check-contract") {
+		t.Fatal("docs-check target must include pr-template-check-contract")
+	}
 
 	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
 	for _, required := range []string{
 		"pr-title:",
+		"pr-template:",
 		"github.event_name == 'pull_request'",
 		"PR_TITLE: ${{ github.event.pull_request.title }}",
 		"make pr-title-check",
+		"PR_BODY: ${{ github.event.pull_request.body }}",
+		"make pr-template-check",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf(".github/workflows/ci.yml missing pull-request title enforcement %q", required)
+		}
+	}
+}
+
+func TestIssueAndPullRequestIntakeTemplatesCaptureRequiredContext(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	for rel, required := range map[string][]string{
+		".github/ISSUE_TEMPLATE/bug_report.md": {
+			"module, package/import path", "support tier", "expected behavior", "observed behavior",
+			"Concurrency And Security Context", "OS/architecture", "Sanitized logs",
+		},
+		".github/ISSUE_TEMPLATE/api_change.md": {
+			"affected public symbol(s)", "api-toolkit version or commit", "OS/architecture",
+			"Current support tier", "Concurrency or cancellation impact", "Dependency or generated-output impact",
+		},
+		".github/ISSUE_TEMPLATE/adopter_review.md": {
+			"OS/architecture", "Current support tier", "Runtime And Risk Context", "Sanitized logs",
+		},
+		".github/pull_request_template.md": {
+			"Ticket ID", "Compatibility classification", "Security classification", "Dependency classification",
+			"Generated-file impact", "Benchmark impact", "Migration impact", "Commands and results",
+		},
+	} {
+		content := readText(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
+		for _, text := range required {
+			if !strings.Contains(content, text) {
+				t.Fatalf("%s missing intake field %q", rel, text)
+			}
 		}
 	}
 }

@@ -13,6 +13,8 @@ or vulnerability details. Use `SECURITY.md` for private security reports.
 - Contrib adapter:
 - Version or commit:
 - Go version:
+- OS/architecture:
+- Current support tier:
 
 ## API Friction
 
@@ -28,6 +30,12 @@ entries that would have helped.
 
 Describe friction from `net/http`, chi, another toolkit, v2 to v3, a generated
 service update, or a dependency upgrade.
+
+## Runtime And Risk Context
+
+- Concurrency, retries, cancellation, or performance context:
+- Security-sensitive or compatibility-sensitive impact (do not include private details):
+- Sanitized logs or errors that would help reproduce the friction (optional):
 
 ## What Worked
 
