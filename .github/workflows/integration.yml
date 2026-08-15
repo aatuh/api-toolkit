@@ -44,8 +44,10 @@ jobs:
         run: |
           tmpdir="$(mktemp -d)"
           echo "SERVICE_DIR=$tmpdir/full-api" >> "$GITHUB_ENV"
-          cd contrib
-          go run ./cmd/api-toolkit new service \
+          go build -o "$RUNNER_TEMP/api-toolkit" ./cmd/api-toolkit
+          echo "API_TOOLKIT=$RUNNER_TEMP/api-toolkit" >> "$GITHUB_ENV"
+          cd cmd/api-toolkit
+          go run . new service \
             --module example.com/full-api \
             --profile saas-api-full \
             --auth api-key \
@@ -95,8 +97,10 @@ jobs:
         run: |
           tmpdir="$(mktemp -d)"
           echo "SERVICE_DIR=$tmpdir/full-api" >> "$GITHUB_ENV"
-          cd contrib
-          go run ./cmd/api-toolkit new service \
+          go build -o "$RUNNER_TEMP/api-toolkit" ./cmd/api-toolkit
+          echo "API_TOOLKIT=$RUNNER_TEMP/api-toolkit" >> "$GITHUB_ENV"
+          cd cmd/api-toolkit
+          go run . new service \
             --module example.com/full-api \
             --profile saas-api-full \
             --auth api-key \

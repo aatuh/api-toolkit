@@ -110,7 +110,8 @@ github.com/aatuh/api-toolkit/contrib/v4/audit/audittest	test-only	test-support	R
 github.com/aatuh/api-toolkit/contrib/v4/bootstrap	supported-adapter	direct-tests	Contrib bootstrap composition helpers.
 github.com/aatuh/api-toolkit/contrib/v4/cache	supported-adapter	direct-tests	Cache contracts.
 github.com/aatuh/api-toolkit/contrib/v4/cache/cachetest	test-only	test-support	Reusable cache adapter contract tests.
-github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit	tooling	direct-tests	Developer CLI for service scaffolding, generated clients, contract checks, observability bundles, and deployment starters.
+github.com/aatuh/api-toolkit/cmd/api-toolkit/v5	tooling	direct-tests	Independently versioned developer CLI for service scaffolding, generated clients, contract checks, observability bundles, and deployment starters.
+github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit-integration	test-only	direct-tests	Contrib-owned real-service harness that executes the independent CLI through its command boundary.
 github.com/aatuh/api-toolkit/contrib/v4/cmd/provider-live-check	tooling	direct-tests	Sanitized opt-in provider sandbox evidence CLI; protected workflow only, never a default test path.
 github.com/aatuh/api-toolkit/contrib/v4/cmd/migrate	tooling	direct-tests	CLI tooling package.
 github.com/aatuh/api-toolkit/contrib/v4/cmd/tester	tooling	direct-tests	CLI tooling package.

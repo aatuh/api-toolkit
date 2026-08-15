@@ -1,4 +1,4 @@
-package main
+package main // Benchmark coverage follows the independently versioned CLI module.
 
 import (
 	"context"

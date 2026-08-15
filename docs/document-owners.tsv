@@ -25,6 +25,7 @@ docs/audits.md	maintainers and adopters	documentation-maintainers	current
 docs/auth-dependency-split.md	maintainers and adopters	documentation-maintainers	current
 docs/auth.md	maintainers and adopters	documentation-maintainers	current
 docs/cli-scaffold-identity.md	application teams and adopters	adoption-maintainers	current
+docs/cli-v5-migration.md	CLI v4 adopters and release maintainers	cli-maintainers	current
 docs/concurrency.md	maintainers and API adopters	core-maintainers	current
 docs/configuration.md	maintainers and adopters	documentation-maintainers	current
 docs/context-cancellation.md	maintainers and API adopters	core-maintainers	current

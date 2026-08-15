@@ -43,7 +43,7 @@ Start with [contrib adapters](contrib-adapters.md), then use the
 ## CLI and generated projects
 
 Use [getting started](getting-started.md), [CLI and scaffold identity](cli-scaffold-identity.md),
-and [scaffold support](scaffold-support.md) for generated application code.
+[CLI v5 migration](cli-v5-migration.md), and [scaffold support](scaffold-support.md) for generated application code.
 
 ## Operations and production readiness
 
@@ -109,7 +109,8 @@ are historical records. They remain available for context, not as current policy
 The contrib CLI can scaffold the fuller reusable service baseline:
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service \
+go install github.com/aatuh/api-toolkit/cmd/api-toolkit/v5@<released-version>
+api-toolkit new service \
   --module example.com/my-api \
   --profile saas-api \
   --auth api-key \

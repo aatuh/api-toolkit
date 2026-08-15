@@ -97,21 +97,21 @@ if [ -d "$repo_root/.github/workflows" ]; then
     files+=("$file")
   done < <(find "$repo_root/.github/workflows" -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
 fi
-if [ -f "$repo_root/contrib/cmd/api-toolkit/main.go" ]; then
-  files+=("$repo_root/contrib/cmd/api-toolkit/main.go")
+if [ -f "$repo_root/cmd/api-toolkit/main.go" ]; then
+	files+=("$repo_root/cmd/api-toolkit/main.go")
 fi
 
 for file in "${files[@]}"; do
   audit_file "$file"
 done
 
-generator="$repo_root/contrib/cmd/api-toolkit/main.go"
+generator="$repo_root/cmd/api-toolkit/main.go"
 if [ -f "$generator" ]; then
   if ! grep -Fq "$current_checkout" "$generator"; then
-    report "contrib/cmd/api-toolkit/main.go missing current generated checkout action $current_checkout"
+    report "cmd/api-toolkit/main.go missing current generated checkout action $current_checkout"
   fi
   if ! grep -Fq "$current_setup_go" "$generator"; then
-    report "contrib/cmd/api-toolkit/main.go missing current generated setup-go action $current_setup_go"
+    report "cmd/api-toolkit/main.go missing current generated setup-go action $current_setup_go"
   fi
 fi
 

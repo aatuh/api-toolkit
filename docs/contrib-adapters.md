@@ -23,7 +23,7 @@ go get github.com/aatuh/api-toolkit/contrib/v4
 | Redis-backed behavior | `middleware/idempotency`, `middleware/ratelimit` | You need Redis stores for idempotency or rate limiting. | In-process dev/test stores are enough. |
 | Postgres-backed behavior | root ports or app-owned interfaces | You need migrations, transaction, scheduler, audit, operation, or outbox adapters. | Database behavior is product-specific or provider-specific. |
 | Provider integrations | `email`, `webhooks`, `compat/billing` | You need Resend, Stripe, Clerk, or provider workflow starters. | The integration shape is business-specific and better app-owned. |
-| New service generation | none | You want `contrib/cmd/api-toolkit`. | You only need one root middleware package. |
+| New service generation | none | You want the independently versioned `cmd/api-toolkit/v5` CLI. | You only need one root middleware package. |
 
 ## Maturity tiers
 
@@ -48,4 +48,3 @@ Use `docs/package-classification.tsv` as the source of truth.
   release evidence.
 - Generated scaffold code is app-owned even when it imports supported contrib
   adapters.
-

@@ -16,4 +16,4 @@ contrib	middleware/openapi	BenchmarkOpenAPIRequestValidation	448	2048	8	15	BENCH
 contrib	middleware/openapi	BenchmarkOpenAPIResponseValidation	7552	12000	67	90	BENCHTIME=1x benchmark-smoke local allocation sample
 contrib	middleware/requestlog	BenchmarkRequestLog	1328	4096	16	25	BENCHTIME=1x benchmark-smoke local allocation sample
 contrib	middleware/requestlog	BenchmarkRequestLogWithHeaders	2912	6000	36	50	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	cmd/api-toolkit	BenchmarkNewServiceSaaSAPIGeneration	1092088	1500000	15735	20000	BENCHTIME=1x benchmark-smoke local allocation sample
+cli	api-toolkit	BenchmarkNewServiceSaaSAPIGeneration	1092088	1500000	15735	20000	BENCHTIME=1x benchmark-smoke local allocation sample

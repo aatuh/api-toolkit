@@ -22,7 +22,8 @@
 /contracttest/ @aatuh
 
 /contrib/ @aatuh
-/contrib/cmd/api-toolkit/ @aatuh
+/cmd/api-toolkit/ @aatuh
+/contrib/cmd/api-toolkit-integration/ @aatuh
 
 # Planned v5 module routes; these patterns become active only when the
 # independent modules from docs/adr/0002-v5-module-decomposition.md exist.

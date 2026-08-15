@@ -55,7 +55,7 @@ write_repo() {
   if [ "$workflow_permissions" = "__missing__" ]; then
     workflow_permissions=""
   fi
-  mkdir -p "$dir/.github/workflows" "$dir/contrib/cmd/api-toolkit"
+  mkdir -p "$dir/.github/workflows" "$dir/cmd/api-toolkit"
   cat >"$dir/.github/workflows/ci.yml" <<EOF_WORKFLOW
 name: ci
 $workflow_permissions
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: $workflow_uses
 EOF_WORKFLOW
-  cat >"$dir/contrib/cmd/api-toolkit/main.go" <<EOF_GENERATOR
+  cat >"$dir/cmd/api-toolkit/main.go" <<EOF_GENERATOR
 package main
 
 const ciWorkflowTemplate = \`

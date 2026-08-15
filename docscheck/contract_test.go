@@ -74,9 +74,18 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	serviceDir := filepath.Join(tmpDir, "my-api")
+	cliBinary := filepath.Join(tmpDir, "api-toolkit")
+	build := exec.CommandContext(context.Background(), "go", "build", "-o", cliBinary, ".")
+	build.Dir = filepath.Join(repoRoot, "cmd", "api-toolkit")
+	build.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build local CLI for generated-guide check:\n%s\nerror: %v", out, err)
+	}
+	t.Setenv("API_TOOLKIT", cliBinary)
 	doc := string(content)
 	for _, required := range []string{
-		"go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service",
+		"go install github.com/aatuh/api-toolkit/cmd/api-toolkit/v5@<released-version>",
+		"api-toolkit new service",
 		"--module example.com/my-api",
 		"--profile saas-api",
 		"make finalize",
@@ -93,7 +102,7 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 		}
 	}
 
-	cmd := exec.CommandContext(context.Background(), "go", "run", "./cmd/api-toolkit",
+	cmd := exec.CommandContext(context.Background(), "go", "run", ".",
 		"new", "service",
 		"--module", "example.com/my-api",
 		"--profile", "saas-api",
@@ -101,7 +110,7 @@ func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
 	)
-	cmd.Dir = filepath.Join(repoRoot, "contrib")
+	cmd.Dir = filepath.Join(repoRoot, "cmd", "api-toolkit")
 	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("generate getting-started service:\n%s\nerror: %v", out, err)
@@ -2505,7 +2514,7 @@ func TestMaturityGovernanceDocsAreReleaseVisible(t *testing.T) {
 	}
 	for _, required := range []string{
 		"* @aatuh",
-		"/contrib/cmd/api-toolkit/",
+		"/cmd/api-toolkit/",
 		"/.github/",
 		"/scripts/",
 	} {
@@ -4889,8 +4898,8 @@ func TestSecretScanningGuidanceAndGeneratedEnvBoundary(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	securityPolicy := readText(t, filepath.Join(repoRoot, "SECURITY.md"))
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
-	generator := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
-	generatorTests := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main_test.go"))
+	generator := readText(t, filepath.Join(repoRoot, "cmd", "api-toolkit", "main.go"))
+	generatorTests := readText(t, filepath.Join(repoRoot, "cmd", "api-toolkit", "main_test.go"))
 
 	for _, required := range []string{
 		"## Secret Handling And Scanning",
@@ -6149,7 +6158,7 @@ func TestAlternativesComparisonExamplesAndReleaseNoteCategories(t *testing.T) {
 		"binding.DecodeJSON",
 		"binding.WriteValidationProblem",
 		"httpx.WriteJSON",
-		"github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service",
+		"github.com/aatuh/api-toolkit/cmd/api-toolkit/v5@<released-version>",
 		"Existing services should start with the library version",
 	} {
 		if !strings.Contains(comparisonText, required) {
@@ -6552,20 +6561,20 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 	for _, required := range []string{
 		"# CLI And Scaffold Identity",
 		"api-toolkit remains library-first",
-		"github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit",
+		"github.com/aatuh/api-toolkit/cmd/api-toolkit/v5",
 		"outside the stable core API promise",
 		"generated services as app-owned code",
 		"Do not move scaffold-only dependencies",
-		"api-toolkit-cli",
+		"cmd/api-toolkit/v5.",
 		"smallest useful library dependency",
 		"`docs/library-first.md`",
 		"`docs/minimal-core.md`",
 		"`docs/v4-plan.md`",
 		"`docs/adr/0001-module-boundaries.md`",
 		"## Release And Ownership Boundary",
-		"contrib-tooling-maintainers",
+		"cli-maintainers",
 		"touch-scoped-tooling",
-		"make contrib-release-notes-check",
+		"CLI changelog",
 		"make generated-upgrade-compat-check",
 		"docs/extension-module-assessment.md",
 		"docs/cli-scaffold-identity.md",
@@ -6575,14 +6584,14 @@ func TestCLIScaffoldIdentityDecisionKeepsRootLibraryFirst(t *testing.T) {
 			t.Fatalf("CLI/scaffold identity decision missing %q", required)
 		}
 	}
-	if !strings.Contains(classification, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit\ttooling") {
-		t.Fatal("contrib CLI must remain classified as tooling")
+	if !strings.Contains(classification, "github.com/aatuh/api-toolkit/cmd/api-toolkit/v5\ttooling") {
+		t.Fatal("independent CLI must remain classified as tooling")
 	}
-	if !strings.Contains(owners, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit\tcontrib-tooling-maintainers\ttooling") {
-		t.Fatal("contrib CLI must retain tooling ownership")
+	if !strings.Contains(owners, "github.com/aatuh/api-toolkit/cmd/api-toolkit/v5\tcli-maintainers\ttooling") {
+		t.Fatal("independent CLI must retain tooling ownership")
 	}
-	if strings.Contains(versioning, "github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit") {
-		t.Fatal("contrib CLI must not enter the root stable package list")
+	if strings.Contains(versioning, "github.com/aatuh/api-toolkit/cmd/api-toolkit/v5") {
+		t.Fatal("independent CLI must not enter the root stable package list")
 	}
 }
 
@@ -7667,6 +7676,8 @@ func TestBenchmarkBaselineManifestTracksReportAllocs(t *testing.T) {
 		pkgDir := filepath.Join(repoRoot, filepath.FromSlash(row.Package))
 		if row.Module == "contrib" {
 			pkgDir = filepath.Join(repoRoot, "contrib", filepath.FromSlash(row.Package))
+		} else if row.Module == "cli" {
+			pkgDir = filepath.Join(repoRoot, "cmd", filepath.FromSlash(row.Package))
 		} else if row.Module != "root" {
 			missing = append(missing, key+" has unknown module "+row.Module)
 			continue
@@ -8969,7 +8980,7 @@ func TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault(t *testing.T) {
 
 func TestGeneratedScaffoldDocumentsFailClosedIdempotentWrites(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	scaffold := readText(t, filepath.Join(repoRoot, "cmd", "api-toolkit", "main.go"))
 	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
 
 	for _, required := range []string{
@@ -8997,7 +9008,7 @@ func TestGeneratedScaffoldDocumentsFailClosedIdempotentWrites(t *testing.T) {
 
 func TestGeneratedScaffoldDocumentsProductionRateLimitStore(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	scaffold := readText(t, filepath.Join(repoRoot, "cmd", "api-toolkit", "main.go"))
 	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
 
 	for _, required := range []string{
@@ -9023,7 +9034,7 @@ func TestGeneratedScaffoldDocumentsProductionRateLimitStore(t *testing.T) {
 
 func TestGeneratedScaffoldDocumentsTelemetryDefaults(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
-	scaffold := readText(t, filepath.Join(repoRoot, "contrib", "cmd", "api-toolkit", "main.go"))
+	scaffold := readText(t, filepath.Join(repoRoot, "cmd", "api-toolkit", "main.go"))
 	security := readText(t, filepath.Join(repoRoot, "docs", "security.md"))
 
 	for _, required := range []string{
@@ -10156,6 +10167,9 @@ func forbiddenModuleToken(token string) bool {
 	if token == rootModulePath+"/v4" {
 		return false
 	}
+	if token == rootModulePath+"/cmd/api-toolkit/v5" {
+		return false
+	}
 	if strings.HasPrefix(token, rootModulePath+"/v3/") {
 		return false
 	}
@@ -10163,6 +10177,9 @@ func forbiddenModuleToken(token string) bool {
 		return false
 	}
 	if strings.HasPrefix(token, rootModulePath+"/v4/") {
+		return false
+	}
+	if strings.HasPrefix(token, rootModulePath+"/cmd/api-toolkit/v5/") {
 		return false
 	}
 	if token == contribModulePath {

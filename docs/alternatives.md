@@ -152,7 +152,8 @@ OpenAPI checks, generated client assets, auth/idempotency wiring, deployment
 starters, and repeatable local quality gates.
 
 ```sh
-go run github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit@latest new service \
+go install github.com/aatuh/api-toolkit/cmd/api-toolkit/v5@<released-version>
+api-toolkit new service \
   --module example.com/widgets-api \
   --profile saas-api \
   --dir widgets-api

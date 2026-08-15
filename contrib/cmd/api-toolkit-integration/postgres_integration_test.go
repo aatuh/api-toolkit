@@ -1,9 +1,8 @@
 //go:build postgres
 
-package main
+package cliintegration
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -20,8 +19,7 @@ func TestGeneratedFullProfileMigratesAgainstRealPostgres(t *testing.T) {
 		t.Fatalf("resolve repository root: %v", err)
 	}
 	serviceDir := filepath.Join(t.TempDir(), "service")
-	var output bytes.Buffer
-	if code := run(context.Background(), []string{
+	output, err := runCLI(context.Background(), append([]string{
 		"new", "service",
 		"--module", "example.com/postgres-integration",
 		"--profile", "saas-api-full",
@@ -29,8 +27,9 @@ func TestGeneratedFullProfileMigratesAgainstRealPostgres(t *testing.T) {
 		"--dir", serviceDir,
 		"--core-replace", repoRoot,
 		"--contrib-replace", filepath.Join(repoRoot, "contrib"),
-	}, &output, &output); code != 0 {
-		t.Fatalf("generate full profile (exit %d): %s", code, output.String())
+	})...)
+	if err != nil {
+		t.Fatalf("generate full profile: %v\n%s", err, output)
 	}
 	tidy := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 	tidy.Dir = serviceDir

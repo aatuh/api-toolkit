@@ -110,7 +110,7 @@ run_contract() {
   local name="$1"
   shift
   local dir="$tmp/$name"
-  mkdir -p "$dir/repo/contrib"
+  mkdir -p "$dir/repo/contrib" "$dir/repo/cmd/api-toolkit"
   FAKE_TOOL_CALLS="$dir/calls" GENERATED_INTEGRATION_REPO_ROOT="$dir/repo" GENERATED_INTEGRATION_RESULT_DIR=".ci-result/$name" PATH="$tmp/bin:$PATH" "$@" "$script"
 }
 
@@ -140,7 +140,7 @@ for required in \
   fi
 done
 for required in \
-  "go run ./cmd/api-toolkit new service" \
+  "go run . new service" \
   "--profile saas-api-full" \
   "--auth api-key" \
   "--with stripe-billing" \

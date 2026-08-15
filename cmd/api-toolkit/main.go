@@ -37,6 +37,8 @@ var (
 const (
 	coreModulePath    = "github.com/aatuh/api-toolkit/v4"
 	contribModulePath = "github.com/aatuh/api-toolkit/contrib/v4"
+	cliModulePath     = "github.com/aatuh/api-toolkit/cmd/api-toolkit/v5"
+	templateSchema    = 39
 )
 
 const defaultScaffoldModuleVersion = "v4.0.0"
@@ -130,8 +132,10 @@ type versionMetadata struct {
 	GoVersion      string `json:"go_version"`
 	MainPath       string `json:"main_path"`
 	MainVersion    string `json:"main_version"`
+	CLIVersion     string `json:"cli_version"`
 	CoreVersion    string `json:"core_version"`
 	ContribVersion string `json:"contrib_version"`
+	TemplateSchema int    `json:"template_schema"`
 	BuildCommit    string `json:"build_commit"`
 	BuildDate      string `json:"build_date"`
 }
@@ -163,8 +167,10 @@ func printVersion(stdout io.Writer) {
 	fmt.Fprintf(stdout, "api-toolkit %s\n", info.ToolVersion)
 	fmt.Fprintf(stdout, "go %s\n", info.GoVersion)
 	fmt.Fprintf(stdout, "main %s %s\n", info.MainPath, info.MainVersion)
+	fmt.Fprintf(stdout, "cli %s %s\n", cliModulePath, info.CLIVersion)
 	fmt.Fprintf(stdout, "core %s %s\n", coreModulePath, info.CoreVersion)
 	fmt.Fprintf(stdout, "contrib %s %s\n", contribModulePath, info.ContribVersion)
+	fmt.Fprintf(stdout, "template_schema %d\n", info.TemplateSchema)
 	fmt.Fprintf(stdout, "build_commit %s\n", info.BuildCommit)
 	fmt.Fprintf(stdout, "build_date %s\n", info.BuildDate)
 }
@@ -179,16 +185,18 @@ func collectVersionMetadata() versionMetadata {
 		GoVersion:      runtime.Version(),
 		MainPath:       "unknown",
 		MainVersion:    "unknown",
+		CLIVersion:     "unknown",
 		CoreVersion:    "unknown",
 		ContribVersion: "unknown",
+		TemplateSchema: templateSchema,
 		BuildCommit:    buildCommit,
 		BuildDate:      buildDate,
 	}
 	if buildInfo, ok := debug.ReadBuildInfo(); ok && buildInfo != nil {
 		info.MainPath = versionValue(buildInfo.Main.Path)
 		info.MainVersion = versionValue(buildInfo.Main.Version)
-		if buildInfo.Main.Path == contribModulePath || strings.HasPrefix(buildInfo.Main.Path, contribModulePath+"/") {
-			info.ContribVersion = versionValue(buildInfo.Main.Version)
+		if buildInfo.Main.Path == cliModulePath || strings.HasPrefix(buildInfo.Main.Path, cliModulePath+"/") {
+			info.CLIVersion = versionValue(buildInfo.Main.Version)
 		}
 		for _, dep := range buildInfo.Deps {
 			if dep == nil {
@@ -221,7 +229,7 @@ func versionValue(value string) string {
 }
 
 func scaffoldDependencyVersion(info versionMetadata) string {
-	for _, candidate := range []string{info.ContribVersion, info.MainVersion, info.CoreVersion} {
+	for _, candidate := range []string{info.CoreVersion, info.ContribVersion} {
 		if isSemVerModuleVersion(candidate) {
 			return candidate
 		}
@@ -4810,6 +4818,9 @@ func generateService(cfg scaffoldConfig) error {
 		"Module":               cfg.Module,
 		"Profile":              cfg.Profile,
 		"AuthMode":             cfg.AuthMode,
+		"CLIModule":            cliModulePath,
+		"CLIVersion":           collectVersionMetadata().CLIVersion,
+		"TemplateSchema":       strconv.Itoa(templateSchema),
 		"AuthSchemeName":       scaffoldAuthSecuritySchemeName(cfg.AuthMode),
 		"CoreVersion":          cfg.ToolkitVersion,
 		"ContribVersion":       cfg.ToolkitVersion,
@@ -7823,6 +7834,17 @@ type scaffoldFile struct {
 	Body string
 }
 
+const generatorMetadataTemplate = `{
+  "schema_version": {{ .TemplateSchema }},
+  "cli_module": "{{ .CLIModule }}",
+  "cli_version": "{{ .CLIVersion }}",
+  "core_module": "github.com/aatuh/api-toolkit/v4",
+  "core_version": "{{ .CoreVersion }}",
+  "contrib_module": "github.com/aatuh/api-toolkit/contrib/v4",
+  "contrib_version": "{{ .ContribVersion }}"
+}
+`
+
 var scaffoldFiles = []scaffoldFile{
 	{Name: "go.mod", Body: goModTemplate},
 	{Name: "main.go", Body: mainGoTemplate},
@@ -7849,6 +7871,7 @@ func scaffoldFilesForProfile(profile string) []scaffoldFile {
 
 func scaffoldFilesForConfig(cfg scaffoldConfig) []scaffoldFile {
 	files := append([]scaffoldFile(nil), scaffoldFilesForProfile(cfg.Profile)...)
+	files = append(files, scaffoldFile{Name: ".api-toolkit-generator.json", Body: generatorMetadataTemplate})
 	if cfg.Profile != scaffoldProfileSaaSAPIFull {
 		return files
 	}
@@ -22638,7 +22661,7 @@ DROP TABLE IF EXISTS organizations;
 `
 
 const fullMakefileTemplate = `GO ?= go
-API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit
+API_TOOLKIT ?= api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 COMPOSE ?= docker compose
@@ -23080,7 +23103,8 @@ export API_ADDR="${INTEGRATION_API_ADDR:-127.0.0.1:18080}"
 export ADMIN_ADDR="${INTEGRATION_ADMIN_ADDR:-127.0.0.1:19090}"
 default_db_user="${POSTGRES_USER:-api}"
 default_db_password="${POSTGRES_PASSWORD:-api}"
-export DATABASE_URL="${DATABASE_URL:-postgres://${default_db_user}:${default_db_password}@localhost:5432/api?sslmode=disable}"
+export POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-5432}"
+export DATABASE_URL="${DATABASE_URL:-postgres://${default_db_user}:${default_db_password}@localhost:${POSTGRES_HOST_PORT}/api?sslmode=disable}"
 export REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
 export CACHE_STORE="${CACHE_STORE:-redis}"
 export RATE_LIMIT_STORE="${RATE_LIMIT_STORE:-redis}"
@@ -23744,7 +23768,7 @@ const fullComposeTemplate = `services:
       POSTGRES_PASSWORD: api
       POSTGRES_DB: api
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
@@ -25780,7 +25804,7 @@ func jwkFromRSAPublicKey(key *rsa.PublicKey) map[string]string {
 `
 
 const makefileTemplate = `GO ?= go
-API_TOOLKIT ?= $(GO) run -mod=mod github.com/aatuh/api-toolkit/contrib/v4/cmd/api-toolkit
+API_TOOLKIT ?= api-toolkit
 OPENAPI ?= testdata/openapi.golden.json
 OPENAPI_BASE ?= $(OPENAPI)
 OUTPUT_DIR ?= .ci-result

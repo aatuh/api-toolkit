@@ -17,7 +17,7 @@ This repository follows hexagonal (ports and adapters) architecture:
 | Core implementation-sharing packages | root packages listed as `experimental`, `test-only`, `tooling`, or `excluded` | No stable API promise unless promoted | root packages and package-local helpers | contrib runtime adapters unless the package is explicitly tooling/test-only and excluded from the stable API surface |
 | Contrib adapters and integrations | `contrib/adapters/*`, `contrib/integrations/*`, `contrib/middleware/*`, and related contrib packages | Supported-adapter or experimental policy from package classification | core ports/contracts, provider SDKs, database drivers, router adapters, and contrib test contracts | generated app internals or reference-service internals |
 | Bootstrap composition | `contrib/bootstrap` | Supported-adapter policy | stable core, supported contrib adapters, and service-supplied options | app business logic, generated app internals, or provider-specific secrets in source |
-| CLI and generators | `contrib/cmd/api-toolkit` | Tooling policy, not stable root API | templates, contrib tooling helpers, and generated-fixture tests | stable core internals that would make generated app code a hidden root dependency |
+| CLI and generators | `cmd/api-toolkit/v5` | Independently versioned tooling, not stable root API | templates, explicit v4 scaffold dependencies, and contrib-owned generated-fixture tests | stable core internals that would make generated app code a hidden root dependency |
 | Generated application code | generated service output and `examples/reference-saas-api` | App-owned generated code | stable core, selected contrib adapters, and application packages | stable core package internals or assumptions that generated app code is part of the root API promise |
 | Examples and reference apps | `contrib/examples/*` and `examples/reference-saas-api` | Runnable adoption evidence | stable core, contrib adapters, and local app code | package internals that would teach unsupported coupling |
 
@@ -56,7 +56,7 @@ flowchart LR
   end
 
   Bootstrap[bootstrap.ProfileStrictAPI]
-  CLI[contrib/cmd/api-toolkit]
+  CLI[cmd/api-toolkit/v5]
   Generated[Generated app code]
   Examples[Examples and reference apps]
   App[Your service]

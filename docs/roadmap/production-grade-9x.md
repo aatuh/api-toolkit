@@ -2781,7 +2781,7 @@ docs(adr): approve module decomposition
 
 ---
 
-## [ ] ARC-004: Split the CLI into an independent module
+## [pr] ARC-004: Split the CLI into an independent module
 
 **Priority:** P1
 **Owner:** CLI team

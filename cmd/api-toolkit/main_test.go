@@ -18,7 +18,29 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv("GOWORK", "off"); err != nil {
 		panic(err)
 	}
-	os.Exit(m.Run())
+	root, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	binDir, err := os.MkdirTemp("", "api-toolkit-cli-test-")
+	if err != nil {
+		panic(err)
+	}
+	cliBinary := filepath.Join(binDir, "api-toolkit")
+	build := exec.Command("go", "build", "-o", cliBinary, ".")
+	build.Dir = root
+	build.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local")
+	if output, err := build.CombinedOutput(); err != nil {
+		_ = os.RemoveAll(binDir)
+		panic("build local CLI test binary: " + err.Error() + "\n" + string(output))
+	}
+	if err := os.Setenv("API_TOOLKIT", cliBinary); err != nil {
+		_ = os.RemoveAll(binDir)
+		panic(err)
+	}
+	code := m.Run()
+	_ = os.RemoveAll(binDir)
+	os.Exit(code)
 }
 
 func TestRunVersion(t *testing.T) {
@@ -33,6 +55,7 @@ func TestRunVersion(t *testing.T) {
 	for _, want := range []string{
 		"go go",
 		"main ",
+		"cli github.com/aatuh/api-toolkit/cmd/api-toolkit/v5 ",
 		"core github.com/aatuh/api-toolkit/v4 ",
 		"contrib github.com/aatuh/api-toolkit/contrib/v4 ",
 		"build_commit ",
@@ -50,7 +73,7 @@ func TestRunVersionJSON(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version --json exit code = %d output=%s", code, out.String())
 	}
-	var got map[string]string
+	var got map[string]any
 	if err := json.Unmarshal([]byte(out.String()), &got); err != nil {
 		t.Fatalf("decode version json: %v\n%s", err, out.String())
 	}
@@ -59,14 +82,19 @@ func TestRunVersionJSON(t *testing.T) {
 		"go_version",
 		"main_path",
 		"main_version",
+		"cli_version",
 		"core_version",
 		"contrib_version",
 		"build_commit",
 		"build_date",
 	} {
-		if strings.TrimSpace(got[key]) == "" {
+		value, ok := got[key].(string)
+		if !ok || strings.TrimSpace(value) == "" {
 			t.Fatalf("version json missing %q: %#v", key, got)
 		}
+	}
+	if got["template_schema"] != float64(templateSchema) {
+		t.Fatalf("template_schema = %#v, want %d", got["template_schema"], templateSchema)
 	}
 }
 
@@ -149,12 +177,12 @@ func TestScaffoldDependencyVersionUsesInstalledSemver(t *testing.T) {
 		{
 			name: "contrib release",
 			info: versionMetadata{ContribVersion: "v2.3.4", CoreVersion: "v2.0.0"},
-			want: "v2.3.4",
+			want: "v2.0.0",
 		},
 		{
 			name: "main release",
 			info: versionMetadata{MainVersion: "v2.4.0"},
-			want: "v2.4.0",
+			want: defaultScaffoldModuleVersion,
 		},
 		{
 			name: "development fallback",
@@ -4168,7 +4196,7 @@ func mustRepoRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
-	root := filepath.Clean(filepath.Join(wd, "..", "..", ".."))
+	root := filepath.Clean(filepath.Join(wd, "..", ".."))
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
 		t.Fatalf("repo root from %s: %v", wd, err)
 	}

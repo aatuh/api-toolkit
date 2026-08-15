@@ -1,4 +1,4 @@
-MODULES := . contrib
+MODULES := . cmd/api-toolkit contrib
 GO ?= go
 WORKSPACE := $(abspath go.work)
 FUZZTIME ?= 10s
@@ -12,9 +12,9 @@ MUTATION_GATE_PACKAGES ?= ./binding,./queryparams,./negotiation,./webhooks
 MUTATION_GATE_PER_PACKAGE_LIMIT ?= 3
 MUTATION_GATE_MIN_KILL_RATE ?= 0.75
 POSTGRES_TEST_DSN ?= postgres://api_toolkit_test:api_toolkit_test@127.0.0.1:54329/api_toolkit_test?sslmode=disable
-POSTGRES_TEST_PACKAGES := ./internal/testpostgres ./adapters/auditpostgres ./adapters/migrate ./adapters/operationpostgres ./adapters/outboxpostgres ./adapters/pgxpool ./adapters/txpostgres ./adapters/webhookdeliverypostgres ./integrations/pgxpool ./integrations/txpostgres ./migrator ./scheduler/postgres ./cmd/api-toolkit
+POSTGRES_TEST_PACKAGES := ./internal/testpostgres ./adapters/auditpostgres ./adapters/migrate ./adapters/operationpostgres ./adapters/outboxpostgres ./adapters/pgxpool ./adapters/txpostgres ./adapters/webhookdeliverypostgres ./integrations/pgxpool ./integrations/txpostgres ./migrator ./scheduler/postgres ./cmd/api-toolkit-integration
 REDIS_TEST_URL ?= redis://127.0.0.1:56379/15
-REDIS_TEST_PACKAGES := ./internal/testredis ./adapters/cacheredis ./adapters/idempotencyredis ./adapters/ratelimitredis ./cmd/api-toolkit
+REDIS_TEST_PACKAGES := ./internal/testredis ./adapters/cacheredis ./adapters/idempotencyredis ./adapters/ratelimitredis ./cmd/api-toolkit-integration
 # Standard tools.
 TOOLS := golangci-lint gosec govulncheck
 TOOLS_DIR ?= .tools
@@ -48,7 +48,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools required-checks-verify api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check version-consistency-check version-consistency-contract dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract provider-live-check provider-live-check-contract upgrade-smoke-check upgrade-smoke-contract downstream-compat-check downstream-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-check reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke benchmark-check clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools required-checks-verify api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check version-consistency-check version-consistency-contract dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check cli-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract provider-live-check provider-live-check-contract upgrade-smoke-check upgrade-smoke-contract downstream-compat-check downstream-compat-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-check reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract supported-adapter-check actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race test-postgres test-redis timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke benchmark-check clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -124,8 +124,11 @@ dependency-report: ## Write root/contrib dependency footprint and optional API_B
 dependency-boundary-check: ## Verify stable core import boundaries
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" GO="$(GO)" scripts/dependency_boundary_check.sh
 
+cli-check: ## Verify the independent CLI module outside the repository workspace
+	@(cd cmd/api-toolkit && GOWORK=off GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" $(GO) test ./...)
+
 full-profile-scaffold-check: ## Generate and validate the saas-api-full scaffold, clients, contracts, resource generator, providers, and web profile
-	@(cd contrib && GOWORK="$(WORKSPACE)" $(GO) test ./cmd/api-toolkit -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
+	@(cd cmd/api-toolkit && GOWORK=off GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" $(GO) test ./... -count=1 -run '^(TestNewServiceGeneratesBuildableSaaSAPIFull|TestNewServiceGeneratesBuildableSaaSAPIFullWithOIDC|TestNewServiceGeneratesBuildableSaaSAPIFullWithJWT|TestNewServiceGeneratesBuildableSaaSAPIFullWithClerk|TestGenerateResourceSupportsAppOwnedReplacementErgonomics|TestNewServiceGeneratesFullProfileProviderWorkflows|TestNewServiceGeneratesFullProfileTypeScriptClientAndEntitlements|TestNewServiceGeneratesSaaSWebSessionProfile)$$')
 
 generated-integration-check: ## Opt-in Docker-backed generated saas-api-full integration check
 	@GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" GOWORK="$${GOWORK:-off}" scripts/generated_integration_check.sh

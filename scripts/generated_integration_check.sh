@@ -13,6 +13,7 @@ log_path="$result_dir/integration-check.log"
 status_path="$result_dir/status"
 summary_path="$result_dir/summary.json"
 include_minio="${INCLUDE_MINIO:-false}"
+postgres_host_port="${GENERATED_INTEGRATION_POSTGRES_PORT:-55432}"
 provider_workflows="${GENERATED_INTEGRATION_PROVIDERS:-stripe-billing,resend-email,clerk-webhooks,entitlements}"
 provider_args=()
 provider_names=()
@@ -109,8 +110,11 @@ run_check() {
     done
     IFS="$old_ifs"
   fi
-  cd "$repo_root/contrib"
-  go run ./cmd/api-toolkit new service \
+  local cli_binary="$tmpdir/api-toolkit"
+  (cd "$repo_root/cmd/api-toolkit" && GOWORK=off go build -o "$cli_binary" .) || return
+  export API_TOOLKIT="$cli_binary"
+  cd "$repo_root/cmd/api-toolkit"
+  go run . new service \
     --module example.com/full-api \
     --profile saas-api-full \
     --auth api-key \
@@ -132,9 +136,9 @@ run_check() {
     COMPOSE_PROFILES="${COMPOSE_PROFILES:-minio}" \
       ENABLE_MINIO_INTEGRATION="${ENABLE_MINIO_INTEGRATION:-1}" \
       INTEGRATION_OBJECT_STORE="${INTEGRATION_OBJECT_STORE:-s3}" \
-      make integration-check || return
+      POSTGRES_HOST_PORT="$postgres_host_port" DATABASE_URL="postgres://api:api@localhost:${postgres_host_port}/api?sslmode=disable" make integration-check || return
   else
-    make integration-check || return
+    POSTGRES_HOST_PORT="$postgres_host_port" DATABASE_URL="postgres://api:api@localhost:${postgres_host_port}/api?sslmode=disable" make integration-check || return
   fi
 }
 

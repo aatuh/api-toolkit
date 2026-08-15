@@ -158,11 +158,11 @@ jobs:
       - name: Generate portable service fixture
         id: fixture
         shell: pwsh
-        working-directory: contrib
+        working-directory: cmd/api-toolkit
         run: |
           $serviceDir = Join-Path $env:RUNNER_TEMP "api-toolkit-platform-${{ matrix.platform }}"
           $contribDir = Join-Path $env:GITHUB_WORKSPACE "contrib"
-          go run ./cmd/api-toolkit new service `
+          go run . new service `
             --module example.com/platform-smoke `
             --profile saas-api `
             --dir "$serviceDir" `
