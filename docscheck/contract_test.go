@@ -1272,7 +1272,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence",
 		"API_BASE_REF=v3.1.2",
 		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 		"local dirty-tree audit",
@@ -1322,7 +1322,7 @@ func TestReleaseCandidateFlowIsDocumentedAndWired(t *testing.T) {
 		"`vX.Y.0-rc.1`",
 		"`vX.Y.0-rc.2`",
 		"No stable surface touch",
-		"latest published stable v4 tag",
+		"verified root v4 baseline",
 		"RELEASE_TAG=vX.Y.0-rc.1",
 		"prerelease: true",
 		"Do not advance the supported v4 baseline to an RC tag",
@@ -5451,9 +5451,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"V4 release publication is paused while the",
-		"Do not use `v4.0.0` or `v4.0.1` as `API_BASE_REF`",
-		"`VERIFIED_V4_BASE_REF`",
+		"The supported root v4 release baseline is",
+		"`VERIFIED_V4_BASE_REF=v4.0.1`",
+		"Do not use `v4.0.0`, `contrib/v4.0.0`, or",
 		"API_BASE_REF=v3.1.2",
 		"schema v2",
 		"local release evidence",
@@ -7394,7 +7394,7 @@ func TestProductionGradeScorecard(t *testing.T) {
 			t.Fatalf("scorecard area %q has no backlog ticket in required_evidence", fields[0])
 		}
 		for _, id := range matches {
-			if !strings.Contains(roadmap, "## [ ] "+id) && !strings.Contains(roadmap, "## [x] "+id) {
+			if !strings.Contains(roadmap, "## [ ] "+id) && !strings.Contains(roadmap, "## [pr] "+id) && !strings.Contains(roadmap, "## [x] "+id) {
 				t.Fatalf("scorecard area %q maps to unknown ticket %q", fields[0], id)
 			}
 		}
@@ -7746,7 +7746,7 @@ func TestAPIAdditionsForeverGateIsWired(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"API_ADDITIONS_BASE_REF=v4.0.0 GOTOOLCHAIN=local make api-additions-check",
+		"API_ADDITIONS_BASE_REF=v4.0.1 GOTOOLCHAIN=local make api-additions-check",
 		"stable identifiers need doc comments",
 		"compile-checked examples or exact exceptions",
 	} {
