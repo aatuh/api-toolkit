@@ -3646,7 +3646,7 @@ ci(security): harden workflow trust boundaries
 
 ---
 
-## [ ] SEC-007: Refresh the architecture threat model
+## [pr] SEC-007: Refresh the architecture threat model
 
 **Priority:** P1
 **Owner:** Security engineer
