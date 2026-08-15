@@ -64,6 +64,19 @@ source of truth is `docs/release-runbook.md`.
   documented v2-to-v3 transition evidence.
 - Use `docs/release-manifests.md` when interpreting `docs/package-classification.tsv`, `docs/contrib-api-drift-dispositions.tsv`, and `docs/vulnerability-dispositions.tsv`.
 
+## 2026-08-15
+
+### Security and migration
+
+- `contrib/adapters/chi.Middleware.RealIP` now ignores untrusted forwarding
+  headers and leaves `http.Request.RemoteAddr` intact. This removes the
+  spoofable `middleware.RealIP` behavior identified by the updated chi
+  dependency.
+- Reverse-proxy deployments must obtain the resolved client address through
+  `middleware.GetClientIP(r.Context())` and apply
+  `chi.ClientIPFromXFF(trustedCIDRs...)`. The helper trusts only the configured
+  proxy CIDRs and never mutates `RemoteAddr`.
+
 ## 2026-07-11
 
 ### V4 migration release

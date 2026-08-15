@@ -7,6 +7,20 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased
 
+### Security
+
+- `contrib/adapters/chi.Middleware.RealIP` no longer trusts client-supplied
+  forwarding headers or rewrites `http.Request.RemoteAddr`. It now resolves the
+  direct peer address safely; proxy deployments must use the new explicit
+  `chi.ClientIPFromXFF` helper with their trusted proxy CIDRs.
+
+### Upgrade
+
+- If an application previously used `Middleware.RealIP()` behind a reverse
+  proxy, replace assumptions about `RemoteAddr` with
+  `middleware.GetClientIP(r.Context())` and configure
+  `chi.ClientIPFromXFF` with the actual trusted proxy CIDRs.
+
 ## [4.0.0] - 2026-07-11
 
 ### Breaking

@@ -17,3 +17,11 @@ allow-licenses:
   - MPL-2.0
   - BlueOak-1.0.0
   - Unlicense
+# These version-pinned Go modules carry a BSD-3-Clause LICENSE file, but the
+# dependency-review metadata also adds a non-SPDX Google patent reference.
+# Keep this exception package-scoped; see docs/license-policy.md.
+allow-dependencies-licenses:
+  - pkg:golang/golang.org/x/net@0.57.0
+  - pkg:golang/golang.org/x/sync@0.22.0
+  - pkg:golang/golang.org/x/sys@0.47.0
+  - pkg:golang/golang.org/x/text@0.40.0

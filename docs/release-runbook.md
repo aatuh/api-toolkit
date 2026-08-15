@@ -4,9 +4,12 @@ Audience: release operators and reviewers who need the canonical command
 sequence, evidence expectations, artifact verification path, and baseline
 maintenance rule.
 
-Supported v4 release baseline: `v4.0.0` for v4 patch and minor releases. The
-v4 major-release evidence compared against `v3.1.2` when recording intentional
-v3-to-v4 breakage evidence.
+V4 release publication is paused while the
+[v4 release-identity incident](release-incident-v4-release-identity.md) is
+open. Do not use `v4.0.0` or `v4.0.1` as `API_BASE_REF` for a new release until
+the incident records `VERIFIED_V4_BASE_REF`. The v4 major-release evidence
+compared against `v3.1.2` when recording intentional v3-to-v4 breakage
+evidence.
 
 Supported Go toolchain: Go 1.25.x for root and contrib. Release and reviewer
 commands use `GOTOOLCHAIN=local` to ensure the module `go` directives and
@@ -15,9 +18,10 @@ GitHub Actions setup stay compatible with the provisioned local toolchain.
 ## Baseline maintenance rule
 
 This runbook owns the supported `API_BASE_REF` baseline for releases. For v4
-patch and minor releases, set `API_BASE_REF` to the latest published v4 tag.
-The v4 major-release evidence used `API_BASE_REF=v3.1.2` as major-version
-transition evidence. When the supported v4 baseline changes,
+patch and minor releases, set it only to `VERIFIED_V4_BASE_REF` from the open
+incident; a latest-published-tag fallback is forbidden. The v4 major-release
+evidence used `API_BASE_REF=v3.1.2` as major-version transition evidence. When
+the supported v4 baseline changes,
 update this line first, then update command examples in `README.md`,
 `VERSIONING.md`, `docs/release-review.md`, `docs/release-notes.md`, scripts that
 mention the supported baseline, and any release evidence fixtures in the same

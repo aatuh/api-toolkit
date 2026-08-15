@@ -11,9 +11,10 @@ is Apache-2.0; this document is about licenses introduced by dependencies.
 
 `.github/dependency-review-config.yml` is the automated pull-request enforcement
 source. It enables license checking in the dependency review workflow and uses
-an `allow-licenses` list. This document explains how maintainers decide whether
-to add a dependency or request an exception; keep the allowed-license table
-below in sync with the config file.
+an `allow-licenses` list plus narrowly scoped `allow-dependencies-licenses`
+exceptions. This document explains how maintainers decide whether to add a
+dependency or request an exception; keep the allowed-license table and
+exception register below in sync with the config file.
 
 ## Allowed Licenses
 
@@ -76,6 +77,25 @@ If the exception is approved, make the enforcement explicit:
   and document the package, owner, and re-review trigger here,
 - for a one-time blocked PR, leave the CI failure in place until the exception
   is documented or the dependency is removed.
+
+## Active Package Exceptions
+
+The following exclusions are exact package-version PURLs, not an allowance for
+the detected non-SPDX expression. GitHub dependency review reports
+`BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang` for these
+modules, while the corresponding upstream `LICENSE` file in the Go module cache
+contains the BSD-3-Clause text.
+
+| Package/version | Scope and owner | Evidence and reason | Distribution and obligations | Re-review trigger |
+| --- | --- | --- | --- | --- |
+| `pkg:golang/golang.org/x/net@0.57.0` | Contrib runtime; maintainer | The upstream Go module `LICENSE` is BSD-3-Clause. It is a transitive security update required by `google.golang.org/grpc@1.82.1`; substituting an older release would reintroduce a vulnerability. | Linked Go dependency; preserve supplied BSD notice in release-license review. No source offer required. | Any version change, dependency-review metadata change, or 2027-08-15, whichever is first. |
+| `pkg:golang/golang.org/x/sync@0.22.0` | Contrib runtime and reference example; maintainer | The upstream Go module `LICENSE` is BSD-3-Clause. It is selected transitively by the patched dependency set. | Linked Go dependency; preserve supplied BSD notice in release-license review. No source offer required. | Any version change, dependency-review metadata change, or 2027-08-15, whichever is first. |
+| `pkg:golang/golang.org/x/sys@0.47.0` | Contrib runtime and reference example; maintainer | The upstream Go module `LICENSE` is BSD-3-Clause. It is selected transitively by the patched dependency set. | Linked Go dependency; preserve supplied BSD notice in release-license review. No source offer required. | Any version change, dependency-review metadata change, or 2027-08-15, whichever is first. |
+| `pkg:golang/golang.org/x/text@0.40.0` | Contrib runtime and reference example; maintainer | The upstream Go module `LICENSE` is BSD-3-Clause. It is a transitive security update required by the patched dependency set. | Linked Go dependency; preserve supplied BSD notice in release-license review. No source offer required. | Any version change, dependency-review metadata change, or 2027-08-15, whichever is first. |
+
+`REL-000A` recorded this exception together with `make vuln` passing for the
+patched dependency set. The exception does not cover other versions, packages,
+or a general `LicenseRef-scancode-google-patent-license-golang` allowance.
 
 ## Release Review
 

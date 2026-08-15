@@ -57,15 +57,17 @@ func TestNewRoutesAndExtractors(t *testing.T) {
 	}
 }
 
-func TestNewMiddlewareAppliesRequestIDAndRealIP(t *testing.T) {
+func TestNewMiddlewareAppliesRequestIDAndRejectsUntrustedForwardedIP(t *testing.T) {
 	mw := NewMiddleware()
 	var (
 		seenRequestID string
+		seenClientIP  string
 		seenRemoteIP  string
 	)
 
 	handler := mw.RequestID()(mw.RealIP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenRequestID = chimiddleware.GetReqID(r.Context())
+		seenClientIP = chimiddleware.GetClientIP(r.Context())
 		seenRemoteIP = r.RemoteAddr
 		w.WriteHeader(http.StatusNoContent)
 	})))
@@ -83,8 +85,40 @@ func TestNewMiddlewareAppliesRequestIDAndRealIP(t *testing.T) {
 	if seenRequestID == "" {
 		t.Fatal("expected request ID to be populated")
 	}
-	if seenRemoteIP != "203.0.113.10" {
-		t.Fatalf("remote IP = %q, want 203.0.113.10", seenRemoteIP)
+	if seenClientIP != "198.51.100.50" {
+		t.Fatalf("client IP = %q, want 198.51.100.50", seenClientIP)
+	}
+	if seenRemoteIP != "198.51.100.50:1234" {
+		t.Fatalf("remote address = %q, want 198.51.100.50:1234", seenRemoteIP)
+	}
+}
+
+func TestClientIPFromXFFUsesOnlyConfiguredTrustedProxyRanges(t *testing.T) {
+	var (
+		seenClientIP string
+		seenRemoteIP string
+	)
+	handler := ClientIPFromXFF("192.0.2.0/24")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenClientIP = chimiddleware.GetClientIP(r.Context())
+		seenRemoteIP = r.RemoteAddr
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.RemoteAddr = "192.0.2.10:443"
+	req.Header.Set("X-Forwarded-For", "203.0.113.10, 192.0.2.10")
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if seenClientIP != "203.0.113.10" {
+		t.Fatalf("client IP = %q, want 203.0.113.10", seenClientIP)
+	}
+	if seenRemoteIP != "192.0.2.10:443" {
+		t.Fatalf("remote address = %q, want 192.0.2.10:443", seenRemoteIP)
 	}
 }
 

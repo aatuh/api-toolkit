@@ -47,9 +47,20 @@ func (m *Middleware) RequestID() func(http.Handler) http.Handler {
 	return middleware.RequestID
 }
 
-// RealIP returns the real IP middleware.
+// RealIP returns the safe client-IP middleware for direct connections.
+//
+// It deliberately ignores client-supplied forwarding headers and preserves
+// RemoteAddr. Applications behind reverse proxies must configure their own
+// explicit trust boundary with ClientIPFromXFF.
 func (m *Middleware) RealIP() func(http.Handler) http.Handler {
-	return middleware.RealIP
+	return middleware.ClientIPFromRemoteAddr
+}
+
+// ClientIPFromXFF returns client-IP middleware that trusts only the supplied
+// reverse-proxy CIDR prefixes. Read the resolved address with
+// middleware.GetClientIP rather than RemoteAddr.
+func ClientIPFromXFF(trustedIPPrefixes ...string) func(http.Handler) http.Handler {
+	return middleware.ClientIPFromXFF(trustedIPPrefixes...)
 }
 
 // Recoverer returns the recoverer middleware.
