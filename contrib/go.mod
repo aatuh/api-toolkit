@@ -11,7 +11,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cedar-policy/cedar-go v1.4.0
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/getkin/kin-openapi v0.142.0
+	github.com/getkin/kin-openapi v0.144.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1

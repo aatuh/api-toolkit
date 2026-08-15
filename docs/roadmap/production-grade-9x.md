@@ -3492,7 +3492,7 @@ ci(security): enforce secret scanning controls
 
 ---
 
-## [ ] SEC-003: Establish a dependency maintenance cadence
+## [pr] SEC-003: Establish a dependency maintenance cadence
 
 **Priority:** P1
 **Owner:** Dependency maintainer

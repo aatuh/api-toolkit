@@ -65,6 +65,11 @@ GitHub Actions. The SLA for dependency PRs is:
 | Routine update open 14 days | Add an owner and a short disposition: merge window, blocked reason, replacement plan, or close rationale. |
 | Routine update open 30 days | Refresh or close; do not let stale dependency PRs accumulate without an owner decision. |
 
+Ownership is by dependency surface: the dependency maintainer owns root and
+contrib Go-module updates, while the release engineer owns GitHub Actions pin
+updates and their generated workflow templates. The release engineer records
+license and optional-module footprint impact before release acceptance.
+
 Required triage notes:
 
 - affected module and package,
@@ -79,21 +84,27 @@ PR and, when release-relevant, in `docs/release-notes.md`.
 
 ## Current dependency PR triage snapshot
 
-Reviewed on: `2026-06-05`.
+Reviewed on: `2026-08-15`.
 
 Open Dependabot PRs at review time:
 
 | PR | Created | Labels | Disposition |
 | ---: | --- | --- | --- |
-| `#16` | `2026-05-22` | `dependencies`, `github_actions` | Routine GitHub Actions update. Under the 14-day SLA at review time; review after this branch lands because release evidence is being refreshed in the same window. |
-| `#17` | `2026-05-22` | `dependencies`, `go` | Routine contrib Go dependency update. Under the 14-day SLA at review time; run contrib tests and drift/release-note checks before merge. |
-| `#18` | `2026-05-22` | `dependencies`, `github_actions` | Routine GitHub Actions update. Under the 14-day SLA at review time; verify actions audit and release workflow behavior before merge. |
-| `#19` | `2026-05-22` | `dependencies`, `go` | Superseded by the local contrib `golang.org/x/net` floor update required by govulncheck in this backlog pass; close or let Dependabot rebase after this branch lands. |
-| `#20` | `2026-05-22` | `dependencies`, `go` | Routine contrib test dependency update. Under the 14-day SLA at review time; run contrib tests before merge. |
-| `#21` | `2026-05-22` | `dependencies`, `go` | Routine contrib Markdown dependency update. Under the 14-day SLA at review time; run contrib email/markdown tests and `make vuln` before merge. |
-| `#22` | `2026-05-22` | `dependencies`, `go` | Superseded by the local contrib `golang.org/x/text` update pulled by the `x/net` security floor; close or let Dependabot rebase after this branch lands. |
-| `#23` | `2026-05-29` | `dependencies`, `github_actions` | Routine CodeQL action update. Under the 14-day SLA at review time; verify actions audit and code scanning workflow behavior before merge. |
+| `#50` | `2026-07-24` | `dependencies`, `github_actions` | Deferred to the next Actions pin batch. The stale branch cannot be merged; re-review the release workflow, SHA, permissions, and generated templates by `2026-08-22`. |
+| `#51` | `2026-07-24` | `dependencies`, `github_actions` | Deferred to the next Actions pin batch. Re-evaluate the current setup-go major version and generated templates by `2026-08-22`; do not merge this stale branch. |
+| `#53` | `2026-07-24` | `dependencies`, `go` | Deferred to the next contrib observability-family batch by `2026-08-22`; rebase, run contrib tests, and review footprint before merge. |
+| `#54` | `2026-07-24` | `dependencies`, `go` | Superseded by SEC-003's fresh `kin-openapi` `v0.144.0` security update; close after that protected PR merges. |
+| `#55` | `2026-07-24` | `dependencies`, `github_actions` | Deferred to the next Actions pin batch by `2026-08-22`; re-review CodeQL behavior and immutable SHA before merge. |
+| `#56` | `2026-07-24` | `dependencies`, `go` | Deferred to the next contrib observability-family batch by `2026-08-22`; rebase and run contrib tests before merge. |
+| `#57` | `2026-07-24` | `dependencies`, `github_actions` | Deferred to the next Actions pin batch by `2026-08-22`; verify Scorecard workflow output and immutable SHA before merge. |
+| `#58` | `2026-07-24` | `dependencies`, `go` | Superseded: `go-chi/chi/v5` `v5.3.1` is already on `master`; close the stale branch. |
+| `#59` | `2026-07-24` | `dependencies`, `github_actions` | Deferred to the next Actions pin batch by `2026-08-22`; re-review the checkout SHA and generated templates before merge. |
+| `#60` | `2026-07-24` | `dependencies`, `go` | Deferred to the next direct Go dependency batch by `2026-08-22`; rebase and run root tests before merge. |
+| `#61` | `2026-07-24` | `dependencies`, `go` | Deferred to the next direct Go dependency batch by `2026-08-22`; rebase and run root metrics tests before merge. |
+| `#62` | `2026-07-24` | `dependencies`, `go` | Deferred to the next contrib data-store batch by `2026-08-22`; rebase and run contrib tests before merge. |
+| `#64` | `2026-07-24` | `dependencies`, `go` | Deferred to the next contrib authorization batch by `2026-08-22`; rebase, review behavior and license footprint, and run contrib tests before merge. |
 
-No open dependency PR was older than 14 days at review time. All open
-dependency PRs had ecosystem labels. Re-check this snapshot before the next
-release because it records external GitHub state, not a repository invariant.
+Every open dependency PR is over the normal stale threshold and now has an
+owner, action, and next review date. Do not merge its historical branch: rebase
+or regenerate a current candidate first. This snapshot records external GitHub
+state and must be refreshed at the next weekly review.
