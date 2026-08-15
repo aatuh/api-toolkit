@@ -50,6 +50,47 @@ The v4.0.0 and v4.0.1 release commits share common ancestor
 `24c46a2efc50f8d03691047eb425122a740bd26a`; neither release commit is an
 ancestor of the other. `v4.0.1` is reachable from `master`; `v4.0.0` is not.
 
+## Reconciliation record
+
+### Timeline
+
+* **2026-07-11:** the `v4.0.0` release summary recorded Git commit
+  `3cfc8d…`, while the Go module proxy retained origin `24188f7…` for the same
+  version.
+* **2026-07-20:** root `v4.0.1` was published at `09e0117…`. Its Git tag,
+  module-proxy origin, and release-summary commit agree, and the commit is
+  reachable from `master`.
+* **2026-08-15:** the technical review selected root-only `v4.0.1` as the
+  verified baseline, withdrew the other affected tags, and published the
+  consumer notices.
+* **2026-08-15:** protected PR #74 merged the final disposition into
+  `master` as `dc84948e1c8d7b84a5ff2fdc4535cd6f3b81da09`.
+
+### Root cause and impact
+
+The root cause is a release-identity control gap: the historical evidence did
+not bind the release tag, commit, tree, default-branch reachability, and Go
+module identity together. That gap permitted the Git and module-proxy views of
+`v4.0.0` to diverge without a release stop. The available evidence does not
+establish an actor, intent, or compromise; this record does not infer one.
+
+The impact is limited but material: root `v4.0.0` and both affected contrib
+versions cannot be used as new baselines, and the published contrib `v4.0.1`
+cannot resolve its required root checksum. Existing tags and assets remain
+available only as immutable audit evidence.
+
+### Recovery and verified history inventory
+
+The protected safety branch used for this reconciliation was created from
+current `master`. `git merge-base --is-ancestor v4.0.1 origin/master` succeeds
+and `git log origin/master..v4.0.1` is empty. Therefore no commit from the
+selected verified baseline was absent from `master`; there was nothing to
+merge, reapply, or supersede. No published tag was moved or rewritten.
+
+Recovery is to retain root `v4.0.1` as the root-only baseline and issue a new
+paired contrib repair tag only after clean protected release evidence. The
+release engineer owns that repair and the continuing release-identity review.
+
 ## Immutable tag and module evidence
 
 `Git tag target` is the peeled annotated-tag commit from the repository.
