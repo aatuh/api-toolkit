@@ -3202,7 +3202,7 @@ fix(cli): make generation offline and reproducible
 
 ---
 
-## [ ] CLI-004: Add generated-project contract metadata and upgrade policy
+## [pr] CLI-004: Add generated-project contract metadata and upgrade policy
 
 **Priority:** P1
 **Owner:** Developer experience team

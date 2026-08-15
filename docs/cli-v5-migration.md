@@ -82,6 +82,23 @@ manifest and assertions together, then run the offline check. `--allow-network`
 is explicit metadata for a future workflow; this generator makes no network
 calls.
 
+## Generated-project contract and upgrades
+
+Every new project also includes `.api-toolkit-project.json`. It records the
+CLI/template identity, selected profile and module versions, providers, and the
+complete generator-owned file inventory. `user_owned_files` is intentionally
+empty for a fresh project: application code added later is not inferred as
+generator-owned.
+
+Use `api-toolkit project inspect --dir <project>` to read the contract and
+`api-toolkit project check --dir <project>` to verify its generated inventory.
+`project diff` and `project upgrade --check` report the supported policy only:
+in-place upgrades never overwrite application-owned code. Generate a fresh
+project, compare it with the existing application, migrate app-owned changes
+deliberately, and retain the prior directory as rollback until validation
+succeeds. Unsupported manifest schemas fail with this same actionable manual
+migration guidance.
+
 Until v5 core and adapter modules are published, v5 CLI templates deliberately
 generate explicit v4 core and contrib requirements. The CLI module itself does
 not import contrib provider libraries. Do not claim a v5 generated-project

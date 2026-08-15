@@ -313,6 +313,35 @@ func TestGenerateServiceFailureLeavesDestinationUntouched(t *testing.T) {
 	}
 }
 
+func TestProjectCommandsUseGeneratedContractManifest(t *testing.T) {
+	root := t.TempDir()
+	destination := filepath.Join(root, "service")
+	if err := generateService(scaffoldConfig{Module: "example.com/project-api", Dir: destination, Profile: scaffoldProfileSaaSAPI, AuthMode: scaffoldAuthAPIKey}); err != nil {
+		t.Fatalf("generate service: %v", err)
+	}
+	for _, args := range [][]string{{"project", "inspect", "--dir", destination}, {"project", "check", "--dir", destination}, {"project", "diff", "--dir", destination}, {"project", "upgrade", "--check", "--dir", destination}} {
+		var output strings.Builder
+		if code := run(context.Background(), args, &output, &output); code != 0 {
+			t.Fatalf("%v failed: %s", args, output.String())
+		}
+	}
+	manifestPath := filepath.Join(destination, ".api-toolkit-project.json")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if !strings.Contains(string(data), `"generated_files"`) || !strings.Contains(string(data), `"in_place_upgrade_supported": false`) {
+		t.Fatalf("incomplete project manifest:\n%s", data)
+	}
+	if err := os.WriteFile(manifestPath, []byte(`{"schema_version":99}`), 0o600); err != nil {
+		t.Fatalf("write unsupported manifest: %v", err)
+	}
+	var output strings.Builder
+	if code := run(context.Background(), []string{"project", "check", "--dir", destination}, &output, &output); code == 0 || !strings.Contains(output.String(), "unsupported project manifest schema") {
+		t.Fatalf("unsupported schema result = code %d output=%q", code, output.String())
+	}
+}
+
 func TestClientsGoGeneratesBuildableClient(t *testing.T) {
 	tmp := t.TempDir()
 	specPath := filepath.Join(tmp, "openapi.json")

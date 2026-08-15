@@ -81,6 +81,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return runOps(ctx, args[1:], stdout, stderr)
 	case "deploy":
 		return runDeploy(ctx, args[1:], stdout, stderr)
+	case "project":
+		return runProject(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -88,7 +90,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 const (
-	usageTopLevel           = "usage: api-toolkit <new|generate|contracts|clients|ops|deploy|version>"
+	usageTopLevel           = "usage: api-toolkit <new|generate|contracts|clients|ops|deploy|project|version>"
+	usageProject            = "usage: api-toolkit project <inspect|check|diff|upgrade> [--dir <project>]"
 	usageVersion            = "usage: api-toolkit version [--json]"
 	usageNew                = "usage: api-toolkit new service --module <module> [--dir <path>] [--allow-absolute-dir] [--allow-network] [--check|--fail-if-exists|--overwrite-generated] [--profile saas-api|saas-api-full|saas-web|dev-api] [--auth api-key|jwt|clerk|oidc|dev-headers|session|oidc-session] [--client go|typescript] [--with stripe-billing|resend-email|clerk-webhooks|entitlements]"
 	usageGenerate           = "usage: api-toolkit generate resource --name <singular> --plural <plural> --tenant-scoped --crud [--postgres] [--soft-delete] [--etag] [--audit] [--webhooks] [--admin] [--field <field>] [--filter <field>] [--sort <field>] [--relationship <spec>] [--object-field <field>] [--dir <path>]"
@@ -106,6 +109,55 @@ const (
 	usageDeployHelm         = "usage: api-toolkit deploy helm --dir <project> --out <dir>"
 	usageDeployTerraform    = "usage: api-toolkit deploy terraform --cloud aws --dir <project> --out <dir>"
 )
+
+func runProject(args []string, stdout, stderr io.Writer) int {
+	if commandHelpRequested(args) || len(args) == 0 {
+		fmt.Fprintln(stdout, usageProject)
+		return 0
+	}
+	command := args[0]
+	if command != "inspect" && command != "check" && command != "diff" && command != "upgrade" {
+		fmt.Fprintln(stderr, usageProject)
+		return 2
+	}
+	fs := flag.NewFlagSet("project "+command, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("dir", ".", "generated project directory")
+	check := fs.Bool("check", false, "perform a non-mutating upgrade check")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if command == "upgrade" && !*check {
+		fmt.Fprintln(stderr, "only project upgrade --check is supported; regenerate a fresh project and migrate app-owned changes manually")
+		return 2
+	}
+	data, err := os.ReadFile(filepath.Join(*dir, ".api-toolkit-project.json"))
+	if err != nil {
+		fmt.Fprintf(stderr, "read project manifest: %v\n", err)
+		return 1
+	}
+	var manifest generatedProjectManifest
+	if err := json.Unmarshal(data, &manifest); err != nil || manifest.SchemaVersion != 1 {
+		fmt.Fprintln(stderr, "unsupported project manifest schema; generate a fresh project and follow the manual migration policy")
+		return 1
+	}
+	if command == "inspect" {
+		_, _ = stdout.Write(append(data, '\n'))
+		return 0
+	}
+	if command == "diff" || command == "upgrade" {
+		fmt.Fprintln(stdout, "in-place upgrade is unsupported; no files were changed. Regenerate a fresh project and migrate app-owned changes manually.")
+		return 0
+	}
+	for _, name := range manifest.GeneratedFiles {
+		if _, err := os.Stat(filepath.Join(*dir, name)); err != nil {
+			fmt.Fprintf(stderr, "generated file mismatch: %s: %v\n", name, err)
+			return 1
+		}
+	}
+	fmt.Fprintln(stdout, "project manifest and generated-file inventory are present")
+	return 0
+}
 
 func isHelpArg(arg string) bool {
 	return arg == "help" || arg == "--help" || arg == "-h" || arg == "-help"
@@ -4806,6 +4858,21 @@ type scaffoldConfig struct {
 	OverwriteGenerated bool
 }
 
+type generatedProjectManifest struct {
+	SchemaVersion  int      `json:"schema_version"`
+	CLIModule      string   `json:"cli_module"`
+	CLIVersion     string   `json:"cli_version"`
+	TemplateSchema int      `json:"template_schema"`
+	Profile        string   `json:"profile"`
+	Providers      []string `json:"providers"`
+	CoreVersion    string   `json:"core_version"`
+	ContribVersion string   `json:"contrib_version"`
+	GeneratedFiles []string `json:"generated_files"`
+	UserOwnedFiles []string `json:"user_owned_files"`
+	UpgradePolicy  string   `json:"upgrade_policy"`
+	InPlaceUpgrade bool     `json:"in_place_upgrade_supported"`
+}
+
 var renderScaffoldTemplate = renderTemplate
 
 func generateService(cfg scaffoldConfig) error {
@@ -4892,6 +4959,7 @@ func generateService(cfg scaffoldConfig) error {
 		"HasTypeScriptClient":  boolTemplateValue(hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript)),
 	}
 	files := scaffoldFilesForConfig(cfg)
+	generatedNames := make([]string, 0, len(files)+4)
 	for _, file := range files {
 		rendered, err := renderScaffoldTemplate(file.Name, file.Body, data)
 		if err != nil {
@@ -4907,6 +4975,7 @@ func generateService(cfg scaffoldConfig) error {
 		if err := writeGeneratedFile(root, file.Name, rendered); err != nil {
 			return err
 		}
+		generatedNames = append(generatedNames, file.Name)
 	}
 	var golden []byte
 	if cfg.Profile == scaffoldProfileSaaSAPIFull {
@@ -4920,6 +4989,7 @@ func generateService(cfg scaffoldConfig) error {
 	if err := writeGeneratedFile(root, "testdata/openapi.golden.json", golden); err != nil {
 		return err
 	}
+	generatedNames = append(generatedNames, "testdata/openapi.golden.json")
 	if cfg.Profile == scaffoldProfileSaaSAPIFull {
 		if hasScaffoldClient(cfg.Clients, scaffoldClientGo) {
 			client, err := renderSaaSAPIFullGoClient(cfg.Providers)
@@ -4929,6 +4999,7 @@ func generateService(cfg scaffoldConfig) error {
 			if err := writeGeneratedFile(root, "internal/client/apiclient/client.go", client); err != nil {
 				return err
 			}
+			generatedNames = append(generatedNames, "internal/client/apiclient/client.go")
 		}
 		if hasScaffoldClient(cfg.Clients, scaffoldClientTypeScript) {
 			client, err := renderSaaSAPIFullTypeScriptClient(cfg.Providers)
@@ -4938,7 +5009,17 @@ func generateService(cfg scaffoldConfig) error {
 			if err := writeGeneratedFile(root, "internal/client/ts/src/index.ts", client); err != nil {
 				return err
 			}
+			generatedNames = append(generatedNames, "internal/client/ts/src/index.ts")
 		}
+	}
+	sort.Strings(generatedNames)
+	generatedNames = append(generatedNames, ".api-toolkit-project.json")
+	manifest, err := json.MarshalIndent(generatedProjectManifest{SchemaVersion: 1, CLIModule: cliModulePath, CLIVersion: collectVersionMetadata().CLIVersion, TemplateSchema: templateSchema, Profile: cfg.Profile, Providers: cfg.Providers, CoreVersion: cfg.ToolkitVersion, ContribVersion: cfg.ToolkitVersion, GeneratedFiles: generatedNames, UserOwnedFiles: []string{}, UpgradePolicy: "check-only; regenerate a fresh project and manually migrate app-owned changes", InPlaceUpgrade: false}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode project manifest: %w", err)
+	}
+	if err := writeGeneratedFile(root, ".api-toolkit-project.json", append(manifest, '\n')); err != nil {
+		return err
 	}
 	if err := root.Close(); err != nil {
 		return fmt.Errorf("close generation staging root: %w", err)
