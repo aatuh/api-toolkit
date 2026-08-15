@@ -55,6 +55,15 @@ func TestPublicMarkdownUsesV2ModulePaths(t *testing.T) {
 	}
 }
 
+func TestPublicMarkdownModulePathClassifierKeepsRepositoryURLs(t *testing.T) {
+	if forbiddenModuleToken("github.com/aatuh/api-toolkit/releases/tag/v4.0.0") {
+		t.Fatal("official repository URLs must not be classified as stale Go module paths")
+	}
+	if !forbiddenModuleToken("github.com/aatuh/api-toolkit/v2/httpx") {
+		t.Fatal("a stale Go module import must remain rejected")
+	}
+}
+
 func TestGettingStartedGuideUsesGeneratedServiceScaffold(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	docPath := filepath.Join(repoRoot, "docs", "getting-started.md")
@@ -5442,9 +5451,9 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"Supported v4 release baseline: `v4.0.0`",
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-check",
-		"API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence",
+		"V4 release publication is paused while the",
+		"Do not use `v4.0.0` or `v4.0.1` as `API_BASE_REF`",
+		"`VERIFIED_V4_BASE_REF`",
 		"API_BASE_REF=v3.1.2",
 		"schema v2",
 		"local release evidence",
@@ -9469,6 +9478,9 @@ func markdownAnchorSlug(heading string) string {
 
 func forbiddenModuleToken(token string) bool {
 	if token == rootModulePath+"/badge" {
+		return false
+	}
+	if strings.HasPrefix(token, rootModulePath+"/releases/") {
 		return false
 	}
 	if strings.HasPrefix(token, rootModulePath+"-contrib") {

@@ -188,6 +188,7 @@ identifies the installed generator and contract tool.
 | --- | --- | --- |
 | [Audit and scratch archive policy](audits.md) | Maintainers and release reviewers | Keep local `.audits` and `.trash` scratch material out of tracked release evidence. |
 | [OpenSSF Best Practices gap review](openssf-best-practices.md) | Maintainers and release reviewers | Track Best Practices badge readiness, unclaimed status, and remaining gaps before publishing a badge. |
+| [V4 release-identity incident](release-incident-v4-release-identity.md) | V4 consumers and release reviewers | Follow the current safe action while the v4 tag history and checksum mismatch are reconciled. |
 | [Release runbook](release-runbook.md) | Release operators | Command source of truth for local checks, release evidence, artifact verification, and baseline policy. |
 | [Release provenance](provenance.md) | Release consumers and reviewers | Verify GitHub artifact provenance, understand the attested asset scope, and apply the documented trust limits. |
 | [Reproducible build status](reproducible-builds.md) | Release consumers and maintainers | Distinguish unsupported binary reproducibility from the checksums, signatures, and provenance verified for release assets. |
