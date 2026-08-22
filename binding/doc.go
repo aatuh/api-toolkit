@@ -6,6 +6,11 @@
 // shape as the rest of the toolkit. Business validation and persistence rules
 // should still live outside handlers.
 //
+// Required fields preserve v4's existing non-zero and source-specific defaults.
+// Set a decoder config's RequiredMode to RequiredModePresent when a field may be
+// explicitly supplied as false, zero, empty, or null. Applications should keep
+// semantic non-null and non-zero rules in their own validation layer.
+//
 // Purpose: See the package summary above.
 // Import: `github.com/aatuh/api-toolkit/v4/binding`.
 // Example: See docs/api-reference.md for package example links and docs/cookbook.md for task recipes.

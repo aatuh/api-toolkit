@@ -87,6 +87,25 @@ if err != nil {
 - Expected response shape: invalid input returns `application/problem+json` with `validation.fields`.
 - Production caveat: keep route-specific semantic validation in the application layer; binding handles transport shape, conversion, and required-field errors.
 
+`required:"true"` keeps its v4-compatible defaults: JSON requires a non-zero
+decoded value, query rejects missing and all-empty source values, and path
+decoding treats empty resolver values as missing. Set
+`RequiredMode: binding.RequiredModePresent` when the API accepts an explicit
+`false`, `0`, empty string, empty collection, or `null` JSON member. This mode
+tracks the JSON object's top-level member names before decoding and rejects
+duplicate members; ordinary unknown-field handling still applies. A supplied
+`null` counts as present. Non-pointer scalar fields decode both `null` and a
+zero JSON value to Go's zero value, while a pointer stays nil for `null`; apply
+application-level nullability rules where that distinction matters.
+
+Query decoding obtains presence from its source map, including repeated values.
+For a path decoder, `PathConfig.Param` alone cannot distinguish an absent route
+parameter from a present empty parameter. Supply `PathConfig.HasParam` with
+`RequiredModePresent` when the router exposes that distinction. A future v5
+major line will make presence-aware required validation the default; new
+services should select the intended mode explicitly and use separate semantic
+validation for non-zero constraints.
+
 ## Hardened middleware profile
 
 Purpose: apply the strict API profile with secure headers, timeout, tracing, and explicit system endpoint choices.
