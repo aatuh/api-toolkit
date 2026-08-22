@@ -26,6 +26,9 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 - `binding` now supports presence-aware required validation: opt into
   `RequiredModePresent` to accept explicit `false`, `0`, empty values, or JSON
   `null` members while the v4-compatible defaults remain unchanged.
+- `endpoints/health` adds validated `NewManager` construction, checked checker
+  registration, injected-clock cache behavior, and bounded timeout responses.
+  Existing unchecked constructors remain available for v4 compatibility.
 
 ### Upgrade
 

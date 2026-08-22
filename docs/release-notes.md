@@ -102,6 +102,19 @@ source of truth is `docs/release-runbook.md`.
   Applications that require a non-zero or non-null value should state that
   semantic rule separately before migrating.
 
+### Health manager construction and v5 migration
+
+- `github.com/aatuh/api-toolkit/v4/endpoints/health.DefaultConfig`,
+  `health.Config.Clock`, and `health.Config.Validate` provide an explicit,
+  testable, startup-time configuration baseline for health managers.
+- `health.NewManager` returns a concrete manager and fails invalid timeout,
+  cache, and probe configuration. `health.Manager.RegisterCheckerChecked`
+  rejects nil, empty-name, and duplicate checkers instead of replacing a
+  configured probe silently.
+- `health.NewManagerWithConfig` and `health.NewWithConfig` remain v4
+  compatibility wrappers. Migrate startup wiring to `NewManager` and checked
+  registration before v5 removes the inconsistent unchecked constructors.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

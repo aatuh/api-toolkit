@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/aatuh/api-toolkit/v4/ports"
 )
 
 // Checker defines the package-local health check contract.
@@ -67,6 +69,9 @@ type Config struct {
 	EnableDetailed  bool          `json:"enable_detailed"`
 	LivenessChecks  []string      `json:"liveness_checks"`
 	ReadinessChecks []string      `json:"readiness_checks"`
+	// Clock supplies timestamps and cache expiry decisions. A nil value uses the
+	// system clock.
+	Clock ports.Clock `json:"-"`
 }
 
 // ManagerContract defines the package-local health manager contract.

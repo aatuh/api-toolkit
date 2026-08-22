@@ -3,6 +3,8 @@ package health
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,20 +23,34 @@ type Manager struct {
 
 // New creates a new health manager with default configuration.
 func New() ManagerContract {
-	manager := NewManagerWithConfig(Config{
-		Timeout:         5 * time.Second,
-		CacheDuration:   5 * time.Second,
-		EnableCaching:   true,
-		EnableDetailed:  false,
-		LivenessChecks:  []string{"basic"},
-		ReadinessChecks: []string{"basic"},
-	})
+	manager, err := NewManager(DefaultConfig())
+	if err != nil {
+		return NewManagerWithConfig(DefaultConfig())
+	}
 	manager.RegisterChecker(NewBasicChecker())
 	return manager
 }
 
-// NewManagerWithConfig creates a new health manager and returns the concrete type.
+// NewManager creates a validated health manager and returns the concrete type.
+func NewManager(config Config) (*Manager, error) {
+	config = normalizeManagerConfig(config)
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return newManager(config), nil
+}
+
+// NewManagerWithConfig creates a health manager without validation.
+//
+// Deprecated: use NewManager. This compatibility wrapper preserves v4's
+// unchecked construction behavior; new applications should handle validation
+// errors during startup instead.
 func NewManagerWithConfig(config Config) *Manager {
+	return newManager(config)
+}
+
+func newManager(config Config) *Manager {
+	config = normalizeManagerConfig(config)
 	return &Manager{
 		config:   config,
 		checkers: make(map[string]Checker),
@@ -42,7 +58,10 @@ func NewManagerWithConfig(config Config) *Manager {
 	}
 }
 
-// NewWithConfig creates a new health manager with custom configuration.
+// NewWithConfig creates a health manager with custom configuration.
+//
+// Deprecated: use NewManager. This compatibility wrapper preserves v4's
+// unchecked construction behavior.
 func NewWithConfig(config Config) ManagerContract {
 	return NewManagerWithConfig(config)
 }
@@ -64,6 +83,30 @@ func (m *Manager) RegisterChecker(checker Checker) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.checkers[checker.Name()] = checker
+}
+
+// RegisterCheckerChecked registers a checker without replacing an existing
+// checker. It rejects nil and empty-name checkers so startup wiring fails
+// closed instead of silently accepting an invalid probe.
+func (m *Manager) RegisterCheckerChecked(checker Checker) error {
+	if m == nil {
+		return fmt.Errorf("health manager is nil")
+	}
+	if isNilChecker(checker) {
+		return fmt.Errorf("health checker must not be nil")
+	}
+	name := checker.Name()
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
+		return fmt.Errorf("health checker name must not be empty or contain surrounding whitespace")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.checkers[name]; exists {
+		return fmt.Errorf("health checker %q is already registered", name)
+	}
+	m.checkers[name] = checker
+	return nil
 }
 
 // RegisterCheckers registers multiple health checkers.
@@ -148,12 +191,12 @@ func (m *Manager) GetDetailedHealth(ctx context.Context) DetailedResponse {
 	} else if summary.Healthy > 0 {
 		overallStatus = StatusHealthy
 	} else {
-		overallStatus = StatusUnknown
+		overallStatus = StatusUnhealthy
 	}
 
 	response := DetailedResponse{
 		Status:    overallStatus,
-		Timestamp: time.Now(),
+		Timestamp: m.now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
@@ -204,12 +247,12 @@ func (m *Manager) RefreshAll(ctx context.Context) DetailedResponse {
 	} else if summary.Healthy > 0 {
 		overallStatus = StatusHealthy
 	} else {
-		overallStatus = StatusUnknown
+		overallStatus = StatusUnhealthy
 	}
 
 	response := DetailedResponse{
 		Status:    overallStatus,
-		Timestamp: time.Now(),
+		Timestamp: m.now(),
 		Checks:    checks,
 		Summary:   summary,
 	}
@@ -240,7 +283,7 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) Resu
 		return Result{
 			Status:    StatusUnhealthy,
 			Message:   "health check configuration is invalid: no checks configured",
-			Timestamp: time.Now(),
+			Timestamp: m.now(),
 		}
 	}
 
@@ -300,7 +343,7 @@ func (m *Manager) performChecks(ctx context.Context, checkerNames []string) Resu
 	return Result{
 		Status:    overallStatus,
 		Message:   message,
-		Timestamp: time.Now(),
+		Timestamp: m.now(),
 	}
 }
 
@@ -321,7 +364,7 @@ func (m *Manager) performCheck(ctx context.Context, name string) Result {
 	if m.cachingEnabled() {
 		m.cacheMutex.RLock()
 		if cached, exists := m.cache[name]; exists {
-			if time.Since(cached.Timestamp) < m.config.CacheDuration {
+			if age := m.now().Sub(cached.Timestamp); age >= 0 && age < m.config.CacheDuration {
 				m.cacheMutex.RUnlock()
 				return cached
 			}
@@ -338,15 +381,12 @@ func (m *Manager) performCheck(ctx context.Context, name string) Result {
 		return Result{
 			Status:    StatusUnhealthy,
 			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
-			Timestamp: time.Now(),
+			Timestamp: m.now(),
 		}
 	}
 
 	// Perform check
-	start := time.Now()
-	result := checker.Check(ctx)
-	result.Duration = time.Since(start)
-	result.Timestamp = time.Now()
+	result := m.runChecker(ctx, checker)
 
 	// Cache result
 	if m.cachingEnabled() {
@@ -368,14 +408,11 @@ func (m *Manager) performCheckNoCache(ctx context.Context, name string) Result {
 		return Result{
 			Status:    StatusUnhealthy,
 			Message:   fmt.Sprintf("health check configuration is invalid: checker %q not found", name),
-			Timestamp: time.Now(),
+			Timestamp: m.now(),
 		}
 	}
 
-	start := time.Now()
-	result := checker.Check(ctx)
-	result.Duration = time.Since(start)
-	result.Timestamp = time.Now()
+	result := m.runChecker(ctx, checker)
 
 	if m.cachingEnabled() {
 		m.cacheMutex.Lock()
@@ -394,10 +431,60 @@ func (m *Manager) storeSnapshot(response Response) {
 		response.Status = StatusUnknown
 	}
 	if response.Timestamp.IsZero() {
-		response.Timestamp = time.Now()
+		response.Timestamp = m.now()
 	}
 	m.snapshotMu.Lock()
 	m.snapshot = response
 	m.snapshotOK = true
 	m.snapshotMu.Unlock()
+}
+
+func (m *Manager) now() time.Time {
+	if m != nil && m.config.Clock != nil {
+		return m.config.Clock.Now()
+	}
+	return time.Now()
+}
+
+func (m *Manager) runChecker(ctx context.Context, checker Checker) Result {
+	started := m.now()
+	if err := ctx.Err(); err != nil {
+		return m.timeoutResult(started, err)
+	}
+	results := make(chan Result, 1)
+	go func() {
+		results <- checker.Check(ctx)
+	}()
+
+	select {
+	case result := <-results:
+		result.Duration = m.now().Sub(started)
+		result.Timestamp = m.now()
+		return result
+	case <-ctx.Done():
+		return m.timeoutResult(started, ctx.Err())
+	}
+}
+
+func (m *Manager) timeoutResult(started time.Time, err error) Result {
+	message := "health check timed out"
+	if err != nil {
+		message = err.Error()
+	}
+	return Result{
+		Status:    StatusUnhealthy,
+		Message:   message,
+		Timestamp: m.now(),
+		Duration:  m.now().Sub(started),
+	}
+}
+
+func isNilChecker(checker Checker) bool {
+	if checker == nil {
+		return true
+	}
+	value := reflect.ValueOf(checker)
+	kind := value.Kind()
+	return (kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface ||
+		kind == reflect.Map || kind == reflect.Pointer || kind == reflect.Slice) && value.IsNil()
 }
