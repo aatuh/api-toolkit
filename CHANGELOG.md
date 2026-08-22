@@ -29,6 +29,9 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 - `endpoints/health` adds validated `NewManager` construction, checked checker
   registration, injected-clock cache behavior, and bounded timeout responses.
   Existing unchecked constructors remain available for v4 compatibility.
+- `middleware/ratelimit` adds `DecisionLimiter` for complete external quota
+  decisions and bounded incremental in-memory bucket expiry. Existing
+  `Limiter` adapters remain supported throughout v4.
 
 ### Upgrade
 
