@@ -878,13 +878,16 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	release := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
 	for _, required := range []string{
 		"toolchain-compatibility:",
-		"needs: toolchain-compatibility",
 		"go-version: [1.25.x, 1.26.x]",
 		"GOTOOLCHAIN: local",
 	} {
 		if !strings.Contains(release, required) {
 			t.Fatalf(".github/workflows/release.yml missing required toolchain release evidence %q", required)
 		}
+	}
+	if !strings.Contains(release, "needs: toolchain-compatibility") &&
+		!strings.Contains(release, "needs: [toolchain-compatibility, redis-contract]") {
+		t.Fatal(".github/workflows/release.yml must make release-preflight depend on toolchain compatibility")
 	}
 
 	for _, path := range []string{
@@ -4084,6 +4087,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 			"not_applicable",
 			"generated-integration-check",
 			"postgres-contract",
+			"redis-contract",
 			"reference-service-evidence",
 			"provider-live-check",
 			"manual",
@@ -4094,6 +4098,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 			if !map[string]bool{
 				"direct-unit":               true,
 				"direct-real-postgresql":    true,
+				"direct-real-redis":         true,
 				"fake-db":                   true,
 				"hermetic-fixture":          true,
 				"hermetic-provider-fixture": true,

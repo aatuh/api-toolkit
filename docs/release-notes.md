@@ -67,6 +67,20 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-08-22
 
+### Real Redis contract foundation
+
+- `make test-redis` now provides an isolated Redis 7 harness and real-service
+  contracts for supported cache, idempotency, and rate-limit adapters plus the
+  generated reference-service Redis paths. It covers TTL, empty and oversized
+  values, atomic concurrency, Lua release/token handling, malformed state,
+  isolation, cancellation, dependency failure, connection interruption, and
+  reconnect behavior.
+- The harness requires explicit test-only opt-in, accepts only credential-free
+  local/service endpoints on database 15, cleans only its random key prefix,
+  and sanitizes connection failures. CI and release tags run the same
+  `redis-contract`; miniredis remains fast unit evidence, not equivalent
+  release evidence.
+
 ### Real PostgreSQL contract foundation
 
 - `make test-postgres` now provides an isolated PostgreSQL 18 harness for
