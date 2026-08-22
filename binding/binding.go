@@ -17,24 +17,52 @@ import (
 	"github.com/aatuh/api-toolkit/v4/httpx"
 )
 
+// RequiredMode controls how fields marked required are validated.
+type RequiredMode string
+
+const (
+	// RequiredModeNonZero requires the decoded field value to be non-zero.
+	RequiredModeNonZero RequiredMode = "nonzero"
+	// RequiredModePresent requires the request source to contain the field.
+	RequiredModePresent RequiredMode = "present"
+)
+
 // JSONConfig configures JSON request body decoding.
 type JSONConfig struct {
 	MaxBytes           int64
 	AllowUnknownFields bool
 	RequireObject      bool
+	// RequiredMode controls required-field validation. The zero value preserves
+	// v4's non-zero JSON required-field behavior.
+	RequiredMode RequiredMode
 }
 
 // QueryConfig configures query decoding.
-type QueryConfig struct{}
+type QueryConfig struct {
+	// RequiredMode controls required-field validation. The zero value preserves
+	// v4's legacy query behavior, where missing and all-empty values are rejected.
+	RequiredMode RequiredMode
+}
 
 // PathConfig configures path decoding.
 type PathConfig struct {
 	Param func(r *http.Request, name string) string
+	// HasParam reports whether a route parameter was supplied. Configure it with
+	// RequiredModePresent when the route adapter can distinguish a missing value
+	// from a present empty value.
+	HasParam func(r *http.Request, name string) bool
+	// RequiredMode controls required-field validation. The zero value preserves
+	// v4's legacy path behavior, where empty values are treated as missing.
+	RequiredMode RequiredMode
 }
 
 // DecodeJSON decodes a JSON body into T.
 func DecodeJSON[T any](r *http.Request, cfg JSONConfig) (T, error) {
 	var out T
+	mode, err := jsonRequiredMode(cfg.RequiredMode)
+	if err != nil {
+		return out, err
+	}
 	if r == nil || r.Body == nil {
 		return out, fieldError("body", "required", "request body is required")
 	}
@@ -56,6 +84,13 @@ func DecodeJSON[T any](r *http.Request, cfg JSONConfig) (T, error) {
 	if shouldRequireObject[T](cfg) && trimmed[0] != '{' {
 		return out, fieldError("body", "invalid", "request body must be a JSON object")
 	}
+	var presence map[string]bool
+	if mode == RequiredModePresent && isStructTarget[T]() {
+		presence, err = jsonObjectMemberPresence(trimmed)
+		if err != nil {
+			return out, fieldError("body", "invalid_json", "request body must be valid JSON")
+		}
+	}
 	dec := json.NewDecoder(bytes.NewReader(trimmed))
 	if !cfg.AllowUnknownFields {
 		dec.DisallowUnknownFields()
@@ -67,7 +102,7 @@ func DecodeJSON[T any](r *http.Request, cfg JSONConfig) (T, error) {
 	if err := dec.Decode(&extra); err != io.EOF {
 		return out, fieldError("body", "invalid_json", "request body must contain a single JSON value")
 	}
-	if errs := requiredFieldErrors(out, "json"); len(errs) > 0 {
+	if errs := requiredFieldErrors(out, "json", mode, presence); len(errs) > 0 {
 		return out, errs
 	}
 	return out, nil
@@ -79,7 +114,7 @@ func DecodeQuery[T any](r *http.Request, cfg QueryConfig) (T, error) {
 	if r == nil || r.URL == nil {
 		return out, fieldError("query", "required", "query values are required")
 	}
-	if err := decodeValuesInto(&out, r.URL.Query(), "query", nil); err != nil {
+	if err := decodeValuesInto(&out, r.URL.Query(), "query", nil, cfg.RequiredMode); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -105,11 +140,17 @@ func DecodePath[T any](r *http.Request, cfg PathConfig) (T, error) {
 		if name == "-" || name == "" {
 			continue
 		}
+		if cfg.HasParam != nil {
+			if cfg.HasParam(r, name) {
+				values[name] = []string{cfg.Param(r, name)}
+			}
+			continue
+		}
 		if value := strings.TrimSpace(cfg.Param(r, name)); value != "" {
 			values.Set(name, value)
 		}
 	}
-	if err := decodeValuesInto(&out, values, "path", nil); err != nil {
+	if err := decodeValuesInto(&out, values, "path", nil, cfg.RequiredMode); err != nil {
 		return out, err
 	}
 	return out, nil
@@ -145,7 +186,10 @@ func WriteValidationProblem(w http.ResponseWriter, err error) {
 	}
 }
 
-func decodeValuesInto(dst any, values url.Values, tag string, defaults map[string]string) error {
+func decodeValuesInto(dst any, values url.Values, tag string, defaults map[string]string, mode RequiredMode) error {
+	if err := validateValueRequiredMode(mode, tag); err != nil {
+		return err
+	}
 	v := reflect.ValueOf(dst)
 	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return fieldError(tag, "invalid_target", tag+" target must be a non-nil pointer")
@@ -171,7 +215,7 @@ func decodeValuesInto(dst any, values url.Values, tag string, defaults map[strin
 				raw = []string{value}
 			}
 		}
-		if len(raw) == 0 || allEmpty(raw) {
+		if len(raw) == 0 || (mode == "" && allEmpty(raw)) {
 			if required(field) {
 				errs = append(errs, fieldError(name, "required", name+" is required")...)
 			}
@@ -183,6 +227,9 @@ func decodeValuesInto(dst any, values url.Values, tag string, defaults map[strin
 	}
 	if len(errs) > 0 {
 		return errs
+	}
+	if mode == RequiredModeNonZero {
+		return requiredFieldErrors(elem.Interface(), tag, RequiredModeNonZero, nil)
 	}
 	return nil
 }
@@ -266,7 +313,62 @@ func shouldRequireObject[T any](cfg JSONConfig) bool {
 	return typ != nil && typ.Kind() == reflect.Struct
 }
 
-func requiredFieldErrors(value any, tag string) fielderrors.FieldErrors {
+func isStructTarget[T any]() bool {
+	var zero T
+	typ := indirectType(reflect.TypeOf(zero))
+	return typ != nil && typ.Kind() == reflect.Struct
+}
+
+func jsonObjectMemberPresence(body []byte) (map[string]bool, error) {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	token, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok || delim != '{' {
+		return nil, errors.New("json value is not an object")
+	}
+	presence := make(map[string]bool)
+	for dec.More() {
+		token, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		name, ok := token.(string)
+		if !ok || presence[name] {
+			return nil, errors.New("duplicate or invalid JSON member")
+		}
+		presence[name] = true
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return nil, err
+	}
+	return presence, nil
+}
+
+func jsonRequiredMode(mode RequiredMode) (RequiredMode, error) {
+	if mode == "" || mode == RequiredModeNonZero {
+		return RequiredModeNonZero, nil
+	}
+	if mode == RequiredModePresent {
+		return RequiredModePresent, nil
+	}
+	return "", fieldError("body", "invalid_required_mode", "required mode must be nonzero or present")
+}
+
+func validateValueRequiredMode(mode RequiredMode, tag string) error {
+	if mode == "" || mode == RequiredModeNonZero || mode == RequiredModePresent {
+		return nil
+	}
+	return fieldError(tag, "invalid_required_mode", "required mode must be nonzero or present")
+}
+
+func requiredFieldErrors(value any, tag string, mode RequiredMode, presence map[string]bool) fielderrors.FieldErrors {
 	v := indirectValue(reflect.ValueOf(value))
 	if !v.IsValid() || v.Kind() != reflect.Struct {
 		return nil
@@ -282,9 +384,14 @@ func requiredFieldErrors(value any, tag string) fielderrors.FieldErrors {
 		if name == "-" || name == "" {
 			continue
 		}
-		if isZero(v.Field(i)) {
-			errs = append(errs, fieldError(name, "required", name+" is required")...)
+		if mode == RequiredModePresent {
+			if presence != nil && presence[name] {
+				continue
+			}
+		} else if !isZero(v.Field(i)) {
+			continue
 		}
+		errs = append(errs, fieldError(name, "required", name+" is required")...)
 	}
 	return errs
 }

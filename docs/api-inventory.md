@@ -135,11 +135,18 @@ Stability tier: `stable`
 | `JSONConfig.AllowUnknownFields` | field | v3 compatibility surface | active |
 | `JSONConfig.MaxBytes` | field | v3 compatibility surface | active |
 | `JSONConfig.RequireObject` | field | v3 compatibility surface | active |
+| `JSONConfig.RequiredMode` | field | v3 compatibility surface | active |
 | `PathConfig` | type | v3 compatibility surface | active |
+| `PathConfig.HasParam` | field | v3 compatibility surface | active |
 | `PathConfig.Param` | field | v3 compatibility surface | active |
+| `PathConfig.RequiredMode` | field | v3 compatibility surface | active |
 | `PublicError` | type | v3 compatibility surface | active |
 | `PublicError.PublicMessage` | interface method | v3 compatibility surface | active |
 | `QueryConfig` | type | v3 compatibility surface | active |
+| `QueryConfig.RequiredMode` | field | v3 compatibility surface | active |
+| `RequiredMode` | type | v3 compatibility surface | active |
+| `RequiredModeNonZero` | const | v3 compatibility surface | active |
+| `RequiredModePresent` | const | v3 compatibility surface | active |
 | `ValidationProblem` | func | v3 compatibility surface | active |
 | `WriteValidationProblem` | func | v3 compatibility surface | active |
 

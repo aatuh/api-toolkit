@@ -21,6 +21,12 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
   direct peer address safely; proxy deployments must use the new explicit
   `chi.ClientIPFromXFF` helper with their trusted proxy CIDRs.
 
+### Changed
+
+- `binding` now supports presence-aware required validation: opt into
+  `RequiredModePresent` to accept explicit `false`, `0`, empty values, or JSON
+  `null` members while the v4-compatible defaults remain unchanged.
+
 ### Upgrade
 
 - If an application previously used `Middleware.RealIP()` behind a reverse

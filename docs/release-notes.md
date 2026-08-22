@@ -89,6 +89,19 @@ source of truth is `docs/release-runbook.md`.
 - Generated `saas-api` services log only a validation error's type at the
   default application logger; they never log the raw rejected error string.
 
+### Request binding behavior and future v5 migration
+
+- `github.com/aatuh/api-toolkit/v4/binding.RequiredMode`,
+  `binding.RequiredModeNonZero`, and `binding.RequiredModePresent` let a handler
+  choose non-zero or source-presence validation for `required:"true"` fields.
+- `binding.JSONConfig.RequiredMode`, `binding.QueryConfig.RequiredMode`, and
+  `binding.PathConfig.RequiredMode` preserve v4-compatible defaults unless a
+  caller explicitly selects presence validation. `binding.PathConfig.HasParam`
+  lets a router distinguish an absent path parameter from a present empty one.
+- A v5 major release is planned to make presence-aware validation the default.
+  Applications that require a non-zero or non-null value should state that
+  semantic rule separately before migrating.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

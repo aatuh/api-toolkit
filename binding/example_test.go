@@ -35,6 +35,60 @@ func ExampleDecodeJSON() {
 	// starter 2
 }
 
+func ExampleRequiredMode() {
+	type update struct {
+		Enabled bool `json:"enabled" required:"true"`
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/widgets/42", strings.NewReader(`{"enabled":false}`))
+	decoded, err := binding.DecodeJSON[update](req, binding.JSONConfig{
+		RequiredMode: binding.RequiredModePresent,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(decoded.Enabled)
+
+	// Output:
+	// false
+}
+
+func ExamplePathConfig_HasParam() {
+	type routeParameter struct {
+		Label string `path:"label" required:"true"`
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/labels/", nil)
+	decoded, err := binding.DecodePath[routeParameter](req, binding.PathConfig{
+		Param: func(*http.Request, string) string { return "" },
+		HasParam: func(*http.Request, string) bool {
+			return true
+		},
+		RequiredMode: binding.RequiredModePresent,
+	})
+
+	fmt.Println(err == nil, decoded.Label == "")
+	// Output:
+	// true true
+}
+
+func ExampleRequiredModeNonZero() {
+	type update struct {
+		Retries int `json:"retries" required:"true"`
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPatch, "/widgets/42", strings.NewReader(`{"retries":0}`))
+	_, err := binding.DecodeJSON[update](req, binding.JSONConfig{
+		RequiredMode: binding.RequiredModeNonZero,
+	})
+
+	fmt.Println(err != nil)
+
+	// Output:
+	// true
+}
+
 type examplePublicError string
 
 func (e examplePublicError) Error() string         { return "internal validation failure" }
