@@ -11,7 +11,7 @@ count.
 
 ## Evidence Baseline
 
-`API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report` recorded:
+`API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make dependency-report` recorded:
 
 | Module | Direct requirements | Indirect requirements | Build-list dependencies |
 | --- | ---: | ---: | ---: |
@@ -31,7 +31,7 @@ drift coverage are recorded in these source-of-truth files:
 - `docs/supported-adapter-test-realism.tsv`
 - `docs/contrib-api-drift-packages.txt`
 
-The dependency report compared with `v3.1.2` shows 10 contrib build-list
+The dependency report compared with `v4.0.1` shows 10 contrib build-list
 additions and 10 removals. That is a module-wide maintenance signal, not proof
 that any individual family needs independent versioning.
 

@@ -1,0 +1,6 @@
+# Exact Markdown files allowed to retain v3 import or release-baseline evidence.
+# Each exception must be a changelog, migration guide, archived release note, or
+# generated API-diff/coverage baseline; keep the rationale specific and current.
+CHANGELOG.md	Published release chronology is immutable historical evidence.
+docs/coverage-trend.md	Generated coverage history retains published v3 package import paths.
+docs/migration/v4.md	The v3-to-v4 migration guide must show the old import paths and transition baseline.

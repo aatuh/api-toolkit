@@ -28,7 +28,7 @@ draft-release assets, not local `make dependency-report` files.
 For release or pull-request comparison, set an explicit base ref:
 
 ```sh
-API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report
+API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make dependency-report
 ```
 
 The report does not replace vulnerability scanning. Vulnerability status is

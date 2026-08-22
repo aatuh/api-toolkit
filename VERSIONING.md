@@ -17,6 +17,11 @@ HTTP API building blocks first, optional scaffold and contrib adapters second.
 Some packages below are stable because v3 already promises compatibility, but
 they are not all recommended as new generic abstractions.
 
+The verified current root baseline is `v4.0.1`; `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn. The immutable details and
+required paired-contrib recovery path are in
+`docs/release-incident-v4-release-identity.md`.
+
 Public API review artifacts:
 
 - generated inventory: `docs/api-inventory.md`
@@ -193,10 +198,10 @@ Publication evidence must come from a clean worktree with an explicit baseline
 and an immutable root release tag at `HEAD`, paired with the matching contrib
 tag at the same commit. The tag-driven GitHub release workflow
 is the trusted publication producer; local evidence is tag-binding preflight.
-Use `docs/release-runbook.md` for the current command examples. The v4
-major-release evidence used `API_BASE_REF=v3.1.2` as documented v3-to-v4
-transition evidence; v4 patch and minor releases use the latest published v4
-tag. A local dirty-tree audit must opt in with
+Use `docs/release-runbook.md` for the current command examples. The completed
+v3-to-v4 transition evidence is historical; v4 patch and minor releases use
+the verified current baseline or the latest eligible v4 tag specified by that
+runbook. A local dirty-tree audit must opt in with
 `ALLOW_DIRTY_RELEASE_EVIDENCE=1` and an explicit `API_BASE_REF`; it is not acceptable before publishing. This is local dirty-tree audit evidence, not publication evidence.
 Minor releases that touch the stable surface must publish a `vX.Y.0-rc.1`
 release candidate before the final stable `vX.Y.0` tag. RC evidence still

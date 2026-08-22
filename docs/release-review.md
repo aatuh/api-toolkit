@@ -3,6 +3,11 @@
 Audience: release reviewers who need a short checklist before accepting local
 publication evidence or publishing a draft release.
 
+The verified current root baseline is `v4.0.1`. `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn; review the
+[v4 release-identity incident](release-incident-v4-release-identity.md) before
+using any release tag as evidence.
+
 Use this as the short reviewer path before publishing a release.
 
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
@@ -16,9 +21,9 @@ Use this as the short reviewer path before publishing a release.
 - A local dirty-tree audit may use
   `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
-- The v4 major-release evidence used `API_BASE_REF=v3.1.2` as documented
-  v3-to-v4 transition evidence; later v4 releases compare against the latest
-  published v4 tag.
+- The completed v3-to-v4 transition is historical evidence; later v4 releases
+  compare against the verified baseline or later eligible v4 tag from the
+  release runbook.
 - For a minor release that touches the stable surface, require a published
   `vX.Y.0-rc.1` prerelease before the final stable `vX.Y.0` tag. RC evidence
   still uses the latest published stable v4 tag as `API_BASE_REF`; do not advance the supported baseline to an RC tag.

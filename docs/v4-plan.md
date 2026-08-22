@@ -83,9 +83,9 @@ candidate rows above; it does not authorize a v3 removal.
   `go run ./internal/tools/portsledger -verify docs/ports-v4-migration-ledger.tsv`.
 - Generated and checked-in reference services import package-local contracts or
   `github.com/aatuh/api-toolkit/contrib/v4/contracts`.
-- `make release-api-check API_BASE_REF=v3.1.2` validates that the explicit
-  baseline exists and records the major module-path transition instead of
-  attempting an invalid same-module diff.
+- The archived v3-to-v4 transition evidence records the major module-path
+  change without attempting an invalid same-module diff. Current release
+  checks use the verified `v4.0.1` baseline.
 - Docscheck compiles the generated `saas-api` service with local root and
   contrib replacements.
 

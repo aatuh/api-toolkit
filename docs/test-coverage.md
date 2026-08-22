@@ -26,7 +26,7 @@ The command writes coverage evidence under `.ci-result/coverage/`:
 | `root.log` | Root package test coverage output used for package floor extraction. |
 | `contrib.log` | Contrib package test coverage output used for package floor extraction. |
 
-`API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence` also runs
+`API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` also runs
 `coverage-check`, so publication evidence records the coverage gate log beside
 lint, vuln, gosec, API compatibility, docs, tests, race, and fuzz evidence.
 

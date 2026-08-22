@@ -41,7 +41,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract release-tag-consistency-check release-tag-consistency-contract release-quality-baseline-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check benchmark-baseline-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract release-tag-consistency-check release-tag-consistency-contract release-quality-baseline-contract version-consistency-check version-consistency-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check benchmark-baseline-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -182,6 +182,8 @@ sbom-license-report-contract: ## Run SPDX dependency license report contract tes
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) version-consistency-check
+	@$(MAKE) version-consistency-contract
 	@$(MAKE) coverage-trend-check
 	@$(MAKE) release-quality-baseline-contract
 	@$(MAKE) docs-site-check
@@ -394,6 +396,12 @@ release-tag-consistency-contract: ## Run release tag and module coherence contra
 
 release-quality-baseline-contract: ## Run release quality baseline validation contract tests
 	@bash scripts/release_quality_baseline_contract_test.sh
+
+version-consistency-check: ## Reject stale current-version guidance and root imports
+	@bash scripts/version_consistency_check.sh
+
+version-consistency-contract: ## Run current-version consistency contract tests
+	@bash scripts/version_consistency_contract_test.sh
 
 pr-title-check: ## Validate PR_TITLE against the conventional commit title policy
 	@bash scripts/pr_title_check.sh

@@ -3,6 +3,13 @@
 Audience: readers who need the fastest path to the right api-toolkit document
 without scanning the root README.
 
+## Current Release Identity
+
+The verified current root baseline is `v4.0.1`. `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn; use the
+[v4 release-identity incident](release-incident-v4-release-identity.md) for
+the immutable evidence and required paired-contrib recovery path.
+
 ## New users and application developers
 
 | Document | Audience | Purpose |
@@ -140,7 +147,7 @@ identifies the installed generator and contract tool.
 | [Metrics](metrics.md) | Operators and developers | Use low-cardinality HTTP metric names and labels. |
 | [Support policy](support-policy.md) | Adopters and maintainers | Understand the supported Go line, platform gate, and generated-service ownership limits. |
 | [Dependency boundary](dependency-boundary.md) | Maintainers | Keep root stable code free of contrib adapter dependencies. |
-| [Auth dependency split decision](auth-dependency-split.md) | Adopters and maintainers | Understand current v3 JWT/JWK module graph cost and the v4 target for auth-heavy packages. |
+| [Auth dependency split decision](auth-dependency-split.md) | Adopters and maintainers | Understand the v3-era JWT/JWK module graph cost and the v4 target for auth-heavy packages. |
 | [Provider adapter split decision](provider-adapter-split.md) | Adopters and maintainers | Keep Postgres, Redis, Stripe, Resend, OpenTelemetry, router, and provider adapters out of stable core. |
 | [Extension module assessment](extension-module-assessment.md) | Maintainers and release reviewers | Reject speculative provider-module splits until adoption, ownership, dependency, and release-cadence evidence supports one. |
 | [Dependency policy](dependency-policy.md) | Maintainers | Review allowed dependency classes, banned patterns, update SLA, and security-sensitive review gates. |

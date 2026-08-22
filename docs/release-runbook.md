@@ -7,9 +7,8 @@ maintenance rule.
 The supported root v4 release baseline is
 `VERIFIED_V4_BASE_REF=v4.0.1`. Do not use `v4.0.0`, `contrib/v4.0.0`, or
 `contrib/v4.0.1`; the [v4 release-identity incident](release-incident-v4-release-identity.md)
-records their withdrawal and the required paired contrib repair path. The v4
-major-release evidence compared against `v3.1.2` when recording intentional
-v3-to-v4 breakage evidence.
+records their withdrawal and the required paired contrib repair path. The
+completed v3-to-v4 transition evidence is historical.
 
 Supported Go toolchains: Go 1.25.x is the minimum line and Go 1.26.x is the
 current tested line for root and contrib. Release preflight requires both
@@ -23,12 +22,13 @@ toolchain.
 This runbook owns the supported `API_BASE_REF` baseline for releases. For v4
 root patch and minor releases, set it to `v4.0.1`; a latest-published-tag
 fallback is forbidden. The v4 major-release evidence used
-`API_BASE_REF=v3.1.2` as major-version transition evidence. When the supported
-v4 baseline changes,
+the historical v3-to-v4 transition baseline. When the supported v4 baseline changes,
 update this line first, then update command examples in `README.md`,
 `VERSIONING.md`, `docs/release-review.md`, `docs/release-notes.md`, scripts that
 mention the supported baseline, and any release evidence fixtures in the same
-change. Do not introduce a second baseline table in another document.
+change. Do not introduce a second baseline table in another document. Run
+`make version-consistency-check` before release evidence; the tagged release
+workflow runs the same gate before it creates publication artifacts.
 
 ## Release identity prevention
 
