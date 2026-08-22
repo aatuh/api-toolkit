@@ -4083,6 +4083,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 		if !containsAny(row.ScheduledManualEvidence, []string{
 			"not_applicable",
 			"generated-integration-check",
+			"postgres-contract",
 			"reference-service-evidence",
 			"provider-live-check",
 			"manual",
@@ -4092,6 +4093,7 @@ func TestSupportedAdapterRealismManifestCoversSupportedAdapters(t *testing.T) {
 		for _, token := range strings.Split(row.RealismStatus, "+") {
 			if !map[string]bool{
 				"direct-unit":               true,
+				"direct-real-postgresql":    true,
 				"fake-db":                   true,
 				"hermetic-fixture":          true,
 				"hermetic-provider-fixture": true,

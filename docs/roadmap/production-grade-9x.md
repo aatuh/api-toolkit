@@ -2298,7 +2298,7 @@ contracts for supported adapters.
 Add a reusable internal harness under a path such as:
 
 ```text
-contrib/internal/testpostgres
+contrib/testpostgres
 ```
 
 The harness must provide:
