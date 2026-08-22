@@ -2286,7 +2286,7 @@ contracts for supported adapters.
 * Generated full-service integration is release-blocking.
 * Adapter maturity classifications match actual evidence.
 
-## [ ] TST-001: Add a reusable real PostgreSQL contract harness
+## [x] TST-001: Add a reusable real PostgreSQL contract harness
 
 **Priority:** P1
 **Owner:** Integration test team
@@ -2338,6 +2338,14 @@ GOWORK=off GOTOOLCHAIN=local make test-postgres
 ```text
 test(postgres): add real adapter contract harness
 ```
+
+**Completion evidence:** Protected PR #104 merged as squash
+`ee8e470b9422b333775b1e88771c118768f8554c` on 2026-08-22. CodeQL,
+dependency review, both API-check and test matrices, the PostgreSQL
+service-container contract, fuzz, governance, lint, mutation, and PR-title
+validation passed before merge. Local `make finalize`, the Docker-backed
+`make test-postgres` target, and the real-service race suite also passed before
+review.
 
 ---
 
