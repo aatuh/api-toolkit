@@ -130,6 +130,26 @@ source of truth is `docs/release-runbook.md`.
   results share an anonymous bucket rather than bypassing rate limiting;
   dangerous skip headers remain opt-in and restricted to trusted proxies.
 
+### Timeout routing and hard-response limits
+
+- `github.com/aatuh/api-toolkit/v4/middleware/timeout.RouteCapabilities`,
+  `timeout.RouteCapabilities.Streaming`,
+  `timeout.RouteCapabilities.ServerSentEvents`,
+  `timeout.RouteCapabilities.WebSocketUpgrade`,
+  `timeout.RouteCapabilities.LargeDownload`,
+  `timeout.RouteCapabilities.Flusher`, `timeout.RouteCapabilities.Hijacker`,
+  `timeout.RouteCapabilities.Pusher`, and `timeout.RouteCapabilities.ReaderFrom`
+  declare response behavior that hard-timeout buffering cannot preserve.
+- `timeout.RouteCapabilities.ValidateHardTimeout` and
+  `timeout.HardTimeout.WrapRoute` reject unsafe route declarations before a
+  hard timeout is applied. Generated bootstrap profiles and examples use
+  cooperative `NewPropagator` middleware globally; finite JSON routes opt in to
+  hard response timeouts explicitly.
+- `timeout.HardTimeout.Middleware` and `securityprofile.WithHardTimeout` are
+  deprecated v4 compatibility paths. `timeout.HardTimeoutEventHooks.OnHandlerContinuesAfterTimeout`
+  provides a bounded low-level signal when a timeout response wins while the
+  handler continues to run.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

@@ -46,14 +46,24 @@ func main() {
 
 func newRouter(requestTimeout time.Duration) http.Handler {
 	router := chi.NewRouter()
+	propagator := mustPropagator(requestTimeout)
+	hardTimeout := mustHardTimeout(requestTimeout)
 	router.Use(mustBodyLimit().Handler)
-	router.Use(mustHardTimeout(requestTimeout).Handler)
+	router.Use(propagator.Handler)
 
 	health.NewBasicHandler().RegisterPublicRoutesTo(chiGetRouter{router: router})
-	router.Post("/widgets", createWidget)
-	router.Get("/widgets/{id}", getWidget)
+	router.Method(http.MethodPost, "/widgets", mustFiniteJSONRoute(hardTimeout, http.HandlerFunc(createWidget)))
+	router.Method(http.MethodGet, "/widgets/{id}", mustFiniteJSONRoute(hardTimeout, http.HandlerFunc(getWidget)))
 
 	return router
+}
+
+func mustPropagator(requestTimeout time.Duration) *timeout.Propagator {
+	propagator, err := timeout.NewPropagator(timeout.Options{Timeout: requestTimeout})
+	if err != nil {
+		panic(err)
+	}
+	return propagator
 }
 
 func createWidget(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +136,14 @@ func mustHardTimeout(requestTimeout time.Duration) *timeout.HardTimeout {
 		panic(err)
 	}
 	return hardTimeout
+}
+
+func mustFiniteJSONRoute(hardTimeout *timeout.HardTimeout, handler http.Handler) http.Handler {
+	wrapped, err := hardTimeout.WrapRoute(handler, timeout.RouteCapabilities{})
+	if err != nil {
+		panic(err)
+	}
+	return wrapped
 }
 
 type chiGetRouter struct {

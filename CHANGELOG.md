@@ -32,6 +32,10 @@ stable root API contract remains [VERSIONING.md](VERSIONING.md).
 - `middleware/ratelimit` adds `DecisionLimiter` for complete external quota
   decisions and bounded incremental in-memory bucket expiry. Existing
   `Limiter` adapters remain supported throughout v4.
+- `middleware/timeout` now keeps cooperative deadlines as the global default.
+  Hard response timeouts require explicit finite-route wrapping with declared
+  capabilities; generic hard-timeout middleware composition is deprecated for
+  v5 removal.
 
 ### Upgrade
 

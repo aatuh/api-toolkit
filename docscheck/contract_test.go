@@ -6199,7 +6199,9 @@ func TestNetHTTPMigrationExampleCoversBacklogSurfaces(t *testing.T) {
 		"binding.DecodeJSON",
 		"binding.WriteValidationProblem",
 		"health.NewBasicHandler",
+		"timeout.NewPropagator",
 		"timeout.NewHard",
+		"WrapRoute",
 		"Problem Details",
 		"validation",
 		"body limit",
@@ -6214,7 +6216,7 @@ func TestNetHTTPMigrationExampleCoversBacklogSurfaces(t *testing.T) {
 		"TestToolkitNetHTTPRejectsMalformedJSONAsProblemDetails",
 		"TestToolkitNetHTTPRejectsOversizedBodies",
 		"TestToolkitNetHTTPRegistersHealthRoutes",
-		"TestToolkitMiddlewareTimesOutSlowHandlers",
+		"TestToolkitMiddlewarePropagatesDeadlineToSlowHandlers",
 	} {
 		if !strings.Contains(tests, required) {
 			t.Fatalf("net/http migration example tests missing %q", required)

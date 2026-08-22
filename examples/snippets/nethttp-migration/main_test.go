@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,21 +72,24 @@ func TestToolkitNetHTTPRegistersHealthRoutes(t *testing.T) {
 	}
 }
 
-func TestToolkitMiddlewareTimesOutSlowHandlers(t *testing.T) {
+func TestToolkitMiddlewarePropagatesDeadlineToSlowHandlers(t *testing.T) {
 	mux := http.NewServeMux()
+	done := make(chan error, 1)
 	mux.HandleFunc("GET /slow", func(_ http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
+		done <- r.Context().Err()
 	})
 	handler := toolkitMiddleware(mux, time.Nanosecond)
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/slow", nil))
 
-	if rec.Code != http.StatusGatewayTimeout {
-		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusGatewayTimeout, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	assertContentTypePrefix(t, rec, "application/problem+json")
-	assertBodyContains(t, rec, `"detail":"request timed out"`)
+	if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("context error = %v, want %v", err, context.DeadlineExceeded)
+	}
 }
 
 func serveToolkit(t *testing.T, method, path, body string) *httptest.ResponseRecorder {

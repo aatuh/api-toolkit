@@ -81,9 +81,24 @@ func writePlainJSON(w http.ResponseWriter, status int, value any) {
 func toolkitNetHTTP() http.Handler {
 	mux := http.NewServeMux()
 	health.NewBasicHandler().RegisterPublicRoutesTo(serveMuxGetRouter{mux: mux})
-	mux.HandleFunc("POST /widgets", createWidgetToolkit)
+	mux.Handle("POST /widgets", mustFiniteJSONRoute(defaultTimeout, http.HandlerFunc(createWidgetToolkit)))
 
 	return toolkitMiddleware(mux, defaultTimeout)
+}
+
+func mustFiniteJSONRoute(requestTimeout time.Duration, handler http.Handler) http.Handler {
+	hardTimeout, err := timeout.NewHard(timeout.Options{
+		Timeout:         requestTimeout,
+		MaxCaptureBytes: 64 << 10,
+	})
+	if err != nil {
+		panic(err)
+	}
+	wrapped, err := hardTimeout.WrapRoute(handler, timeout.RouteCapabilities{})
+	if err != nil {
+		panic(err)
+	}
+	return wrapped
 }
 
 func createWidgetToolkit(w http.ResponseWriter, r *http.Request) {
@@ -118,10 +133,7 @@ func createWidgetToolkit(w http.ResponseWriter, r *http.Request) {
 }
 
 func toolkitMiddleware(next http.Handler, requestTimeout time.Duration) http.Handler {
-	hardTimeout, err := timeout.NewHard(timeout.Options{
-		Timeout:         requestTimeout,
-		MaxCaptureBytes: 64 << 10,
-	})
+	propagator, err := timeout.NewPropagator(timeout.Options{Timeout: requestTimeout})
 	if err != nil {
 		panic(err)
 	}
@@ -130,7 +142,7 @@ func toolkitMiddleware(next http.Handler, requestTimeout time.Duration) http.Han
 		panic(err)
 	}
 
-	return bodyLimit.Handler(hardTimeout.Handler(next))
+	return bodyLimit.Handler(propagator.Handler(next))
 }
 
 func createWidget(req createWidgetRequest) widgetResponse {
