@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -1035,9 +1036,9 @@ func writeGeneratedFileReplace(root *os.Root, name string, data []byte) error {
 	if root == nil {
 		return errors.New("output root is required")
 	}
-	clean := filepath.Clean(name)
-	if clean != name || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
-		return fmt.Errorf("unsafe generated path %q", name)
+	clean, err := portableGeneratedPath(name)
+	if err != nil {
+		return err
 	}
 	if parent := filepath.Dir(clean); parent != "." {
 		if err := root.MkdirAll(parent, 0o750); err != nil {
@@ -4911,9 +4912,9 @@ func writeGeneratedFile(root *os.Root, name string, data []byte) error {
 	if root == nil {
 		return errors.New("output root is required")
 	}
-	clean := filepath.Clean(name)
-	if clean != name || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
-		return fmt.Errorf("unsafe generated path %q", name)
+	clean, err := portableGeneratedPath(name)
+	if err != nil {
+		return err
 	}
 	if parent := filepath.Dir(clean); parent != "." {
 		if err := root.MkdirAll(parent, 0o750); err != nil {
@@ -4929,6 +4930,21 @@ func writeGeneratedFile(root *os.Root, name string, data []byte) error {
 		return fmt.Errorf("write %s: %w", name, err)
 	}
 	return nil
+}
+
+func portableGeneratedPath(name string) (string, error) {
+	if name == "" || strings.ContainsRune(name, '\x00') || strings.ContainsAny(name, `\:`) {
+		return "", fmt.Errorf("unsafe generated path %q", name)
+	}
+	clean := path.Clean(name)
+	if clean != name || clean == "." || path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("unsafe generated path %q", name)
+	}
+	native := filepath.FromSlash(clean)
+	if filepath.IsAbs(native) || filepath.VolumeName(native) != "" {
+		return "", fmt.Errorf("unsafe generated path %q", name)
+	}
+	return native, nil
 }
 
 func renderTemplate(name, body string, data map[string]string) ([]byte, error) {

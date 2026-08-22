@@ -922,6 +922,57 @@ func TestToolchainPolicyMatchesModulesAndWorkflows(t *testing.T) {
 	}
 }
 
+func TestPlatformSupportPolicyMatchesWorkflow(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	attributes := readText(t, filepath.Join(repoRoot, ".gitattributes"))
+	if !strings.Contains(attributes, "* text=auto eol=lf") {
+		t.Fatal(".gitattributes must normalize repository-owned text to LF on every runner")
+	}
+
+	ci := readText(t, filepath.Join(repoRoot, ".github", "workflows", "ci.yml"))
+	for _, required := range []string{
+		"platform-core:",
+		"platform-core (${{ matrix.platform }})",
+		"platform: linux-amd64\n            runner: ubuntu-24.04\n            goos: linux\n            goarch: amd64",
+		"platform: linux-arm64\n            runner: ubuntu-24.04-arm\n            goos: linux\n            goarch: arm64",
+		"platform: macos-arm64\n            runner: macos-15\n            goos: darwin\n            goarch: arm64",
+		"platform: windows-amd64\n            runner: windows-2022\n            goos: windows\n            goarch: amd64",
+		"Verify runner platform",
+		"GOWORK: off",
+		"GOTOOLCHAIN: local",
+		"Root module verification\n        env:\n          GOWORK: off\n        run: go mod verify",
+		"go build ./...",
+		"go test ./...",
+		"go test ./... -run '^Example'",
+		"Generate portable service fixture",
+		"shell: pwsh",
+		"Generated service dependency resolution",
+		"run: go mod tidy",
+		"Generated service build",
+		"contents: read",
+	} {
+		if !strings.Contains(ci, required) {
+			t.Fatalf(".github/workflows/ci.yml missing platform verification requirement %q", required)
+		}
+	}
+
+	support := readText(t, filepath.Join(repoRoot, "docs", "support-policy.md"))
+	for _, required := range []string{
+		"| Linux | amd64 | Supported |",
+		"| Linux | arm64 | Supported |",
+		"| macOS | arm64 | Supported |",
+		"| Windows | amd64 | Supported |",
+		"Root and generated-service compilation",
+		"Contrib remains Linux-only",
+		"Git normalizes repository-owned text files to LF",
+		"Generator manifests use canonical slash-form relative paths",
+	} {
+		if !strings.Contains(support, required) {
+			t.Fatalf("docs/support-policy.md missing platform support policy %q", required)
+		}
+	}
+}
+
 func TestProductionCodeUsesCheckedResponseWriters(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	allowed := func(rel string) bool {
@@ -7936,7 +7987,7 @@ func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 		"| Linux | amd64 | Supported |",
 		"macOS",
 		"Windows",
-		"Do not claim broad OS/architecture support",
+		"Do not claim broader OS/architecture support",
 	} {
 		if !strings.Contains(support, required) {
 			t.Fatalf("docs/support-policy.md missing %q", required)
