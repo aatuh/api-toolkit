@@ -2053,7 +2053,7 @@ refactor(idempotency): separate compatibility options
 
 ---
 
-## [ ] API-007: Normalize and validate health manager construction
+## [x] API-007: Normalize and validate health manager construction
 
 **Priority:** P1
 **Owner:** Runtime API team
@@ -2117,6 +2117,12 @@ go test ./endpoints/health -run 'Manager|Register|Concurrent' -count=100
 ```text
 feat(health): add validated manager construction
 ```
+
+**Completion evidence:** Protected PR #98 merged as squash
+`68dabced49e7e98f4c4c2f00605178947c0872b2` on 2026-08-22. All required
+checks passed before merge. `RegisterCheckerChecked` is the additive
+error-returning registration API; the existing void `ManagerContract` method
+remains unchanged for v4 compatibility.
 
 ---
 
