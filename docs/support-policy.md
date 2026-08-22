@@ -59,9 +59,9 @@ docs until CI includes matching smoke checks.
 
 PostgreSQL `18.x` is the declared real-service test major for supported contrib
 PostgreSQL adapters. The `postgres-contract` CI job uses a PostgreSQL 18 service
-container and runs `make test-postgres`; it is the reusable harness baseline,
-not proof that every adapter has already received a direct real-database
-contract.
+container and runs `make test-postgres` on every pull request. That target
+directly covers the supported PostgreSQL adapters and generated reference-service
+persistence paths against the real service.
 
 Locally, `GOWORK=off GOTOOLCHAIN=local make test-postgres` starts an isolated
 loopback PostgreSQL 18 container when no test DSN is configured. A supplied

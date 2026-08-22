@@ -15,7 +15,15 @@ run_tests() {
       GOWORK=off \
       "${test_enable}=1" \
       GOTOOLCHAIN="${GOTOOLCHAIN:-local}" \
-      go test ./internal/testpostgres -count=1
+      go test ./testpostgres -count=1
+  )
+  (
+    cd "$repo_root/examples/reference-saas-api"
+    env \
+      GOWORK=off \
+      "${test_enable}=1" \
+      GOTOOLCHAIN="${GOTOOLCHAIN:-local}" \
+      go test ./internal/adapters/postgres -count=1 -run '^TestRealPostgres'
   )
 }
 

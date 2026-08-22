@@ -42,10 +42,13 @@ MinIO, HTTP readiness, and webhook receiver startup.
 
 ## Real PostgreSQL Harness
 
-Run `GOWORK=off GOTOOLCHAIN=local make test-postgres` to test the reusable
-contrib PostgreSQL harness against the declared PostgreSQL 18 service. Locally
-the target starts and removes one loopback-only Docker container. In CI, the
-same target uses the `postgres-contract` service container.
+Run `GOWORK=off GOTOOLCHAIN=local make test-postgres` (or its
+`make supported-adapter-check` alias) to test the reusable contrib PostgreSQL
+harness against the declared PostgreSQL 18 service. It runs direct real-service
+contracts for supported PostgreSQL adapters and the generated reference-service
+persistence paths. Locally the target starts and removes one loopback-only
+Docker container. In CI, the same target uses the `postgres-contract` service
+container on every pull request.
 
 The harness creates a database and schema per test, sets the pool search path,
 always drops the database during cleanup, supports rollback-only transactions,

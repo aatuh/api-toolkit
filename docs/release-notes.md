@@ -74,6 +74,10 @@ source of truth is `docs/release-runbook.md`.
   service-container DSN, creates a database and schema per test, supports
   rollback, migration, cancellation, and connection-loss checks, and never
   reads application `DATABASE_URL` configuration.
+- The harness now directly validates supported PostgreSQL adapters, migrations,
+  scheduler storage, and generated reference-service persistence paths on every
+  pull request; `make supported-adapter-check` is the explicit verification
+  alias.
 
 ### Internal response-writing behavior
 
