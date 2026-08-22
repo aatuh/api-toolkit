@@ -684,7 +684,7 @@ verifier contracts also passed before merge.
 
 ---
 
-## [ ] REL-003: Enforce tag, branch, and module coherence
+## [x] REL-003: Enforce tag, branch, and module coherence
 
 **Priority:** P0
 **Owner:** Release engineer
@@ -732,6 +732,15 @@ GOWORK=off GOTOOLCHAIN=local make docs-check
 ```text
 ci(release): enforce tag and module coherence
 ```
+
+### Completion evidence
+
+Protected PR [#80](https://github.com/aatuh/api-toolkit/pull/80) merged on
+2026-08-22 as squash commit
+`e15685e7d9a7f3fbba5ffa577228844038898115`. All required protected checks
+passed: both supported Go-version test and API-check jobs, lint, governance,
+fuzz, CodeQL, dependency review, analysis, and PR-title validation. The project
+item records the same merge SHA as Done.
 
 ---
 
