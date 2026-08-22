@@ -45,6 +45,79 @@ func TestNewRejectsDangerousBypassWithoutConfig(t *testing.T) {
 	}
 }
 
+func TestNewRejectsBothLimiterContracts(t *testing.T) {
+	_, err := New(Options{
+		Limiter:         fixedLimiter{allowed: true},
+		DecisionLimiter: fixedDecisionLimiter{decision: Decision{Allowed: true}},
+	})
+	if err == nil {
+		t.Fatal("expected error when both limiter contracts are configured")
+	}
+}
+
+func TestHandlerUsesSharedAnonymousBucketForBlankKeys(t *testing.T) {
+	mw, err := New(Options{
+		Capacity:   1,
+		RefillRate: 1,
+		Clock:      headerClock{now: time.Unix(1_000, 0).UTC()},
+		Key:        func(*http.Request) string { return " \t" },
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for request := 1; request <= 2; request++ {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
+		want := http.StatusNoContent
+		if request == 2 {
+			want = http.StatusTooManyRequests
+		}
+		if recorder.Code != want {
+			t.Fatalf("request %d status = %d, want %d", request, recorder.Code, want)
+		}
+	}
+}
+
+func TestHandlerRejectsDangerousBypassFromUntrustedPeer(t *testing.T) {
+	mw, err := New(Options{
+		Capacity:                  1,
+		RefillRate:                1,
+		Clock:                     headerClock{now: time.Unix(1_000, 0).UTC()},
+		Key:                       func(*http.Request) string { return "client-1" },
+		SkipEnabled:               true,
+		SkipHeader:                "X-RateLimit-Skip",
+		AllowDangerousDevBypasses: true,
+		ClientIPResolver: identity.Resolver{
+			TrustedProxies: []netip.Prefix{netip.MustParsePrefix("203.0.113.0/24")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for request := 1; request <= 2; request++ {
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+		req.RemoteAddr = "198.51.100.1:443"
+		req.Header.Set("X-RateLimit-Skip", "true")
+		handler.ServeHTTP(recorder, req)
+		want := http.StatusNoContent
+		if request == 2 {
+			want = http.StatusTooManyRequests
+		}
+		if recorder.Code != want {
+			t.Fatalf("request %d status = %d, want %d", request, recorder.Code, want)
+		}
+	}
+}
+
 func TestHandlerRoundsSharedLimiterRetryAfterUp(t *testing.T) {
 	mw, err := New(Options{
 		Limiter: fixedLimiter{

@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"math"
@@ -22,6 +23,12 @@ type Limiter interface {
 	Allow(ctx context.Context, key string) (allowed bool, retryAfter time.Duration, err error)
 }
 
+// DecisionLimiter returns an allow or deny decision with complete quota metadata.
+type DecisionLimiter interface {
+	// Allow returns a complete rate-limit decision for key.
+	Allow(ctx context.Context, key string) (Decision, error)
+}
+
 // Options configures the rate limit middleware.
 type Options struct {
 	Capacity   float64 // tokens
@@ -31,6 +38,8 @@ type Options struct {
 	Clock      ports.Clock
 	// Limiter overrides the default in-memory limiter with a shared limiter.
 	Limiter Limiter
+	// DecisionLimiter supplies quota metadata for headers and cannot be combined with Limiter.
+	DecisionLimiter DecisionLimiter
 	// ClientIPResolver derives client identity from trusted proxies.
 	ClientIPResolver identity.Resolver
 	// StateTTL evicts buckets that have been idle for this duration.
@@ -55,15 +64,47 @@ type Options struct {
 
 // Middleware enforces in-memory token bucket rate limits.
 type Middleware struct {
-	opts        Options
-	mu          sync.Mutex
-	m           map[string]*bucket
-	lastCleanup time.Time
+	opts           Options
+	mu             sync.Mutex
+	m              map[string]*bucket
+	lastCleanup    time.Time
+	cleanupPending bool
+	expirations    bucketExpiryHeap
 }
 
+const (
+	maxCleanupPerRequest  = 64
+	anonymousRateLimitKey = "__anonymous__"
+)
+
 type bucket struct {
-	tokens   float64
-	lastSeen time.Time
+	tokens    float64
+	lastSeen  time.Time
+	key       string
+	expiresAt time.Time
+	heapIndex int
+}
+
+type bucketExpiryHeap []*bucket
+
+func (h bucketExpiryHeap) Len() int           { return len(h) }
+func (h bucketExpiryHeap) Less(i, j int) bool { return h[i].expiresAt.Before(h[j].expiresAt) }
+func (h bucketExpiryHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].heapIndex = i
+	h[j].heapIndex = j
+}
+func (h *bucketExpiryHeap) Push(value any) {
+	item := value.(*bucket)
+	item.heapIndex = len(*h)
+	*h = append(*h, item)
+}
+func (h *bucketExpiryHeap) Pop() any {
+	old := *h
+	item := old[len(old)-1]
+	item.heapIndex = -1
+	*h = old[:len(old)-1]
+	return item
 }
 
 // New constructs a rate limiting middleware with defaults.
@@ -79,6 +120,9 @@ func New(opts Options) (*Middleware, error) {
 	}
 	if opts.CleanupInterval < 0 {
 		return nil, errors.New("cleanup interval must be non-negative")
+	}
+	if opts.Limiter != nil && opts.DecisionLimiter != nil {
+		return nil, errors.New("limiter and decision limiter cannot both be configured")
 	}
 	if opts.AllowDangerousDevBypasses {
 		if strings.TrimSpace(opts.SkipHeader) == "" {
@@ -119,7 +163,9 @@ func New(opts Options) (*Middleware, error) {
 			return r.RemoteAddr
 		}
 	}
-	return &Middleware{opts: opts, m: make(map[string]*bucket)}, nil
+	middleware := &Middleware{opts: opts, m: make(map[string]*bucket)}
+	heap.Init(&middleware.expirations)
+	return middleware, nil
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
@@ -146,22 +192,37 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 
 		key := m.opts.Key(r)
+		if strings.TrimSpace(key) == "" {
+			key = anonymousRateLimitKey
+		}
+
+		if limiter := m.opts.DecisionLimiter; limiter != nil {
+			decision, err := limiter.Allow(r.Context(), key)
+			if err != nil {
+				m.handleLimiterError(w, next, r, err)
+				return
+			}
+			quota := QuotaFromDecision(decision)
+			if !decision.Allowed {
+				if quota.RetryAfter <= 0 {
+					quota.RetryAfter = time.Second
+				}
+				if quota.Reset.IsZero() {
+					quota.Reset = m.opts.Clock.Now().Add(quota.RetryAfter)
+				}
+				SetRateLimitHeaders(w, quota, m.opts.HeaderConfig)
+				m.writeProblem(w, http.StatusTooManyRequests, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeRateLimited), Title: http.StatusText(http.StatusTooManyRequests), Detail: "rate limit exceeded"})
+				return
+			}
+			SetRateLimitHeaders(w, quota, m.opts.HeaderConfig)
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		if limiter := m.opts.Limiter; limiter != nil {
 			allowed, retryAfter, err := limiter.Allow(r.Context(), key)
 			if err != nil {
-				if m.opts.OnError != nil {
-					m.opts.OnError(err)
-				}
-				if m.opts.FailOpen {
-					next.ServeHTTP(w, r)
-					return
-				}
-				m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{
-					Type:   httpx.DefaultTypeURI(httpx.TypeServiceUnavailable),
-					Title:  http.StatusText(http.StatusServiceUnavailable),
-					Detail: "rate limiter unavailable",
-				})
+				m.handleLimiterError(w, next, r, err)
 				return
 			}
 			if !allowed {
@@ -191,7 +252,9 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		m.cleanup(now)
 		b := m.m[key]
 		if b == nil {
-			b = &bucket{tokens: m.opts.Capacity, lastSeen: now}
+			b = newBucket(now)
+			b.key = key
+			b.tokens = m.opts.Capacity
 			m.m[key] = b
 		}
 		elapsed := now.Sub(b.lastSeen).Seconds()
@@ -200,6 +263,7 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 			b.tokens = m.opts.Capacity
 		}
 		b.lastSeen = now
+		m.trackBucket(b)
 
 		if b.tokens < 1 {
 			m.mu.Unlock()
@@ -236,19 +300,51 @@ func (m *Middleware) writeProblem(w http.ResponseWriter, status int, problem htt
 	}
 }
 
+func (m *Middleware) handleLimiterError(w http.ResponseWriter, next http.Handler, r *http.Request, err error) {
+	if m.opts.OnError != nil {
+		m.opts.OnError(err)
+	}
+	if m.opts.FailOpen {
+		next.ServeHTTP(w, r)
+		return
+	}
+	m.writeProblem(w, http.StatusServiceUnavailable, httpx.Problem{Type: httpx.DefaultTypeURI(httpx.TypeServiceUnavailable), Title: http.StatusText(http.StatusServiceUnavailable), Detail: "rate limiter unavailable"})
+}
+
 func (m *Middleware) cleanup(now time.Time) {
 	if m.opts.StateTTL <= 0 || m.opts.CleanupInterval <= 0 {
 		return
 	}
-	if !m.lastCleanup.IsZero() && now.Sub(m.lastCleanup) < m.opts.CleanupInterval {
+	if !m.cleanupPending && !m.lastCleanup.IsZero() && now.Sub(m.lastCleanup) < m.opts.CleanupInterval {
 		return
 	}
-	for key, b := range m.m {
-		if now.Sub(b.lastSeen) > m.opts.StateTTL {
-			delete(m.m, key)
+	removed := 0
+	for m.expirations.Len() > 0 && removed < maxCleanupPerRequest {
+		bucket := m.expirations[0]
+		if bucket.expiresAt.After(now) {
+			break
 		}
+		heap.Pop(&m.expirations)
+		if m.m[bucket.key] == bucket {
+			delete(m.m, bucket.key)
+		}
+		removed++
 	}
+	m.cleanupPending = m.expirations.Len() > 0 && !m.expirations[0].expiresAt.After(now)
 	m.lastCleanup = now
+}
+
+func newBucket(lastSeen time.Time) *bucket {
+	return &bucket{lastSeen: lastSeen, heapIndex: -1}
+}
+
+func (m *Middleware) trackBucket(bucket *bucket) {
+	bucket.expiresAt = bucket.lastSeen.Add(m.opts.StateTTL)
+	if bucket.heapIndex < 0 {
+		heap.Push(&m.expirations, bucket)
+		return
+	}
+	heap.Fix(&m.expirations, bucket.heapIndex)
 }
 
 func itoa(n int) string {

@@ -115,6 +115,21 @@ source of truth is `docs/release-runbook.md`.
   compatibility wrappers. Migrate startup wiring to `NewManager` and checked
   registration before v5 removes the inconsistent unchecked constructors.
 
+### Rate-limit decisions and bounded cleanup
+
+- `github.com/aatuh/api-toolkit/v4/middleware/ratelimit.DecisionLimiter` and
+  `ratelimit.DecisionLimiter.Allow` let a shared rate-limit adapter return a
+  complete `ratelimit.Decision`, including `ratelimit.Decision.Limit`,
+  `ratelimit.Decision.Remaining`, and `ratelimit.Decision.Reset`, for standard
+  response headers on both allowed and denied requests.
+- `ratelimit.Options.DecisionLimiter` cannot be combined with the existing
+  `ratelimit.Limiter`; the latter remains a v4-compatible adapter for
+  allow/deny and retry-after decisions.
+- In-memory state expiry now uses a bounded expiry heap and removes at most 64
+  expired buckets per request. It starts no background goroutine. Blank key
+  results share an anonymous bucket rather than bypassing rate limiting;
+  dangerous skip headers remain opt-in and restricted to trusted proxies.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

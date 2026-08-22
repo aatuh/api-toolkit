@@ -671,8 +671,28 @@ if err != nil {
 handler := limiter.Handler(next)
 ```
 
-- Expected behavior: allowed and denied responses include standard quota headers when header emission is enabled; existing limiter behavior is unchanged when `HeaderConfig` is left empty.
-- Production caveat: distributed quota accounting still belongs in an app-owned or adapter-owned limiter.
+- External limiter sketch:
+
+```go
+type sharedLimiter struct{}
+
+func (sharedLimiter) Allow(context.Context, string) (ratelimit.Decision, error) {
+	return ratelimit.Decision{
+		Allowed:   true,
+		Limit:     100,
+		Remaining: 99,
+		Reset:     time.Now().Add(time.Minute),
+	}, nil
+}
+
+limiter, err := ratelimit.New(ratelimit.Options{
+	DecisionLimiter: sharedLimiter{},
+	HeaderConfig:    ratelimit.DefaultHeaderConfig(),
+})
+```
+
+- Expected behavior: `DecisionLimiter` emits complete standard headers for allowed and denied shared-store decisions. The legacy `Limiter` adapter remains supported for v4 and provides retry-after data when available. In-memory expiry removes at most 64 expired buckets per request, without a background goroutine.
+- Production caveat: distributed quota accounting belongs in an app-owned or adapter-owned `DecisionLimiter`. Empty key results use one shared anonymous bucket rather than bypassing limits; dangerous skip headers remain disabled by default and require trusted proxies when explicitly enabled.
 
 ## Idempotent create and async replay contracts
 
