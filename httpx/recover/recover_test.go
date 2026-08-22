@@ -25,6 +25,30 @@ func (l *captureLogger) Error(msg string, kv ...any) {
 	l.kv = append([]any(nil), kv...)
 }
 
+var errRecoveryResponseWrite = errors.New("response write failed")
+
+type failingRecoveryResponseWriter struct {
+	header     http.Header
+	status     int
+	writeCalls int
+}
+
+func (w *failingRecoveryResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingRecoveryResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+func (w *failingRecoveryResponseWriter) Write([]byte) (int, error) {
+	w.writeCalls++
+	return 0, errRecoveryResponseWrite
+}
+
 func TestMiddlewareWritesProblemWhenNothingCommitted(t *testing.T) {
 	handler := Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
@@ -42,6 +66,27 @@ func TestMiddlewareWritesProblemWhenNothingCommitted(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"detail":"internal server error"`) {
 		t.Fatalf("expected internal error problem body, got %q", rec.Body.String())
+	}
+}
+
+func TestMiddlewareStopsWhenRecoveryProblemWriteFails(t *testing.T) {
+	log := &captureLogger{}
+	handler := New(WithLogger(log), WithStackLogging(false))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}))
+
+	writer := &failingRecoveryResponseWriter{}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	handler.ServeHTTP(writer, req)
+
+	if writer.status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", writer.status, http.StatusInternalServerError)
+	}
+	if writer.writeCalls != 1 {
+		t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+	}
+	if log.msg != "panic recovered" {
+		t.Fatalf("log message = %q, want panic recovered", log.msg)
 	}
 }
 

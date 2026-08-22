@@ -70,11 +70,13 @@ func WriteRateLimited(w http.ResponseWriter, decision Decision, config HeaderCon
 	if quota.RetryAfter > 0 {
 		w.Header().Set(normalizeHeaderConfig(config).RetryAfterHeader, itoa(retryAfterSeconds(quota.RetryAfter)))
 	}
-	httpx.WriteProblem(w, http.StatusTooManyRequests, httpx.Problem{
+	if err := httpx.WriteProblemChecked(w, http.StatusTooManyRequests, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
 		Title:  http.StatusText(http.StatusTooManyRequests),
 		Detail: "rate limit exceeded",
-	})
+	}); err != nil {
+		return
+	}
 }
 
 // QuotaFromDecision extracts quota metadata from a decision.

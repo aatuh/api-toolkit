@@ -65,6 +65,16 @@ source of truth is `docs/release-runbook.md`.
   documented v2-to-v3 transition evidence.
 - Use `docs/release-manifests.md` when interpreting `docs/package-classification.tsv`, `docs/contrib-api-drift-dispositions.tsv`, and `docs/vulnerability-dispositions.tsv`.
 
+## 2026-08-22
+
+### Internal response-writing behavior
+
+- Root-module internals now use checked response writers. Terminal paths stop
+  after a failed write; existing application-facing void writer APIs remain
+  compatibility wrappers. Contrib and generated scaffolds will adopt these APIs
+  with the next paired verified v4 root release so standalone builds retain a
+  published dependency.
+
 ## 2026-08-15
 
 ### HTTP response writer behavior

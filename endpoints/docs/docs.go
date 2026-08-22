@@ -224,16 +224,20 @@ func (m *Manager) ServeHTML(w http.ResponseWriter, _ *http.Request) {
 	html, err := m.GetHTML()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+			if err := httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{
 				Title:  http.StatusText(http.StatusNotFound),
 				Detail: "documentation not found",
-			})
+			}); err != nil {
+				return
+			}
 			return
 		}
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+		if err := httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to generate documentation",
-		})
+		}); err != nil {
+			return
+		}
 		return
 	}
 
@@ -247,16 +251,20 @@ func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	doc, err := m.getOpenAPIDocument()
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+			if err := httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 				Title:  http.StatusText(http.StatusInternalServerError),
 				Detail: "failed to load openapi specification",
-			})
+			}); err != nil {
+				return
+			}
 			return
 		}
-		httpx.WriteProblem(w, http.StatusNotFound, httpx.Problem{
+		if err := httpx.WriteProblemChecked(w, http.StatusNotFound, httpx.Problem{
 			Title:  http.StatusText(http.StatusNotFound),
 			Detail: "openapi specification disabled or not found",
-		})
+		}); err != nil {
+			return
+		}
 		return
 	}
 
@@ -269,22 +277,28 @@ func (m *Manager) ServeOpenAPI(w http.ResponseWriter, _ *http.Request) {
 func (m *Manager) ServeVersion(w http.ResponseWriter, _ *http.Request) {
 	version, err := m.GetVersion()
 	if err != nil {
-		httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+		if err := httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 			Title:  http.StatusText(http.StatusInternalServerError),
 			Detail: "failed to get version",
-		})
+		}); err != nil {
+			return
+		}
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, map[string]string{
+	if err := httpx.WriteJSONChecked(w, http.StatusOK, map[string]string{
 		"version": version,
-	})
+	}); err != nil {
+		return
+	}
 }
 
 // ServeInfo serves the documentation info.
 func (m *Manager) ServeInfo(w http.ResponseWriter, _ *http.Request) {
 	info := m.GetInfo()
-	httpx.WriteJSON(w, http.StatusOK, info)
+	if err := httpx.WriteJSONChecked(w, http.StatusOK, info); err != nil {
+		return
+	}
 }
 
 // generateDefaultHTML generates a default HTML documentation page.

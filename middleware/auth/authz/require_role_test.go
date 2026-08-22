@@ -11,6 +11,30 @@ import (
 	"github.com/aatuh/api-toolkit/v4/authorization"
 )
 
+var errRoleResponseWrite = errors.New("response write failed")
+
+type failingRoleResponseWriter struct {
+	header     http.Header
+	status     int
+	writeCalls int
+}
+
+func (w *failingRoleResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingRoleResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+func (w *failingRoleResponseWriter) Write([]byte) (int, error) {
+	w.writeCalls++
+	return 0, errRoleResponseWrite
+}
+
 func TestRequireRoleReturnsUnauthorizedWithoutAuthenticatedActor(t *testing.T) {
 	mw := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return nil })
 
@@ -37,6 +61,53 @@ func TestRequireRoleReturnsForbiddenForAuthenticatedActorWithoutRole(t *testing.
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestRequireRoleStopsAfterProblemWriteFailure(t *testing.T) {
+	mw := mustRequireRoleMiddleware(t, "admin", func(_ context.Context) []string { return nil })
+
+	tests := []struct {
+		name    string
+		request func() *http.Request
+		status  int
+	}{
+		{
+			name: "unauthenticated",
+			request: func() *http.Request {
+				return httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+			},
+			status: http.StatusUnauthorized,
+		},
+		{
+			name: "authenticated",
+			request: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+				return req.WithContext(authorization.WithActor(req.Context(), authorization.Actor{UserID: "user-1"}))
+			},
+			status: http.StatusForbidden,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			writer := &failingRoleResponseWriter{}
+			nextCalled := false
+
+			mw.Handler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				nextCalled = true
+			})).ServeHTTP(writer, test.request())
+
+			if writer.status != test.status {
+				t.Fatalf("status = %d, want %d", writer.status, test.status)
+			}
+			if writer.writeCalls != 1 {
+				t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+			}
+			if nextCalled {
+				t.Fatal("next handler was called after authorization failure")
+			}
+		})
 	}
 }
 

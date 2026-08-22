@@ -2,12 +2,14 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
 	"time"
 
+	"github.com/aatuh/api-toolkit/v4/httpx"
 	"github.com/aatuh/api-toolkit/v4/httpx/identity"
 )
 
@@ -69,6 +71,51 @@ func TestHandlerRoundsSharedLimiterRetryAfterUp(t *testing.T) {
 	if got := rec.Header().Get("Retry-After"); got != "1" {
 		t.Fatalf("expected Retry-After to round up to 1, got %q", got)
 	}
+}
+
+func TestMiddlewareReportsCheckedProblemWriteFailure(t *testing.T) {
+	want := errors.New("response body write failed")
+	var got error
+	mw, err := New(Options{
+		OnError: func(err error) {
+			got = err
+		},
+	})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	mw.writeProblem(&failingResponseWriter{err: want}, http.StatusTooManyRequests, httpx.Problem{
+		Type:   httpx.DefaultTypeURI(httpx.TypeRateLimited),
+		Title:  http.StatusText(http.StatusTooManyRequests),
+		Detail: "rate limit exceeded",
+	})
+
+	if !errors.Is(got, want) {
+		t.Fatalf("OnError = %v, want response write error wrapping %v", got, want)
+	}
+	var responseErr *httpx.ResponseWriteError
+	if !errors.As(got, &responseErr) || responseErr.Stage != httpx.ResponseWriteStageBody {
+		t.Fatalf("OnError = %T %v, want body-stage ResponseWriteError", got, got)
+	}
+}
+
+type failingResponseWriter struct {
+	header http.Header
+	err    error
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (*failingResponseWriter) WriteHeader(int) {}
+
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
 
 type fixedLimiter struct {

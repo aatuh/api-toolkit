@@ -189,24 +189,32 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 		case result := <-done:
 			if capture.timedOutOrDeadlineReached() {
 				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
-				httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
+				if err := httpx.WriteProblemChecked(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem); err != nil {
+					return
+				}
 				return
 			}
 			if capture.overflowed() {
 				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeCaptureOverflow, defaultHardTimeoutCaptureOverflowStatus)
-				httpx.WriteProblem(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem)
+				if err := httpx.WriteProblemChecked(w, defaultHardTimeoutCaptureOverflowStatus, defaultHardTimeoutCaptureOverflowProblem); err != nil {
+					return
+				}
 				return
 			}
 			if result.panicked {
 				m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomePanic, defaultHardTimeoutPanicStatus)
-				httpx.WriteProblem(w, defaultHardTimeoutPanicStatus, defaultHardTimeoutPanicProblem)
+				if err := httpx.WriteProblemChecked(w, defaultHardTimeoutPanicStatus, defaultHardTimeoutPanicProblem); err != nil {
+					return
+				}
 				return
 			}
 			capture.flushTo(w)
 		case <-ctx.Done():
 			capture.timeout()
 			m.emitHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
-			httpx.WriteProblem(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem)
+			if err := httpx.WriteProblemChecked(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem); err != nil {
+				return
+			}
 		}
 	})
 }

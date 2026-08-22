@@ -301,9 +301,11 @@ func writeAPIKeyProblem(w http.ResponseWriter, status int, detail string) {
 	if status == http.StatusBadRequest {
 		typeSlug = httpx.TypeBadRequest
 	}
-	httpx.WriteProblem(w, status, httpx.Problem{
+	if err := httpx.WriteProblemChecked(w, status, httpx.Problem{
 		Type:   httpx.DefaultTypeURI(typeSlug),
 		Title:  http.StatusText(status),
 		Detail: detail,
-	})
+	}); err != nil {
+		return
+	}
 }

@@ -2,12 +2,37 @@ package tenant
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/aatuh/api-toolkit/v4/authorization"
 )
+
+var errTenantResponseWrite = errors.New("response write failed")
+
+type failingTenantResponseWriter struct {
+	header     http.Header
+	status     int
+	writeCalls int
+}
+
+func (w *failingTenantResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingTenantResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+func (w *failingTenantResponseWriter) Write([]byte) (int, error) {
+	w.writeCalls++
+	return 0, errTenantResponseWrite
+}
 
 type staticParam struct {
 	value string
@@ -55,6 +80,73 @@ func TestTenantMiddlewareRequiresTenantForAuthenticatedActor(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected forbidden, got %d", rec.Code)
+	}
+}
+
+func TestTenantMiddlewareStopsAfterProblemWriteFailure(t *testing.T) {
+	tests := []struct {
+		name    string
+		options Options
+		request func() *http.Request
+		status  int
+	}{
+		{
+			name:    "missing tenant for unauthenticated request",
+			options: Options{HeaderName: "X-Tenant-ID"},
+			request: func() *http.Request {
+				return httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+			},
+			status: http.StatusUnauthorized,
+		},
+		{
+			name:    "missing tenant for authenticated request",
+			options: Options{HeaderName: "X-Tenant-ID"},
+			request: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+				return req.WithContext(authorization.WithActor(req.Context(), authorization.Actor{UserID: "user-1"}))
+			},
+			status: http.StatusForbidden,
+		},
+		{
+			name: "mismatched tenant sources",
+			options: Options{
+				HeaderName: "X-Tenant-ID",
+				TenantFromContext: func(context.Context) (string, bool) {
+					return "tenant-a", true
+				},
+			},
+			request: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+				req.Header.Set("X-Tenant-ID", "tenant-b")
+				return req
+			},
+			status: http.StatusForbidden,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mw, err := New(test.options)
+			if err != nil {
+				t.Fatalf("new middleware: %v", err)
+			}
+
+			writer := &failingTenantResponseWriter{}
+			nextCalled := false
+			mw.Handler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				nextCalled = true
+			})).ServeHTTP(writer, test.request())
+
+			if writer.status != test.status {
+				t.Fatalf("status = %d, want %d", writer.status, test.status)
+			}
+			if writer.writeCalls != 1 {
+				t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+			}
+			if nextCalled {
+				t.Fatal("next handler was called after tenant failure")
+			}
+		})
 	}
 }
 

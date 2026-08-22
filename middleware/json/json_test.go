@@ -10,6 +10,30 @@ import (
 	"testing"
 )
 
+var errJSONResponseWrite = errors.New("response write failed")
+
+type failingJSONResponseWriter struct {
+	header     http.Header
+	status     int
+	writeCalls int
+}
+
+func (w *failingJSONResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingJSONResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+func (w *failingJSONResponseWriter) Write([]byte) (int, error) {
+	w.writeCalls++
+	return 0, errJSONResponseWrite
+}
+
 func TestNilMiddlewareHandler(t *testing.T) {
 	var mw *Middleware
 	handler := mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +66,31 @@ func TestHandlerRejectsInvalidJSONContentType(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
 		t.Fatalf("expected problem content type, got %q", got)
+	}
+}
+
+func TestHandlerStopsAfterProblemWriteFailure(t *testing.T) {
+	mw, err := New(Options{RequireJSON: true})
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
+
+	writer := &failingJSONResponseWriter{}
+	nextCalled := false
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("payload"))
+	req.Header.Set("Content-Type", "text/plain")
+	mw.Handler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		nextCalled = true
+	})).ServeHTTP(writer, req)
+
+	if writer.status != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want %d", writer.status, http.StatusUnsupportedMediaType)
+	}
+	if writer.writeCalls != 1 {
+		t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+	}
+	if nextCalled {
+		t.Fatal("next handler was called after content-type failure")
 	}
 }
 
