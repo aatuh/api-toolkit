@@ -88,11 +88,13 @@ func New(opts ...Option) func(http.Handler) http.Handler {
 					if ww.Committed() {
 						panic(http.ErrAbortHandler)
 					}
-					httpx.WriteProblem(w, http.StatusInternalServerError, httpx.Problem{
+					if err := httpx.WriteProblemChecked(w, http.StatusInternalServerError, httpx.Problem{
 						Type:   httpx.DefaultTypeURI(httpx.TypeInternal),
 						Title:  http.StatusText(http.StatusInternalServerError),
 						Detail: "internal server error",
-					})
+					}); err != nil {
+						return
+					}
 				}
 			}()
 			next.ServeHTTP(ww, r)

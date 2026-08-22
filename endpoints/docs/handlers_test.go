@@ -25,13 +25,18 @@ func (s *stubRouteRegistrar) Get(pattern string, _ http.HandlerFunc) {
 
 type stubDocsProvider struct {
 	html       string
+	htmlErr    error
 	openAPI    []byte
 	openAPIErr error
 	version    string
+	versionErr error
 	info       Info
 }
 
 func (p stubDocsProvider) GetHTML() (string, error) {
+	if p.htmlErr != nil {
+		return "", p.htmlErr
+	}
 	return p.html, nil
 }
 
@@ -43,7 +48,158 @@ func (p stubDocsProvider) GetOpenAPI() ([]byte, error) {
 }
 
 func (p stubDocsProvider) GetVersion() (string, error) {
+	if p.versionErr != nil {
+		return "", p.versionErr
+	}
 	return p.version, nil
+}
+
+var errDocsResponseWrite = errors.New("response write failed")
+
+type failingDocsResponseWriter struct {
+	header     http.Header
+	status     int
+	writeCalls int
+	writeErr   error
+}
+
+func (w *failingDocsResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingDocsResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+func (w *failingDocsResponseWriter) Write([]byte) (int, error) {
+	w.writeCalls++
+	return 0, w.writeErr
+}
+
+func TestServeMethodsStopAfterResponseWriteFailure(t *testing.T) {
+	baseConfig := Config{
+		Title:       "Docs",
+		Description: "Test docs",
+		Version:     "1.0.0",
+		Paths:       DefaultPaths(),
+		EnableHTML:  true,
+		EnableJSON:  true,
+	}
+
+	tests := []struct {
+		name    string
+		manager func() *Manager
+		serve   func(*Manager, http.ResponseWriter)
+		status  int
+	}{
+		{
+			name: "html not found",
+			manager: func() *Manager {
+				manager := &Manager{config: baseConfig}
+				manager.config.EnableHTML = false
+				return manager
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeHTML(w, nil)
+			},
+			status: http.StatusNotFound,
+		},
+		{
+			name: "html provider error",
+			manager: func() *Manager {
+				return &Manager{
+					config: baseConfig,
+					provider: stubDocsProvider{
+						htmlErr: errors.New("html unavailable"),
+					},
+				}
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeHTML(w, nil)
+			},
+			status: http.StatusInternalServerError,
+		},
+		{
+			name: "openapi not found",
+			manager: func() *Manager {
+				manager := &Manager{config: baseConfig}
+				manager.config.EnableJSON = false
+				return manager
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeOpenAPI(w, nil)
+			},
+			status: http.StatusNotFound,
+		},
+		{
+			name: "openapi provider error",
+			manager: func() *Manager {
+				return &Manager{
+					config: baseConfig,
+					provider: stubDocsProvider{
+						openAPIErr: errors.New("openapi unavailable"),
+					},
+				}
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeOpenAPI(w, nil)
+			},
+			status: http.StatusInternalServerError,
+		},
+		{
+			name: "version provider error",
+			manager: func() *Manager {
+				return &Manager{
+					config: baseConfig,
+					provider: stubDocsProvider{
+						versionErr: errors.New("version unavailable"),
+					},
+				}
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeVersion(w, nil)
+			},
+			status: http.StatusInternalServerError,
+		},
+		{
+			name: "version success",
+			manager: func() *Manager {
+				return &Manager{config: baseConfig}
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeVersion(w, nil)
+			},
+			status: http.StatusOK,
+		},
+		{
+			name: "info success",
+			manager: func() *Manager {
+				return &Manager{config: baseConfig}
+			},
+			serve: func(manager *Manager, w http.ResponseWriter) {
+				manager.ServeInfo(w, nil)
+			},
+			status: http.StatusOK,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			writer := &failingDocsResponseWriter{writeErr: errDocsResponseWrite}
+
+			test.serve(test.manager(), writer)
+
+			if writer.status != test.status {
+				t.Fatalf("status = %d, want %d", writer.status, test.status)
+			}
+			if writer.writeCalls != 1 {
+				t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+			}
+		})
+	}
 }
 
 func (p stubDocsProvider) GetInfo() Info {
