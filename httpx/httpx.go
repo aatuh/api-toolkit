@@ -31,6 +31,17 @@ func (p *Problem) With(key string, value any) *Problem {
 // WriteProblem writes a problem details response with the provided status code.
 // It merges extension fields after the standard members, per RFC 9457.
 func WriteProblem(w http.ResponseWriter, status int, p Problem) {
+	if err := WriteProblemChecked(w, status, p); responseWriteStage(err) == ResponseWriteStageEncode {
+		// Encoding failed before the response was committed. Preserve the legacy
+		// void API's best-effort fallback only in that safe case.
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+// WriteProblemChecked writes an RFC 9457 problem details response and returns
+// an error when encoding, header commitment, or body writing fails. It never
+// writes a fallback response after a failure.
+func WriteProblemChecked(w http.ResponseWriter, status int, p Problem) error {
 	if status <= 0 {
 		status = http.StatusInternalServerError
 	}
@@ -60,9 +71,7 @@ func WriteProblem(w http.ResponseWriter, status int, p Problem) {
 		}
 		out[k] = v
 	}
-	if err := writeJSON(w, status, "application/problem+json", out); err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	}
+	return writeJSONChecked(w, status, "application/problem+json", out)
 }
 
 // WriteSimpleProblem is a convenience for common cases.

@@ -812,6 +812,15 @@ Stability tier: `stable`
 | `ProblemFromErrorStrict` | func | v3 compatibility surface | active |
 | `ProblemFromErrorWithCatalog` | func | v3 compatibility surface | active |
 | `ProblemFromErrorWithOptions` | func | v3 compatibility surface | active |
+| `ResponseWriteError` | type | v3 compatibility surface | active |
+| `ResponseWriteError.Err` | field | v3 compatibility surface | active |
+| `ResponseWriteError.Error` | method | v3 compatibility surface | active |
+| `ResponseWriteError.Stage` | field | v3 compatibility surface | active |
+| `ResponseWriteError.Unwrap` | method | v3 compatibility surface | active |
+| `ResponseWriteStage` | type | v3 compatibility surface | active |
+| `ResponseWriteStageBody` | const | v3 compatibility surface | active |
+| `ResponseWriteStageEncode` | const | v3 compatibility surface | active |
+| `ResponseWriteStageHeader` | const | v3 compatibility surface | active |
 | `TypeBadRequest` | const | v3 compatibility surface | active |
 | `TypeConflict` | const | v3 compatibility surface | active |
 | `TypeForbidden` | const | v3 compatibility surface | active |
@@ -838,7 +847,9 @@ Stability tier: `stable`
 | `WriteErrorStrict` | func | v3 compatibility surface | active |
 | `WriteErrorWithOptions` | func | v3 compatibility surface | active |
 | `WriteJSON` | func | v3 compatibility surface | active |
+| `WriteJSONChecked` | func | v3 compatibility surface | active |
 | `WriteProblem` | func | v3 compatibility surface | active |
+| `WriteProblemChecked` | func | v3 compatibility surface | active |
 | `WriteProblemCode` | func | v3 compatibility surface | active |
 | `WriteProblemWithFieldErrors` | func | v3 compatibility surface | active |
 | `WriteSimpleProblem` | func | v3 compatibility surface | active |
