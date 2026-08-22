@@ -44,7 +44,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract test-postgres test-redis supported-adapter-check v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract release-tag-consistency-check release-tag-consistency-contract release-quality-baseline-contract version-consistency-check version-consistency-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check benchmark-baseline-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract test-postgres test-redis supported-adapter-check v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract release-tag-consistency-check release-tag-consistency-contract release-quality-baseline-contract version-consistency-check version-consistency-contract pr-title-check pr-title-check-contract required-checks-verify required-checks-verify-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check benchmark-baseline-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke mutation-check benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -177,6 +177,12 @@ supported-adapter-check: ## Verify supported PostgreSQL and Redis real-service e
 github-governance-check: ## Optional authenticated GitHub branch/tag protection verification
 	@scripts/github_governance_check.sh
 
+required-checks-verify: ## Verify the required-check manifest against stable workflow job identities
+	@scripts/required_checks_verify.sh
+
+required-checks-verify-contract: ## Exercise required-check manifest and branch-protection failure modes
+	@bash scripts/required_checks_verify_contract_test.sh
+
 v3-readiness-check: ## Run compatibility-sensitive v3 readiness guardrails
 	@$(GO) test ./docscheck -count=1 -run 'TestCompatibilitySensitivePortsManifestIsCurrent|TestContribPackageClassificationAndCompatibilityPolicy|TestCompatibilityShimLifecycleRoadmap|TestIdempotencyCompatibilityMetricDocsStayBounded|TestResponseWriterInventoryMatchesCurrentImports|TestPublicExamplesDoNotTeachLegacyCompatibilitySurfaces|TestV3RemovalMatrixHasExecutableEvidence|TestV3DebtChecklistRowsStayExecutable|TestCompatibilityRoadmapCoversDocumentedSensitiveSurfaces|TestCompatibilitySensitivePortsGovernanceDocs|TestCompatibilitySensitivePackageDocsPointToReplacements|TestExamplesAndGuidesPreferCompatibilityReplacements|TestReleaseNotesIncludeStableSurfaceChecklist|TestDeprecatedBillingPortsPointToCompatPackage|TestDeprecatedBillingPortsStayInCompatibilitySource|TestDatabaseStatsStayInCompatibilityOrAdapterSource|TestAdapterLegacyRecoveryTelemetryRedactsKeysByDefault|TestIdempotencyCaptureDoesNotUseLegacyResponseWriter'
 
@@ -194,6 +200,8 @@ sbom-license-report-contract: ## Run SPDX dependency license report contract tes
 
 docs-check: ## Run documentation contract checks
 	@$(GO) test ./docscheck -count=1
+	@$(MAKE) required-checks-verify
+	@$(MAKE) required-checks-verify-contract
 	@$(MAKE) version-consistency-check
 	@$(MAKE) version-consistency-contract
 	@$(MAKE) coverage-trend-check
@@ -363,6 +371,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) vuln
 	$(MAKE) gosec
 	$(MAKE) ci-build-smoke
+	$(MAKE) required-checks-verify
 	$(MAKE) release-api-check
 	$(MAKE) contrib-api-drift-report
 	$(MAKE) contrib-release-notes-check
@@ -376,6 +385,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) test
 	$(MAKE) test-race
 	$(MAKE) fuzz
+	$(MAKE) mutation-check
 	$(MAKE) clean
 
 release-evidence: ## Run release readiness and write release-check-summary.json

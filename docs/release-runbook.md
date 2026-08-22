@@ -134,7 +134,8 @@ after the final stable `vX.Y.0` release is published.
 | `GOTOOLCHAIN=local make reference-service-coverage` | Optional checked-in reference service coverage diagnostic. | Writes `.ci-result/coverage/reference-service.func` and `.ci-result/coverage/reference-service-summary.md` without folding generated app code into root/contrib aggregate coverage thresholds. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-load` | Optional checked-in reference service load-smoke baseline. | Runs the reference-service router in-process, writes `.ci-result/reference-service-load/status`, `summary.json`, `summary.md`, and `load-smoke.log`, and records latency, throughput, memory, allocations, and expected missing-API-key failure behavior. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-evidence` | Optional recorded reference service evidence. | Runs `reference-service-check`, writes `.ci-result/reference-service/status`, `.ci-result/reference-service/summary.json`, and logs. Set `REFERENCE_SERVICE_DOCKER=1` to also run the service-owned Docker `integration-check`; set `REFERENCE_SERVICE_MINIO=1` only when object-storage integration evidence is in scope. Not part of `finalize`. |
-| `make github-governance-check` | Optional authenticated GitHub repository settings verification. | Uses `gh api` to verify branch protection, required checks, the sole-maintainer PR/no-bypass rulesets, CodeQL merge protection, force-push/deletion protection, and root `v*` plus contrib `contrib/v*` tag rulesets when `gh` is installed and authenticated; skips cleanly otherwise. |
+| `make required-checks-verify` | Local required-check identity contract. | Validates `docs/required-checks.json` against explicit workflow job IDs and names. It is part of `docs-check` and `release-check`, so release evidence records its result. |
+| `make github-governance-check` | Optional authenticated GitHub repository settings verification. | Uses `gh api` to compare the manifest with the exact strict, app-bound branch-protection set and verify the sole-maintainer PR/no-bypass rulesets, CodeQL merge protection, force-push/deletion protection, and root `v*` plus contrib `contrib/v*` tag rulesets. It skips when `gh` is absent or unauthenticated and fails closed after authentication. |
 | `RELEASE_TAG=vX.Y.Z GOTOOLCHAIN=local make release-tag-consistency-check` | Paired root/contrib release identity gate. | Fails if matching root/contrib tags, branch ancestry, module-major paths, changelog, release notes, support policy, or the release-workflow baseline are incoherent. |
 | `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree tag-binding preflight. | Requires the supported tag to point at `HEAD` and records tag/commit/tree/default-branch/module identity in `release-check-summary.json` schema v2, plus checks and retained logs. Local evidence is useful preflight only; the tag-driven GitHub workflow is the trusted publication producer. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
@@ -242,6 +243,9 @@ Local release evidence is the developer/auditor tier. It contains:
 
 - `release-check-summary.json` schema v2.
 - One check record per `make release-check` subtarget.
+- Required-check manifest verification and the blocking mutation result are
+  retained as named check records, so release reviewers can see whether stable
+  workflow identities and the assertion-sensitive gate passed.
 - Command lines, exit codes, durations, log availability, log paths, tool
   versions, commit, branch or detached state, dirty flag, staged/unstaged/
   untracked/deleted counts, and `API_BASE_REF`.

@@ -103,6 +103,7 @@ check_names=(
   "vuln"
   "gosec"
   "ci-build-smoke"
+  "required-checks-verify"
   "release-api-check"
   "contrib-api-drift-report"
   "contrib-release-notes-check"
@@ -116,6 +117,7 @@ check_names=(
   "test"
   "test-race"
   "fuzz"
+  "mutation-check"
   "clean"
 )
 check_commands=(
@@ -124,6 +126,7 @@ check_commands=(
   "make vuln"
   "make gosec"
   "make ci-build-smoke"
+  "make required-checks-verify"
   "make release-api-check"
   "make contrib-api-drift-report"
   "make contrib-release-notes-check"
@@ -137,6 +140,7 @@ check_commands=(
   "make test"
   "make test-race"
   "make fuzz"
+  "make mutation-check"
   "make clean"
 )
 
