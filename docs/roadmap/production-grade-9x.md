@@ -600,7 +600,7 @@ fix(release): reconcile verified v4 history
 
 ---
 
-## [ ] REL-002: Bind release evidence to the exact tagged commit
+## [x] REL-002: Bind release evidence to the exact tagged commit
 
 **Priority:** P0
 **Owner:** Release engineer
@@ -671,6 +671,16 @@ API_BASE_REF="$VERIFIED_V4_BASE_REF" \
 ```text
 fix(release): bind evidence to tagged commits
 ```
+
+### Completion evidence
+
+Protected PR [#78](https://github.com/aatuh/api-toolkit/pull/78) merged on
+2026-08-22 as squash commit
+`7e1a5bfc4f2da19c9a717f5d18cb9439540859c6`. All required protected checks
+passed: both supported Go-version test and API-check jobs, lint, governance,
+fuzz, CodeQL, dependency review, analysis, and PR-title validation. Local
+`make finalize`, documentation checks, tagged-evidence fixtures, and artifact
+verifier contracts also passed before merge.
 
 ---
 
