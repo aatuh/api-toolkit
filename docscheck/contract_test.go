@@ -1196,6 +1196,7 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 
 	for _, required := range []string{
 		"API_BASE_REF is required for release-evidence",
+		"RELEASE_TAG is required for release-evidence",
 		"mktemp",
 		"scripts/release_check_summary.sh --run",
 		"release-check-summary.json",
@@ -1227,6 +1228,11 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 		"FULL_PROFILE_INTEGRATION_CHECK_STATUS",
 		"publication_artifact_checksums",
 		"release-asset-manifest.tsv",
+		"release_identity",
+		"tag_points_at_head",
+		"tag_reachable_from_default_branch",
+		"module_identity_json",
+		"workflow_identity_json",
 		"docs/vulnerability-dispositions.tsv",
 		"docs/contrib-api-drift-dispositions.tsv",
 		"make contrib-release-notes-check",
@@ -1949,6 +1955,14 @@ func TestReleaseEvidenceGitStateContract(t *testing.T) {
 	}
 	if cleanSummary.GitState.Branch == nil || *cleanSummary.GitState.Branch == "" {
 		t.Fatalf("clean repo git_state branch missing: %+v", cleanSummary.GitState)
+	}
+	identity := cleanSummary.ReleaseIdentity
+	if identity.Status != "passed" || identity.Tag != "v4.0.2" ||
+		identity.Commit != cleanSummary.Commit || identity.HeadCommit != cleanSummary.Commit ||
+		identity.Tree == "" || identity.HeadTree != identity.Tree ||
+		!identity.TagPointsAtHead || !identity.TagTreeMatchesHead ||
+		identity.DefaultBranch != "main" || !identity.TagReachableFromDefaultRef {
+		t.Fatalf("clean repo release identity is not bound to its tag and branch: %+v", identity)
 	}
 	if cleanSummary.PublicationEligible {
 		t.Fatal("schema-only clean summary without --run must not be publication eligible")
@@ -4193,6 +4207,9 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"dependency_license_evidence",
 		"verify_dependency_license_report",
 		"gh attestation verify",
+		"release_identity.workflow.trusted",
+		"release tag {release_tag!r} does not point at source HEAD",
+		"unrecognized downloaded asset(s)",
 	} {
 		if !strings.Contains(verifier, required) {
 			t.Fatalf("release artifact verifier missing invariant %q", required)
@@ -4214,6 +4231,11 @@ func TestReleaseReviewerSummaryAndArtifactVerifierContracts(t *testing.T) {
 		"failed-summary",
 		"missing-summary-log",
 		"publication-missing-tag",
+		"modified-asset",
+		"unrecognized-asset",
+		"publication-commit-mismatch",
+		"publication-unreachable-tag",
+		"untrusted-workflow",
 		"publication verifier should run one gh attestation check per release asset",
 	} {
 		if !strings.Contains(artifactContract, required) {
@@ -9753,6 +9775,18 @@ type releaseEvidenceGitStateSummary struct {
 		Status                    string `json:"status"`
 		Message                   string `json:"message"`
 	} `json:"provenance_policy"`
+	ReleaseIdentity struct {
+		Tag                        string `json:"tag"`
+		Commit                     string `json:"commit"`
+		Tree                       string `json:"tree"`
+		HeadCommit                 string `json:"head_commit"`
+		HeadTree                   string `json:"head_tree"`
+		TagPointsAtHead            bool   `json:"tag_points_at_head"`
+		TagTreeMatchesHead         bool   `json:"tag_tree_matches_head"`
+		DefaultBranch              string `json:"default_branch"`
+		TagReachableFromDefaultRef bool   `json:"tag_reachable_from_default_branch"`
+		Status                     string `json:"status"`
+	} `json:"release_identity"`
 	GitState struct {
 		Commit         string  `json:"commit"`
 		Branch         *string `json:"branch"`
@@ -9822,7 +9856,13 @@ func releaseEvidenceEnv(extra ...string) []string {
 		}
 		env = append(env, value)
 	}
-	env = append(env, "API_BASE_REF=v2.1.0", "GOTOOLCHAIN=local", "FULL_PROFILE_INTEGRATION_CHECK_STATUS=not_run_opt_in")
+	env = append(env,
+		"API_BASE_REF=v2.1.0",
+		"GOTOOLCHAIN=local",
+		"RELEASE_TAG=v4.0.2",
+		"RELEASE_DEFAULT_BRANCH=main",
+		"FULL_PROFILE_INTEGRATION_CHECK_STATUS=not_run_opt_in",
+	)
 	env = append(env, extra...)
 	return env
 }
@@ -9836,6 +9876,7 @@ func newTempGitRepo(t *testing.T) string {
 	writeTempFile(t, dir, "deleted.txt", "delete me\n")
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", "initial")
+	runGit(t, dir, "tag", "v4.0.2")
 	return dir
 }
 

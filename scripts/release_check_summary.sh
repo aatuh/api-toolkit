@@ -23,6 +23,7 @@ case "$toolchain_matrix_result" in
 esac
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 commit="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+head_tree="$(git -C "$repo_root" rev-parse "${commit}^{tree}" 2>/dev/null || printf 'unknown')"
 created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 evidence_dir="${RELEASE_EVIDENCE_DIR:-.ci-result/release-evidence}"
 log_dir="$evidence_dir/logs"
@@ -39,6 +40,61 @@ git_status_porcelain="$(git -C "$repo_root" status --porcelain --untracked-files
 git_dirty=false
 if [ -n "$git_status_porcelain" ]; then
   git_dirty=true
+fi
+
+# A release tag is an input to the evidence, never an inferred "latest tag".
+# GitHub supplies GITHUB_REF_NAME for tag-triggered runs; local release rehearsal
+# must set RELEASE_TAG explicitly. The values are validated before they are ever
+# passed to git as revisions.
+release_tag="${RELEASE_TAG:-${GITHUB_REF_NAME:-}}"
+release_default_branch="${RELEASE_DEFAULT_BRANCH:-}"
+expected_repository="${RELEASE_EVIDENCE_REPOSITORY:-aatuh/api-toolkit}"
+tag_commit=""
+tag_tree=""
+default_branch_commit=""
+tag_points_at_head=false
+tag_tree_matches_head=false
+tag_reachable_from_default_branch=false
+release_tag_valid=false
+release_default_branch_valid=false
+
+if [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+  [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.0-rc\.[0-9]+$ ]]; then
+  release_tag_valid=true
+fi
+
+if [ -z "$release_default_branch" ]; then
+  release_default_branch="$(git -C "$repo_root" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+fi
+if [ -z "$release_default_branch" ] && git -C "$repo_root" show-ref --verify --quiet refs/remotes/origin/master; then
+  release_default_branch="origin/master"
+fi
+if [ -z "$release_default_branch" ]; then
+  release_default_branch="$(git -C "$repo_root" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+fi
+if [[ "$release_default_branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] && \
+  [[ "$release_default_branch" != *..* ]] && [[ "$release_default_branch" != *//* ]]; then
+  release_default_branch_valid=true
+fi
+
+if [ "$release_tag_valid" = true ]; then
+  tag_commit="$(git -C "$repo_root" rev-parse --verify "${release_tag}^{commit}" 2>/dev/null || true)"
+  if [ -n "$tag_commit" ]; then
+    tag_tree="$(git -C "$repo_root" rev-parse "${tag_commit}^{tree}" 2>/dev/null || true)"
+    if [ "$tag_commit" = "$commit" ]; then
+      tag_points_at_head=true
+    fi
+    if [ "$tag_tree" = "$head_tree" ]; then
+      tag_tree_matches_head=true
+    fi
+  fi
+fi
+if [ "$release_default_branch_valid" = true ]; then
+  default_branch_commit="$(git -C "$repo_root" rev-parse --verify "${release_default_branch}^{commit}" 2>/dev/null || true)"
+fi
+if [ -n "$tag_commit" ] && [ -n "$default_branch_commit" ] && \
+  git -C "$repo_root" merge-base --is-ancestor "$tag_commit" "$default_branch_commit"; then
+  tag_reachable_from_default_branch=true
 fi
 
 check_names=(
@@ -156,6 +212,7 @@ git_state_json() {
 
   printf '{'
   printf '"commit":'; json_string "$commit"; printf ','
+  printf '"tree":'; json_string "$head_tree"; printf ','
   printf '"branch":'
   if [ -n "$branch" ]; then
     json_string "$branch"
@@ -169,6 +226,139 @@ git_state_json() {
   printf '"unstaged_count":%s,' "$unstaged_count"
   printf '"untracked_count":%s,' "$untracked_count"
   printf '"deleted_count":%s' "$deleted_count"
+  printf '}'
+}
+
+module_identity_json() {
+  local name="$1"
+  local path="$2"
+  local go_mod="$repo_root/$path/go.mod"
+  local module_path=""
+
+  if [ "$path" = "." ]; then
+    go_mod="$repo_root/go.mod"
+  fi
+  if [ -f "$go_mod" ]; then
+    module_path="$(awk '$1 == "module" { print $2; exit }' "$go_mod")"
+  fi
+
+  printf '{'
+  printf '"name":'; json_string "$name"; printf ','
+  printf '"path":'; json_string "$path"; printf ','
+  printf '"present":%s,' "$([ -n "$module_path" ] && printf true || printf false)"
+  printf '"module_path":'
+  if [ -n "$module_path" ]; then
+    json_string "$module_path"
+  else
+    printf 'null'
+  fi
+  printf ','
+  printf '"version":'
+  if [ -n "$module_path" ] && [ -n "$release_tag" ]; then
+    json_string "$release_tag"
+  else
+    printf 'null'
+  fi
+  printf '}'
+}
+
+workflow_identity_json() {
+  local github_actions="${GITHUB_ACTIONS:-}"
+  local github_repository="${GITHUB_REPOSITORY:-}"
+  local github_workflow="${GITHUB_WORKFLOW:-}"
+  local github_workflow_ref="${GITHUB_WORKFLOW_REF:-}"
+  local github_ref="${GITHUB_REF:-}"
+  local github_sha="${GITHUB_SHA:-}"
+  local trusted=false
+  local reason="not running in the trusted GitHub release workflow"
+
+  if [ "$github_actions" = "true" ] && \
+    [ "$github_repository" = "$expected_repository" ] && \
+    [ "$github_workflow" = "release" ] && \
+    [[ "$github_workflow_ref" =~ ^aatuh/api-toolkit/\.github/workflows/release\.yml@refs/(heads/master|tags/v[0-9]+\.[0-9]+\.[0-9]+)$ ]] && \
+    [ "$github_ref" = "refs/tags/$release_tag" ] && \
+    [ "$github_sha" = "$commit" ]; then
+    trusted=true
+    reason="trusted GitHub release workflow identity matches the tagged commit"
+  fi
+
+  printf '{'
+  printf '"provider":'; json_string "github_actions"; printf ','
+  printf '"repository":'; json_string "$github_repository"; printf ','
+  printf '"expected_repository":'; json_string "$expected_repository"; printf ','
+  printf '"workflow":'; json_string "$github_workflow"; printf ','
+  printf '"workflow_ref":'; json_string "$github_workflow_ref"; printf ','
+  printf '"ref":'; json_string "$github_ref"; printf ','
+  printf '"sha":'; json_string "$github_sha"; printf ','
+  printf '"trusted":%s,' "$trusted"
+  printf '"reason":'; json_string "$reason"
+  printf '}'
+}
+
+release_identity_policy_status() {
+  if [ "$allow_dirty_release_evidence" = true ]; then
+    printf 'not_applicable_local_audit'
+    return 0
+  fi
+  if [ "$release_tag_valid" != true ]; then
+    printf 'failed'
+    return 0
+  fi
+  if [ -z "$tag_commit" ] || [ -z "$tag_tree" ] || [ -z "$default_branch_commit" ]; then
+    printf 'failed'
+    return 0
+  fi
+  if [ "$tag_points_at_head" != true ] || [ "$tag_tree_matches_head" != true ] || \
+    [ "$tag_reachable_from_default_branch" != true ]; then
+    printf 'failed'
+    return 0
+  fi
+  printf 'passed'
+}
+
+release_identity_policy_message() {
+  local status="$1"
+  if [ "$status" = "passed" ]; then
+    printf 'Release identity is bound to the exact tagged commit, tree, default-branch ancestry, and module versions. Publication artifact verification separately requires the recorded workflow identity to be trusted.'
+  elif [ "$status" = "not_applicable_local_audit" ]; then
+    printf 'Local dirty-tree audit evidence does not establish publication release identity.'
+  else
+    printf 'Publication release identity requires a supported tag at HEAD, matching tree, and default-branch reachability. Set RELEASE_TAG only to the tag being released.'
+  fi
+}
+
+release_identity_json() {
+  local policy_status="$1"
+
+  printf '{'
+  printf '"tag":'
+  if [ -n "$release_tag" ]; then json_string "$release_tag"; else printf 'null'; fi
+  printf ','
+  printf '"commit":'
+  if [ -n "$tag_commit" ]; then json_string "$tag_commit"; else printf 'null'; fi
+  printf ','
+  printf '"tree":'
+  if [ -n "$tag_tree" ]; then json_string "$tag_tree"; else printf 'null'; fi
+  printf ','
+  printf '"head_commit":'; json_string "$commit"; printf ','
+  printf '"head_tree":'; json_string "$head_tree"; printf ','
+  printf '"tag_points_at_head":%s,' "$tag_points_at_head"
+  printf '"tag_tree_matches_head":%s,' "$tag_tree_matches_head"
+  printf '"default_branch":'
+  if [ -n "$release_default_branch" ]; then json_string "$release_default_branch"; else printf 'null'; fi
+  printf ','
+  printf '"default_branch_commit":'
+  if [ -n "$default_branch_commit" ]; then json_string "$default_branch_commit"; else printf 'null'; fi
+  printf ','
+  printf '"tag_reachable_from_default_branch":%s,' "$tag_reachable_from_default_branch"
+  printf '"modules":{'
+  printf '"root":'; module_identity_json "root" "."; printf ','
+  printf '"contrib":'; module_identity_json "contrib" "contrib"; printf ','
+  printf '"cli":'; module_identity_json "cli" "cmd/api-toolkit"
+  printf '},'
+  printf '"workflow":'; workflow_identity_json; printf ','
+  printf '"status":'; json_string "$policy_status"; printf ','
+  printf '"message":'; json_string "$(release_identity_policy_message "$policy_status")"
   printf '}'
 }
 
@@ -1162,6 +1352,7 @@ check_jsons=()
 contrib_drift_json_value="$(contrib_drift_json "not_run" "" "" "$log_dir/contrib-api-drift-report.log" "false")"
 overall_status="passed"
 overall_exit=0
+release_identity_status="$(release_identity_policy_status)"
 
 if [ "$run_checks" = true ]; then
   mkdir -p "$repo_root/$log_dir"
@@ -1170,6 +1361,12 @@ if [ "$run_checks" = true ]; then
     overall_exit=1
     for i in "${!check_names[@]}"; do
       check_jsons+=("$(check_json "${check_names[$i]}" "${check_commands[$i]}" "skipped_by_provenance_policy" "" "" "" "false")")
+    done
+  elif [ "$release_identity_status" != "passed" ] && [ "$allow_dirty_release_evidence" != true ]; then
+    overall_status="failed"
+    overall_exit=1
+    for i in "${!check_names[@]}"; do
+      check_jsons+=("$(check_json "${check_names[$i]}" "${check_commands[$i]}" "skipped_by_release_identity_policy" "" "" "" "false")")
     done
   else
     for i in "${!check_names[@]}"; do
@@ -1227,7 +1424,7 @@ fi
 archive_release_evidence_logs
 
 publication_eligible=false
-if [ "$run_checks" = true ] && [ "$overall_status" = "passed" ] && [ "$git_dirty" != true ] && [ "$allow_dirty_release_evidence" != true ]; then
+if [ "$run_checks" = true ] && [ "$overall_status" = "passed" ] && [ "$git_dirty" != true ] && [ "$allow_dirty_release_evidence" != true ] && [ "$release_identity_status" = "passed" ]; then
   publication_eligible=true
 fi
 
@@ -1237,6 +1434,7 @@ printf '  "created_at": '; json_string "$created_at"; printf ',\n'
 printf '  "commit": '; json_string "$commit"; printf ',\n'
 printf '  "git_state": '; git_state_json; printf ',\n'
 printf '  "provenance_policy": '; provenance_policy_json; printf ',\n'
+printf '  "release_identity": '; release_identity_json "$release_identity_status"; printf ',\n'
 printf '  "api_base_ref": '; json_string "$api_base_ref"; printf ',\n'
 printf '  "quality_command": '; json_string "API_BASE_REF=$api_base_ref GOTOOLCHAIN=$gotoolchain make release-check"; printf ',\n'
 if [ "$allow_dirty_release_evidence" = true ]; then

@@ -33,16 +33,21 @@ change. Do not introduce a second baseline table in another document.
 ## Release identity prevention
 
 Before accepting a new v4 tag as a supported baseline, the release engineer
-must record one matching identity set from a clean checkout: the peeled Git tag
-and tree, the release-summary commit, the Go module proxy origin and checksum,
-and default-branch reachability. Confirm the tag commit is an ancestor of
-`origin/master`; never repair a mismatch by moving, deleting, or recreating a
-published tag.
+must record one matching identity set from a clean checkout: the exact release
+tag, tag commit and tree, `HEAD` commit and tree, Go module paths and release
+versions, and default-branch reachability. `make release-evidence` requires
+`RELEASE_TAG` to be the tag at `HEAD`; it records these fields in
+`release_identity`. The publication verifier rejects a tag that does not point
+at `HEAD`, a changed tree, a tag unreachable from the recorded default branch,
+module versions that disagree with the tag, or an untrusted workflow/repository
+identity. It also rejects missing, modified, or unrecognized release assets.
 
-Until REL-002 makes these bindings machine-enforced, a missing or mismatched
-identity field is a release stop. Publish a new SemVer-correct repair tag only
-after protected release evidence passes; record the old tag's consumer status
-in the incident, release notes, support policy, and README.
+The tag-driven release workflow is the trusted publication producer. A local
+clean evidence run may confirm the tag/commit relationship, but its recorded
+workflow identity is not trusted for publication. Never repair a mismatch by
+moving, deleting, or recreating a published tag. Publish a new SemVer-correct
+repair tag only after protected release evidence passes; record the old tag's
+consumer status in the incident, release notes, support policy, and README.
 
 ## Release candidate flow
 
@@ -62,9 +67,11 @@ Release candidates use the same clean release evidence path as stable releases:
 
 1. Keep `API_BASE_REF=v4.0.1`, the verified root v4 baseline, not a previous
    release candidate.
-2. Run `API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` from a
-   clean worktree.
-3. Tag the candidate as `vX.Y.0-rc.1`.
+2. From the reviewed default-branch commit, create the candidate tag
+   `vX.Y.0-rc.1` and ensure the tag points at `HEAD`.
+3. Optionally confirm the local tag binding from a clean worktree with
+   `RELEASE_TAG=vX.Y.0-rc.1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`.
+   This is not trusted publication evidence.
 4. Let `.github/workflows/release.yml` create a draft GitHub prerelease with
    `prerelease: true`.
 5. Verify draft assets with
@@ -108,7 +115,7 @@ after the final stable `vX.Y.0` release is published.
 | `GOTOOLCHAIN=local make reference-service-load` | Optional checked-in reference service load-smoke baseline. | Runs the reference-service router in-process, writes `.ci-result/reference-service-load/status`, `summary.json`, `summary.md`, and `load-smoke.log`, and records latency, throughput, memory, allocations, and expected missing-API-key failure behavior. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-evidence` | Optional recorded reference service evidence. | Runs `reference-service-check`, writes `.ci-result/reference-service/status`, `.ci-result/reference-service/summary.json`, and logs. Set `REFERENCE_SERVICE_DOCKER=1` to also run the service-owned Docker `integration-check`; set `REFERENCE_SERVICE_MINIO=1` only when object-storage integration evidence is in scope. Not part of `finalize`. |
 | `make github-governance-check` | Optional authenticated GitHub repository settings verification. | Uses `gh api` to verify branch protection, required checks, the sole-maintainer PR/no-bypass rulesets, CodeQL merge protection, force-push/deletion protection, and root `v*` plus contrib `contrib/v*` tag rulesets when `gh` is installed and authenticated; skips cleanly otherwise. |
-| `API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree publication evidence gate. | Writes `release-check-summary.json` schema v2, including `api_compatibility.previous_tag`, checked packages, incompatible-change count, ignored-exception count, the expected SPDX-derived root/contrib dependency license report assets, and the generated `release-api-check.log` report path, plus `.ci-result/release-evidence/logs/*.log` and `.ci-result/release-evidence/release-evidence-logs.tgz`; this is the only local command acceptable before publishing. |
+| `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree tag-binding preflight. | Requires the supported tag to point at `HEAD` and records tag/commit/tree/default-branch/module identity in `release-check-summary.json` schema v2, plus checks and retained logs. Local evidence is useful preflight only; the tag-driven GitHub workflow is the trusted publication producer. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, dependency-license report names, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
 | `API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make contrib-api-drift-report` | Selected contrib API drift signal from `docs/contrib-api-drift-packages.txt`. | Prints contrib API drift without making contrib stable; fails on supported-adapter incompatible drift. |
@@ -130,7 +137,7 @@ Use this command sequence before publishing:
 8. Review `docs/supported-adapter-test-realism.tsv` when supported adapter behavior changes, especially when the default evidence is fake DB, miniredis, hermetic fixture, or scheduled/manual real-service evidence rather than direct live-service checks.
 9. Optionally run `GOTOOLCHAIN=local make reference-service-check`, `GOTOOLCHAIN=local make reference-service-coverage`, `GOTOOLCHAIN=local make reference-service-load`, or `GOTOOLCHAIN=local make reference-service-evidence` when release reviewers want checked-in adoption proof evidence.
 10. Optionally run `make github-governance-check` when `gh` can read repository settings.
-11. `API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to produce local publication evidence.
+11. After creating the immutable release tag at the reviewed `HEAD`, run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to preflight the exact tag binding.
 12. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
 13. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
 14. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
@@ -139,7 +146,8 @@ Use this command sequence before publishing:
 
 `make api-check` is intentionally local-development oriented. It may use `GITHUB_BASE_REF`, `HEAD~1`, or skip when no base exists, so it is not release evidence.
 `make release-evidence` uses `scripts/release_check_summary.sh --run` so the
-summary records exact subcommands, exit codes, durations, log paths, tool
+summary records exact tag/commit/tree/default-branch/module/workflow identity,
+subcommands, exit codes, durations, log paths, tool
 versions, git working-tree state, `publication_eligible`, contrib drift summary,
 disposition manifest paths, missing/expired disposition counts,
 `dependency_license_evidence`, `full_profile_scaffold_evidence`, publication artifact expectations, release log
@@ -173,7 +181,7 @@ workflow actually verifies.
 | Contrib release tag `contrib/vX.Y.Z` | Protected by GitHub tag rulesets for `refs/tags/contrib/v*`. It is not currently a cryptographically signed Git tag. | Fetch the tag from GitHub and compare it with the contrib release target before using matching release evidence. |
 | SBOM payloads | `sbom-root.spdx.json` and `sbom-contrib.spdx.json` are signed with keyless Sigstore/cosign in the GitHub release workflow. | Run the per-SBOM `cosign verify-blob` commands in `SECURITY.md`, or run publication mode of `make release-artifact-verify`. |
 | SBOM signature and certificate assets | `*.sig` and `*.pem` files are uploaded with the draft release and included in `release-asset-manifest.tsv`. | Verify manifest checksums and then verify the SBOM payloads against their matching signature and certificate. |
-| Release asset manifest | `release-asset-manifest.tsv` records SHA-256 checksums for the uploaded release assets. | Run `sha256sum -c release-asset-manifest.tsv` from the downloaded asset directory or use `make release-artifact-verify`. |
+| Release asset manifest | `release-asset-manifest.tsv` records SHA-256 checksums for every payload asset; the manifest itself is the checksum index and therefore cannot contain a checksum of itself. | Run `make release-artifact-verify`, which rejects missing, changed, duplicate, or unrecognized top-level draft-release assets before it checks checksums. |
 | GitHub provenance attestations | Every draft release asset listed in `publication_artifact_expectations.github_attestation_subjects` is attested by the release workflow. | Run `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`; it runs `gh attestation verify` for every expected asset and source reference. |
 
 If cryptographically signed Git tags are added later, update this section, the
@@ -282,8 +290,9 @@ attestations for every subject in
 command for this is
 `RELEASE_ASSET_DIR=/path/to/assets RELEASE_TAG=vX.Y.Z GITHUB_REPOSITORY=aatuh/api-toolkit make release-artifact-verify`.
 The command invokes `scripts/verify-release.sh`, rejects missing or unsupported
-release-tag identifiers, parses
-`release-check-summary.json` for publication-grade invariants, and confirms
+release-tag identifiers, parses `release-check-summary.json` for
+publication-grade invariants, confirms that the checked-out source `HEAD`, tag,
+tree, and default-branch ancestry equal the recorded identity, and confirms
 every `checks[].log_path` plus `contrib_drift.artifact_path` exists in
 `release-evidence-logs.tgz`.
 

@@ -27,6 +27,7 @@ with open(os.environ["SUMMARY_PATH"], "r", encoding="utf-8") as handle:
 
 git_state = value(summary, ("git_state",), {})
 provenance = value(summary, ("provenance_policy",), {})
+identity = value(summary, ("release_identity",), {})
 vulnerability = value(summary, ("vulnerability_evidence",), {})
 contrib = value(summary, ("contrib_drift",), {})
 licenses = value(summary, ("dependency_license_evidence",), {})
@@ -40,6 +41,8 @@ decision = "accept-local-evidence"
 if summary.get("status") != "passed" or summary.get("publication_eligible") is not True:
     decision = "reject"
 elif provenance.get("status") != "passed" or git_state.get("dirty") is not False:
+    decision = "reject"
+elif identity.get("status") != "passed":
     decision = "reject"
 elif failed_checks:
     decision = "reject"
@@ -63,6 +66,15 @@ print(
     f"deleted={git_state.get('deleted_count')}"
 )
 print(f"provenance_policy: status={provenance.get('status')} mode={provenance.get('mode')}")
+print(
+    "release_identity: "
+    f"status={identity.get('status')} "
+    f"tag={identity.get('tag')} "
+    f"commit={identity.get('commit')} "
+    f"tree={identity.get('tree')} "
+    f"default_branch={identity.get('default_branch')} "
+    f"workflow_trusted={value(identity, ('workflow', 'trusted'))}"
+)
 print(f"checks: total={len(checks)} failed={','.join(failed_checks) if failed_checks else 'none'}")
 print(
     "vulnerability_dispositions: "

@@ -50,7 +50,22 @@ FAKE
 printf '%s\n' "$*" >> "${GH_CALLS:?}"
 exit 0
 FAKE
-  chmod +x "$bin_dir/cosign" "$bin_dir/gh"
+  cat >"$bin_dir/git" <<'FAKE'
+#!/usr/bin/env sh
+if [ "${1:-}" = "-C" ]; then
+  shift 2
+fi
+case "$*" in
+  "rev-parse --verify HEAD") printf '%s\n' "${FAKE_GIT_HEAD:-abc123}" ;;
+  "rev-parse --verify v4.0.2^{commit}") printf '%s\n' abc123 ;;
+  "rev-parse abc123^{tree}") printf '%s\n' tree123 ;;
+  "rev-parse other123^{tree}") printf '%s\n' other-tree123 ;;
+  "rev-parse --verify origin/master^{commit}") printf '%s\n' branch123 ;;
+  "merge-base --is-ancestor abc123 branch123") [ "${FAKE_GIT_UNREACHABLE:-0}" = 1 ] && exit 1; exit 0 ;;
+  *) printf 'unexpected fake git invocation: %s\n' "$*" >&2; exit 1 ;;
+esac
+FAKE
+  chmod +x "$bin_dir/cosign" "$bin_dir/gh" "$bin_dir/git"
 }
 
 write_manifest() {
@@ -132,6 +147,7 @@ summary = {
     "commit": "abc123",
     "git_state": {
         "commit": "abc123",
+        "tree": "tree123",
         "branch": "main",
         "detached": False,
         "dirty": False,
@@ -145,6 +161,26 @@ summary = {
         "allow_dirty_release_evidence": False,
         "status": "passed",
         "message": "Publication release evidence requires a clean git worktree.",
+    },
+    "release_identity": {
+        "tag": "v4.0.2",
+        "commit": "abc123",
+        "tree": "tree123",
+        "head_commit": "abc123",
+        "head_tree": "tree123",
+        "tag_points_at_head": True,
+        "tag_tree_matches_head": True,
+        "default_branch": "origin/master",
+        "default_branch_commit": "branch123",
+        "tag_reachable_from_default_branch": True,
+        "modules": {
+            "root": {"name": "root", "path": ".", "present": True, "module_path": "github.com/aatuh/api-toolkit/v4", "version": "v4.0.2"},
+            "contrib": {"name": "contrib", "path": "contrib", "present": True, "module_path": "github.com/aatuh/api-toolkit/contrib/v4", "version": "v4.0.2"},
+            "cli": {"name": "cli", "path": "cmd/api-toolkit", "present": False, "module_path": None, "version": None},
+        },
+        "workflow": {"provider": "github_actions", "repository": "aatuh/api-toolkit", "expected_repository": "aatuh/api-toolkit", "workflow": "release", "workflow_ref": "aatuh/api-toolkit/.github/workflows/release.yml@refs/heads/master", "ref": "refs/tags/v4.0.2", "sha": "abc123", "trusted": True, "reason": "fixture"},
+        "status": "passed",
+        "message": "fixture",
     },
     "api_base_ref": "v2.1.0",
     "api_compatibility": {
@@ -299,6 +335,53 @@ require_success local-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash
 require_success local-verify-summary-baseline env -u API_BASE_REF PATH="$fake_bin:$PATH" bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir" >/dev/null
 require_success local-wrapper-verify env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 RELEASE_ARTIFACT_VERIFY_MODE=local bash "$repo_root/scripts/verify-release.sh" "$ok_dir" >/dev/null
 
+missing_asset_dir="$tmp/missing-asset"
+make_bundle "$missing_asset_dir"
+rm -f "$missing_asset_dir/sbom-root.spdx.json"
+missing_asset_output="$(require_failure missing-asset env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$missing_asset_dir")"
+case "$missing_asset_output" in
+  *"missing release asset: sbom-root.spdx.json"*) ;;
+  *) printf 'missing release asset did not fail clearly:\n%s\n' "$missing_asset_output" >&2; exit 1 ;;
+esac
+
+modified_asset_dir="$tmp/modified-asset"
+make_bundle "$modified_asset_dir"
+printf 'tampered\n' >>"$modified_asset_dir/sbom-root.spdx.json"
+modified_asset_output="$(require_failure modified-asset env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$modified_asset_dir")"
+case "$modified_asset_output" in
+  *"sbom-root.spdx.json: FAILED"*) ;;
+  *) printf 'modified release asset did not fail checksum verification clearly:\n%s\n' "$modified_asset_output" >&2; exit 1 ;;
+esac
+
+unrecognized_asset_dir="$tmp/unrecognized-asset"
+make_bundle "$unrecognized_asset_dir"
+printf 'unexpected\n' >"$unrecognized_asset_dir/not-a-release-asset.txt"
+unrecognized_asset_output="$(require_failure unrecognized-asset env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$unrecognized_asset_dir")"
+case "$unrecognized_asset_output" in
+  *"unrecognized downloaded asset(s): ['not-a-release-asset.txt']"*) ;;
+  *) printf 'unrecognized release asset did not fail clearly:\n%s\n' "$unrecognized_asset_output" >&2; exit 1 ;;
+esac
+
+untrusted_workflow_dir="$tmp/untrusted-workflow"
+make_bundle "$untrusted_workflow_dir"
+python3 - "$untrusted_workflow_dir/release-check-summary.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    summary = json.load(handle)
+summary["release_identity"]["workflow"]["trusted"] = False
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(summary, handle)
+PY
+write_manifest "$untrusted_workflow_dir"
+untrusted_workflow_output="$(require_failure untrusted-workflow env PATH="$fake_bin:$PATH" API_BASE_REF=v2.1.0 bash "$repo_root/scripts/release_artifact_verify.sh" "$untrusted_workflow_dir")"
+case "$untrusted_workflow_output" in
+  *"release_identity.workflow.trusted must be true"*) ;;
+  *) printf 'untrusted workflow identity did not fail clearly:\n%s\n' "$untrusted_workflow_output" >&2; exit 1 ;;
+esac
+
 baseline_mismatch_output="$(require_failure baseline-mismatch env PATH="$fake_bin:$PATH" API_BASE_REF=v3.0.1 bash "$repo_root/scripts/release_artifact_verify.sh" "$ok_dir")"
 case "$baseline_mismatch_output" in
   *"api_base_ref='v2.1.0', want 'v3.0.1'"*) ;;
@@ -344,7 +427,7 @@ GH_CALLS="$tmp/gh-calls" require_success publication-verify env \
   GH_CALLS="$tmp/gh-calls" \
   API_BASE_REF=v2.1.0 \
   RELEASE_ARTIFACT_VERIFY_MODE=publication \
-  RELEASE_TAG=v2.1.0 \
+  RELEASE_TAG=v4.0.2 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
   bash "$repo_root/scripts/verify-release.sh" "$publication_dir" >/dev/null
 if [ "$(wc -l < "$tmp/gh-calls")" -ne 11 ]; then
@@ -352,11 +435,39 @@ if [ "$(wc -l < "$tmp/gh-calls")" -ne 11 ]; then
   exit 1
 fi
 
+commit_mismatch_output="$(require_failure publication-commit-mismatch env \
+  PATH="$fake_bin:$PATH" \
+  GH_CALLS="$tmp/gh-calls-commit-mismatch" \
+  FAKE_GIT_HEAD=other123 \
+  API_BASE_REF=v2.1.0 \
+  RELEASE_ARTIFACT_VERIFY_MODE=publication \
+  RELEASE_TAG=v4.0.2 \
+  GITHUB_REPOSITORY=aatuh/api-toolkit \
+  bash "$repo_root/scripts/verify-release.sh" "$publication_dir")"
+case "$commit_mismatch_output" in
+  *"release_identity.commit='abc123', source HEAD='other123'"*) ;;
+  *) printf 'tag/source commit mismatch did not fail clearly:\n%s\n' "$commit_mismatch_output" >&2; exit 1 ;;
+esac
+
+unreachable_tag_output="$(require_failure publication-unreachable-tag env \
+  PATH="$fake_bin:$PATH" \
+  GH_CALLS="$tmp/gh-calls-unreachable" \
+  FAKE_GIT_UNREACHABLE=1 \
+  API_BASE_REF=v2.1.0 \
+  RELEASE_ARTIFACT_VERIFY_MODE=publication \
+  RELEASE_TAG=v4.0.2 \
+  GITHUB_REPOSITORY=aatuh/api-toolkit \
+  bash "$repo_root/scripts/verify-release.sh" "$publication_dir")"
+case "$unreachable_tag_output" in
+  *"release tag 'v4.0.2' is not reachable from 'origin/master'"*) ;;
+  *) printf 'unreachable release tag did not fail clearly:\n%s\n' "$unreachable_tag_output" >&2; exit 1 ;;
+esac
+
 GH_CALLS="$tmp/gh-calls-rc" require_success publication-rc-verify env \
   PATH="$fake_bin:$PATH" \
   GH_CALLS="$tmp/gh-calls-rc" \
   API_BASE_REF=v2.1.0 \
-  RELEASE_TAG=v2.1.0-rc.1 \
+  RELEASE_TAG=v4.0.2 \
   GITHUB_REPOSITORY=aatuh/api-toolkit \
   bash "$repo_root/scripts/verify-release.sh" "$publication_dir" >/dev/null
 
