@@ -1562,7 +1562,7 @@ surfaces with explicit and composable APIs.
 * Rate limiting reports complete decisions and scales predictably.
 * Buffered hard timeout behavior is route-explicit.
 
-## [ ] API-001: Add error-returning HTTP response writers
+## [x] API-001: Add error-returning HTTP response writers
 
 **Priority:** P0
 **Owner:** Core API team
@@ -1634,6 +1634,10 @@ go test ./httpx -run 'Test.*Write.*Failure' -count=100
 ```text
 feat(httpx): add error-returning response writers
 ```
+
+**Completion evidence:** Protected PR #89 merged as squash
+`aaa2a5a1fe5318f83d245cd9d89c92b8d84bf79b` on 2026-08-22. All required
+checks passed before merge.
 
 ---
 
