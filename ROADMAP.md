@@ -12,6 +12,13 @@ This roadmap is an intent document, not a release promise. Release scope is
 still governed by `VERSIONING.md`, `docs/release-runbook.md`, package
 classification, and the release notes.
 
+## Current Release Identity
+
+Roadmap and release work use root `v4.0.1` as the verified baseline.
+`v4.0.0`, `contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn; the immutable
+evidence and paired-contrib recovery path are recorded in
+`docs/release-incident-v4-release-identity.md`.
+
 ## Current Focus
 
 | Area | Direction | Done when |

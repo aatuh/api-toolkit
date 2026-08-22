@@ -6,6 +6,9 @@ Private vulnerability reporting URL: https://github.com/aatuh/api-toolkit/securi
 
 We provide security updates for the latest release on the default branch. The
 supported Go and platform line is documented in `docs/support-policy.md`.
+The verified current root baseline is `v4.0.1`; `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn. The authoritative
+release-identity record is `docs/release-incident-v4-release-identity.md`.
 
 ## Previous Minor Backport Policy
 
@@ -123,10 +126,11 @@ with affected maintainers and repository administrators.
 
 Release SBOMs are signed using Sigstore/cosign via GitHub OIDC.
 Download the release assets into one directory before verifying signatures.
-Replace `v3.1.2` with the release tag you are checking:
+Use `v4.0.1` for the verified root baseline, or replace it only with the exact
+new release tag you are checking:
 
 ```sh
-TAG=v3.1.2
+TAG=v4.0.1
 ```
 
 Verify the root module SBOM:

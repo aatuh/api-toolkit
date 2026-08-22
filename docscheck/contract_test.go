@@ -1300,6 +1300,68 @@ func TestReleaseTagConsistencyGate(t *testing.T) {
 	}
 }
 
+func TestCurrentVersionConsistencyGate(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	gate := readText(t, filepath.Join(repoRoot, "scripts", "version_consistency_check.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "version_consistency_contract_test.sh"))
+	allowlist := readText(t, filepath.Join(repoRoot, "docs", "version-consistency-historical-allowlist.tsv"))
+
+	for _, required := range []string{
+		"version-consistency-check",
+		"version-consistency-contract",
+		"scripts/version_consistency_check.sh",
+		"scripts/version_consistency_contract_test.sh",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing current-version consistency wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"Verify current version guidance",
+		"make version-consistency-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow missing current-version consistency wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"v4.0.1",
+		"contrib/v4.0.1",
+		"historical_files",
+		"legacy_import",
+		"legacy_release_command",
+		"stale_current_claim",
+	} {
+		if !strings.Contains(gate, required) {
+			t.Fatalf("current-version consistency gate missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"stale v3 production claim",
+		"stale root import",
+		"allowlisted migration evidence",
+		"unsafe allowlist path",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("current-version consistency contract missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"CHANGELOG.md",
+		"docs/coverage-trend.md",
+		"docs/migration/v4.md",
+	} {
+		if !strings.Contains(allowlist, required) {
+			t.Fatalf("historical version allowlist missing %q", required)
+		}
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "version-consistency-check") {
+		t.Fatal("docs-check must run version-consistency-check")
+	}
+}
+
 func TestReleaseReviewChecklistDiscoverability(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))
@@ -1356,7 +1418,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 		{"docs/release-review.md", review},
 	} {
 		for _, required := range []string{
-			"API_BASE_REF=v3.1.2",
+			"v4.0.1",
 			"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 			"local dirty-tree audit",
 			"not acceptable before publishing",
@@ -1369,7 +1431,7 @@ func TestReleaseEvidenceModePolicyDocs(t *testing.T) {
 	}
 	for _, required := range []string{
 		"API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence",
-		"API_BASE_REF=v3.1.2",
+		"v4.0.1",
 		"ALLOW_DIRTY_RELEASE_EVIDENCE=1",
 		"local dirty-tree audit",
 		"not acceptable before publishing",
@@ -4604,7 +4666,7 @@ func TestSecurityPolicyDocumentsSBOMVerificationCommands(t *testing.T) {
 
 	for _, required := range []string{
 		"Release SBOMs are signed using Sigstore/cosign via GitHub OIDC.",
-		"TAG=v3.1.2",
+		"TAG=v4.0.1",
 		"cosign verify-blob",
 		"--certificate sbom-root.spdx.json.pem",
 		"--signature sbom-root.spdx.json.sig",
@@ -5573,7 +5635,7 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 	for _, required := range []string{
 		"Current supported v4 API baseline: see `docs/release-runbook.md`.",
 		"Release readiness and publication evidence require an explicit `API_BASE_REF`",
-		"API_BASE_REF=v3.1.2",
+		"v4.0.1",
 		"`make finalize` is not release evidence",
 		"`make release-api-check`",
 		"docs/release-runbook.md",
@@ -5598,7 +5660,7 @@ func TestReleaseDocsDocumentExplicitAPICheckBaseRef(t *testing.T) {
 		"The supported root v4 release baseline is",
 		"`VERIFIED_V4_BASE_REF=v4.0.1`",
 		"Do not use `v4.0.0`, `contrib/v4.0.0`, or",
-		"API_BASE_REF=v3.1.2",
+		"v4.0.1",
 		"schema v2",
 		"local release evidence",
 		"GitHub release workflow evidence",
@@ -6237,7 +6299,7 @@ func TestExtensionModuleAssessmentRejectsSpeculativeSplits(t *testing.T) {
 		"# Extension Module Assessment",
 		"External adopter counts",
 		"family-specific release-cadence data are not available",
-		"`API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report`",
+		"`API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make dependency-report`",
 		"| Root | 3 | 1 | 4 |",
 		"| Contrib | 30 | 37 | 123 |",
 		"minimal-core path reaches zero third-party",
@@ -6978,7 +7040,7 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 		"not-enforced",
 		"ROOT_COVERAGE_MIN",
 		"CONTRIB_COVERAGE_MIN",
-		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make release-evidence",
+		"API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence",
 	} {
 		if !strings.Contains(coverageDoc, required) {
 			t.Fatalf("docs/test-coverage.md missing coverage evidence text %q", required)
@@ -7632,7 +7694,7 @@ func TestQualityAuditP1DependencyWorthinessDocs(t *testing.T) {
 	footprint := readText(t, filepath.Join(repoRoot, "docs", "dependency-footprint.md"))
 	for _, required := range []string{
 		"GOTOOLCHAIN=local make dependency-report",
-		"API_BASE_REF=v3.1.2 GOTOOLCHAIN=local make dependency-report",
+		"API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make dependency-report",
 		".ci-result/dependencies/",
 		"minimal-core-summary.tsv",
 		"vulnerability_evidence",

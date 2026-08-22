@@ -2,6 +2,13 @@
 
 Audience: contributors and maintainers preparing changes to `api-toolkit`.
 
+## Current Release Identity
+
+Contributions and release-related examples use the verified root baseline
+`v4.0.1`. `v4.0.0`, `contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn; see
+`docs/release-incident-v4-release-identity.md` before proposing release or
+module-version changes.
+
 Keep changes small, reviewable, and tied to the package or document they affect.
 The default branch is `master`; public releases are cut from tagged, clean
 release evidence.

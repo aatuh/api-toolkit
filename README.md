@@ -213,7 +213,9 @@ Current repository trust signals:
 
 ## Production readiness
 
-api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
+The verified current root baseline is api-toolkit `v4.0.1`; `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn. api-toolkit v4 is
+production-credible for conventional Go JSON/HTTP APIs and
 generated SaaS/API services. It is not a universal backend platform for every
 transport, streaming workload, provider workflow, or organization-specific
 operating model. Use [docs/production-readiness.md](docs/production-readiness.md)
@@ -344,7 +346,8 @@ Keep this landing page as a pointer, not a second release runbook.
 - Contrib drift package manifest: `docs/contrib-api-drift-packages.txt`
 - Contrib drift disposition manifest: `docs/contrib-api-drift-dispositions.tsv`
 - Current supported v4 API baseline: see `docs/release-runbook.md`.
-- The v4 major-release evidence compared against `API_BASE_REF=v3.1.2`; v4 patch and minor releases compare against the latest published v4 tag from the runbook.
+- The completed v3-to-v4 major transition is historical evidence; use the
+  current v4 commands in the runbook for every new release review.
 - Release readiness and publication evidence require an explicit `API_BASE_REF`; use the current command examples in `docs/release-runbook.md`.
 - `ALLOW_DIRTY_RELEASE_EVIDENCE=1` is only for local dirty-tree audit evidence and is not acceptable before publishing.
 - `make finalize` is not release evidence.

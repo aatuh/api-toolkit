@@ -3,7 +3,9 @@
 Audience: teams deciding where api-toolkit is ready to standardize production
 Go API services and where application-owned work is still required.
 
-api-toolkit v3 is production-credible for conventional Go JSON/HTTP APIs and
+The verified current root baseline is `v4.0.1`; `v4.0.0`,
+`contrib/v4.0.0`, and `contrib/v4.0.1` are withdrawn. api-toolkit v4 is
+production-credible for conventional Go JSON/HTTP APIs and
 generated SaaS/API services. It is not a universal backend platform for every
 transport, streaming workload, provider workflow, or organization-specific
 operating model. Generated code is app-owned; api-toolkit standardizes the
