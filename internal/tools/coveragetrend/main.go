@@ -497,6 +497,7 @@ func renderDocument(rows []historyRow) ([]byte, error) {
 	out.WriteString("The machine-readable source is `docs/coverage-trend.tsv`. Coverage is a review signal, not a substitute for behavior, contract, race, fuzz, or security tests.\n\n")
 	out.WriteString("## Method\n\n")
 	out.WriteString("Each snapshot is measured at the tagged release commit with `GOWORK=off`, `GOTOOLCHAIN=local`, and the repository coverage command. Historical v3 snapshots were backfilled from the tagged source because early releases only retained aggregate coverage logs. `no statements`, `no test files`, and `not reported` are not numeric values and do not contribute to a percentage delta.\n\n")
+	out.WriteString("`v4.0.1` is a root-only historical baseline: its root rows were measured at the immutable root tag, but `contrib/v4.0.1` is withdrawn because its required root `v4.0.0` dependency checksum does not verify. Its contrib rows intentionally remain `release-integrity-blocked` and `not-reported`; they are neither zero coverage nor a successful contrib measurement. Do not substitute v3 or replacement-module values. A new paired release must provide numeric root and contrib snapshots. Module-major path changes, package moves, and splits are separate package identities, so cross-major values are not direct deltas.\n\n")
 	out.WriteString("Record the next release snapshot before tagging after `make coverage-check` succeeds:\n\n")
 	out.WriteString("```sh\n")
 	out.WriteString("COVERAGE_TREND_RELEASE=vX.Y.Z \\\n")

@@ -32,6 +32,10 @@ Use this as the short reviewer path before publishing a release.
   default-branch commit, module-major paths that match the tag, and release
   entries in `CHANGELOG.md`, `docs/release-notes.md`, and
   `docs/support-policy.md`.
+- Confirm the `benchmark-baseline-check` log passed and binds the release tag
+  and commit in both quality source files. New releases require paired root and
+  contrib measurements; the `v4.0.1` root-only historical record is an explicit
+  checksum-integrity limitation, not a waiver.
 - Open `dependency-licenses-root.tsv` and `dependency-licenses-contrib.tsv`
   from the draft release. Resolve every `needs_review` or `missing_from_sbom`
   row under `docs/license-policy.md`; the reports preserve evidence gaps and do
