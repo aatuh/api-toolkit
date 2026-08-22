@@ -55,6 +55,21 @@ Other platforms are portability goals, not supported release gates:
 Do not claim broad OS/architecture support in README, release notes, or package
 docs until CI includes matching smoke checks.
 
+## PostgreSQL Adapter Test Support
+
+PostgreSQL `18.x` is the declared real-service test major for supported contrib
+PostgreSQL adapters. The `postgres-contract` CI job uses a PostgreSQL 18 service
+container and runs `make test-postgres`; it is the reusable harness baseline,
+not proof that every adapter has already received a direct real-database
+contract.
+
+Locally, `GOWORK=off GOTOOLCHAIN=local make test-postgres` starts an isolated
+loopback PostgreSQL 18 container when no test DSN is configured. A supplied
+`API_TOOLKIT_TEST_POSTGRES_DSN` is accepted only with explicit opt-in and the
+dedicated loopback/service-container test user, password, and `postgres`
+administration database. It never reads `DATABASE_URL`, so the test target
+cannot fall back to an application or production database.
+
 ## Generated Services
 
 Generated services are app-owned. Their platform support depends on the

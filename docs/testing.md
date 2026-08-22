@@ -40,6 +40,24 @@ readiness loops. `examples/reference-saas-api/scripts/integration_check.sh`
 uses fixed max attempts and diagnostic failure messages for Postgres, Redis,
 MinIO, HTTP readiness, and webhook receiver startup.
 
+## Real PostgreSQL Harness
+
+Run `GOWORK=off GOTOOLCHAIN=local make test-postgres` to test the reusable
+contrib PostgreSQL harness against the declared PostgreSQL 18 service. Locally
+the target starts and removes one loopback-only Docker container. In CI, the
+same target uses the `postgres-contract` service container.
+
+The harness creates a database and schema per test, sets the pool search path,
+always drops the database during cleanup, supports rollback-only transactions,
+migration application, context-cancellation assertions, and targeted connection
+interruption. Parallel tests must use the harness rather than a shared schema.
+
+The target never reads `DATABASE_URL`. Set `API_TOOLKIT_TEST_POSTGRES_DSN` only
+for the dedicated local/service-container test endpoint and pair it with
+`API_TOOLKIT_TEST_POSTGRES=1`; the harness rejects remote hosts, non-test
+credentials, application databases, and unexpected connection parameters. Do
+not log the test DSN.
+
 ## Review Checklist
 
 Before merging a test change:
