@@ -2209,7 +2209,7 @@ also passed before review.
 
 ---
 
-## [ ] API-009: Make buffered hard timeout behavior route-explicit
+## [x] API-009: Make buffered hard timeout behavior route-explicit
 
 **Priority:** P1
 **Owner:** Runtime API team
@@ -2263,6 +2263,13 @@ go test ./middleware/timeout -run 'Streaming|Flusher|Hijacker|Pusher' -count=100
 ```text
 fix(timeout): make buffered hard timeouts route explicit
 ```
+
+**Completion evidence:** Protected PR #102 merged as squash
+`adb4f467c276556d6c7789d6566581afe8ea97a6` on 2026-08-22. CodeQL,
+dependency review, both API-check and test matrices, fuzz, governance, lint,
+mutation, and PR-title validation passed before merge. Local `make finalize`,
+timeout race tests, and repeated streaming/optional-writer interface tests also
+passed before review.
 
 ---
 
