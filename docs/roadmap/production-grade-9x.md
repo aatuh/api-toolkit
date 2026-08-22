@@ -1641,16 +1641,19 @@ checks passed before merge.
 
 ---
 
-## [ ] API-002: Migrate repository internals to checked response writers
+## [ ] API-002: Migrate root module internals to checked response writers
 
 **Priority:** P1
 **Owner:** Core API team
-**Size:** XL
+**Size:** L
 **Depends on:** API-001
 
 ### Work
 
-Update internal packages to use checked writers.
+Update root-module internal packages and the checked-in root reference service to
+use checked writers. Contrib packages and generated scaffolds are owned by
+API-010 after EXT-004 publishes the paired root/contrib release that exposes
+the checked writer APIs to standalone contrib builds.
 
 For every call site, choose one explicit failure policy:
 
@@ -1672,17 +1675,16 @@ Update tests for:
 * Idempotency failures.
 * Rate-limit failures.
 * Recovery middleware.
-* Generated handlers.
 
 Deprecate direct internal use of void response writers.
 
 ### Done when
 
-* Repository code does not accidentally write a second response.
+* Root-module code does not accidentally write a second response.
 * High-risk middleware reports write failures through its existing error hook or
   logger.
-* Void writers remain only in compatibility examples and wrappers.
-* Static checks reject new internal calls to void writers.
+* Root-module void writers remain only in compatibility examples and wrappers.
+* Static checks reject new root-internal calls to void writers.
 
 ### Verification
 
@@ -1695,6 +1697,51 @@ GOWORK=off GOTOOLCHAIN=local make test-race
 
 ```text
 refactor(httpx): use checked response writers internally
+```
+
+---
+
+## [ ] API-010: Migrate contrib and generated scaffolds to checked response writers
+
+**Priority:** P1
+**Owner:** Contrib API team
+**Size:** XL
+**Depends on:** API-001, API-002, EXT-004
+
+### Work
+
+After EXT-004 publishes a paired verified v4 release containing the checked
+writer APIs, update `contrib/go.mod` to require that published root tag.
+Migrate contrib runtime packages and generated service templates to checked
+writers, choosing an explicit failure policy at every call site. Preserve
+standalone `GOWORK=off` builds against the published root dependency; do not
+use a workspace-only replacement or an unpublished pseudo-version.
+
+Extend static checks to reject direct contrib and scaffold calls to void
+writers. Cover generated handlers, auth middleware, OpenAPI error mapping, and
+all terminal error paths. Do not add package-level global loggers.
+
+### Done when
+
+* Contrib and generated scaffolds use checked response writers with an explicit
+  terminal, callback, or injected-logger failure policy.
+* A standalone contrib build resolves the checked writers from the paired
+  published root tag.
+* Static checks reject new direct void-writer calls in contrib and scaffold
+  source.
+
+### Verification
+
+```sh
+GOWORK=off GOTOOLCHAIN=local go test ./...
+GOWORK=off GOTOOLCHAIN=local make fast-check
+GOWORK=off GOTOOLCHAIN=local make test-race
+```
+
+**Required commit:**
+
+```text
+refactor(contrib): use checked response writers internally
 ```
 
 ---
