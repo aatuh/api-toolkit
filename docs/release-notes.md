@@ -67,6 +67,14 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-08-22
 
+### Real PostgreSQL contract foundation
+
+- `make test-postgres` now provides an isolated PostgreSQL 18 harness for
+  contrib integration tests. It uses an explicit test-only loopback or CI
+  service-container DSN, creates a database and schema per test, supports
+  rollback, migration, cancellation, and connection-loss checks, and never
+  reads application `DATABASE_URL` configuration.
+
 ### Internal response-writing behavior
 
 - Root-module internals now use checked response writers. Terminal paths stop

@@ -142,6 +142,7 @@ github.com/aatuh/api-toolkit/contrib/v4/integrations/pgxpool	supported-adapter	d
 github.com/aatuh/api-toolkit/contrib/v4/integrations/resend	supported-adapter	direct-tests	Convenience wrapper around Resend adapter.
 github.com/aatuh/api-toolkit/contrib/v4/integrations/stripe	supported-adapter	direct-tests	Convenience wrapper around Stripe adapter.
 github.com/aatuh/api-toolkit/contrib/v4/integrations/txpostgres	supported-adapter	direct-tests	Convenience wrapper around txpostgres adapter.
+github.com/aatuh/api-toolkit/contrib/v4/internal/testpostgres	test-only	test-support	Reusable isolated real PostgreSQL harness for contrib adapter contracts.
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/clerk	supported-adapter	direct-tests	Clerk auth middleware.
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/devheaders	supported-adapter	direct-tests	Dev-header auth middleware.
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt	experimental	direct-tests	JWT/JWK bearer validation middleware.

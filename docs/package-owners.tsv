@@ -122,6 +122,7 @@ github.com/aatuh/api-toolkit/contrib/v4/integrations/pgxpool	contrib-maintainers
 github.com/aatuh/api-toolkit/contrib/v4/integrations/resend	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
 github.com/aatuh/api-toolkit/contrib/v4/integrations/stripe	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
 github.com/aatuh/api-toolkit/contrib/v4/integrations/txpostgres	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
+github.com/aatuh/api-toolkit/contrib/v4/internal/testpostgres	contrib-maintainers	test-only	contrib-test-maintainers	test-support
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/clerk	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/devheaders	contrib-maintainers	supported-adapter	contrib-test-maintainers	release-blocking-supported-adapter
 github.com/aatuh/api-toolkit/contrib/v4/middleware/auth/jwt	contrib-maintainers	experimental	contrib-test-maintainers	non-blocking-experimental
