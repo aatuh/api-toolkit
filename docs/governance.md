@@ -19,24 +19,26 @@ and `docs/stable-core.md`.
   eligible maintainer is added.
 - Require the CodeQL `code_scanning` ruleset on `master` with Errors and
   Warnings plus High-or-higher security alerts blocking merges.
-- Require the CI jobs that apply to the change:
-  - `ci / test`, including `make coverage-check`, `make test-race`, and
-    `make vuln`.
-  - `ci / lint`, including `make lint`.
-  - `ci / governance`, including `make docs-check`,
-    `make v3-readiness-check`, and pull-request contrib drift/release-note
-    checks.
-  - `ci / api-check`, including `make release-api-check` against the pull
-    request base or push predecessor.
-  - `ci / fuzz`, including `make fuzz` and a failure-only upload of minimized
-    synthetic fuzz corpus files.
-  - `ci / mutation`, including `make mutation-check` with its documented
-    assertion-based kill-rate threshold.
-  - `dependency-review / dependency-review`, which fails pull requests that
-    introduce high or critical vulnerable dependencies or dependencies outside
-    the configured license policy.
-  - `codeql` and `scorecard` workflow results when those workflows are enabled
-    for the repository.
+- Require every pull-request identity in `docs/required-checks.json`, with the
+  exact check name and GitHub App binding recorded there. The manifest groups
+  the stable gates as follows:
+  - `test (1.25.x)` and `test (1.26.x)` cover unit tests,
+    `make coverage-check`, `make test-race`, `make vuln`, builds, examples, and
+    dependency-footprint evidence.
+  - The four `platform-core (...)` identities cover Linux amd64, native Linux
+    arm64, macOS arm64, and Windows amd64 portability.
+  - `lint`, `governance`, both `api-check (...)` identities, `fuzz`, and
+    `mutation` run `make lint`, `make docs-check`, `make v3-readiness-check`,
+    `make release-api-check`, `make fuzz`, and `make mutation-check` across
+    static quality, documentation and dependency boundaries, API compatibility,
+    malformed-input smoke, and assertion-sensitive testing.
+  - `postgres-contract` and `redis-contract` cover supported real-service
+    integration contracts.
+  - `analyze`, `CodeQL`, and `dependency-review` cover workflow analysis,
+    code-scanning publication, and dependency policy. `dependency-review`
+    rejects high or critical vulnerable dependencies and dependencies outside
+    the configured license policy. `pr-title` enforces the one-ticket
+    Conventional Commit identity at review time.
 - Enable GitHub Secret Scanning and push protection for supported secret
   patterns. Treat them as required merge-prevention controls, not as a
   replacement for review or safe configuration design.
@@ -58,13 +60,22 @@ state. Maintainers should verify them with the GitHub UI or
 `make github-governance-check` before publication review, and attach the output
 when repository settings are accessible.
 
+`make required-checks-verify` validates the manifest schema, canonical workflow
+paths, explicit workflow job names, owners, release classification, and unique
+check identities. It runs through `docs-check` and `release-check`; changing a
+required job ID or displayed job name therefore requires a matching manifest
+change. Release evidence records the verifier and required mutation gate as
+ordinary release-check results.
+
 Maintainers can run the optional authenticated verifier with
 `make github-governance-check`. The command uses `gh api` when available to
-check branch protection, required status checks, the sole-maintainer PR and
-no-bypass rulesets, CodeQL merge protection, force-push/deletion protection,
-and tag rulesets for both `refs/tags/v*` and `refs/tags/contrib/v*`. It skips
-cleanly when `gh` is not installed or authenticated, and it is not part of `finalize`
-or required PR CI.
+compare the manifest with the exact strict, app-bound branch-protection set and
+to check the sole-maintainer PR and no-bypass rulesets, CodeQL merge protection,
+force-push/deletion protection, and tag rulesets for both `refs/tags/v*` and
+`refs/tags/contrib/v*`. It skips cleanly only when `gh` is absent or
+unauthenticated; an authenticated API failure, malformed response, missing
+check, stale check, or wrong App binding fails closed. The authenticated command
+is not part of `finalize` or required PR CI.
 
 ## PR Review Discipline
 

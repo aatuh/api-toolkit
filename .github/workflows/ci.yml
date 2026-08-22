@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   pr-title:
+    name: pr-title
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +27,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: make pr-title-check
   test:
+    name: test (${{ matrix.go-version }})
     runs-on: ubuntu-latest
     env:
       GOTOOLCHAIN: local
@@ -136,6 +138,7 @@ jobs:
           GOWORK: off
         run: go build ./...
   postgres-contract:
+    name: postgres-contract
     runs-on: ubuntu-latest
     env:
       API_TOOLKIT_TEST_POSTGRES: "1"
@@ -164,6 +167,7 @@ jobs:
       - name: Real PostgreSQL harness
         run: make test-postgres
   redis-contract:
+    name: redis-contract
     runs-on: ubuntu-latest
     env:
       API_TOOLKIT_TEST_REDIS: "1"
@@ -190,6 +194,7 @@ jobs:
           make test-redis
           make supported-adapter-check
   lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout v7.0.0
@@ -200,6 +205,7 @@ jobs:
       - name: Lint
         run: make lint
   governance:
+    name: governance
     runs-on: ubuntu-latest
     env:
       GOTOOLCHAIN: local
@@ -229,6 +235,7 @@ jobs:
           API_BASE_REF: origin/${{ github.base_ref }}
         run: make contrib-api-drift-report
   api-check:
+    name: api-check (${{ matrix.go-version }})
     runs-on: ubuntu-latest
     env:
       GOTOOLCHAIN: local
@@ -274,6 +281,7 @@ jobs:
           UPGRADE_SMOKE_BASE_REF: v3.1.2
         run: make upgrade-smoke-check
   fuzz:
+    name: fuzz
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout v7.0.0
@@ -300,6 +308,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   mutation:
+    name: mutation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout v7.0.0

@@ -81,6 +81,17 @@ source of truth is `docs/release-runbook.md`.
   policy does not claim macOS amd64 or Windows arm64 without matching required
   workflow evidence.
 
+### Stable required quality-gate identities
+
+- `docs/required-checks.json` now records every protected pull-request check,
+  its GitHub App binding, workflow/job identity, owner, and PR/release role.
+- Workflow jobs have explicit displayed names, and local documentation plus
+  release gates fail when a job identity drifts from the manifest.
+- The authenticated governance audit compares branch protection with the exact
+  manifest set and fails on missing, stale, unbound, or wrong-App checks.
+- Release evidence now records required-check manifest verification and the
+  blocking mutation gate as named results.
+
 ### Real Redis contract foundation
 
 - `make test-redis` now provides an isolated Redis 7 harness and real-service

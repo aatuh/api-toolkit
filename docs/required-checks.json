@@ -1,0 +1,192 @@
+[
+  {
+    "check_name": "pr-title",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "pr-title",
+    "job_name": "pr-title",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": false,
+    "owner": "maintainers"
+  },
+  {
+    "check_name": "test (1.25.x)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "test",
+    "job_name": "test (${{ matrix.go-version }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "test-engineering"
+  },
+  {
+    "check_name": "test (1.26.x)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "test",
+    "job_name": "test (${{ matrix.go-version }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "test-engineering"
+  },
+  {
+    "check_name": "platform-core (linux-amd64)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "platform-core",
+    "job_name": "platform-core (${{ matrix.platform }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "build-engineering"
+  },
+  {
+    "check_name": "platform-core (linux-arm64)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "platform-core",
+    "job_name": "platform-core (${{ matrix.platform }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "build-engineering"
+  },
+  {
+    "check_name": "platform-core (macos-arm64)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "platform-core",
+    "job_name": "platform-core (${{ matrix.platform }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "build-engineering"
+  },
+  {
+    "check_name": "platform-core (windows-amd64)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "platform-core",
+    "job_name": "platform-core (${{ matrix.platform }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "build-engineering"
+  },
+  {
+    "check_name": "postgres-contract",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "postgres-contract",
+    "job_name": "postgres-contract",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": false,
+    "owner": "integration-test-team"
+  },
+  {
+    "check_name": "redis-contract",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "redis-contract",
+    "job_name": "redis-contract",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "integration-test-team"
+  },
+  {
+    "check_name": "lint",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "lint",
+    "job_name": "lint",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "build-engineering"
+  },
+  {
+    "check_name": "governance",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "governance",
+    "job_name": "governance",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "maintainers"
+  },
+  {
+    "check_name": "api-check (1.25.x)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "api-check",
+    "job_name": "api-check (${{ matrix.go-version }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "api-review"
+  },
+  {
+    "check_name": "api-check (1.26.x)",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "api-check",
+    "job_name": "api-check (${{ matrix.go-version }})",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "api-review"
+  },
+  {
+    "check_name": "fuzz",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "fuzz",
+    "job_name": "fuzz",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "test-engineering"
+  },
+  {
+    "check_name": "mutation",
+    "workflow_file": ".github/workflows/ci.yml",
+    "job_id": "mutation",
+    "job_name": "mutation",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": true,
+    "owner": "test-engineering"
+  },
+  {
+    "check_name": "analyze",
+    "workflow_file": ".github/workflows/codeql.yml",
+    "job_id": "analyze",
+    "job_name": "analyze",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": false,
+    "owner": "security"
+  },
+  {
+    "check_name": "CodeQL",
+    "workflow_file": ".github/workflows/codeql.yml",
+    "job_id": "analyze",
+    "job_name": "analyze",
+    "app_id": 57789,
+    "required_for_pr": true,
+    "required_for_release": false,
+    "owner": "security"
+  },
+  {
+    "check_name": "dependency-review",
+    "workflow_file": ".github/workflows/dependency-review.yml",
+    "job_id": "dependency-review",
+    "job_name": "dependency-review",
+    "app_id": 15368,
+    "required_for_pr": true,
+    "required_for_release": false,
+    "owner": "security"
+  },
+  {
+    "check_name": "release-preflight",
+    "workflow_file": ".github/workflows/release.yml",
+    "job_id": "release-preflight",
+    "job_name": "release-preflight",
+    "app_id": 15368,
+    "required_for_pr": false,
+    "required_for_release": true,
+    "owner": "release-engineering"
+  }
+]

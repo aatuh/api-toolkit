@@ -3313,7 +3313,7 @@ func TestDependencyReviewWorkflowEnforcesSupplyChainPolicy(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"dependency-review / dependency-review",
+		"`dependency-review`",
 		"high or critical vulnerable dependencies",
 		"configured license policy",
 	} {
@@ -7264,18 +7264,19 @@ func TestQualityAuditP0EvidenceAndProcessDocs(t *testing.T) {
 
 	governance := readText(t, filepath.Join(repoRoot, "docs", "governance.md"))
 	for _, required := range []string{
-		"ci / test",
+		"test (1.25.x)",
+		"test (1.26.x)",
 		"make coverage-check",
 		"make test-race",
 		"make vuln",
-		"ci / lint",
-		"ci / governance",
+		"`lint`",
+		"`governance`",
 		"make docs-check",
 		"make v3-readiness-check",
-		"ci / api-check",
+		"`api-check (...)`",
 		"make release-api-check",
-		"ci / fuzz",
-		"dependency-review / dependency-review",
+		"`fuzz`",
+		"`dependency-review`",
 		"sole-maintainer repository",
 		"CodeQL `code_scanning` ruleset",
 		"codeql",
