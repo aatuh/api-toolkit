@@ -121,6 +121,15 @@ independent review, adopter participation, and elapsed-time proof are owned by
 their local source, generated files, documentation, checks, and `Refs:` commit
 are complete; they need `EXT-*` evidence only to become `[x]`.
 
+## Historical review recovery
+
+Every ticket marked `[pr]` is matched to a GitHub Project **Review** card and
+to preserved implementation history in
+[`archive/legacy-master-e216516`](https://github.com/aatuh/api-toolkit/tree/archive/legacy-master-e216516).
+`[pr]` means the implementation must be revalidated and delivered through a
+new ticket-scoped protected pull request plus a separate evidence-reconciliation
+pull request; it is not merged, released, or complete.
+
 ---
 
 # Delivery milestones
@@ -974,7 +983,7 @@ rejecting stale current guidance and root `/v3` import examples.
 
 ---
 
-## [ ] DOC-002: Rewrite the README around focused HTTP API guardrails
+## [pr] DOC-002: Rewrite the README around focused HTTP API guardrails
 
 **Priority:** P1
 **Owner:** Documentation lead
@@ -1045,7 +1054,7 @@ docs(readme): focus adoption on http api guardrails
 
 ---
 
-## [ ] DOC-003: Reorganize public documentation
+## [pr] DOC-003: Reorganize public documentation
 
 **Priority:** P1
 **Owner:** Documentation lead
@@ -1102,7 +1111,7 @@ docs: reorganize public documentation
 
 ---
 
-## [ ] DOC-004: Standardize package documentation and API reference
+## [pr] DOC-004: Standardize package documentation and API reference
 
 **Priority:** P1
 **Owner:** Core API team
@@ -1163,7 +1172,7 @@ docs(api): standardize package adoption guidance
 
 ---
 
-## [ ] DOC-005: Synchronize versioning, support, security, and migration policy
+## [pr] DOC-005: Synchronize versioning, support, security, and migration policy
 
 **Priority:** P0
 **Owner:** Release engineer
@@ -1316,7 +1325,7 @@ ci(go): test supported and current toolchains
 
 ---
 
-## [ ] CI-002: Add cross-platform core verification
+## [pr] CI-002: Add cross-platform core verification
 
 **Priority:** P1
 **Owner:** Build engineer
@@ -1376,7 +1385,7 @@ ci(platform): verify core portability
 
 ---
 
-## [ ] CI-003: Stabilize required quality gate names and outputs
+## [pr] CI-003: Stabilize required quality gate names and outputs
 
 **Priority:** P1
 **Owner:** Build engineer
@@ -1493,7 +1502,7 @@ including the new mutation gate and both Go test matrices, passed before merge.
 
 ---
 
-## [ ] CI-005: Add a downstream consumer compatibility corpus
+## [pr] CI-005: Add a downstream consumer compatibility corpus
 
 **Priority:** P1
 **Owner:** Compatibility lead
@@ -1897,7 +1906,7 @@ checks passed before merge.
 
 ---
 
-## [ ] API-005: Make idempotency store requirements compile-time visible
+## [pr] API-005: Make idempotency store requirements compile-time visible
 
 **Priority:** P1
 **Owner:** Runtime API team
@@ -1958,7 +1967,7 @@ feat(idempotency): require releasable stores at construction
 
 ---
 
-## [ ] API-006: Decompose idempotency configuration
+## [pr] API-006: Decompose idempotency configuration
 
 **Priority:** P1
 **Owner:** Runtime API team
@@ -2422,7 +2431,7 @@ Docker-backed real-service race suite passed before review.
 
 ---
 
-## [ ] TST-003: Validate supported Redis adapters against real Redis
+## [pr] TST-003: Validate supported Redis adapters against real Redis
 
 **Priority:** P1
 **Owner:** Adapter team
@@ -2477,7 +2486,7 @@ test(redis): validate supported adapters on real redis
 
 ---
 
-## [ ] TST-004: Require provider and generated-service integration evidence
+## [pr] TST-004: Require provider and generated-service integration evidence
 
 **Priority:** P1
 **Owner:** Integration test team
@@ -2563,7 +2572,7 @@ features do not leak resources.
 * Idempotency and rate limiting behave correctly under concurrency.
 * Reference-service load evidence is repeatable.
 
-## [ ] PERF-001: Add controlled benchmark regression checks
+## [pr] PERF-001: Add controlled benchmark regression checks
 
 **Priority:** P1
 **Owner:** Performance engineer
@@ -2607,7 +2616,7 @@ ci(bench): add controlled performance regression checks
 
 ---
 
-## [ ] PERF-002: Add hard-timeout stress and leak coverage
+## [pr] PERF-002: Add hard-timeout stress and leak coverage
 
 **Priority:** P1
 **Owner:** Runtime test team
@@ -2663,7 +2672,7 @@ test(timeout): add stress and leak coverage
 
 ---
 
-## [ ] PERF-003: Add idempotency and rate-limit concurrency stress tests
+## [pr] PERF-003: Add idempotency and rate-limit concurrency stress tests
 
 **Priority:** P1
 **Owner:** Runtime test team
@@ -2725,7 +2734,7 @@ test(runtime): add idempotency and rate limit stress tests
 
 ---
 
-## [ ] PERF-004: Automate reference-service load regression evidence
+## [pr] PERF-004: Automate reference-service load regression evidence
 
 **Priority:** P1
 **Owner:** Performance engineer
@@ -2796,7 +2805,7 @@ independently maintainable optional modules.
 * V5 removes compatibility residue rather than adding more features.
 * Every stable module has a compatibility gate.
 
-## [ ] ARC-001: Freeze root API expansion and run an external stable-core review
+## [pr] ARC-001: Freeze root API expansion and run an external stable-core review
 
 **Priority:** P0
 **Owner:** Lead architect
@@ -2854,7 +2863,7 @@ docs(api): freeze stable core for v5 review
 
 ---
 
-## [ ] ARC-002: Define the focused v5 core surface
+## [pr] ARC-002: Define the focused v5 core surface
 
 **Priority:** P1
 **Owner:** Lead architect
@@ -2919,7 +2928,7 @@ docs(api): define focused v5 core surface
 
 ---
 
-## [ ] ARC-003: Approve the module decomposition ADR
+## [pr] ARC-003: Approve the module decomposition ADR
 
 **Priority:** P1
 **Owner:** Lead architect
@@ -2986,7 +2995,7 @@ docs(adr): approve module decomposition
 
 ---
 
-## [ ] ARC-004: Split the CLI into an independent module
+## [pr] ARC-004: Split the CLI into an independent module
 
 **Priority:** P1
 **Owner:** CLI team
@@ -3267,7 +3276,7 @@ and honest about generated-code ownership.
 * Generated projects contain machine-readable origin metadata.
 * CLI releases are verifiable and cross-platform.
 
-## [ ] CLI-001: Make generation deterministic and atomic
+## [pr] CLI-001: Make generation deterministic and atomic
 
 **Priority:** P1
 **Owner:** CLI team
@@ -3310,7 +3319,7 @@ fix(cli): make generation deterministic and atomic
 
 ---
 
-## [ ] CLI-002: Harden generator filesystem boundaries
+## [pr] CLI-002: Harden generator filesystem boundaries
 
 **Priority:** P0
 **Owner:** Security engineer
@@ -3365,7 +3374,7 @@ fix(cli): harden filesystem boundaries
 
 ---
 
-## [ ] CLI-003: Make generation offline and reproducible by default
+## [pr] CLI-003: Make generation offline and reproducible by default
 
 **Priority:** P1
 **Owner:** CLI team
@@ -3407,7 +3416,7 @@ fix(cli): make generation offline and reproducible
 
 ---
 
-## [ ] CLI-004: Add generated-project contract metadata and upgrade policy
+## [pr] CLI-004: Add generated-project contract metadata and upgrade policy
 
 **Priority:** P1
 **Owner:** Developer experience team
@@ -3473,7 +3482,7 @@ feat(cli): add generated project contract metadata
 
 ---
 
-## [ ] CLI-005: Publish verifiable cross-platform CLI releases
+## [pr] CLI-005: Publish verifiable cross-platform CLI releases
 
 **Priority:** P1
 **Owner:** Release engineer
@@ -3738,7 +3747,7 @@ docs(security): publish openssf compliance evidence
 
 ---
 
-## [ ] SEC-005: Strengthen release authenticity
+## [pr] SEC-005: Strengthen release authenticity
 
 **Priority:** P1
 **Owner:** Release engineer
@@ -3792,7 +3801,7 @@ ci(release): strengthen release authenticity
 
 ---
 
-## [ ] SEC-006: Harden workflow trust boundaries
+## [pr] SEC-006: Harden workflow trust boundaries
 
 **Priority:** P0
 **Owner:** Security engineer
@@ -3848,7 +3857,7 @@ ci(security): harden workflow trust boundaries
 
 ---
 
-## [ ] SEC-007: Refresh the architecture threat model
+## [pr] SEC-007: Refresh the architecture threat model
 
 **Priority:** P1
 **Owner:** Security engineer
@@ -3925,7 +3934,7 @@ support boundaries.
 * Release candidates receive real external adoption feedback.
 * Maintenance and archival triggers are explicit.
 
-## [ ] GOV-001: Define maintainers, CODEOWNERS, and release roles
+## [pr] GOV-001: Define maintainership and CODEOWNERS artifacts
 
 **Priority:** P0
 **Owner:** Project lead
@@ -4028,7 +4037,7 @@ docs(release): require independent release approval
 
 ---
 
-## [ ] GOV-003: Strengthen issue and pull-request intake
+## [pr] GOV-003: Strengthen issue and pull-request intake
 
 **Priority:** P1
 **Owner:** Community maintainer
@@ -4136,7 +4145,7 @@ docs(adoption): add release candidate adopter program
 
 ---
 
-## [ ] GOV-005: Define bounded support, maintenance, and archival triggers
+## [pr] GOV-005: Define bounded support, maintenance, and archival triggers
 
 **Priority:** P1
 **Owner:** Project lead
