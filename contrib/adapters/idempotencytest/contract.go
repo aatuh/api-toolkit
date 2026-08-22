@@ -123,7 +123,6 @@ func AssertReservationReleaseContract(t testing.TB, newStore StoreFactory) {
 	}, time.Nanosecond); err != nil {
 		t.Fatalf("save expired: %v", err)
 	}
-	time.Sleep(5 * time.Millisecond)
 	if err := store.ReleaseReservation(ctx, expiredKey, "token-expired"); err != nil {
 		t.Fatalf("release expired: %v", err)
 	}

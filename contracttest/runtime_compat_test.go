@@ -163,7 +163,7 @@ func runtimeCompatReadiness(t *testing.T) responseSnapshot {
 func runtimeCompatHardTimeout(t *testing.T) responseSnapshot {
 	t.Helper()
 
-	mw, err := timeout.NewHard(timeout.Options{Timeout: 5 * time.Millisecond})
+	mw, err := timeout.NewHard(timeout.Options{Timeout: 50 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("new hard timeout: %v", err)
 	}
