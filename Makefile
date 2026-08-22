@@ -41,7 +41,7 @@ export
 endif
 GITHUB_AUTH_TOKEN ?= $(GITHUB_TOKEN) # GitHub PAT.
 
-.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
+.PHONY: help tools api-check release-api-check api-check-contract api-inventory api-inventory-check api-additions-check api-additions-check-contract docs-site docs-site-check dead-code-todo-check dead-code-todo-contract contrib-api-drift-report contrib-release-notes-check dependency-report dependency-boundary-check full-profile-scaffold-check generated-integration-check generated-integration-check-minio generated-integration-contract generated-soak-check generated-soak-contract generated-failure-check generated-failure-contract generated-upgrade-compat-check generated-upgrade-compat-contract upgrade-smoke-check upgrade-smoke-contract reference-service-check reference-service-coverage reference-service-load reference-service-load-contract reference-service-evidence reference-service-evidence-contract v3-readiness-check contrib-review-contract actions-audit actions-audit-contract sbom-license-report-contract release-artifact-verify-contract release-evidence-parser-contract release-tag-consistency-check release-tag-consistency-contract pr-title-check pr-title-check-contract docs-check fmt lint vuln gosec tidy test example-compile-check coverage coverage-check coverage-trend-record coverage-trend-check fast-check test-race timeout-determinism-check fuzz fuzz-contract mutation-smoke benchmark-smoke clean finalize audit-check reviewer-gate release-check release-evidence release-review-summary release-artifact-verify release-artifact-verify-fixture ci-build-smoke codeql-local .codeql-local-build scorecard-local sbom-local github-governance-check
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; \
@@ -195,6 +195,7 @@ docs-check: ## Run documentation contract checks
 	@$(MAKE) sbom-license-report-contract
 	@$(MAKE) release-artifact-verify-contract
 	@$(MAKE) release-evidence-parser-contract
+	@$(MAKE) release-tag-consistency-contract
 	@$(MAKE) pr-title-check-contract
 	@$(MAKE) generated-integration-contract
 	@$(MAKE) generated-soak-contract
@@ -358,6 +359,7 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 release-evidence: ## Run release readiness and write release-check-summary.json
 	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v4 patch/minor releases use the verified baseline, for example API_BASE_REF=v4.0.1"; exit 2; }
 	@test -n "$(RELEASE_TAG)" || test -n "$${GITHUB_REF_NAME:-}" || { case "$${ALLOW_DIRTY_RELEASE_EVIDENCE:-}" in 1|true|TRUE|yes|YES) exit 0 ;; *) echo "RELEASE_TAG is required for release-evidence outside a tag-triggered GitHub workflow"; exit 2 ;; esac; }
+	@if test -n "$(RELEASE_TAG)" || test -n "$${GITHUB_REF_NAME:-}"; then $(MAKE) release-tag-consistency-check; fi
 	@tmp="$$(mktemp)"; \
 	status=0; \
 	API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh --run > "$$tmp" || status=$$?; \
@@ -378,6 +380,12 @@ release-artifact-verify-contract: ## Run release artifact verifier contract test
 
 release-evidence-parser-contract: ## Run release evidence parser contract tests
 	@bash scripts/release_evidence_parser_contract_test.sh
+
+release-tag-consistency-check: ## Enforce root/contrib tag, module, docs, branch, and release-baseline coherence
+	@bash scripts/release_tag_consistency.sh
+
+release-tag-consistency-contract: ## Run release tag and module coherence contract tests
+	@bash scripts/release_tag_consistency_contract_test.sh
 
 pr-title-check: ## Validate PR_TITLE against the conventional commit title policy
 	@bash scripts/pr_title_check.sh

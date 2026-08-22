@@ -31,6 +31,11 @@ The supported v4 root-module baseline is `v4.0.1`. `v4.0.0`,
 security-backport commitment. The [v4 release-identity incident](release-incident-v4-release-identity.md)
 records the immutable evidence and the required paired contrib repair path.
 
+Future supported root releases require a matching `contrib/vX.Y.Z` tag at the
+same commit. The release workflow's `make release-tag-consistency-check` gate
+rejects mismatched tags, module-major paths, release documentation, or an
+older-major API baseline before publication evidence is produced.
+
 ## Platform
 
 The required CI platform is:

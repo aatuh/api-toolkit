@@ -12,6 +12,7 @@ upgrade notes, and package-tied compatibility acknowledgements.
 | User-visible behavior, migration notes, and compatibility acknowledgements | Add dated entries in this file. Keep historical entries historical unless later guidance would otherwise mislead readers. |
 | Stable surface changes | Update `VERSIONING.md`, package docs, compatibility docs, release notes, and docscheck coverage together. |
 | Supported-adapter or selected contrib drift | Run the contrib drift and release-note review gates with the release baseline from the runbook. |
+| Root/contrib release identity | Create matching root and `contrib/` tags at one commit, then run `make release-tag-consistency-check` before release evidence. |
 | Generated service upgrade compatibility | `make generated-upgrade-compat-check` defaults to `v3.0.0 v3.1.2`; the script, `docs/reference-service.md`, and `docs/release-runbook.md` are the checked sources. |
 
 ## Release Note Categories

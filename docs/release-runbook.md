@@ -49,6 +49,23 @@ moving, deleting, or recreating a published tag. Publish a new SemVer-correct
 repair tag only after protected release evidence passes; record the old tag's
 consumer status in the incident, release notes, support policy, and README.
 
+## Tag and module coherence
+
+The current two-module release policy requires a root `vX.Y.Z` (or
+`vX.Y.0-rc.N`) tag and an exact matching `contrib/vX.Y.Z` (or
+`contrib/vX.Y.0-rc.N`) tag at the same default-branch commit. The root and
+contrib `go.mod` module-major suffixes must match that tag major. Before
+creating the root tag that starts the release workflow, push the matching
+contrib tag; the root workflow fails closed if it cannot see the pair.
+
+`RELEASE_TAG=vX.Y.Z GOTOOLCHAIN=local make release-tag-consistency-check`
+checks the paired tags, default-branch reachability, module paths, changelog,
+release notes, support policy, and the release workflow baseline. It accepts an
+independent-module release only when a checked-in `docs/adr/` file contains the
+exact approval marker `Release module policy: independent releases approved`.
+That narrowly scoped exception is intended for a future module decomposition,
+not for repairing a mismatched tag.
+
 ## Release candidate flow
 
 Minor releases that touch the stable surface must publish at least one release
@@ -67,8 +84,10 @@ Release candidates use the same clean release evidence path as stable releases:
 
 1. Keep `API_BASE_REF=v4.0.1`, the verified root v4 baseline, not a previous
    release candidate.
-2. From the reviewed default-branch commit, create the candidate tag
-   `vX.Y.0-rc.1` and ensure the tag points at `HEAD`.
+2. From the reviewed default-branch commit, create and push the paired contrib
+   tag `contrib/vX.Y.0-rc.1`, then create the root tag `vX.Y.0-rc.1`; both
+   must point at `HEAD`. Creating the contrib tag first prevents the root-tag
+   workflow from observing an incomplete pair.
 3. Optionally confirm the local tag binding from a clean worktree with
    `RELEASE_TAG=vX.Y.0-rc.1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`.
    This is not trusted publication evidence.
@@ -115,6 +134,7 @@ after the final stable `vX.Y.0` release is published.
 | `GOTOOLCHAIN=local make reference-service-load` | Optional checked-in reference service load-smoke baseline. | Runs the reference-service router in-process, writes `.ci-result/reference-service-load/status`, `summary.json`, `summary.md`, and `load-smoke.log`, and records latency, throughput, memory, allocations, and expected missing-API-key failure behavior. Not part of `finalize`. |
 | `GOTOOLCHAIN=local make reference-service-evidence` | Optional recorded reference service evidence. | Runs `reference-service-check`, writes `.ci-result/reference-service/status`, `.ci-result/reference-service/summary.json`, and logs. Set `REFERENCE_SERVICE_DOCKER=1` to also run the service-owned Docker `integration-check`; set `REFERENCE_SERVICE_MINIO=1` only when object-storage integration evidence is in scope. Not part of `finalize`. |
 | `make github-governance-check` | Optional authenticated GitHub repository settings verification. | Uses `gh api` to verify branch protection, required checks, the sole-maintainer PR/no-bypass rulesets, CodeQL merge protection, force-push/deletion protection, and root `v*` plus contrib `contrib/v*` tag rulesets when `gh` is installed and authenticated; skips cleanly otherwise. |
+| `RELEASE_TAG=vX.Y.Z GOTOOLCHAIN=local make release-tag-consistency-check` | Paired root/contrib release identity gate. | Fails if matching root/contrib tags, branch ancestry, module-major paths, changelog, release notes, support policy, or the release-workflow baseline are incoherent. |
 | `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Clean-tree tag-binding preflight. | Requires the supported tag to point at `HEAD` and records tag/commit/tree/default-branch/module identity in `release-check-summary.json` schema v2, plus checks and retained logs. Local evidence is useful preflight only; the tag-driven GitHub workflow is the trusted publication producer. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` | Local dirty-tree audit evidence. | Writes the same evidence files but records `publication_eligible=false` and `provenance_policy.mode=local_audit`; not acceptable before publishing. |
 | `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` | Single reviewer summary. | Prints publication eligibility, git state, provenance policy, vulnerability and contrib dispositions, dependency-license report names, artifact expectations, retained log archive path, and a reject/accept decision from the summary. |
@@ -137,7 +157,7 @@ Use this command sequence before publishing:
 8. Review `docs/supported-adapter-test-realism.tsv` when supported adapter behavior changes, especially when the default evidence is fake DB, miniredis, hermetic fixture, or scheduled/manual real-service evidence rather than direct live-service checks.
 9. Optionally run `GOTOOLCHAIN=local make reference-service-check`, `GOTOOLCHAIN=local make reference-service-coverage`, `GOTOOLCHAIN=local make reference-service-load`, or `GOTOOLCHAIN=local make reference-service-evidence` when release reviewers want checked-in adoption proof evidence.
 10. Optionally run `make github-governance-check` when `gh` can read repository settings.
-11. After creating the immutable release tag at the reviewed `HEAD`, run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to preflight the exact tag binding.
+11. At the reviewed `HEAD`, create and push the matching immutable `contrib/vX.Y.Z` tag before the root `vX.Y.Z` tag. Run `RELEASE_TAG=vX.Y.Z GOTOOLCHAIN=local make release-tag-consistency-check`, then run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only from a clean worktree to preflight the exact tag binding.
 12. `RELEASE_SUMMARY=release-check-summary.json make release-review-summary` to print the summary decision fields from one command.
 13. `make release-artifact-verify-fixture` only when an auditor wants to exercise local verifier behavior without draft release assets.
 14. `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence` only for local audit context; never publish from this evidence.
