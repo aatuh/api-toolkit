@@ -1402,7 +1402,7 @@ cross-platform generator paths.
 
 ---
 
-## [pr] CI-003: Stabilize required quality gate names and outputs
+## [x] CI-003: Stabilize required quality gate names and outputs
 
 **Priority:** P1
 **Owner:** Build engineer
@@ -1456,6 +1456,27 @@ GOWORK=off GOTOOLCHAIN=local make github-governance-check
 ```text
 ci: stabilize required quality gates
 ```
+
+**Completion evidence:** Protected implementation PR #113 merged as squash
+`07d8e4113763a3f7246aed293bff4d98b21f402b` on 2026-08-22 after all 18
+checks passed, including both supported-Go test and API matrices, four platform
+jobs, PostgreSQL and Redis contracts, lint, governance, fuzz, mutation,
+dependency review, PR-title validation, Actions analysis, and CodeQL. The
+canonical manifest records 19 unique workflow identities: the exact 18
+app-bound pull-request checks plus the release-only preflight, with explicit
+workflow job names, PR/release classification, and an owner for every row.
+Strict `master` protection exactly matches those 18 pull-request identities;
+the existing 17 checks were preserved and the already-running `mutation`
+GitHub Actions context was added. Local and hermetic verification covers job
+renames, canonical workflow paths, duplicate identities, missing or stale
+branch checks, wrong App bindings, non-strict protection, malformed responses,
+authenticated provider outages, invalid repository input, and provider-payload
+redaction. Release evidence now retains both manifest verification and the
+blocking mutation result. Local `make finalize`, the 75% mutation gate, the
+actions audit, documentation/contracts, and the authenticated governance audit
+passed before review. Archived implementation commit `9434a56` was revalidated
+and adapted to the current 18-check matrix, release-evidence contract, exact
+GitHub App bindings, and fail-closed provider/input boundaries.
 
 ---
 
