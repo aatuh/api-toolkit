@@ -1817,7 +1817,7 @@ checks passed before merge.
 
 ---
 
-## [ ] API-004: Separate required presence from non-zero validation
+## [x] API-004: Separate required presence from non-zero validation
 
 **Priority:** P1
 **Owner:** Core API team
@@ -1890,6 +1890,10 @@ GOWORK=off GOTOOLCHAIN=local make fuzz
 ```text
 feat(binding): add presence-aware required fields
 ```
+
+**Completion evidence:** Protected PR #96 merged as squash
+`4768a3dba2170970248e30b7a44dda039f5ebff4` on 2026-08-22. All required
+checks passed before merge.
 
 ---
 
