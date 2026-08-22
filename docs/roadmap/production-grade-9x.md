@@ -1750,7 +1750,7 @@ refactor(contrib): use checked response writers internally
 
 ---
 
-## [ ] API-003: Prevent unsafe validation detail exposure
+## [x] API-003: Prevent unsafe validation detail exposure
 
 **Priority:** P0
 **Owner:** Security engineer
@@ -1810,6 +1810,10 @@ GOWORK=off GOTOOLCHAIN=local make gosec
 ```text
 fix(binding): prevent unsafe validation detail exposure
 ```
+
+**Completion evidence:** Protected PR #93 merged as squash
+`747d2555885bbfda8c57b6805542984833d48572` on 2026-08-22. All required
+checks passed before merge.
 
 ---
 
