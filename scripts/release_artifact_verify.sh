@@ -3,6 +3,7 @@
 set -euo pipefail
 
 asset_dir="${1:-.}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 identity_regexp="${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-^https://github.com/aatuh/api-toolkit/\\.github/workflows/release\\.yml@refs/tags/v.*$}"
 issuer="${COSIGN_CERTIFICATE_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 release_tag="${RELEASE_TAG:-}"
@@ -53,6 +54,66 @@ verify_manifest_checksums() {
     echo "release-asset-manifest.tsv is required for checksum verification" >&2
     exit 1
   fi
+  MANIFEST_PATH="$manifest" ASSET_DIR="$asset_dir" python3 - <<'PY'
+import os
+import sys
+
+
+def fail(message):
+    print(f"release-asset-manifest.tsv invariant failed: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+asset_dir = os.environ["ASSET_DIR"]
+manifest_path = os.environ["MANIFEST_PATH"]
+expected = {
+    "release-check-summary.json",
+    "release-evidence-logs.tgz",
+    "sbom-root.spdx.json",
+    "sbom-contrib.spdx.json",
+    "dependency-licenses-root.tsv",
+    "dependency-licenses-contrib.tsv",
+    "sbom-root.spdx.json.sig",
+    "sbom-root.spdx.json.pem",
+    "sbom-contrib.spdx.json.sig",
+    "sbom-contrib.spdx.json.pem",
+}
+seen = set()
+
+with open(manifest_path, "r", encoding="utf-8") as handle:
+    for line_number, raw in enumerate(handle, 1):
+        line = raw.rstrip("\n")
+        if not line:
+            fail(f"empty row at line {line_number}")
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            fail(f"malformed row at line {line_number}")
+        digest, name = parts
+        name = name.lstrip(" *")
+        if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest.lower()):
+            fail(f"invalid sha256 at line {line_number}")
+        if name not in expected:
+            fail(f"unrecognized asset {name!r} at line {line_number}")
+        if name in seen:
+            fail(f"duplicate asset {name!r}")
+        seen.add(name)
+
+if seen != expected:
+    fail(f"asset set {sorted(seen)!r}, want {sorted(expected)!r}")
+
+top_level_files = {
+    entry.name
+    for entry in os.scandir(asset_dir)
+    if entry.is_file(follow_symlinks=False)
+}
+allowed_files = expected | {"release-asset-manifest.tsv"}
+unexpected = top_level_files - allowed_files
+if unexpected:
+    fail(f"unrecognized downloaded asset(s): {sorted(unexpected)!r}")
+missing = allowed_files - top_level_files
+if missing:
+    fail(f"missing downloaded asset(s): {sorted(missing)!r}")
+PY
   (cd "$asset_dir" && sha256sum -c release-asset-manifest.tsv)
 }
 
@@ -99,9 +160,14 @@ verify_summary_invariants() {
   SUMMARY_PATH="$summary" \
     ARCHIVE_LISTING_PATH="$listing_file" \
     EXPECTED_API_BASE_REF="$expected_api_base_ref" \
+    EXPECTED_RELEASE_TAG="$release_tag" \
+    VERIFY_MODE="$verify_mode" \
+    SOURCE_REPOSITORY="${RELEASE_SOURCE_DIR:-$repo_root}" \
     python3 - <<'PY'
 import json
 import os
+import re
+import subprocess
 import sys
 
 
@@ -113,6 +179,9 @@ def fail(message):
 summary_path = os.environ["SUMMARY_PATH"]
 listing_path = os.environ["ARCHIVE_LISTING_PATH"]
 expected_api_base_ref = os.environ["EXPECTED_API_BASE_REF"]
+expected_release_tag = os.environ["EXPECTED_RELEASE_TAG"]
+verify_mode = os.environ["VERIFY_MODE"]
+source_repository = os.environ["SOURCE_REPOSITORY"]
 
 with open(summary_path, "r", encoding="utf-8") as handle:
     summary = json.load(handle)
@@ -175,6 +244,99 @@ if git_state.get("dirty") is not False:
 for field in ("staged_count", "unstaged_count", "untracked_count", "deleted_count"):
     if git_state.get(field) != 0:
         fail(f"git_state.{field}={git_state.get(field)!r}, want 0")
+
+identity = summary.get("release_identity") or {}
+if identity.get("status") != "passed":
+    fail(f"release_identity.status={identity.get('status')!r}, want passed")
+release_tag = identity.get("tag")
+if not isinstance(release_tag, str) or not re.fullmatch(r"v\d+\.\d+\.\d+|v\d+\.\d+\.0-rc\.\d+", release_tag):
+    fail(f"release_identity.tag={release_tag!r}, want a supported release tag")
+if expected_release_tag and release_tag != expected_release_tag:
+    fail(f"release_identity.tag={release_tag!r}, want {expected_release_tag!r}")
+for field in ("commit", "tree", "head_commit", "head_tree", "default_branch", "default_branch_commit"):
+    if not isinstance(identity.get(field), str) or not identity[field]:
+        fail(f"release_identity.{field} must be a non-empty string")
+if identity["commit"] != summary.get("commit") or identity["head_commit"] != summary.get("commit"):
+    fail("release_identity commit values must match summary.commit")
+if identity["head_commit"] != git_state.get("commit"):
+    fail("release_identity.head_commit must match git_state.commit")
+if identity["head_tree"] != git_state.get("tree"):
+    fail("release_identity.head_tree must match git_state.tree")
+for field in ("tag_points_at_head", "tag_tree_matches_head", "tag_reachable_from_default_branch"):
+    if identity.get(field) is not True:
+        fail(f"release_identity.{field} must be true")
+
+modules = identity.get("modules") or {}
+major = release_tag.split(".", 1)[0]
+for name, expected_suffix in (("root", f"/{major}"), ("contrib", f"/contrib/{major}")):
+    module = modules.get(name) or {}
+    if module.get("present") is not True:
+        fail(f"release_identity.modules.{name}.present must be true")
+    if module.get("version") != release_tag:
+        fail(f"release_identity.modules.{name}.version={module.get('version')!r}, want {release_tag!r}")
+    module_path = module.get("module_path")
+    if not isinstance(module_path, str) or not module_path.endswith(expected_suffix):
+        fail(f"release_identity.modules.{name}.module_path={module_path!r}, want suffix {expected_suffix!r}")
+cli = modules.get("cli") or {}
+if cli.get("present") is True and cli.get("version") != release_tag:
+    fail(f"release_identity.modules.cli.version={cli.get('version')!r}, want {release_tag!r}")
+
+workflow = identity.get("workflow") or {}
+if workflow.get("trusted") is not True:
+    fail("release_identity.workflow.trusted must be true")
+if workflow.get("provider") != "github_actions":
+    fail(f"release_identity.workflow.provider={workflow.get('provider')!r}, want 'github_actions'")
+if workflow.get("repository") != "aatuh/api-toolkit" or workflow.get("expected_repository") != "aatuh/api-toolkit":
+    fail("release_identity.workflow repository identity must be aatuh/api-toolkit")
+if workflow.get("workflow") != "release":
+    fail(f"release_identity.workflow.workflow={workflow.get('workflow')!r}, want 'release'")
+workflow_ref = workflow.get("workflow_ref")
+if not isinstance(workflow_ref, str) or not re.fullmatch(
+    r"aatuh/api-toolkit/\.github/workflows/release\.yml@refs/(heads/master|tags/v\d+\.\d+\.\d+)",
+    workflow_ref,
+):
+    fail(f"release_identity.workflow.workflow_ref={workflow_ref!r}, want the canonical release workflow")
+if workflow.get("ref") != f"refs/tags/{release_tag}":
+    fail(f"release_identity.workflow.ref={workflow.get('ref')!r}, want refs/tags/{release_tag}")
+if workflow.get("sha") != identity["commit"]:
+    fail("release_identity.workflow.sha must match release_identity.commit")
+
+if verify_mode == "publication":
+    if not os.path.isdir(source_repository):
+        fail(f"release source repository is unavailable: {source_repository!r}")
+
+    def git(*args):
+        result = subprocess.run(
+            ["git", "-C", source_repository, *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0:
+            fail(f"source git command failed: {' '.join(args)}")
+        return result.stdout.strip()
+
+    source_head = git("rev-parse", "--verify", "HEAD")
+    source_tag_commit = git("rev-parse", "--verify", f"{release_tag}^{{commit}}")
+    source_head_tree = git("rev-parse", f"{source_head}^{{tree}}")
+    source_tag_tree = git("rev-parse", f"{source_tag_commit}^{{tree}}")
+    source_default_branch = identity["default_branch"]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", source_default_branch) or ".." in source_default_branch or "//" in source_default_branch:
+        fail("release_identity.default_branch is not a safe git ref")
+    source_branch_commit = git("rev-parse", "--verify", f"{source_default_branch}^{{commit}}")
+    reachable = subprocess.run(
+        ["git", "-C", source_repository, "merge-base", "--is-ancestor", source_tag_commit, source_branch_commit],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0
+    if source_head != identity["commit"]:
+        fail(f"release_identity.commit={identity['commit']!r}, source HEAD={source_head!r}")
+    if source_tag_commit != source_head:
+        fail(f"release tag {release_tag!r} does not point at source HEAD")
+    if source_head_tree != identity["tree"] or source_tag_tree != source_head_tree:
+        fail("release identity tree does not match the source tag and HEAD")
+    if source_branch_commit != identity["default_branch_commit"] or not reachable:
+        fail(f"release tag {release_tag!r} is not reachable from {source_default_branch!r}")
 
 checks = summary.get("checks")
 if not isinstance(checks, list) or not checks:

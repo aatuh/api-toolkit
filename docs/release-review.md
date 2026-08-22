@@ -7,11 +7,12 @@ Use this as the short reviewer path before publishing a release.
 
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
-- Accept only clean publication evidence before publishing:
-  `API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence` for v4 patch
-  and minor releases.
+- For a clean local preflight, create the immutable release tag at `HEAD` and
+  run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`.
+  The tag-driven GitHub `release` workflow is the trusted publication evidence
+  producer for v4 patch and minor releases.
 - A local dirty-tree audit may use
-  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.0 GOTOOLCHAIN=local make release-evidence`,
+  `ALLOW_DIRTY_RELEASE_EVIDENCE=1 API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`,
   but it is not acceptable before publishing; dirty local evidence is rejected before publishing.
 - The v4 major-release evidence used `API_BASE_REF=v3.1.2` as documented
   v3-to-v4 transition evidence; later v4 releases compare against the latest
@@ -20,7 +21,8 @@ Use this as the short reviewer path before publishing a release.
   `vX.Y.0-rc.1` prerelease before the final stable `vX.Y.0` tag. RC evidence
   still uses the latest published stable v4 tag as `API_BASE_REF`; do not advance the supported baseline to an RC tag.
 - Read `release-check-summary.json` and confirm `api_base_ref`, `commit`,
-  `git_state`, `publication_eligible`, `provenance_policy`, check statuses,
+  `git_state`, `release_identity` (tag, commit, tree, default branch, modules,
+  and workflow), `publication_eligible`, `provenance_policy`, check statuses,
   tool versions, `vulnerability_evidence`, `contrib_drift`,
   `dependency_license_evidence`, `full_profile_scaffold_evidence`, and artifact
   tier status.
@@ -75,7 +77,7 @@ Inspect `release-check-summary.json` `status`, `publication_eligible`,
 
 | State | Decision |
 | --- | --- |
-| `status=passed`, `publication_eligible=true`, `provenance_policy.status=passed`, `dirty=false`, and all staged, unstaged, untracked, and deleted counts are `0` | Accept as local publication evidence if every check passed and artifact review is complete. |
+| `status=passed`, `publication_eligible=true`, `provenance_policy.status=passed`, `release_identity.status=passed`, `dirty=false`, and all staged, unstaged, untracked, and deleted counts are `0` | Accept as a clean local tag-binding preflight. Publish only after the tag-driven workflow produces trusted evidence and artifact verification passes. |
 | `dirty=true` with any staged, unstaged, untracked, or deleted count | Reject for publication. Use only as local dirty-tree audit evidence when `provenance_policy.mode=local_audit`. |
 | `ALLOW_DIRTY_RELEASE_EVIDENCE=1` present in `evidence_command` | Treat as local audit evidence, not release evidence. |
 
@@ -104,7 +106,8 @@ Verification checklist:
 - Confirm the draft release assets match the expected names in
   `publication_artifact_expectations.github_draft_release_assets`.
 - Verify `release-asset-manifest.tsv` with `sha256sum -c` so changed or missing
-  assets are detected before publishing.
+  assets are detected before publishing. The repository verifier also rejects
+  duplicate or unrecognized top-level assets.
 - Verify SBOM signatures against their certificates before publishing. The
   release workflow and `make release-artifact-verify` use
   `COSIGN_CERTIFICATE_IDENTITY_REGEXP=^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$`
@@ -116,6 +119,9 @@ Verification checklist:
 - Download `release-evidence-logs.tgz` and confirm it contains the logs named by
   the summary check records. `make release-artifact-verify` now enforces every
   `checks[].log_path` and `contrib_drift.artifact_path` from the summary.
+- Run publication verification from the tagged source checkout. It rejects any
+  mismatch among the requested tag, source `HEAD`, recorded commit/tree,
+  default-branch reachability, module version, or trusted workflow identity.
 
 ## Vulnerability and contrib disposition review
 

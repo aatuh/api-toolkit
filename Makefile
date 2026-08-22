@@ -356,7 +356,8 @@ release-check: ## Run release readiness checks; requires explicit API_BASE_REF
 	$(MAKE) clean
 
 release-evidence: ## Run release readiness and write release-check-summary.json
-	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v4 patch/minor releases use the latest published v4 tag, for example API_BASE_REF=v4.0.0"; exit 2; }
+	@test -n "$(API_BASE_REF)" || { echo "API_BASE_REF is required for release-evidence; for v4 patch/minor releases use the verified baseline, for example API_BASE_REF=v4.0.1"; exit 2; }
+	@test -n "$(RELEASE_TAG)" || test -n "$${GITHUB_REF_NAME:-}" || { case "$${ALLOW_DIRTY_RELEASE_EVIDENCE:-}" in 1|true|TRUE|yes|YES) exit 0 ;; *) echo "RELEASE_TAG is required for release-evidence outside a tag-triggered GitHub workflow"; exit 2 ;; esac; }
 	@tmp="$$(mktemp)"; \
 	status=0; \
 	API_BASE_REF="$(API_BASE_REF)" GOTOOLCHAIN="$${GOTOOLCHAIN:-local}" scripts/release_check_summary.sh --run > "$$tmp" || status=$$?; \

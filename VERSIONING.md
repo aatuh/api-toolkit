@@ -180,13 +180,15 @@ command source of truth. `make api-check` is a local compatibility helper.
 `make release-api-check` fails closed unless `API_BASE_REF` names an available supported baseline.
 `make v3-readiness-check` runs focused compatibility-sensitive surface guardrails.
 `make release-check` is the release-readiness gate.
-`make release-evidence` runs the release-readiness subchecks through the evidence writer and writes `release-check-summary.json` schema v2.
+`make release-evidence` runs the release-readiness subchecks through the evidence writer and writes `release-check-summary.json` schema v2. It requires `RELEASE_TAG` to resolve to the exact `HEAD` commit and records the tag, commit/tree, default-branch ancestry, module versions, and workflow identity.
 `make contrib-api-drift-report` enforces supported-adapter incompatible drift.
 `make contrib-release-notes-check` is a lightweight review gate for contrib
 adapter, integration, middleware, bootstrap, telemetry, and production generator
 CLI behavior notes.
 
-Publication evidence must come from a clean worktree with an explicit baseline.
+Publication evidence must come from a clean worktree with an explicit baseline
+and an immutable release tag at `HEAD`. The tag-driven GitHub release workflow
+is the trusted publication producer; local evidence is tag-binding preflight.
 Use `docs/release-runbook.md` for the current command examples. The v4
 major-release evidence used `API_BASE_REF=v3.1.2` as documented v3-to-v4
 transition evidence; v4 patch and minor releases use the latest published v4

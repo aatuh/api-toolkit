@@ -73,7 +73,7 @@ jobs:
           fi
 
       - name: Generate clean publication evidence
-        run: make release-evidence
+        run: RELEASE_TAG="$GITHUB_REF_NAME" make release-evidence
 
       - name: Print release reviewer summary before artifact verification
         run: RELEASE_SUMMARY=release-check-summary.json make release-review-summary

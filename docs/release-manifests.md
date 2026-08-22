@@ -26,10 +26,16 @@ machine-readable manifests that support release and documentation checks.
 ## Reviewer workflow
 
 1. Start with [release-review.md](release-review.md) and [release-runbook.md](release-runbook.md).
-2. Inspect `release-check-summary.json` fields for `contrib_drift` and `vulnerability_evidence`.
-3. Compare the current summary packages and advisory IDs with the TSV manifests.
-4. Confirm all missing and expired disposition counts are `0` before accepting release evidence.
-5. Check [release-notes.md](release-notes.md) for package-tied acknowledgement when `contrib_drift.incompatible_drift_count` is greater than `0`.
+2. Inspect `release-check-summary.json` `release_identity` first: tag, commit,
+   tree, default branch, root/contrib/optional CLI module paths and versions,
+   and the GitHub workflow/repository identity must describe the requested tag.
+3. Run publication verification from the matching tag checkout. It validates the
+   summary identity against source `HEAD`, rejects tags not reachable from the
+   recorded default branch, and rejects untrusted workflow identity.
+4. Inspect `release-check-summary.json` fields for `contrib_drift` and `vulnerability_evidence`.
+5. Compare the current summary packages and advisory IDs with the TSV manifests.
+6. Confirm all missing and expired disposition counts are `0` before accepting release evidence.
+7. Check [release-notes.md](release-notes.md) for package-tied acknowledgement when `contrib_drift.incompatible_drift_count` is greater than `0`.
 
 ## Maintenance notes
 
@@ -39,3 +45,6 @@ machine-readable manifests that support release and documentation checks.
 - Keep contrib drift package selection focused on high-use adapters and integrations; supported-adapter incompatible drift is gate-enforced, and supported package-owned runtime assets plus production generator CLI behavior remain release-note reviewed, but neither rule implies a stable contrib API promise.
 - Keep `saas-api-full` full-profile runtime assets release-note reviewed because changes alter the generated production foundation. The opt-in integration checks must stay documented separately from default release gates so Docker-backed Postgres, Redis, and MinIO checks do not become accidental publication prerequisites.
 - Keep vulnerability dispositions tied to current evidence. Remove stale advisory rows after dependencies are upgraded and current evidence no longer reports the ID.
+- `release-asset-manifest.tsv` is the SHA-256 index for every payload asset.
+  It cannot checksum itself; do not add extra draft-release files without
+  updating the exact asset-set verifier, workflow, fixtures, and review docs.
