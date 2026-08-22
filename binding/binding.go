@@ -124,10 +124,16 @@ func ValidationProblem(err error) httpx.Problem {
 	}
 	var provider fielderrors.Provider
 	if errors.As(err, &provider) {
-		return httpx.WithFieldErrors(p, provider.FieldErrors())
+		fields := provider.FieldErrors()
+		if fields.AllPublic() {
+			return httpx.WithFieldErrors(p, fields)
+		}
 	}
-	if err != nil {
-		p.Detail = err.Error()
+	var publicErr PublicError
+	if errors.As(err, &publicErr) {
+		if detail := strings.TrimSpace(publicErr.PublicMessage()); detail != "" {
+			p.Detail = detail
+		}
 	}
 	return p
 }
@@ -304,7 +310,7 @@ func required(field reflect.StructField) bool {
 }
 
 func fieldError(field, code, message string) fielderrors.FieldErrors {
-	return fielderrors.FieldErrors{{Field: field, Code: code, Message: message}}
+	return fielderrors.FieldErrors{{Field: field, Code: code, Message: message, Public: true}}
 }
 
 func allEmpty(values []string) bool {

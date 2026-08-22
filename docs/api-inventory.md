@@ -137,6 +137,8 @@ Stability tier: `stable`
 | `JSONConfig.RequireObject` | field | v3 compatibility surface | active |
 | `PathConfig` | type | v3 compatibility surface | active |
 | `PathConfig.Param` | field | v3 compatibility surface | active |
+| `PublicError` | type | v3 compatibility surface | active |
+| `PublicError.PublicMessage` | interface method | v3 compatibility surface | active |
 | `QueryConfig` | type | v3 compatibility surface | active |
 | `ValidationProblem` | func | v3 compatibility surface | active |
 | `WriteValidationProblem` | func | v3 compatibility surface | active |
@@ -700,7 +702,9 @@ Stability tier: `stable`
 | `FieldError.Error` | method | v3 compatibility surface | active |
 | `FieldError.Field` | field | v3 compatibility surface | active |
 | `FieldError.Message` | field | v3 compatibility surface | active |
+| `FieldError.Public` | field | v3 compatibility surface | active |
 | `FieldErrors` | type | v3 compatibility surface | active |
+| `FieldErrors.AllPublic` | method | v3 compatibility surface | active |
 | `FieldErrors.Error` | method | v3 compatibility surface | active |
 | `FieldErrors.FieldErrors` | method | v3 compatibility surface | active |
 | `FieldErrors.ToMap` | method | v3 compatibility surface | active |

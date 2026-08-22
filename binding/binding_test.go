@@ -88,7 +88,7 @@ func TestDecodePathUsesConfiguredResolver(t *testing.T) {
 
 func TestWriteValidationProblem(t *testing.T) {
 	rec := httptest.NewRecorder()
-	WriteValidationProblem(rec, fielderrors.FieldErrors{{Field: "name", Code: "required", Message: "name is required"}})
+	WriteValidationProblem(rec, fielderrors.FieldErrors{{Field: "name", Code: "required", Message: "name is required", Public: true}})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
