@@ -37,6 +37,15 @@ type stubRouteRegistrar struct {
 	handlers map[string]http.HandlerFunc
 }
 
+func newValidatedHealthManager(t *testing.T, config health.Config) *health.Manager {
+	t.Helper()
+	manager, err := health.NewManager(config)
+	if err != nil {
+		t.Fatalf("health.NewManager() error = %v", err)
+	}
+	return manager
+}
+
 func (s *stubRouteRegistrar) Get(pattern string, h http.HandlerFunc) {
 	if s.handlers == nil {
 		s.handlers = make(map[string]http.HandlerFunc)
@@ -410,7 +419,7 @@ func TestMountSystemEndpointsToWithAdminRequiresWrapper(t *testing.T) {
 }
 
 func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *testing.T) {
-	manager := health.NewManagerWithConfig(health.Config{
+	manager := newValidatedHealthManager(t, health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -479,7 +488,7 @@ func TestMountSystemEndpointsToWithAdminMountsOperatorRoutesBehindWrapper(t *tes
 }
 
 func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
-	manager := health.NewManagerWithConfig(health.Config{
+	manager := newValidatedHealthManager(t, health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -533,7 +542,7 @@ func TestNewAPIServiceBuildsRouterAndMountsSafeSystemEndpoints(t *testing.T) {
 }
 
 func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
-	manager := health.NewManagerWithConfig(health.Config{
+	manager := newValidatedHealthManager(t, health.Config{
 		Timeout:         time.Second,
 		EnableDetailed:  true,
 		LivenessChecks:  []string{"basic"},
@@ -594,7 +603,7 @@ func TestNewAPIServiceSeparatesAdminListenerRoutes(t *testing.T) {
 }
 
 func TestNewAPIServicePublicLivenessDoesNotDependOnReadiness(t *testing.T) {
-	manager := health.NewManagerWithConfig(health.Config{
+	manager := newValidatedHealthManager(t, health.Config{
 		Timeout:         time.Second,
 		LivenessChecks:  []string{"basic"},
 		ReadinessChecks: []string{"database"},

@@ -16,6 +16,13 @@
 //     source-compatible with their root ports counterparts during v3.
 //   - When caching is enabled, cached checker results may be reused across
 //     liveness, readiness, and detailed responses until CacheDuration expires.
+//   - NewManager validates explicit Config values at startup. Use DefaultConfig
+//     as a deliberate baseline, RegisterCheckerChecked to reject invalid or
+//     duplicate checker registration, and an injected Config.Clock for
+//     deterministic cache tests.
+//   - A checker that does not respect context cancellation cannot be stopped by
+//     Go. The manager returns an unhealthy timeout result at the configured
+//     deadline while that checker may continue in its own goroutine.
 //   - LoadConfig falls back to a 30-second refresh interval and a cache
 //     duration of twice that refresh interval when env values are missing,
 //     invalid, zero, or negative.
