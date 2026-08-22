@@ -79,6 +79,22 @@ func TestRenderDocumentOrdersReleasesAndCalculatesDelta(t *testing.T) {
 	}
 }
 
+func TestRenderDocumentExplainsV4RootOnlyHistoricalBaseline(t *testing.T) {
+	rows := []historyRow{
+		{Release: "v4.0.1", Commit: "09e0117828c960453e3fb4cd028a02bc3e56ff33", Summary: summaryRow{Module: "root", Package: "(aggregate)", API: "aggregate", Test: "aggregate", Observed: "71.6"}},
+		{Release: "v4.0.1", Commit: "09e0117828c960453e3fb4cd028a02bc3e56ff33", Summary: summaryRow{Module: "contrib", Package: "(aggregate)", API: "aggregate", Test: "release-integrity-blocked", Observed: "not-reported"}},
+	}
+	document, err := renderDocument(rows)
+	if err != nil {
+		t.Fatalf("renderDocument: %v", err)
+	}
+	for _, required := range []string{"root-only historical baseline", "checksum does not verify", "not-reported", "not direct deltas"} {
+		if !strings.Contains(string(document), required) {
+			t.Fatalf("document missing %q", required)
+		}
+	}
+}
+
 func TestValidateHistoryRequiresBothAggregateModules(t *testing.T) {
 	err := validateHistory([]historyRow{{
 		Release: "v3.0.0",

@@ -7046,6 +7046,8 @@ func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
 	}
 
 	rows := map[string]map[string]string{}
+	statuses := map[string]map[string]string{}
+	commits := map[string]string{}
 	counts := map[string]int{}
 	for index, line := range lines[1:] {
 		fields := strings.Split(line, "\t")
@@ -7060,12 +7062,15 @@ func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
 		}
 		if rows[fields[0]] == nil {
 			rows[fields[0]] = map[string]string{}
+			statuses[fields[0]] = map[string]string{}
 		}
 		key := fields[2] + "\t" + fields[3]
 		if _, exists := rows[fields[0]][key]; exists {
 			t.Fatalf("docs/coverage-trend.tsv:%d duplicates %s for %s", index+2, fields[3], fields[0])
 		}
 		rows[fields[0]][key] = fields[6]
+		statuses[fields[0]][key] = fields[5]
+		commits[fields[0]] = fields[1]
 		counts[fields[0]]++
 	}
 	for _, release := range []string{"v3.0.0", "v3.1.0", "v3.1.2"} {
@@ -7084,6 +7089,19 @@ func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
 	if rows["v3.1.2"]["root\tgithub.com/aatuh/api-toolkit/v3/middleware/auth/jwt"] != "93.3" {
 		t.Fatal("coverage trend must retain the v3.1.2 JWT coverage result")
 	}
+	if counts["v4.0.1"] != 61 {
+		t.Fatalf("docs/coverage-trend.tsv v4.0.1 has %d rows, want 61", counts["v4.0.1"])
+	}
+	if commits["v4.0.1"] != "09e0117828c960453e3fb4cd028a02bc3e56ff33" {
+		t.Fatalf("v4.0.1 coverage commit = %q", commits["v4.0.1"])
+	}
+	if rows["v4.0.1"]["root\t(aggregate)"] != "71.6" {
+		t.Fatal("coverage trend must retain the exact v4.0.1 root aggregate")
+	}
+	if rows["v4.0.1"]["contrib\t(aggregate)"] != "not-reported" ||
+		statuses["v4.0.1"]["contrib\t(aggregate)"] != "release-integrity-blocked" {
+		t.Fatal("v4.0.1 contrib coverage must remain explicitly release-integrity-blocked")
+	}
 
 	trendDoc := readText(t, filepath.Join(repoRoot, "docs", "coverage-trend.md"))
 	for _, required := range []string{
@@ -7093,7 +7111,8 @@ func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
 		"v3.0.0",
 		"v3.1.0",
 		"v3.1.2",
-		"+53.3 pp",
+		"v4.0.1",
+		"root-only historical baseline",
 		"docs/coverage-trend.tsv",
 		"make coverage-trend-record",
 		"make coverage-trend-check",
@@ -7113,13 +7132,22 @@ func TestPackageCoverageTrendTracksPublishedReleases(t *testing.T) {
 	}
 
 	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
-	for _, target := range []string{"coverage-trend-record", "coverage-trend-check"} {
+	for _, target := range []string{"coverage-trend-record", "coverage-trend-check", "benchmark-baseline-check", "release-quality-baseline-contract"} {
 		if !makefileTargetSet(makefile)[target] {
 			t.Fatalf("Makefile missing %s target", target)
 		}
 	}
 	if !containsString(makeSubtargets(t, makefile, "docs-check"), "coverage-trend-check") {
 		t.Fatal("docs-check must run coverage-trend-check")
+	}
+	if !containsString(makeSubtargets(t, makefile, "docs-check"), "release-quality-baseline-contract") {
+		t.Fatal("docs-check must run the release quality baseline contract")
+	}
+	if !containsString(makeSubtargets(t, makefile, "release-check"), "benchmark-baseline-check") {
+		t.Fatal("release-check must verify the release quality baseline")
+	}
+	if !strings.Contains(readText(t, filepath.Join(repoRoot, "scripts", "release_check_summary.sh")), "\"benchmark-baseline-check\"") {
+		t.Fatal("release evidence summary script must record benchmark-baseline-check")
 	}
 
 	tool := readText(t, filepath.Join(repoRoot, "internal", "tools", "coveragetrend", "main.go"))
@@ -7154,7 +7182,11 @@ func TestQualityAuditP0BenchmarkBaselineDocs(t *testing.T) {
 		"docs/benchmark-baselines.tsv",
 		"max_allocs_per_op",
 		"max_bytes_per_op",
+		"observed_ns_per_op",
 		"20%",
+		"v4.0.1",
+		"checksum",
+		"benchmark-baseline-check",
 		"BenchmarkBindingDecodeJSON",
 		"BenchmarkBindingDecodeQuery",
 		"BenchmarkQueryParamsParseRequestShape",
@@ -7312,12 +7344,18 @@ func TestBenchmarkBaselineManifestTracksReportAllocs(t *testing.T) {
 	var missing []string
 	seen := map[string]bool{}
 	for _, row := range rows {
-		key := row.Module + "\t" + row.Package + "\t" + row.Benchmark
+		key := row.ReleaseTag + "\t" + row.Module + "\t" + row.Package + "\t" + row.Benchmark
 		if seen[key] {
 			missing = append(missing, "duplicate benchmark baseline row "+key)
 		}
 		seen[key] = true
-		if row.ObservedBytesPerOp <= 0 || row.MaxBytesPerOp <= 0 || row.ObservedAllocsPerOp <= 0 || row.MaxAllocsPerOp <= 0 {
+		if row.ReleaseTag != "v4.0.1" || row.ReleaseCommit != "09e0117828c960453e3fb4cd028a02bc3e56ff33" {
+			missing = append(missing, key+" does not bind the verified v4.0.1 root commit")
+		}
+		if row.GoVersion == "" || row.GOOS == "" || row.GOARCH == "" || row.CPU == "" || row.BenchmarkFlags == "" {
+			missing = append(missing, key+" has incomplete benchmark metadata")
+		}
+		if row.ObservedNanosecondsPerOp <= 0 || row.ObservedBytesPerOp <= 0 || row.MaxBytesPerOp <= 0 || row.ObservedAllocsPerOp <= 0 || row.MaxAllocsPerOp <= 0 {
 			missing = append(missing, key+" has non-positive allocation baseline or threshold")
 		}
 		if row.MaxBytesPerOp < row.ObservedBytesPerOp {
@@ -10067,14 +10105,22 @@ func packageTestSource(t *testing.T, dir string) string {
 }
 
 type benchmarkBaseline struct {
-	Module              string
-	Package             string
-	Benchmark           string
-	ObservedBytesPerOp  int
-	MaxBytesPerOp       int
-	ObservedAllocsPerOp int
-	MaxAllocsPerOp      int
-	Evidence            string
+	ReleaseTag               string
+	ReleaseCommit            string
+	GoVersion                string
+	GOOS                     string
+	GOARCH                   string
+	CPU                      string
+	BenchmarkFlags           string
+	Module                   string
+	Package                  string
+	Benchmark                string
+	ObservedNanosecondsPerOp int
+	ObservedBytesPerOp       int
+	MaxBytesPerOp            int
+	ObservedAllocsPerOp      int
+	MaxAllocsPerOp           int
+	Evidence                 string
 }
 
 type referenceServiceLoadBaseline struct {
@@ -10109,21 +10155,32 @@ func loadBenchmarkBaselines(t *testing.T, repoRoot string) []benchmarkBaseline {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		if line == "release_tag\trelease_commit\tgo_version\tgoos\tgoarch\tcpu\tbenchmark_flags\tmodule\tpackage\tbenchmark\tobserved_ns_per_op\tobserved_bytes_per_op\tmax_bytes_per_op\tobserved_allocs_per_op\tmax_allocs_per_op\tevidence" {
+			continue
+		}
 		cols := strings.Split(raw, "\t")
-		if len(cols) != 8 {
-			t.Fatalf("docs/benchmark-baselines.tsv:%d: expected 8 tab-separated columns, got %d", lineNo+1, len(cols))
+		if len(cols) != 16 {
+			t.Fatalf("docs/benchmark-baselines.tsv:%d: expected 16 tab-separated columns, got %d", lineNo+1, len(cols))
 		}
 		rows = append(rows, benchmarkBaseline{
-			Module:              strings.TrimSpace(cols[0]),
-			Package:             strings.TrimSpace(cols[1]),
-			Benchmark:           strings.TrimSpace(cols[2]),
-			ObservedBytesPerOp:  mustAtoi(t, "observed_bytes_per_op", cols[3]),
-			MaxBytesPerOp:       mustAtoi(t, "max_bytes_per_op", cols[4]),
-			ObservedAllocsPerOp: mustAtoi(t, "observed_allocs_per_op", cols[5]),
-			MaxAllocsPerOp:      mustAtoi(t, "max_allocs_per_op", cols[6]),
-			Evidence:            strings.TrimSpace(cols[7]),
+			ReleaseTag:               strings.TrimSpace(cols[0]),
+			ReleaseCommit:            strings.TrimSpace(cols[1]),
+			GoVersion:                strings.TrimSpace(cols[2]),
+			GOOS:                     strings.TrimSpace(cols[3]),
+			GOARCH:                   strings.TrimSpace(cols[4]),
+			CPU:                      strings.TrimSpace(cols[5]),
+			BenchmarkFlags:           strings.TrimSpace(cols[6]),
+			Module:                   strings.TrimSpace(cols[7]),
+			Package:                  strings.TrimSpace(cols[8]),
+			Benchmark:                strings.TrimSpace(cols[9]),
+			ObservedNanosecondsPerOp: mustAtoi(t, "observed_ns_per_op", cols[10]),
+			ObservedBytesPerOp:       mustAtoi(t, "observed_bytes_per_op", cols[11]),
+			MaxBytesPerOp:            mustAtoi(t, "max_bytes_per_op", cols[12]),
+			ObservedAllocsPerOp:      mustAtoi(t, "observed_allocs_per_op", cols[13]),
+			MaxAllocsPerOp:           mustAtoi(t, "max_allocs_per_op", cols[14]),
+			Evidence:                 strings.TrimSpace(cols[15]),
 		})
-		if rows[len(rows)-1].Module == "" || rows[len(rows)-1].Package == "" || rows[len(rows)-1].Benchmark == "" || rows[len(rows)-1].Evidence == "" {
+		if rows[len(rows)-1].ReleaseTag == "" || rows[len(rows)-1].ReleaseCommit == "" || rows[len(rows)-1].GoVersion == "" || rows[len(rows)-1].GOOS == "" || rows[len(rows)-1].GOARCH == "" || rows[len(rows)-1].CPU == "" || rows[len(rows)-1].BenchmarkFlags == "" || rows[len(rows)-1].Module == "" || rows[len(rows)-1].Package == "" || rows[len(rows)-1].Benchmark == "" || rows[len(rows)-1].Evidence == "" {
 			t.Fatalf("docs/benchmark-baselines.tsv:%d: empty benchmark baseline field", lineNo+1)
 		}
 	}

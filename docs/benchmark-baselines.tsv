@@ -1,19 +1,16 @@
-# Benchmark allocation baselines for stable hot paths.
-# Columns: module	package	benchmark	observed_bytes_per_op	max_bytes_per_op	observed_allocs_per_op	max_allocs_per_op	evidence
-# Keep thresholds intentionally review-oriented, not machine-specific speed promises.
-root	binding	BenchmarkBindingDecodeJSON	12984	20000	97	120	BENCHTIME=1x benchmark-smoke local allocation sample
-root	binding	BenchmarkBindingDecodeQuery	888	2048	22	30	BENCHTIME=1x benchmark-smoke local allocation sample
-root	queryparams	BenchmarkQueryParamsParseRequestShape	2536	4096	37	50	BENCHTIME=1x benchmark-smoke local allocation sample
-root	specs	BenchmarkRegistryOpenAPI100Operations	855856	1100000	11031	13000	BENCHTIME=1x benchmark-smoke local allocation sample
-root	routecontracts	BenchmarkRouteContractsRegisterAndValidate	1544	4096	14	20	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/maxbody	BenchmarkMaxBodyWithinLimit	18344	24000	23	30	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/timeout	BenchmarkPropagatorSuccess	816	2048	10	15	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/timeout	BenchmarkHardTimeoutSuccess	2112	4096	21	30	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/idempotency	BenchmarkIdempotencyNew	10656	16000	58	80	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/idempotency	BenchmarkIdempotencyReplay	7600	12000	37	50	BENCHTIME=1x benchmark-smoke local allocation sample
-root	middleware/ratelimit	BenchmarkRateLimit	448	1024	6	10	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	middleware/openapi	BenchmarkOpenAPIRequestValidation	448	2048	8	15	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	middleware/openapi	BenchmarkOpenAPIResponseValidation	7552	12000	67	90	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	middleware/requestlog	BenchmarkRequestLog	1328	4096	16	25	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	middleware/requestlog	BenchmarkRequestLogWithHeaders	2912	6000	36	50	BENCHTIME=1x benchmark-smoke local allocation sample
-contrib	cmd/api-toolkit	BenchmarkNewServiceSaaSAPIGeneration	1092088	1500000	15735	20000	BENCHTIME=1x benchmark-smoke local allocation sample
+# Release-specific benchmark baselines. Thresholds are review triggers, not performance promises.
+# v4.0.1 is an exact root-tag measurement. The paired contrib/v4.0.1 tag is withdrawn:
+# its required root v4.0.0 dependency checksum does not verify, so no contrib numbers are invented.
+# Columns: release_tag	release_commit	go_version	goos	goarch	cpu	benchmark_flags	module	package	benchmark	observed_ns_per_op	observed_bytes_per_op	max_bytes_per_op	observed_allocs_per_op	max_allocs_per_op	evidence
+release_tag	release_commit	go_version	goos	goarch	cpu	benchmark_flags	module	package	benchmark	observed_ns_per_op	observed_bytes_per_op	max_bytes_per_op	observed_allocs_per_op	max_allocs_per_op	evidence
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	binding	BenchmarkBindingDecodeJSON	127072	12984	20000	97	120	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	binding	BenchmarkBindingDecodeQuery	22763	872	2048	21	30	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	queryparams	BenchmarkQueryParamsParseRequestShape	21391	2520	4096	36	50	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	specs	BenchmarkRegistryOpenAPI100Operations	1237356	855536	1100000	11029	13000	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	routecontracts	BenchmarkRouteContractsRegisterAndValidate	22734	1544	4096	14	20	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/maxbody	BenchmarkMaxBodyWithinLimit	73541	18344	24000	23	30	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/timeout	BenchmarkPropagatorSuccess	13997	816	2048	10	15	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/timeout	BenchmarkHardTimeoutSuccess	21652	2096	4096	20	30	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/idempotency	BenchmarkIdempotencyNew	166729	10640	16000	57	80	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/idempotency	BenchmarkIdempotencyReplay	19748	7600	12000	37	50	v4.0.1 exact root-tag benchmark command
+v4.0.1	09e0117828c960453e3fb4cd028a02bc3e56ff33	go1.26.6-X:nodwarf5	linux	amd64	AMD Ryzen 7 3700X 8-Core Processor (16 logical processors)	-run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1	root	middleware/ratelimit	BenchmarkRateLimit	7815	448	1024	6	10	v4.0.1 exact root-tag benchmark command

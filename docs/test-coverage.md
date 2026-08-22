@@ -100,6 +100,12 @@ across published releases. Its source file, `docs/coverage-trend.tsv`, records
 the exact tag commit, module, package status, and observed statement coverage
 for each snapshot.
 
+The verified `v4.0.1` record is root-only historical evidence. Its matching
+contrib tag is withdrawn because the required root dependency checksum cannot
+verify, so its contrib rows are explicitly `release-integrity-blocked` and
+`not-reported`. Do not replace those values with v3 data or measurements from
+another module; a new paired release must provide numeric root and contrib rows.
+
 After the release commit's `make coverage-check` passes, update the trend in the
 release pull request before tagging:
 

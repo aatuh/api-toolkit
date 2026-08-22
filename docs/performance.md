@@ -8,6 +8,26 @@ Release reviewers should keep the raw command output with the pull request or
 release evidence when a change intentionally moves allocations, latency, or
 generated scaffold size.
 
+## Reproducible Release Baseline
+
+The checked-in release baseline is `v4.0.1` at
+`09e0117828c960453e3fb4cd028a02bc3e56ff33`. It records the Go version, OS,
+architecture, CPU identity, flags, `ns/op`, `B/op`, and `allocs/op` from the
+exact root-tag checkout. Reproduce the root sample from that immutable source:
+
+```sh
+git checkout v4.0.1
+GOWORK=off GOTOOLCHAIN=local go test ./... \
+  -run '^$' -bench='Benchmark' -benchmem -benchtime=1x -count=1
+```
+
+`contrib/v4.0.1` is withdrawn: its required root `v4.0.0` dependency checksum
+does not verify. Therefore `docs/benchmark-baselines.tsv` deliberately has no
+contrib measurements for `v4.0.1`; values from v3 or a replacement module must
+not be presented as v4 evidence. The next paired root-and-contrib release must
+record numeric measurements for both modules. `make benchmark-baseline-check`
+enforces this narrow historical exception and otherwise requires both modules.
+
 ## Quick Run
 
 Run the root package baselines:
@@ -20,7 +40,8 @@ GOWORK=off GOTOOLCHAIN=local go test \
   -run '^$' -bench 'Benchmark' -benchmem
 ```
 
-Run the contrib baselines:
+Run the contrib baselines only for a new paired release, after its published
+module dependency identities verify:
 
 ```sh
 cd contrib
@@ -48,12 +69,13 @@ as comparative evidence.
 | Request logging | `contrib/middleware/requestlog` | `BenchmarkRequestLog`, `BenchmarkRequestLogWithHeaders` |
 | Generated service scaffold | `contrib/cmd/api-toolkit` | `BenchmarkNewServiceSaaSAPIGeneration` |
 
-## Allocation Thresholds
+## Release-specific Measurements and Thresholds
 
-`docs/benchmark-baselines.tsv` is the machine-readable allocation baseline for
-the benchmarks above. Each row records the module, package, benchmark name,
-observed `B/op`, observed `allocs/op`, and the current `max_bytes_per_op` and
-`max_allocs_per_op` review thresholds.
+`docs/benchmark-baselines.tsv` is the machine-readable release baseline. Each
+row binds a release tag and commit to its module, package, benchmark name,
+measurement environment, flags, observed `ns/op`, `B/op`, `allocs/op`, and
+the current `max_bytes_per_op` and `max_allocs_per_op` review thresholds.
+The machine-readable time column is `observed_ns_per_op`.
 
 Use the thresholds as a release-review trigger: any benchmark result above
 `max_allocs_per_op`, above `max_bytes_per_op`, or more than 20% above the
@@ -93,7 +115,9 @@ do not treat it as a public performance SLA.
 - Treat allocation increases as intentional only when the pull request explains
   the behavior gained and why the cost is acceptable.
 - Re-run root and contrib benchmarks after Go toolchain updates before comparing
-  numbers across releases.
+  numbers across releases. Treat package paths from different module majors as
+  distinct identities: moves and splits do not create a direct coverage or
+  benchmark delta.
 - Keep generated scaffold benchmarks writing to benchmark temp directories only;
   they must not write evidence or generated services into the working tree.
 - Re-run `make reference-service-load` after changes to the generated full
