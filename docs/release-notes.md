@@ -67,6 +67,20 @@ source of truth is `docs/release-runbook.md`.
 
 ## 2026-08-22
 
+### Cross-platform core verification
+
+- Root-module verification, builds, tests, examples, and a generated
+  `saas-api` service build now gate Linux amd64, Linux arm64, macOS arm64, and
+  Windows amd64 pull requests on fixed GitHub-hosted runner labels.
+- Repository-owned text is normalized to LF on every checkout, and generated
+  service dependencies are resolved before the isolated build gate runs.
+- The generator now validates canonical slash-form manifest paths before
+  converting them to host separators, allowing nested templates on Windows
+  without weakening rooted traversal protection.
+- Full contrib and race verification remain Linux amd64 gates. The support
+  policy does not claim macOS amd64 or Windows arm64 without matching required
+  workflow evidence.
+
 ### Real Redis contract foundation
 
 - `make test-redis` now provides an isolated Redis 7 harness and real-service

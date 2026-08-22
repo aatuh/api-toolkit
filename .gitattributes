@@ -1,0 +1,2 @@
+# Keep source, policy fixtures, and generated evidence byte-stable on every OS.
+* text=auto eol=lf

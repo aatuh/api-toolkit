@@ -21,6 +21,95 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestPortableGeneratedPath(t *testing.T) {
+	for _, name := range []string{
+		"client.go",
+		".github/workflows/ci.yml",
+		"internal/httpapi/server.go",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := portableGeneratedPath(name)
+			if err != nil {
+				t.Fatalf("portableGeneratedPath(%q): %v", name, err)
+			}
+			if want := filepath.FromSlash(name); got != want {
+				t.Fatalf("portableGeneratedPath(%q) = %q, want %q", name, got, want)
+			}
+		})
+	}
+
+	for _, name := range []string{
+		"",
+		".",
+		"..",
+		"../outside.go",
+		"nested/../../outside.go",
+		"/absolute.go",
+		"//server/share.go",
+		"C:/outside.go",
+		`C:\outside.go`,
+		`nested\file.go`,
+		"nested:stream.go",
+		"nested//file.go",
+		"nested/./file.go",
+		"nested/../file.go",
+		"nested/file.go/",
+		"nested/\x00file.go",
+	} {
+		t.Run("reject_"+strconv.Quote(name), func(t *testing.T) {
+			if _, err := portableGeneratedPath(name); err == nil {
+				t.Fatalf("portableGeneratedPath(%q) succeeded, want rejection", name)
+			}
+		})
+	}
+}
+
+func TestScaffoldManifestPathsArePortable(t *testing.T) {
+	manifests := []struct {
+		name  string
+		files []scaffoldFile
+	}{
+		{"default", scaffoldFiles},
+		{"full", fullScaffoldFiles},
+		{"typescript", fullTypeScriptClientScaffoldFiles},
+		{"provider-replay", providerReplayScaffoldFiles},
+		{"saas-web", saasWebScaffoldFiles},
+		{"stripe", stripeBillingScaffoldFiles},
+		{"resend", resendEmailScaffoldFiles},
+		{"clerk", clerkWebhooksScaffoldFiles},
+		{"entitlements", entitlementsScaffoldFiles},
+	}
+	for _, manifest := range manifests {
+		t.Run(manifest.name, func(t *testing.T) {
+			for _, file := range manifest.files {
+				if _, err := portableGeneratedPath(file.Name); err != nil {
+					t.Errorf("manifest path %q: %v", file.Name, err)
+				}
+			}
+		})
+	}
+}
+
+func TestWriteGeneratedFileRejectsTraversalBeforeWriting(t *testing.T) {
+	parent := t.TempDir()
+	output := filepath.Join(parent, "output")
+	if err := os.Mkdir(output, 0o750); err != nil {
+		t.Fatalf("create output: %v", err)
+	}
+	root, err := os.OpenRoot(output)
+	if err != nil {
+		t.Fatalf("open output root: %v", err)
+	}
+	defer root.Close()
+
+	if err := writeGeneratedFile(root, "../outside.go", []byte("escaped")); err == nil {
+		t.Fatal("writeGeneratedFile traversal succeeded, want rejection")
+	}
+	if _, err := os.Stat(filepath.Join(parent, "outside.go")); !os.IsNotExist(err) {
+		t.Fatalf("traversal created an outside file: %v", err)
+	}
+}
+
 func TestRunVersion(t *testing.T) {
 	var out strings.Builder
 	code := run(context.Background(), []string{"version"}, &out, &out)
