@@ -1433,7 +1433,7 @@ ci: stabilize required quality gates
 
 ---
 
-## [ ] CI-004: Harden timing, fuzz, and mutation testing
+## [x] CI-004: Harden timing, fuzz, and mutation testing
 
 **Priority:** P1
 **Owner:** Test lead
@@ -1486,6 +1486,10 @@ GOWORK=off GOTOOLCHAIN=local make mutation-smoke
 ```text
 test: harden timing fuzz and mutation coverage
 ```
+
+**Completion evidence:** Protected PR #87 merged as squash
+`8a91ba589c37d119ca318b0f383e8882eccc09c3` on 2026-08-22. Required checks,
+including the new mutation gate and both Go test matrices, passed before merge.
 
 ---
 
