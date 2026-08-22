@@ -744,7 +744,7 @@ item records the same merge SHA as Done.
 
 ---
 
-## [ ] REL-004: Record release-specific coverage and benchmark baselines
+## [x] REL-004: Record release-specific coverage and benchmark baselines
 
 **Priority:** P0
 **Owner:** Test lead
@@ -796,6 +796,17 @@ GOTOOLCHAIN=local make benchmark-baseline-check
 ```text
 test(release): record v4 quality baselines
 ```
+
+### Completion evidence
+
+Protected PR [#81](https://github.com/aatuh/api-toolkit/pull/81) merged on
+2026-08-22 as squash commit
+`ff50a8000bf069d1232b998dc8785464e9854395`. All required protected checks
+passed: both supported Go-version test and API-check jobs, lint, governance,
+fuzz, CodeQL, dependency review, analysis, and PR-title validation. The project
+item records the same merge SHA as Done. The historical root-only `v4.0.1`
+coverage and benchmark exception remains explicit; no contrib values were
+fabricated for its withdrawn, checksum-invalid contrib release.
 
 ---
 
