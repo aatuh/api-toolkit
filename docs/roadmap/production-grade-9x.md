@@ -894,7 +894,7 @@ requiring users to study repository governance internals.
 * Current-state documentation is version-correct.
 * Maintainer material is separated from adopter material.
 
-## [ ] DOC-001: Add a current-version consistency gate
+## [x] DOC-001: Add a current-version consistency gate
 
 **Priority:** P0
 **Owner:** Documentation lead
@@ -949,6 +949,17 @@ GOWORK=off GOTOOLCHAIN=local make docs-check
 ```text
 ci(docs): enforce current version references
 ```
+
+### Completion evidence
+
+Protected PR [#83](https://github.com/aatuh/api-toolkit/pull/83) merged on
+2026-08-22 as squash commit
+`a8ecde6e39ed96ec614661153e9681d2b73395b0`. All required protected checks
+passed: both supported Go-version test and API-check jobs, lint, governance,
+fuzz, CodeQL, dependency review, analysis, and PR-title validation. The project
+item records the same merge SHA as Done. The current-version gate uses an exact
+historical allowlist and contract fixtures to keep v3 migration evidence while
+rejecting stale current guidance and root `/v3` import examples.
 
 ---
 
