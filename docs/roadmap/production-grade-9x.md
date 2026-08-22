@@ -200,13 +200,24 @@ Run the configured reference-service load scenario on the fixed controlled
 environment and attach the sanitized raw result, environment metadata, and
 baseline comparison to the release review.
 
-## [ ] EXT-009: Triage live dependency update pull requests
+## [x] EXT-009: Triage live dependency update pull requests
 
 **Owner:** Dependency maintainer
 **Unblocks:** SEC-003 dependency-maintenance evidence
 
 Record a dated disposition for every live dependency update pull request. Do
 not use blind automerge, self-approval, or a protection bypass.
+
+### Completion evidence
+
+Authenticated triage completed on 2026-08-15. Every then-open Dependabot pull
+request (#50–#66) received a dated owner, scope, CI, disposition, and
+release-impact record. After protected PR
+[#68](https://github.com/aatuh/api-toolkit/pull/68) merged as
+`ec557f996b620a9979455d3dcdf9f78d758ae9c0`, #52, #63, #65, and #66 were
+closed as superseded by that merge. The remaining updates kept distinct
+dispositions; no blind automerge, self-approval, or protection bypass was used.
+The GitHub Project item records the same completed evidence.
 
 ## [ ] EXT-010: Confirm independent maintainer and security authority
 
