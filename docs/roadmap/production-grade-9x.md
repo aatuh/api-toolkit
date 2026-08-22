@@ -1325,7 +1325,7 @@ ci(go): test supported and current toolchains
 
 ---
 
-## [pr] CI-002: Add cross-platform core verification
+## [x] CI-002: Add cross-platform core verification
 
 **Priority:** P1
 **Owner:** Build engineer
@@ -1382,6 +1382,23 @@ GOOS=linux GOARCH=arm64 go build ./...
 ```text
 ci(platform): verify core portability
 ```
+
+**Completion evidence:** Protected implementation PR #111 merged as squash
+`49eecbba860f01c6a0d85aca52e3929a0c4aac4f` on 2026-08-22. Linux amd64,
+native Linux arm64, macOS arm64, and Windows amd64 each passed root module
+verification, build, tests, examples, generated-service dependency resolution,
+and generated-service build before merge. CodeQL, dependency review, both
+API-check and Go test matrices, PostgreSQL and Redis contracts, fuzz,
+governance, lint, mutation, analysis, and PR-title validation also passed.
+Strict `master` protection now requires all four `platform-core` contexts,
+bound to the GitHub Actions app, while retaining every prior required check.
+Local `make finalize`, the actions audit, documentation checks, Windows test
+compilation, cross-builds, portable manifest/traversal contracts, and the
+generated-service build contract passed before review. The preserved
+`archive/legacy-master-e216516` implementation from commit `78e6c932` was
+revalidated and adapted to current runner labels, workspace boundaries,
+generated dependency resolution, deterministic LF checkouts, and rooted
+cross-platform generator paths.
 
 ---
 
