@@ -14,7 +14,7 @@ by `docs/supported-adapter-contracts.tsv`,
 | Area | Packages | Tier | Production posture |
 | --- | --- | --- | --- |
 | Postgres | `adapters/pgxpool`, `adapters/txpostgres`, `adapters/migrate`, `adapters/auditpostgres`, `adapters/operationpostgres`, `adapters/outboxpostgres`, `adapters/webhookdeliverypostgres`, `scheduler/postgres` | supported-adapter | Use after reviewing schema ownership, migrations, readiness checks, table-name validation, and backup/restore. |
-| Redis | `adapters/cacheredis`, `adapters/idempotencyredis`, `adapters/ratelimitredis` | supported-adapter | Use for shared production cache, idempotency, and rate-limit state with service-specific prefixes and bounded keys. |
+| Redis | `adapters/cacheredis`, `adapters/idempotencyredis`, `adapters/ratelimitredis` | supported-adapter | Use for shared production cache, idempotency, and rate-limit state with service-specific prefixes and bounded keys. Real Redis 7 contracts run through `make test-redis` on every pull request and release. |
 | Stripe | `adapters/stripe`, `integrations/stripe` | supported-adapter | Use after provider account setup, webhook signing, secret storage, and billing-domain review. |
 | Resend | `adapters/resend`, `integrations/resend` | supported-adapter | Use after consent, suppression, template, provider quota, and live-delivery review. |
 | Clerk and OIDC | `middleware/auth/clerk`, `integrations/auth/clerk`, `middleware/auth/oidc`, `integrations/auth/oidc` | supported-adapter | Use with trusted issuer, audience, JWKS/discovery URL, algorithm, tenant/scope claim, and rotation tests. |
@@ -23,6 +23,15 @@ by `docs/supported-adapter-contracts.tsv`,
 | Validation | `adapters/validation` | supported-adapter | Use for transport validation when field names, codes, and safe messages match application expectations. |
 | HTTP client | `adapters/httpclient` | supported-adapter | Use for SSRF-guarded outbound calls with explicit host, scheme, port, redirect, retry, breaker, and timeout policy. |
 | Policy engines | `adapters/cedar`, `adapters/opa` | supported-adapter | Use after policy lifecycle, malformed response, diagnostic error, and fail-closed startup review. |
+
+Redis adapter commands propagate dependency errors rather than converting them
+to cache misses, successful idempotency reservations, or rate-limit allows. The
+empty rate-limit key is the one intentional allow path and does not represent a
+Redis outage. The generated reference service fails startup when Redis-backed
+state is selected and its initial ping fails. Application owners may add an
+explicit cache fallback, but idempotency and rate-limit writes should fail
+closed. Keep connection URLs out of logs; the test harness rejects credentials
+and reports sanitized connection failures.
 | Wrapper-only helpers | `adapters/clock`, `adapters/ulid`, `adapters/uuid`, `email/noop` | wrapper-only | Use only when smoke coverage is enough because behavior belongs to the delegated dependency or no-op implementation. |
 | Experimental helpers | `adapters/idempotency`, `countrycodes`, `email/markdown` | experimental | Use with app-owned compatibility expectations until promoted. |
 | Tooling and generated code | `cmd/api-toolkit`, generated packages, examples | tooling/generated/example-only | Pin CLI versions in CI and review generated diffs; do not treat examples as compatibility promises. |

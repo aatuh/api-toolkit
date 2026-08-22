@@ -42,9 +42,9 @@ MinIO, HTTP readiness, and webhook receiver startup.
 
 ## Real PostgreSQL Harness
 
-Run `GOWORK=off GOTOOLCHAIN=local make test-postgres` (or its
-`make supported-adapter-check` alias) to test the reusable contrib PostgreSQL
-harness against the declared PostgreSQL 18 service. It runs direct real-service
+Run `GOWORK=off GOTOOLCHAIN=local make test-postgres` to test the reusable
+contrib PostgreSQL harness against the declared PostgreSQL 18 service. It runs
+direct real-service
 contracts for supported PostgreSQL adapters and the generated reference-service
 persistence paths. Locally the target starts and removes one loopback-only
 Docker container. In CI, the same target uses the `postgres-contract` service
@@ -60,6 +60,33 @@ for the dedicated local/service-container test endpoint and pair it with
 `API_TOOLKIT_TEST_POSTGRES=1`; the harness rejects remote hosts, non-test
 credentials, application databases, and unexpected connection parameters. Do
 not log the test DSN.
+
+## Real Redis Harness
+
+Run `GOWORK=off GOTOOLCHAIN=local make test-redis` to validate the supported
+cache, idempotency, and rate-limit adapters plus the generated reference-service
+Redis constructors against Redis 7. Miniredis remains the fast deterministic
+unit-test double; it is not equivalent to the `redis-contract` evidence that
+runs on every pull request and release tag. Run `make supported-adapter-check`
+separately to verify the PostgreSQL/Redis manifest and workflow wiring.
+
+The harness uses a cryptographically random key prefix and removes only that
+prefix; it never flushes a database. The suite covers real expiration, empty and
+oversized values, atomic concurrent reservations and Lua token release, rate
+limit concurrency, malformed state, key and tenant isolation, context
+cancellation, targeted connection interruption, reconnect, dependency failure,
+and the checked-in generated service paths. A full server restart is not
+performed inside a shared service-container job; targeted client interruption
+is the deterministic release gate, while broader Redis-down recovery remains in
+the generated failure-injection workflow.
+
+The target never reads `REDIS_URL` or application `REDIS_ADDR`. Set
+`API_TOOLKIT_TEST_REDIS_URL` only for the dedicated local/service-container
+database 15 endpoint and pair it with `API_TOOLKIT_TEST_REDIS=1`; the harness
+rejects remote hosts, credentials, other databases, and unexpected URL
+parameters. Do not log the test URL. Adapter dependency errors propagate; a
+cache miss remains distinct from an outage, and idempotency or rate-limit
+failures do not silently succeed.
 
 ## Review Checklist
 
