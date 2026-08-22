@@ -2349,7 +2349,7 @@ review.
 
 ---
 
-## [ ] TST-002: Validate every supported PostgreSQL adapter against real PostgreSQL
+## [x] TST-002: Validate every supported PostgreSQL adapter against real PostgreSQL
 
 **Priority:** P1
 **Owner:** Adapter team
@@ -2412,6 +2412,13 @@ GOWORK=off GOTOOLCHAIN=local make supported-adapter-check
 ```text
 test(postgres): validate supported adapters on real postgres
 ```
+
+**Completion evidence:** Protected implementation PR #106 merged as squash
+`695e2a3ce1f61d4205ec18ae362e2eef65301f22` on 2026-08-22. CodeQL,
+dependency review, both API-check and test matrices, the PostgreSQL
+service-container contract, fuzz, governance, lint, mutation, analysis, and
+PR-title validation passed before merge. Local `make finalize` and the
+Docker-backed real-service race suite passed before review.
 
 ---
 
