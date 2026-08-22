@@ -1641,7 +1641,7 @@ checks passed before merge.
 
 ---
 
-## [ ] API-002: Migrate root module internals to checked response writers
+## [x] API-002: Migrate root module internals to checked response writers
 
 **Priority:** P1
 **Owner:** Core API team
@@ -1698,6 +1698,10 @@ GOWORK=off GOTOOLCHAIN=local make test-race
 ```text
 refactor(httpx): use checked response writers internally
 ```
+
+**Completion evidence:** Protected PR #91 merged as squash
+`5e1e17f5417e99b25dca6c95510c30b80410ed3d` on 2026-08-22. All required
+checks passed before merge.
 
 ---
 
