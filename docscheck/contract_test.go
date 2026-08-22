@@ -1244,6 +1244,62 @@ func TestReleaseEvidenceTarget(t *testing.T) {
 	}
 }
 
+func TestReleaseTagConsistencyGate(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	makefile := readText(t, filepath.Join(repoRoot, "Makefile"))
+	workflow := readText(t, filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	gate := readText(t, filepath.Join(repoRoot, "scripts", "release_tag_consistency.sh"))
+	contract := readText(t, filepath.Join(repoRoot, "scripts", "release_tag_consistency_contract_test.sh"))
+
+	for _, required := range []string{
+		"release-tag-consistency-check",
+		"release-tag-consistency-contract",
+		"scripts/release_tag_consistency.sh",
+		"scripts/release_tag_consistency_contract_test.sh",
+	} {
+		if !strings.Contains(makefile, required) {
+			t.Fatalf("Makefile missing release tag consistency wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"API_BASE_REF: v4.0.1",
+		"Verify release tag and module coherence",
+		"make release-tag-consistency-check",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release workflow missing tag consistency wiring %q", required)
+		}
+	}
+	for _, required := range []string{
+		"contrib/$release_tag",
+		"must point at the same commit",
+		"merge-base --is-ancestor",
+		"github.com/aatuh/api-toolkit/v$release_major",
+		"github.com/aatuh/api-toolkit/contrib/v$release_major",
+		"CHANGELOG.md",
+		"docs/release-notes.md",
+		"docs/support-policy.md",
+		"API_BASE_REF=$api_base_ref is an outdated major",
+		"Release module policy: independent releases approved",
+	} {
+		if !strings.Contains(gate, required) {
+			t.Fatalf("release tag consistency gate missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"valid stable release",
+		"valid release candidate",
+		"mismatched root and contrib tags",
+		"wrong root module major",
+		"missing changelog release",
+		"outdated release workflow baseline",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("release tag consistency contract missing %q", required)
+		}
+	}
+}
+
 func TestReleaseReviewChecklistDiscoverability(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	readme := readText(t, filepath.Join(repoRoot, "README.md"))

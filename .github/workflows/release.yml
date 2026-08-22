@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  API_BASE_REF: v4.0.0
+  API_BASE_REF: v4.0.1
   GOTOOLCHAIN: local
   COSIGN_CERTIFICATE_IDENTITY_REGEXP: '^https://github.com/aatuh/api-toolkit/\.github/workflows/release\.yml@refs/tags/v.*$'
   COSIGN_CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
@@ -71,6 +71,9 @@ jobs:
             echo "Unsupported release tag $tag; use vX.Y.Z or vX.Y.0-rc.N." >&2
             exit 2
           fi
+
+      - name: Verify release tag and module coherence
+        run: RELEASE_TAG="$GITHUB_REF_NAME" make release-tag-consistency-check
 
       - name: Generate clean publication evidence
         run: RELEASE_TAG="$GITHUB_REF_NAME" make release-evidence

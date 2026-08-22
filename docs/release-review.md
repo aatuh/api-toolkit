@@ -7,8 +7,10 @@ Use this as the short reviewer path before publishing a release.
 
 - Run the command path in `docs/release-runbook.md`; `make finalize` is an
   implementation gate, not release evidence.
-- For a clean local preflight, create the immutable release tag at `HEAD` and
-  run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`.
+- For a clean local preflight, create the matching immutable
+  `contrib/vX.Y.Z` tag before the root `vX.Y.Z` tag at `HEAD`, run
+  `RELEASE_TAG=vX.Y.Z GOTOOLCHAIN=local make release-tag-consistency-check`,
+  then run `RELEASE_TAG=vX.Y.Z API_BASE_REF=v4.0.1 GOTOOLCHAIN=local make release-evidence`.
   The tag-driven GitHub `release` workflow is the trusted publication evidence
   producer for v4 patch and minor releases.
 - A local dirty-tree audit may use
@@ -26,6 +28,10 @@ Use this as the short reviewer path before publishing a release.
   tool versions, `vulnerability_evidence`, `contrib_drift`,
   `dependency_license_evidence`, `full_profile_scaffold_evidence`, and artifact
   tier status.
+- Confirm the tag-coherence gate saw matching root and contrib tags at the same
+  default-branch commit, module-major paths that match the tag, and release
+  entries in `CHANGELOG.md`, `docs/release-notes.md`, and
+  `docs/support-policy.md`.
 - Open `dependency-licenses-root.tsv` and `dependency-licenses-contrib.tsv`
   from the draft release. Resolve every `needs_review` or `missing_from_sbom`
   row under `docs/license-policy.md`; the reports preserve evidence gaps and do
