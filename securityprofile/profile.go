@@ -100,6 +100,8 @@ func WithTimeout(d time.Duration) Option {
 // underlying hard-timeout middleware buffers responses and is not appropriate
 // for streaming, websocket upgrades, or handlers that need optional
 // http.ResponseWriter interfaces.
+// Deprecated: use WithTimeout globally, then apply timeout.HardTimeout.WrapRoute
+// only to declared finite routes.
 func WithHardTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.timeout = d

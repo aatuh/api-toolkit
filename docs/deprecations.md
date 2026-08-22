@@ -28,6 +28,7 @@ Source comments should use Go's `Deprecated:` convention so pkg.go.dev and
 | Symbol | Since | Replacement | Removal earliest major | Migration snippet | Release note |
 | --- | --- | --- | --- | --- | --- |
 | `middleware/timeout.New` | 2026-06-07 | `middleware/timeout.NewPropagator` | v4 | `timeout.New(opts)` -> `timeout.NewPropagator(opts)` when the route only needs cooperative context deadlines. | `docs/release-notes.md` 2026-06-07 Migration |
+| `middleware/timeout.HardTimeout.Middleware` | 2026-08-22 | `middleware/timeout.HardTimeout.WrapRoute` | v5 | `hard.Middleware()` -> `hard.WrapRoute(finiteHandler, timeout.RouteCapabilities{})` after retaining `NewPropagator` as the global deadline middleware. | `docs/release-notes.md` 2026-08-22 Timeout routing |
 | `middleware/trace.Use` | 2026-06-07 | `middleware/trace.New(opts).Middleware()` | v4 | `trace.Use(opts)` -> `mw, _ := trace.New(opts); mw.Middleware()` for explicit middleware construction. | `docs/release-notes.md` 2026-06-07 Migration |
 | `ports.RateLimiter` | 2026-07-11 | `middleware/ratelimit.Limiter` | v4 | `ports.RateLimiter` -> `ratelimit.Limiter` | `docs/release-notes.md` 2026-07-11 Migration |
 | `ports.IdempotencyStore` | 2026-07-11 | `middleware/idempotency.Store` | v4 | `ports.IdempotencyStore` -> `idempotency.Store` | `docs/release-notes.md` 2026-07-11 Migration |

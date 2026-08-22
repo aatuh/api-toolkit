@@ -134,7 +134,7 @@ in `docs/cookbook.md`; scaffold-specific setup and operations live in
 
 The toolkit provides concrete controls for resource limits:
 
-- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines; `securityprofile.WithHardTimeout` and `middleware/timeout.NewHard` add a hard wall-clock response cutoff that writes a 504 Problem Details timeout response and discards late handler writes
+- Timeouts: `securityprofile.WithTimeout` and `RouteOverride.Timeout` apply cooperative request context deadlines; `middleware/timeout.NewHard` plus `HardTimeout.WrapRoute` adds a hard wall-clock response cutoff only to a declared finite route, writes a 504 Problem Details timeout response, and discards late handler writes
 - Hard-timeout capture limits: `securityprofile.WithHardTimeoutMaxCaptureBytes`, `RouteOverride.HardTimeoutMaxCaptureBytes`, and `middleware/timeout.Options.MaxCaptureBytes` bound buffered non-streaming responses
 - OpenAPI response validation: `openapi.ResponseValidationOptions.ShouldValidate`
   excludes streaming, upgrade, or large-download routes from response buffering
@@ -150,24 +150,24 @@ changing route body limits, query limits, multipart bounds, idempotency replay
 capture sizes, or hard-timeout capture sizes.
 
 `securityprofile.WithTimeout` does not force a timeout response or stop handlers
-that ignore `ctx.Done()`. Use `securityprofile.WithHardTimeout`,
-`middleware/timeout.NewHard`, and server read/write deadlines when you need a
-hard wall-clock response limit. Hard timeout wrappers cannot stop CPU work in a
-handler that ignores cancellation, but they do prevent late response writes.
-They buffer responses up to a configured maximum capture size and return a
-Problem Details error instead of silently truncating oversized responses. Do not
-apply hard timeout globally to streaming responses, server-sent events,
-websocket upgrades, or handlers that require optional `http.ResponseWriter`
-interfaces such as `http.Flusher` or `http.Hijacker`. Tune capture size globally
-with `securityprofile.WithHardTimeoutMaxCaptureBytes` or per route with
-`RouteOverride.HardTimeoutMaxCaptureBytes` for large non-streaming responses;
-these knobs do not make streaming routes safe. Use
-`securityprofile.StreamingRouteOverride` for streaming, SSE, websocket, or
-large-download routes that need to preserve optional writer interfaces and avoid
-timeout response buffering. Handler panics inside hard timeout are contained in
-the child goroutine. Before the timeout response wins, the middleware returns a
+that ignore `ctx.Done()`. Apply it globally. For a finite route that needs a
+hard wall-clock response limit, use `middleware/timeout.NewHard` and
+`HardTimeout.WrapRoute`; the latter rejects declared streaming, SSE, websocket,
+large-download, `http.Flusher`, `http.Hijacker`, `http.Pusher`, and
+`io.ReaderFrom` requirements that a buffered `http.ResponseWriter` cannot
+preserve. `securityprofile.WithHardTimeout` remains a
+deprecated v4 compatibility option, not the recommended global configuration.
+Hard timeout wrappers cannot stop CPU work in a handler that ignores
+cancellation, but they do prevent late response writes. They start one handler
+goroutine and buffer responses up to a configured maximum capture size, then
+return a Problem Details error instead of silently truncating oversized
+responses. Handler panics inside hard timeout are contained in the child
+goroutine. Before the timeout response wins, the middleware returns a
 deterministic 500 Problem Details response; after the timeout response wins,
-late panics are dropped with late writes.
+late panics are dropped with late writes. Use
+`OnHandlerContinuesAfterTimeout` for a bounded signal that work was still
+running when that timeout response won. The capture-size settings remain useful
+for large non-streaming responses but do not make streaming routes safe.
 
 `middleware/timeout.Options.EventHooks` exposes bounded operator
 metadata for timeout, panic, and capture-overflow outcomes. The event contract

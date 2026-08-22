@@ -28,12 +28,15 @@ Context ownership follows Go HTTP conventions:
 ## Timeout Middleware
 
 `middleware/timeout.NewPropagator` adds a cooperative deadline and relies on
-handlers to observe `ctx.Done()`. `middleware/timeout.NewHard` also buffers
-finite responses and writes a timeout Problem Details response, but it cannot
-stop CPU work that ignores cancellation.
+handlers to observe `ctx.Done()`. Apply it globally. For a finite route that
+needs a hard response cutoff, construct `middleware/timeout.NewHard` and use
+`HardTimeout.WrapRoute` with declared `RouteCapabilities`; it buffers the
+response and writes a timeout Problem Details response, but it cannot stop CPU
+work that ignores cancellation. `OnHandlerContinuesAfterTimeout` records the
+bounded method/status event when the timeout response wins while work remains.
 
-Do not apply hard-timeout buffering globally to streaming, SSE, websocket, or
-large-download routes.
+Do not apply hard-timeout buffering globally to streaming, SSE, websocket,
+large-download, or optional-response-writer routes.
 
 ## Review Checklist
 

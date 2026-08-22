@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,12 +39,68 @@ var ErrHardTimeoutCaptureLimitExceeded = errors.New("hard timeout response captu
 
 // HardTimeout applies a per-request context deadline and sends a timeout
 // response when the deadline expires before the handler returns. Handler writes
-// after the deadline are discarded. Responses are buffered up to
-// MaxCaptureBytes, which defaults to 1 MiB when unset.
+// after the deadline are discarded. Each request starts a child handler
+// goroutine and buffers up to MaxCaptureBytes of response data, which defaults
+// to 1 MiB when unset. Use WrapRoute only for finite routes that do not need
+// optional http.ResponseWriter capabilities.
 type HardTimeout struct {
 	Timeout         time.Duration
 	MaxCaptureBytes int64
 	EventHooks      *HardTimeoutEventHooks
+}
+
+// RouteCapabilities declares response behavior that makes hard-timeout
+// buffering unsafe for a route.
+type RouteCapabilities struct {
+	// Streaming reports that the route writes a streaming response.
+	Streaming bool
+	// ServerSentEvents reports that the route writes a server-sent events response.
+	ServerSentEvents bool
+	// WebSocketUpgrade reports that the route upgrades the connection to WebSocket.
+	WebSocketUpgrade bool
+	// LargeDownload reports that the route sends a response too large to buffer safely.
+	LargeDownload bool
+	// Flusher reports that the route requires http.Flusher.
+	Flusher bool
+	// Hijacker reports that the route requires http.Hijacker.
+	Hijacker bool
+	// Pusher reports that the route requires http.Pusher.
+	Pusher bool
+	// ReaderFrom reports that the route requires io.ReaderFrom.
+	ReaderFrom bool
+}
+
+// ValidateHardTimeout rejects capabilities that response buffering cannot preserve.
+func (c RouteCapabilities) ValidateHardTimeout() error {
+	var unsupported []string
+	if c.Streaming {
+		unsupported = append(unsupported, "streaming")
+	}
+	if c.ServerSentEvents {
+		unsupported = append(unsupported, "server-sent events")
+	}
+	if c.WebSocketUpgrade {
+		unsupported = append(unsupported, "websocket upgrade")
+	}
+	if c.LargeDownload {
+		unsupported = append(unsupported, "large download")
+	}
+	if c.Flusher {
+		unsupported = append(unsupported, "http.Flusher")
+	}
+	if c.Hijacker {
+		unsupported = append(unsupported, "http.Hijacker")
+	}
+	if c.Pusher {
+		unsupported = append(unsupported, "http.Pusher")
+	}
+	if c.ReaderFrom {
+		unsupported = append(unsupported, "io.ReaderFrom")
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	return errors.New("hard timeout cannot wrap a route requiring " + strings.Join(unsupported, ", "))
 }
 
 // Propagator applies a per-request context deadline without writing timeout
@@ -93,6 +150,9 @@ type HardTimeoutEventHooks struct {
 	// OnEvent receives bounded metadata for timeout, panic, and
 	// capture-overflow outcomes.
 	OnEvent func(HardTimeoutEvent)
+	// OnHandlerContinuesAfterTimeout observes a handler that was still running
+	// when a hard timeout response won. Keep the callback non-blocking.
+	OnHandlerContinuesAfterTimeout func(HardTimeoutEvent)
 }
 
 // NewPropagator constructs a cooperative request-deadline propagator with the
@@ -149,11 +209,22 @@ func (m *Propagator) Handler(next http.Handler) http.Handler {
 }
 
 // Middleware implements ports.Middleware via Handler adapter.
+// Deprecated: Hard timeout buffers every response and drops optional response
+// writer interfaces. Apply WrapRoute only to declared finite routes instead.
 func (m *HardTimeout) Middleware() func(http.Handler) http.Handler {
 	if m == nil {
 		return func(next http.Handler) http.Handler { return next }
 	}
 	return func(next http.Handler) http.Handler { return m.Handler(next) }
+}
+
+// WrapRoute applies a hard timeout only after validating the route's declared
+// response capabilities. Use it for finite JSON or similarly bounded routes.
+func (m *HardTimeout) WrapRoute(next http.Handler, capabilities RouteCapabilities) (http.Handler, error) {
+	if err := capabilities.ValidateHardTimeout(); err != nil {
+		return nil, err
+	}
+	return m.Handler(next), nil
 }
 
 // Handler wraps the next handler with a context deadline and a hard timeout
@@ -215,6 +286,7 @@ func (m *HardTimeout) Handler(next http.Handler) http.Handler {
 			if err := httpx.WriteProblemChecked(w, defaultHardTimeoutStatus, defaultHardTimeoutProblem); err != nil {
 				return
 			}
+			m.emitHandlerContinuesAfterTimeout(r, start)
 		}
 	})
 }
@@ -234,6 +306,25 @@ func (m *HardTimeout) emitHardTimeoutEvent(r *http.Request, start time.Time, out
 	if m == nil || m.EventHooks == nil || m.EventHooks.OnEvent == nil {
 		return
 	}
+	event := m.newHardTimeoutEvent(r, start, outcome, status)
+	defer func() {
+		_ = recover()
+	}()
+	m.EventHooks.OnEvent(event)
+}
+
+func (m *HardTimeout) emitHandlerContinuesAfterTimeout(r *http.Request, start time.Time) {
+	if m == nil || m.EventHooks == nil || m.EventHooks.OnHandlerContinuesAfterTimeout == nil {
+		return
+	}
+	event := m.newHardTimeoutEvent(r, start, HardTimeoutOutcomeTimeout, defaultHardTimeoutStatus)
+	defer func() {
+		_ = recover()
+	}()
+	m.EventHooks.OnHandlerContinuesAfterTimeout(event)
+}
+
+func (m *HardTimeout) newHardTimeoutEvent(r *http.Request, start time.Time, outcome HardTimeoutOutcome, status int) HardTimeoutEvent {
 	event := HardTimeoutEvent{
 		Outcome:      outcome,
 		Method:       hardTimeoutMethodLabel(r),
@@ -250,10 +341,7 @@ func (m *HardTimeout) emitHardTimeoutEvent(r *http.Request, start time.Time, out
 	case HardTimeoutOutcomeCaptureOverflow:
 		event.CaptureOverflow = true
 	}
-	defer func() {
-		_ = recover()
-	}()
-	m.EventHooks.OnEvent(event)
+	return event
 }
 
 func hardTimeoutMethodLabel(r *http.Request) string {

@@ -1322,8 +1322,9 @@ Stability tier: `stable`
 | `HardTimeout.EventHooks` | field | v3 compatibility surface | active |
 | `HardTimeout.Handler` | method | v3 compatibility surface | active |
 | `HardTimeout.MaxCaptureBytes` | field | v3 compatibility surface | active |
-| `HardTimeout.Middleware` | method | v3 compatibility surface | active |
+| `HardTimeout.Middleware` | method | v3 compatibility surface | deprecated |
 | `HardTimeout.Timeout` | field | v3 compatibility surface | active |
+| `HardTimeout.WrapRoute` | method | v3 compatibility surface | active |
 | `HardTimeoutEvent` | type | v3 compatibility surface | active |
 | `HardTimeoutEvent.CaptureLimit` | field | v3 compatibility surface | active |
 | `HardTimeoutEvent.CaptureOverflow` | field | v3 compatibility surface | active |
@@ -1336,6 +1337,7 @@ Stability tier: `stable`
 | `HardTimeoutEvent.Timeout` | field | v3 compatibility surface | active |
 | `HardTimeoutEventHooks` | type | v3 compatibility surface | active |
 | `HardTimeoutEventHooks.OnEvent` | field | v3 compatibility surface | active |
+| `HardTimeoutEventHooks.OnHandlerContinuesAfterTimeout` | field | v3 compatibility surface | active |
 | `HardTimeoutOutcome` | type | v3 compatibility surface | active |
 | `HardTimeoutOutcomeCaptureOverflow` | const | v3 compatibility surface | active |
 | `HardTimeoutOutcomePanic` | const | v3 compatibility surface | active |
@@ -1352,6 +1354,16 @@ Stability tier: `stable`
 | `Propagator.Handler` | method | v3 compatibility surface | active |
 | `Propagator.Middleware` | method | v3 compatibility surface | active |
 | `Propagator.Timeout` | field | v3 compatibility surface | active |
+| `RouteCapabilities` | type | v3 compatibility surface | active |
+| `RouteCapabilities.Flusher` | field | v3 compatibility surface | active |
+| `RouteCapabilities.Hijacker` | field | v3 compatibility surface | active |
+| `RouteCapabilities.LargeDownload` | field | v3 compatibility surface | active |
+| `RouteCapabilities.Pusher` | field | v3 compatibility surface | active |
+| `RouteCapabilities.ReaderFrom` | field | v3 compatibility surface | active |
+| `RouteCapabilities.ServerSentEvents` | field | v3 compatibility surface | active |
+| `RouteCapabilities.Streaming` | field | v3 compatibility surface | active |
+| `RouteCapabilities.ValidateHardTimeout` | method | v3 compatibility surface | active |
+| `RouteCapabilities.WebSocketUpgrade` | field | v3 compatibility surface | active |
 
 ## `github.com/aatuh/api-toolkit/v4/middleware/trace`
 
@@ -1728,7 +1740,7 @@ Stability tier: `stable`
 | `WithAuthCheck` | func | v3 compatibility surface | active |
 | `WithDevBypassHeader` | func | v3 compatibility surface | active |
 | `WithErrorWriter` | func | v3 compatibility surface | active |
-| `WithHardTimeout` | func | v3 compatibility surface | active |
+| `WithHardTimeout` | func | v3 compatibility surface | deprecated |
 | `WithHardTimeoutMaxCaptureBytes` | func | v3 compatibility surface | active |
 | `WithMaxBodyBytes` | func | v3 compatibility surface | active |
 | `WithQueryLimits` | func | v3 compatibility surface | active |
