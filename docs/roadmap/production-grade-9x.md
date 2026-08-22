@@ -2126,7 +2126,7 @@ remains unchanged for v4 compatibility.
 
 ---
 
-## [ ] API-008: Improve rate-limit decisions and bound cleanup work
+## [x] API-008: Improve rate-limit decisions and bound cleanup work
 
 **Priority:** P1
 **Owner:** Runtime API team
@@ -2199,6 +2199,13 @@ go test ./middleware/ratelimit -run '^$' -bench Benchmark -benchmem
 ```text
 feat(ratelimit): improve decisions and bounded cleanup
 ```
+
+**Completion evidence:** Protected PR #100 merged as squash
+`ac0427e43dbe54941185de13c41f6869f90fe5b3` on 2026-08-22. CodeQL,
+dependency review, both API-check and test matrices, fuzz, governance, lint,
+mutation, and PR-title validation passed before merge. Local `make finalize`,
+targeted repeated race/decision/cleanup checks, and bounded-cleanup benchmarks
+also passed before review.
 
 ---
 
