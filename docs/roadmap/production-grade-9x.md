@@ -2431,7 +2431,7 @@ Docker-backed real-service race suite passed before review.
 
 ---
 
-## [pr] TST-003: Validate supported Redis adapters against real Redis
+## [x] TST-003: Validate supported Redis adapters against real Redis
 
 **Priority:** P1
 **Owner:** Adapter team
@@ -2483,6 +2483,19 @@ GOWORK=off GOTOOLCHAIN=local make supported-adapter-check
 ```text
 test(redis): validate supported adapters on real redis
 ```
+
+**Completion evidence:** Protected implementation PR #109 merged as squash
+`c94cadaf0865da371b23f7cda9e2def65d83c99b` on 2026-08-22. CodeQL,
+dependency review, both API-check and test matrices, the PostgreSQL and Redis
+service contracts, fuzz, governance, lint, mutation, analysis, and PR-title
+validation passed before merge. Strict `master` protection now requires both
+`postgres-contract` and `redis-contract`, bound to the GitHub Actions app.
+Local `make finalize`, Docker-backed `make test-redis`, its real-service race
+run, the supported-adapter evidence gate, and the actions audit passed before
+review. The deterministic contract terminates a live Redis client connection
+and proves reconnect; broader Redis-down/server-restart behavior remains in the
+generated failure-injection workflow as allowed by the ticket's "where
+practical" scope.
 
 ---
 
