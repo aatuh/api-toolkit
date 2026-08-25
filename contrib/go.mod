@@ -9,7 +9,7 @@ require (
 	github.com/aatuh/envvar/v2 v2.1.5
 	github.com/aatuh/validate/v3 v3.0.7
 	github.com/alicebob/miniredis/v2 v2.38.0
-	github.com/cedar-policy/cedar-go v1.4.0
+	github.com/cedar-policy/cedar-go v1.8.0
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/getkin/kin-openapi v0.144.0
 	github.com/go-chi/chi/v5 v5.3.1
